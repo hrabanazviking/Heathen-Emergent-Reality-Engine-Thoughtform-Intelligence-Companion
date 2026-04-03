@@ -1,3 +1,5 @@
+![https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/heritic8438484k.jpg](https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/heritic8438484k.jpg)
+
 # H.E.R.E.T.I.C.  
 **Heathen Emergent Reality Engine Thoughtform Intelligence Companion**
 
