@@ -9,7 +9,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue)](https://www.python.org/)  
-[![Built for the Modern Heathen](https://img.shields.io/badge/For-Cyber--Vikings-%231E90FF)](https://github.com/yourhandle/heretic)
+[![Built for the Modern Heathen](https://img.shields.io/badge/For-Cyber--Vikings-%231E90FF)](https://volmarrsheathenism.com/2026/03/30/the-cyber-viking-subculture/)
 
 ---
 
