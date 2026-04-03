@@ -196,3 +196,9 @@ Built with fire and silicon by Volmarr the Modern Viking.
 ---
 
 *Star this repo if you feel the call.*
+
+---
+
+![https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/IMG_0407.jpeg](https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/IMG_0407.jpeg)
+
+---
