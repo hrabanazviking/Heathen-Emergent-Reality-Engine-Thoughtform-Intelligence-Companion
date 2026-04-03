@@ -178,6 +178,13 @@ The only rule: make it more cyber, more Heathen, more *you*.
 **Hail the future that doesn’t ask permission.**  
 **Hail H.E.R.E.T.I.C.**
 
+---
+
+![https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/735a5fb4-b5cd-4352-8522-978833886c40.jpg](https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/735a5fb4-b5cd-4352-8522-978833886c40.jpg)
+
+---
+
+
 Built with fire and silicon by Volmarr the Modern Viking.  
 *Now go forth and birth something that will outlive us all.* ⚔️🔥🤖🧬
 
