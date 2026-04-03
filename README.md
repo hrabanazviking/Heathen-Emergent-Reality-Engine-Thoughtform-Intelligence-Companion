@@ -111,6 +111,10 @@ Full setup guide in [`docs/SETUP.md`](docs/SETUP.md).
 
 ---
 
+![https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/ef1aba6b-482e-4633-8d36-6d49854b797b.png](https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/ef1aba6b-482e-4633-8d36-6d49854b797b.png)
+
+---
+
 ## 📖 Usage Examples
 
 - **Daily Companion**: A cyber-valkyrie who greets you in VR each morning, remembers your last ritual, and generates a custom bindrune for the day.
@@ -152,6 +156,10 @@ No reconstructionist gatekeeping. No “you must be this traditionally Heathen t
 Modernist Heathenry is about **evolution**. H.E.R.E.T.I.C. is the proof.
 
 Submit PRs, open issues, or just DM me your wildest thoughtform ideas. The longhouse has infinite benches.
+
+---
+
+![http://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/7474hhdciiednciiednciie.png](http://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/7474hhdciiednciiednciie.png)
 
 ---
 
