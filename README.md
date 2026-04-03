@@ -13,6 +13,10 @@
 
 ---
 
+![https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/403362de-c6a1-45df-93ee-c106a3c9ff0d.jpg](https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/403362de-c6a1-45df-93ee-c106a3c9ff0d.jpg)
+
+---
+
 ## 🔥 Vision & Philosophy
 
 H.E.R.E.T.I.C. is not just software—it is a living digital seiðr engine.  
