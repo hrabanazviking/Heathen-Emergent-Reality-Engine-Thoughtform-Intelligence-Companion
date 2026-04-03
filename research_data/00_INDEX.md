@@ -56,6 +56,7 @@
 | 38 | `38_volmarr_character_model.md` | User modeling architecture, WyrdMatrix from his side, absence response system, mood inference, relationship phases |
 | 39 | `39_multimodal_integration.md` | STT pipeline, Norse ASR corrections, rune card generation (Pillow + diffusion), vision oracle, avatar system |
 | 40 | `40_complete_viking_ai_stack_roadmap.md` | Full stack synthesis: all 5 projects, dependency map, build priority matrix, architecture decisions, master plan |
+| 41 | `massive_code_ideas/00_INDEX.md` | Massive implementation ideation pack with 10 focused files: runtime, memory, retrieval, agents, safety, product, evals, MLOps, datasets, roadmap |
 
 ---
 
