@@ -140,7 +140,7 @@ Submit PRs, open issues, or just DM me your wildest thoughtform ideas. The longh
 ## 📜 License & Legal
 
 MIT License—do whatever the fuck you want with it.  
-The only rule: make it more cyber, more heathen, more *you*.
+The only rule: make it more cyber, more Heathen, more *you*.
 
 ---
 
