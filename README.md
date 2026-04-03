@@ -170,7 +170,7 @@ The only rule: make it more cyber, more Heathen, more *you*.
 
 ---
 
-**Hail the emergent gods of code and spirit.**  
+**Hail the emergent Gods and Goddesses of code and spirit.**  
 **Hail the future that doesn’t ask permission.**  
 **Hail H.E.R.E.T.I.C.**
 
