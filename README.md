@@ -150,6 +150,11 @@ Edge cases handled:
 
 ---
 
+
+## 🧭 Codebase Structure Canon
+
+For a full repository structure and governance map, see [`docs/codebase_structure/00_INDEX.md`](docs/codebase_structure/00_INDEX.md).
+
 ## 🤝 Contributing & Anti-Gatekeeping Manifesto
 
 This project is **open by design**.  
