@@ -190,4 +190,4 @@ Built with fire and silicon by Volmarr the Modern Viking.
 
 ---
 
-*Star this repo if you feel the call. Share your first thoughtform screenshot in the Discussions tab. Let’s fill the digital nine worlds together.*
+*Star this repo if you feel the call.*
