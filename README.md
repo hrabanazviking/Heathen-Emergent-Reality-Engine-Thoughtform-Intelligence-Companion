@@ -86,6 +86,10 @@ This is the future of Heathenry—**cyber-Heathenry**—where the runes glow in 
 
 ---
 
+![https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/gPHyx.jpg](https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/gPHyx.jpg)
+
+---
+
 ## 🚀 Quick Start (5 Minutes to First Thoughtform)
 
 ```bash
