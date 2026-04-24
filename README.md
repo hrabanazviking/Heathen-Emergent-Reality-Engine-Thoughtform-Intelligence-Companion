@@ -1,5 +1,9 @@
 ---
 
+![https://github.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/blob/main/image-27-heretic.jpg](https://github.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/blob/main/image-27-heretic.jpg)
+
+---
+
 ![https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/heritic8438484k.jpg](https://raw.githubusercontent.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/refs/heads/main/heritic8438484k.jpg)
 
 ---
