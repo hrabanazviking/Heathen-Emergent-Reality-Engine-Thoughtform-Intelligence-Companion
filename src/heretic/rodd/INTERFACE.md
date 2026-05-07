@@ -1,6 +1,6 @@
 # Rödd Module Interface
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-07 | 2026-05-07 drift corrective pass — Rúnhild Svartdóttir, resolving N-2 (language_id semantics) and N-3 (voice WAV path semantics). Config Keys block updated: `speed` annotated removed; `voice` WAV-path semantics documented in prose; `language_id` multilingual scope and exclusion logic documented. New section §Voice Field Semantics added.
 **Scope:** L2 Rödd — the voice layer Python module (`src/heretic/rodd/`)
 **Owner:** Architect (Rúnhild Svartdóttir)
 **Derives from:** `docs/architecture/LAYER_INTERFACES.md §L2 Rödd`
@@ -110,6 +110,11 @@ represented as structured log messages. The Vébond UI event integration ships i
 
 Full reference: `docs/architecture/LAYER_INTERFACES.md §L2 Rödd config keys`.
 All defaults in `RoddTtsConfig` and `RoddSttConfig` match the reference block exactly.
+Canonical type definitions live in `src/heretic/rodd/config_model.py`.
+
+> **Corrective note — 2026-05-07 (N-2, N-3 — Rúnhild Svartdóttir):**
+> `speed` is removed from this block. `voice_id` and `language_id` now carry full
+> semantic prose — see §Voice Field Semantics and §Language Field Semantics below.
 
 ```yaml
 rodd:
@@ -117,20 +122,33 @@ rodd:
     enabled: true
     engine: chatterbox            # chatterbox | openai_compat (future)
     endpoint: "http://100.66.178.105:7851"
-    voice_id: "default"
-    voice_prompt_path: null       # path relative to heretic data dir, or null
+
+    # Voice field — see §Voice Field Semantics below for full prose
+    voice_id: "default"           # "default" = omit from request; any other value = WAV path
+    voice_prompt_path: null       # alternative path field; same WAV-path semantics; null = omit
+
+    # Model and language — see §Language Field Semantics below
     model: turbo                  # turbo | tts | multilingual
-    language_id: en
-    exaggeration: 0.5
-    cfg_weight: 1.0
-    temperature: 0.8
-    top_p: 0.95
-    repetition_penalty: 1.2
-    device: default
-    speed: 1.0
-    request_timeout_seconds: 30
-    chunk_min_chars: 80           # min chars before sentence-boundary flush
+    language_id: en               # ISO code; ONLY applied when model is "multilingual"
+
+    exaggeration: 0.5             # float 0.0–2.0; emotional exaggeration factor
+    cfg_weight: 1.0               # float 0.0–2.0; CFG dual-pass weight (tts model only)
+    temperature: 0.8              # float 0.05–2.0; sampling temperature
+    top_p: 0.95                   # float 0.0–1.0; nucleus sampling cutoff
+    repetition_penalty: 1.2      # float 0.1–5.0; repetition penalty
+    device: default               # OS audio device name or "default"
+    request_timeout_seconds: 30   # int; HTTP timeout for /v1/audio/speech
+    chunk_min_chars: 80           # int >= 1; min chars before sentence-boundary flush
     sentence_terminators: [". ", "! ", "? ", "\n\n"]
+
+    # speed: 1.0
+    # REMOVED 2026-05-07 (G-1, N-3 — Rúnhild Svartdóttir):
+    # The live ChatterBox API has no "speed" field. This key was a pre-probe assumption.
+    # It is stored in RoddTtsConfig for backward config compatibility but is never sent
+    # to ChatterBox. A debug log is emitted if speed != 1.0 at synthesis time.
+    # Do not set this field; it has no effect on ChatterBox output.
+    # Reference: DATA_FLOW.md §4.6.1, chatterbox.py _build_request_body.
+
   stt:
     enabled: true
     engine: whisper_cpp
@@ -140,6 +158,79 @@ rodd:
     language: en
     load_strategy: lazy           # lazy | eager
 ```
+
+---
+
+## Voice Field Semantics
+
+> Resolves audit finding N-3 (2026-05-07).
+
+The `voice_id` config key (and its alias `voice_prompt_path`) controls the `voice` field
+in ChatterBox's `/v1/audio/speech` request body. The semantics are specific and must be
+understood by any operator configuring voice cloning.
+
+**`"default"` (or empty string, or `null`):**
+The `voice` field is **omitted entirely** from the ChatterBox request body. ChatterBox
+responds with its own built-in default voice. This is the v0.2 shipped behaviour.
+
+**Any other value:**
+The value is treated as a **WAV file path** for voice cloning — not a symbolic voice
+identifier or a model name. The path undergoes the following resolution at synthesis time
+(not at config load):
+- `~` is expanded to the user home directory.
+- Relative paths are resolved against the current working directory at synthesis time.
+  Operators should prefer paths relative to the project root, as the process working
+  directory is the project root by convention.
+- The file must exist when synthesis runs. Config load does not validate path existence —
+  this allows operators to configure a voice path before the WAV file is in place, and
+  swap voice files without restarting the process.
+
+**Model constraint for voice cloning:**
+For the `turbo` model, the voice prompt WAV must be **at least 5 seconds** in duration.
+ChatterBox enforces this on the server side; shorter files will result in a synthesis
+error (ChatterboxApiError). The `tts` and `multilingual` models have a lower minimum;
+consult the ChatterBox documentation for those models.
+
+**Implementation reference:** `src/heretic/rodd/chatterbox.py`, method `_resolve_voice_path`.
+
+---
+
+## Language Field Semantics
+
+> Resolves audit finding N-2 (2026-05-07).
+
+The `language_id` config key controls whether the `language_id` field appears in the
+ChatterBox `/v1/audio/speech` request body. Its behavior depends on the configured model.
+
+**When `model` is `turbo` or `tts`:**
+`language_id` is **excluded from the request body**, regardless of the configured value.
+Both `turbo` and `tts` are English-only models. Sending `language_id` to these models
+would be a no-op at best and may produce an API warning. The implementation detects this
+by checking whether the effective `language_id` value equals `"en"` (the default) or is
+empty — if so, the field is omitted. In practice, with `turbo` or `tts`, setting any
+value for `language_id` in `heretic.yaml` has no effect on the synthesised audio.
+
+**When `model` is `multilingual`:**
+`language_id` IS included in the request body when its value is non-empty and not equal
+to `"en"`. The exclusion of `"en"` is intentional: ChatterBox's multilingual model
+defaults to English, so sending `language_id: "en"` is redundant. When set to any other
+ISO code, the field is included and ChatterBox synthesises in that language.
+
+Supported ISO 639-1 codes (ChatterBox multilingual model, probed 2026-05-07):
+`en`, `de`, `es`, `fr`, `it`, `pt`, `pl`, `nl`, `ru`, `ja`, `ko`, `zh`, `ar`, `tr`,
+`id`, `vi`, `th`, `cs`, `sv`, `da`, `fi`, `el`, `ro` (23 languages).
+
+**Default behaviour summary:**
+
+| Configured value | Model | Field in request body |
+|---|---|---|
+| `"en"` (default) | `turbo` or `tts` | Omitted |
+| `"en"` | `multilingual` | Omitted (ChatterBox default) |
+| `"de"` (any non-"en") | `turbo` or `tts` | Omitted (model is English-only) |
+| `"de"` (any non-"en") | `multilingual` | Included — `"language_id": "de"` |
+
+**Implementation reference:** `src/heretic/rodd/chatterbox.py`, method `_build_request_body`,
+the `effective_language` block at approximately line 254.
 
 ---
 

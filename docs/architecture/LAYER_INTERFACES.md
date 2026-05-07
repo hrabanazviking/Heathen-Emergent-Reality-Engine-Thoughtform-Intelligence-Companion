@@ -1,6 +1,6 @@
 # HERETIC — Layer Interfaces
 
-**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1; X-3 corrective pass: capability probe conservatism for `?streaming` and `?vision_in` documented in §L1 Bifröst)
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1; X-3 corrective pass: capability probe conservatism for `?streaming` and `?vision_in` documented in §L1 Bifröst) | 2026-05-07 drift corrective pass — Rúnhild Svartdóttir, resolving G-1 (LAYER_INTERFACES.md §L2 tts block stale), N-2 (language_id semantics), N-3 (voice WAV path semantics). §L2 Rödd config block expanded from 6-field pre-probe stub to full 17-field schema matching `src/heretic/rodd/config_model.py RoddTtsConfig`; `speed` annotated removed; `voice_id` WAV-path semantics documented; `language_id` multilingual scope documented. See also `src/heretic/rodd/INTERFACE.md` (same corrective pass).
 **Scope:** Per-layer and per-sense contracts: inputs, outputs, owns, never-controls, error model, config keys, event types, capability flags, and SLO tier.
 **Authority:** Derives from `ARCHITECTURE.md` and `DOMAIN_MAP.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -178,6 +178,15 @@ What the agent says, conversation routing, MCP tools, screen capture data.
 - `VOICE_PERMISSION_DENIED` — OS denied mic access; emit error; do not retry until user grants permission.
 
 ### Config keys
+
+> **Corrective note — 2026-05-07 (G-1, N-2, N-3 — Rúnhild Svartdóttir):**
+> The `tts:` block below was expanded from a 6-field pre-probe stub to the full 17-field schema
+> as implemented in `src/heretic/rodd/config_model.py`. The `speed: 1.0` field has been removed
+> (see annotation below). The canonical 17-field type definitions live in `config_model.py`;
+> this YAML block is the operator-facing reference. All defaults match `RoddTtsConfig` defaults.
+> Cross-references: `DATA_FLOW.md §4.6.1` (drift annotation), `chatterbox.py _build_request_body`
+> (implementation truth), `src/heretic/rodd/INTERFACE.md §Config Keys` (module-level contract).
+
 ```yaml
 rodd:
   stt:
@@ -190,11 +199,83 @@ rodd:
     load_strategy: lazy                    # lazy | eager; default lazy — see C-Q-C1 resolution
   tts:
     enabled: true
-    engine: chatterbox                     # chatterbox | openai_compat
-    endpoint: "http://100.66.178.105:7851"
+    engine: chatterbox                     # chatterbox | openai_compat (future)
+    endpoint: "http://100.66.178.105:7851" # ChatterBox base URL; never hardcode in logic
+
+    # --- Voice prompt ---
     voice_id: "default"
-    device: default
-    speed: 1.0
+    # SEMANTICS (N-3): This field is a WAV FILE PATH for voice cloning — not a symbolic
+    # voice identifier. Two valid states:
+    #   "default" (or empty / null) — field is OMITTED from the ChatterBox request body;
+    #                                  ChatterBox uses its own built-in default voice.
+    #   any other value            — treated as a WAV file path (relative to project root;
+    #                                "~" is expanded). The file must exist at synthesis time
+    #                                (not at config load). For the "turbo" model, the WAV
+    #                                must be >= 5 seconds; shorter files are rejected by
+    #                                ChatterBox. Path resolution: see chatterbox.py
+    #                                _resolve_voice_path().
+    # v0.2 ships with "default" — no voice prompt. User may configure later.
+
+    voice_prompt_path: null
+    # Alternative path field — accepted by RoddTtsConfig when voice_id field is not set.
+    # Same WAV-path semantics as voice_id above. null = omit from request body.
+
+    # --- Model selection ---
+    model: turbo                           # turbo | tts | multilingual
+    # "turbo"       — GPT2-medium + S3Gen; always warm, lowest latency. v0.2 default.
+    # "tts"         — Full English dual-pass CFG; slower, higher quality. English only.
+    # "multilingual" — 23-language model; requires language_id field (see below).
+
+    # --- Language selection (N-2) ---
+    language_id: en
+    # SEMANTICS (N-2): This field is an ISO 639-1 language code. It is ONLY meaningful
+    # when model is "multilingual". Behavior by model:
+    #   model: turbo        — language_id is silently excluded from the request body
+    #                         (turbo is English-only; sending language_id is a no-op).
+    #   model: tts          — same: English-only; language_id excluded.
+    #   model: multilingual — language_id IS included when it is non-empty and != "en".
+    #                         "en" is excluded because ChatterBox's multilingual default
+    #                         is English; sending it is redundant. If you explicitly need
+    #                         the field in the body for debugging, set any other code.
+    # Supported ISO codes (ChatterBox multilingual model, probed 2026-05-07):
+    #   en, de, es, fr, it, pt, pl, nl, ru, ja, ko, zh, ar, tr, id, vi, th, cs, sv, da, fi, el, ro
+    # Default "en" — correct for turbo/tts; operators using multilingual must override.
+    # Implementation reference: chatterbox.py _build_request_body line ~255.
+
+    # --- Synthesis parameters ---
+    exaggeration: 0.5                      # float; range 0.0–2.0. Emotional exaggeration.
+    cfg_weight: 1.0                        # float; range 0.0–2.0. CFG dual-pass weight.
+                                           # Only used by "tts" model; ignored by turbo.
+    temperature: 0.8                       # float; range 0.05–2.0. Sampling temperature.
+                                           # Controls expressiveness; ChatterBox default 0.8.
+    top_p: 0.95                            # float; range 0.0–1.0. Nucleus sampling cutoff.
+    repetition_penalty: 1.2               # float; range 0.1–5.0. Repetition penalty.
+                                           # ChatterBox default 1.2.
+
+    # --- Audio output ---
+    device: default                        # OS audio device name or "default" (OS default)
+
+    # --- Chunking policy ---
+    chunk_min_chars: 80                    # int; >= 1. Minimum accumulated characters before
+                                           # flushing a sentence-boundary chunk to TTS.
+                                           # Prevents single-word audio (jarring). See tunga.py.
+    sentence_terminators: [". ", "! ", "? ", "\n\n"]
+                                           # list[str]; substring patterns marking a sentence
+                                           # boundary for streaming chunking.
+
+    # --- HTTP ---
+    request_timeout_seconds: 30            # int; HTTP timeout for /v1/audio/speech requests.
+
+    # --- REMOVED FIELD (drift annotation) ---
+    # speed: 1.0
+    # Removed 2026-05-07 (G-1 corrective pass — Rúnhild Svartdóttir).
+    # `speed` appeared in the pre-probe config stub but has NO counterpart in the live
+    # ChatterBox API. The /v1/audio/speech endpoint does not expose a speed parameter.
+    # The field is still present in RoddTtsConfig as a stored-but-ignored value for
+    # backward compatibility with any existing heretic.yaml files that set it; a debug
+    # log is emitted if speed != 1.0 (see chatterbox.py _build_request_body).
+    # Speed is NOT sent to ChatterBox. Do not set this field; it has no effect.
+    # Reference: DATA_FLOW.md §4.6.1, chatterbox.py _build_request_body.
 ```
 
 ### Capability flags
