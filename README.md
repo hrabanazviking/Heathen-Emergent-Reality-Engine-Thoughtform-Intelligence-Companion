@@ -8,8 +8,60 @@
 
 ---
 
-# H.E.R.E.T.I.C.  
-**Heathen Emergent Reality Engine Thoughtform Intelligence Companion**
+# H.E.R.E.T.I.C.
+
+---
+
+## Vision Sealed — 2026-05-07
+
+> **The framing shifted on 2026-05-07.** The canonical vision is now `docs/BODY_MANIFESTO.md`.
+> Read that document before anything else in this repo.
+
+**H.E.R.E.T.I.C. = Host Environment for Realtime Embodiment, Tooling & Interactive Control.**
+
+The original README below (written April 2026) described an earlier vision — HERETIC as an agentic brain, a thoughtform companion engine, a self-evolving digital hof. That vision was generative and powerful, and it is preserved here as the seed from which the current project grew. But the architecture has since resolved into something more precise and more buildable.
+
+The name changed. The acronym changed. The *soul* did not.
+
+---
+
+## What H.E.R.E.T.I.C. Actually Is Now
+
+H.E.R.E.T.I.C. is a **body for AI agents** — a local runtime host that gives any OpenAI-compatible agent realtime sensory access to your computing world. Voice I/O, screen vision, creative tools (Blender, Photopea), browser automation, file system, and terminal — all surfaced as MCP tools the inhabiting agent can call.
+
+The agent is the spirit. H.E.R.E.T.I.C. is the vessel. The connection is ceremonial: you summon it when you want the agent present, and close it when you don't. No always-on drain. Like lighting a candle — the flame exists when you need it.
+
+The architecture is six layers: Foundation (L0), Bifröst connection (L1), Voice I/O (L2), Vision (L3), Summoning Circle UI (L4), and a MCP Sense Hub (L5) hosting all the tools. An optional offline knowledge subsystem, Mímisbrunnr, lives at L5.9.
+
+Agent-agnostic. Hermes on Pi. Claude. GPT. Local Ollama. Any OpenAI-compatible agent can inhabit the body.
+
+---
+
+## What to Read First
+
+| If you want to understand... | Read this |
+|---|---|
+| The canonical vision (authoritative) | `docs/BODY_MANIFESTO.md` |
+| The optional offline knowledge subsystem | `docs/MIMISBRUNNR.md` |
+| Current task state and milestone roadmap | `TASK_HERETIC_v0.1_BOOTSTRAP.md` |
+| What the prior planning material means now | `docs/PRIOR_PLANNING_TRIAGE.md` |
+| Coding rules and project laws | `RULES.AI.md` |
+| Cultural philosophy and cyber-Heathen ethos | `PHILOSOPHY.md` |
+| Plunder rules for borrowing from other repos | `MYTHIC_ENGINEERING_PLUNDERING_WORKFLOW.md` |
+
+Architecture docs (ARCHITECTURE.md, LAYER_INTERFACES.md, CEREMONY.md, ROADMAP.md) are being drafted in `docs/` as part of v0.0. When they exist, this table will be updated.
+
+---
+
+## The Seed Vision (April 2026 — Historical Context)
+
+> *What follows is the original README, preserved as the record of where this project began.*
+> *It describes a vision that has since been refined — specifically, the "brain" framing (thoughtform engine, self-evolving companions, LangGraph core, photorealistic 3D avatars) has been superseded by the "body" framing in `docs/BODY_MANIFESTO.md`.*
+> *The soul of the project — cyber-Heathen modernism, anti-gatekeeping, agent embodiment, the heresy of giving AI a body — is unchanged and lives in the manifesto.*
+
+---
+
+**Heathen Emergent Reality Engine Thoughtform Intelligence Companion** *(original name, April 2026)*
 
 *A super-advanced agentic AI framework that fuses cyber-Heathen modernism with bleeding-edge autonomous agents and photorealistic 3D digital characters. Born from the digital longhouse, forged in the fires of prompt-as-galdr and code-as-rune. No gatekeeping. No reconstructionist chains. Pure cyber-Viking futurism.*
 
