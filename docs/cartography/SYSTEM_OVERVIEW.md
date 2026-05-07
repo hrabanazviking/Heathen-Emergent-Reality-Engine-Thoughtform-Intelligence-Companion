@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format)
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -228,29 +228,28 @@ See NAMING.md §line 81 and SENSE_CONTRACTS.md §2 for the full True Name → se
 
 ```yaml
 skilningr:
-  senses:
-    filesystem:           # True Name: Minni
-      enabled: true
-    auga:                 # True Name: Auga (True Name = code-facing ID for L5.10-12 senses)
-      enabled: true
-    hlust:                # True Name: Hlust
-      enabled: true
-    tunga:                # True Name: Tunga
-      enabled: true
-    blender:              # True Name: Smiðja
-      enabled: false      # won't start if Seidr-Smidja isn't running
-    browser:              # True Name: Leið
-      enabled: false
-    photopea:             # True Name: Hönd
-      enabled: false
-    terminal:             # True Name: Skepja
-      enabled: false
-    agentmail:            # True Name: Boð
-      enabled: false
-    vrchat:               # True Name: Líkami
-      enabled: false
-    library:              # True Name: Mímisbrunnr
-      enabled: false      # won't start until corpora are downloaded
+  filesystem:             # True Name: Minni
+    enabled: true
+  auga:                   # True Name: Auga (True Name = code-facing ID for L5.10-12 senses)
+    enabled: true
+  hlust:                  # True Name: Hlust
+    enabled: true
+  tunga:                  # True Name: Tunga
+    enabled: true
+  blender:                # True Name: Smiðja
+    enabled: false        # won't start if Seidr-Smidja isn't running
+  browser:                # True Name: Leið
+    enabled: false
+  photopea:               # True Name: Hönd
+    enabled: false
+  terminal:               # True Name: Skepja
+    enabled: false
+  agentmail:              # True Name: Boð
+    enabled: false
+  vrchat:                 # True Name: Líkami
+    enabled: false
+  library:                # True Name: Mímisbrunnr
+    enabled: false        # won't start until corpora are downloaded
 ```
 
 ---
