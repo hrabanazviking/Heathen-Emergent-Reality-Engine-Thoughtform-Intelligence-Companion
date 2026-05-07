@@ -249,3 +249,88 @@ def test_heretic_config_env_var_overrides_search(
     monkeypatch.setenv("HERETIC_CONFIG", str(config_file))
     cfg = load_config()  # no explicit path
     assert cfg.grunnr.log_level == "error"
+
+
+# ---------------------------------------------------------------------------
+# N-3 — BifrostConfig field parity guard
+# ---------------------------------------------------------------------------
+
+def test_bifrost_config_field_parity() -> None:
+    """Both BifrostConfig dataclasses must have identical field names until they are merged.
+
+    Two BifrostConfig dataclasses exist — one in grunnr.config (used by the config
+    loader) and one in bifrost.config_model (used by the client). A manual bridge in
+    cli.py copies all fields from the former to the latter at ceremony start.
+
+    If a field is added to one class and not the other, the bridge silently passes
+    the default value rather than the user's configured value — a runtime defect with
+    no error signal. This test is the tripwire.
+
+    The 'tailscale' field is intentionally typed differently (TailscaleConfig vs
+    TailscaleOptions — two local wrappers with identical structure). The test guards
+    field *names* only for the top-level BifrostConfig, then verifies the tailscale
+    wrapper fields separately to catch sub-field drift.
+
+    Ref: docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md N-3.
+    """
+    from dataclasses import fields
+    from heretic.grunnr.config import (
+        BifrostConfig as GrunnrBifrostConfig,
+        TailscaleConfig,
+    )
+    from heretic.bifrost.config_model import (
+        BifrostConfig as BifrostBifrostConfig,
+        TailscaleOptions,
+    )
+
+    grunnr_field_names = {f.name for f in fields(GrunnrBifrostConfig)}
+    bifrost_field_names = {f.name for f in fields(BifrostBifrostConfig)}
+
+    assert grunnr_field_names == bifrost_field_names, (
+        "BifrostConfig field names drifted between grunnr.config and "
+        "bifrost.config_model. The cli.py bridge silently drops any field that "
+        "exists in one class but not the other.\n"
+        f"Only in grunnr: {sorted(grunnr_field_names - bifrost_field_names)}\n"
+        f"Only in bifrost: {sorted(bifrost_field_names - grunnr_field_names)}\n"
+        "Add the missing field to both classes before committing."
+    )
+
+    # Verify that the non-tailscale fields also have identical type annotations.
+    # The 'tailscale' field intentionally differs in its local wrapper class name
+    # (TailscaleConfig vs TailscaleOptions) — both wrappers are structurally
+    # identical. We guard that separately below.
+    grunnr_types = {
+        f.name: f.type
+        for f in fields(GrunnrBifrostConfig)
+        if f.name != "tailscale"
+    }
+    bifrost_types = {
+        f.name: f.type
+        for f in fields(BifrostBifrostConfig)
+        if f.name != "tailscale"
+    }
+    assert grunnr_types == bifrost_types, (
+        "BifrostConfig field types drifted (excluding the intentionally-named "
+        "'tailscale' field).\n"
+        f"Grunnr types: {sorted(grunnr_types.items())}\n"
+        f"Bifrost types: {sorted(bifrost_types.items())}\n"
+    )
+
+    # Guard the tailscale wrapper sub-fields — both wrappers must be structurally
+    # identical even though they carry different local class names.
+    grunnr_ts_names = {f.name for f in fields(TailscaleConfig)}
+    bifrost_ts_names = {f.name for f in fields(TailscaleOptions)}
+    assert grunnr_ts_names == bifrost_ts_names, (
+        "Tailscale wrapper fields drifted between TailscaleConfig (grunnr.config) "
+        "and TailscaleOptions (bifrost.config_model).\n"
+        f"Only in TailscaleConfig: {sorted(grunnr_ts_names - bifrost_ts_names)}\n"
+        f"Only in TailscaleOptions: {sorted(bifrost_ts_names - grunnr_ts_names)}\n"
+    )
+
+    grunnr_ts_types = {f.name: f.type for f in fields(TailscaleConfig)}
+    bifrost_ts_types = {f.name: f.type for f in fields(TailscaleOptions)}
+    assert grunnr_ts_types == bifrost_ts_types, (
+        "Tailscale wrapper field types drifted.\n"
+        f"TailscaleConfig: {sorted(grunnr_ts_types.items())}\n"
+        f"TailscaleOptions: {sorted(bifrost_ts_types.items())}\n"
+    )

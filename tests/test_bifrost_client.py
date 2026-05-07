@@ -387,6 +387,90 @@ async def test_send_message_before_open_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
+# X-2 — SSE partial-chunk buffer path
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_parse_sse_stream_handles_mid_key_chunk_split() -> None:
+    """_parse_sse_stream reassembles a JSON object split across two ``data:`` SSE lines.
+
+    The SSE spec says one JSON object per ``data:`` line, but some proxies and
+    chunked-transfer scenarios deliver a single logical JSON object across multiple
+    ``data:`` lines — each still carrying the ``data:`` prefix. The parser strips the
+    prefix from each line, concatenates the fragments in ``buffer``, and retries
+    json.loads() after each new fragment until the object is complete.
+
+    This test exercises the buffer path (client.py lines 366-372). The JSON is split
+    at the mid-key boundary ``"cho`` / ``ices":`` so that the first line fails
+    json.loads() and the buffer accumulates the second line before succeeding.
+
+    Ref: docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md X-2.
+    """
+    # Each fragment is a well-formed SSE line (prefixed with "data: ").
+    # The JSON object is split at a mid-key boundary so that neither fragment
+    # alone is valid JSON — the parser must buffer and reassemble.
+    first_fragment  = 'data: {"id":"abc","cho'
+    second_fragment = 'data: ices":[{"delta":{"content":"reassembled"},"finish_reason":null}]}'
+    sse_lines = [
+        first_fragment,
+        second_fragment,
+        "data: [DONE]",
+    ]
+
+    cfg = BifrostConfig()
+    client = OpenAICompatClient(cfg)
+
+    mock_response = mock.MagicMock()
+    mock_response.aiter_lines = lambda: _async_iter(sse_lines)
+
+    chunks: list[str] = []
+    async for chunk in client._parse_sse_stream(mock_response):
+        chunks.append(chunk)
+
+    assert chunks == ["reassembled"], (
+        f"Expected ['reassembled'] but got {chunks!r}. "
+        "The SSE buffer path failed to reassemble a mid-key split chunk."
+    )
+
+
+@pytest.mark.asyncio
+async def test_parse_sse_stream_handles_three_fragment_split() -> None:
+    """_parse_sse_stream accumulates across three ``data:`` lines before parsing.
+
+    Exercises the buffer path when JSON arrives in more than two fragments — each
+    delivered as a ``data:``-prefixed SSE line, each individually invalid JSON.
+    The buffer must accumulate all three before json.loads() succeeds.
+
+    Ref: docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md X-2.
+    """
+    # Three ``data:`` lines whose stripped content concatenates to valid JSON.
+    fragment_a = 'data: {"choices":[{"delta":{"con'
+    fragment_b = 'data: tent":"three"}'
+    fragment_c = 'data: ,"finish_reason":null}]}'
+    sse_lines = [
+        fragment_a,
+        fragment_b,
+        fragment_c,
+        "data: [DONE]",
+    ]
+
+    cfg = BifrostConfig()
+    client = OpenAICompatClient(cfg)
+
+    mock_response = mock.MagicMock()
+    mock_response.aiter_lines = lambda: _async_iter(sse_lines)
+
+    chunks: list[str] = []
+    async for chunk in client._parse_sse_stream(mock_response):
+        chunks.append(chunk)
+
+    assert chunks == ["three"], (
+        f"Expected ['three'] but got {chunks!r}. "
+        "The SSE buffer path failed to accumulate across three fragments."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
