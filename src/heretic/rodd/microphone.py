@@ -18,6 +18,12 @@ Frame contract (shared invariant with VadDetector and WhisperEngine):
     frame_ms    : 30 ms  =>  480 samples  =>  960 bytes per frame
 
 This contract is locked in by the Architect; see rodd/INTERFACE.md §Hlust.
+
+Threading note: The sounddevice callback fires on a C background thread managed
+by PortAudio, NOT on the asyncio event loop thread.  Hlust bridges frames back to
+asyncio via ``loop.call_soon_threadsafe``.  The callback registered with
+start_stream() will be called from that C thread; it MUST be fast and MUST NOT
+touch asyncio primitives directly.
 """
 
 from __future__ import annotations
@@ -60,7 +66,7 @@ class MicrophoneCapture(abc.ABC):
     thread-safety implications.
 
     Lifecycle:
-        mic = MicrophoneCapture.best_available(config_device, logger)
+        mic = MicrophoneCapture.best_available(device, logger)
         mic.start_stream(callback)          # begins pushing frames
         ...                                 # callback receives bytes objects
         mic.stop_stream()                   # stops capture cleanly
@@ -147,6 +153,12 @@ class SoundDeviceMicBackend(MicrophoneCapture):
     gracefully.
 
     Cross-platform: Windows (WASAPI/DirectSound), macOS (CoreAudio), Linux (ALSA/PulseAudio/JACK).
+
+    Threading: sounddevice's RawInputStream invokes the PortAudio callback from a
+    C background thread.  The user callback registered with start_stream() is wrapped
+    in a lightweight adapter that converts the numpy buffer to plain bytes before
+    forwarding — this keeps the user callback free of numpy dependencies and ensures
+    the bytes copy happens before any asyncio handoff.
     """
 
     def __init__(self, device: str, logger: logging.Logger) -> None:
@@ -163,40 +175,115 @@ class SoundDeviceMicBackend(MicrophoneCapture):
 
     @classmethod
     def available(cls) -> bool:
-        """Return True if sounddevice can be imported and an input device exists."""
-        raise NotImplementedError(
-            "Forge will implement: probe `import sounddevice` and "
-            "`sounddevice.query_devices(kind='input')` without raising. "
-            "Return False on ImportError or no-device PortAudioError."
-        )
+        """Return True if sounddevice can be imported and an input device exists.
+
+        Two conditions must both hold:
+        1. ``import sounddevice`` succeeds (library installed).
+        2. At least one input device is present per sounddevice.query_devices().
+           Returns False if PortAudio reports no input devices.
+        Never raises — all exceptions are swallowed and return False.
+        """
+        try:
+            import sounddevice as sd  # noqa: F401
+
+            # Check that at least one input device is available.
+            # query_devices() returns a DeviceList; each entry has 'max_input_channels'.
+            devices = sd.query_devices()
+            if not hasattr(devices, "__iter__"):
+                # Single device returned as a dict-like object
+                devices = [devices]
+            for dev in devices:
+                try:
+                    if dev.get("max_input_channels", 0) > 0:
+                        return True
+                except (AttributeError, TypeError):
+                    # Some entries may not support .get(); skip gracefully
+                    continue
+            return False
+        except Exception:
+            # ImportError, PortAudioError, or anything else — backend unavailable
+            return False
 
     def start_stream(self, callback: Callable[[bytes], None]) -> None:
         """Open a sounddevice.RawInputStream and register the frame callback.
 
-        Forge will implement: construct RawInputStream(
-            samplerate=SAMPLE_RATE,
-            blocksize=FRAME_SAMPLES,
-            device=self._device if self._device != 'default' else None,
-            dtype='int16',
-            channels=CHANNELS,
-            callback=<adapter that extracts bytes and calls the user callback>,
-        ), call stream.start(), store as self._stream.
+        Opens the stream with:
+            samplerate  = SAMPLE_RATE (16 000 Hz)
+            blocksize   = FRAME_SAMPLES (480 samples = 30 ms)
+            channels    = CHANNELS (1 — mono)
+            dtype       = 'int16'
+            device      = self._device unless 'default' (then use PortAudio default)
+
+        The internal PortAudio callback converts the incoming numpy buffer to a
+        plain bytes copy (to avoid retaining a reference to the PortAudio-owned
+        buffer) and forwards it to the user callback.
+
+        Args:
+            callback: Receives exactly FRAME_BYTES (960) bytes per call.
+
+        Raises:
+            MicrophoneError: on PortAudio failure or device open error.
         """
-        raise NotImplementedError(
-            "Forge will implement: open sounddevice.RawInputStream at 16 kHz mono int16, "
-            "30 ms blocksize (480 samples), call start(), store stream handle."
-        )
+        from heretic.rodd.errors import MicrophoneError
+
+        try:
+            import sounddevice as sd
+
+            # Resolve 'default' to None so sounddevice uses the OS default input.
+            device_arg = None if self._device == "default" else self._device
+
+            def _sd_callback(indata: object, frames: int, time_info: object, status: object) -> None:
+                # indata is a numpy array (FRAME_SAMPLES, CHANNELS) of int16.
+                # We copy to bytes immediately — do NOT retain indata reference
+                # beyond this callback frame because PortAudio recycles its buffer.
+                if status:
+                    self._log.debug("SoundDeviceMicBackend: status=%s", status)
+                try:
+                    # Convert numpy array to raw bytes (int16 little-endian)
+                    pcm_bytes = bytes(indata)
+                    callback(pcm_bytes)
+                except Exception as exc:
+                    # Never raise from the PortAudio C callback thread — just log.
+                    self._log.debug("SoundDeviceMicBackend: callback error: %s", exc)
+
+            stream = sd.RawInputStream(
+                samplerate=SAMPLE_RATE,
+                blocksize=FRAME_SAMPLES,
+                device=device_arg,
+                dtype="int16",
+                channels=CHANNELS,
+                callback=_sd_callback,
+            )
+            stream.start()
+            self._stream = stream
+            self._log.debug(
+                "SoundDeviceMicBackend: stream started (device=%r, rate=%d, blocksize=%d)",
+                self._device,
+                SAMPLE_RATE,
+                FRAME_SAMPLES,
+            )
+        except Exception as exc:
+            raise MicrophoneError(
+                f"SoundDeviceMicBackend.start_stream failed: {exc}"
+            ) from exc
 
     def stop_stream(self) -> None:
-        """Stop and close the sounddevice stream.
+        """Stop and close the sounddevice stream cleanly.
 
-        Forge will implement: call self._stream.stop() then self._stream.close(),
-        set self._stream = None, log at DEBUG. Handle None stream safely.
+        Calls stream.stop() then stream.close(). Idempotent — safe to call
+        when the stream was never started or already closed. Never raises.
         """
-        raise NotImplementedError(
-            "Forge will implement: stop and close the sounddevice stream; "
-            "set self._stream = None; never raise."
-        )
+        if self._stream is None:
+            return
+        try:
+            self._stream.stop()
+            self._stream.close()
+            self._log.debug("SoundDeviceMicBackend: stream stopped and closed")
+        except Exception as exc:
+            # Log but swallow — stop_stream() must never raise (RULES.AI fault tolerance)
+            self._log.debug("SoundDeviceMicBackend.stop_stream: error during close: %s", exc)
+        finally:
+            self._stream = None
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +295,7 @@ class NullMicBackend(MicrophoneCapture):
 
     Used when no real backend is available so Hlust can continue to exist
     without crashing. ``start_stream()`` is a no-op; ``stop_stream()`` is a no-op.
-    Hlust detects the Null backend and falls back to stdin input.
+    Hlust detects the Null backend via isinstance() and falls back to stdin input.
     """
 
     def __init__(self, device: str, logger: logging.Logger) -> None:
@@ -217,8 +304,18 @@ class NullMicBackend(MicrophoneCapture):
 
     @classmethod
     def available(cls) -> bool:
-        """Always True — the null backend is always available."""
-        return True
+        """NullMicBackend reports itself unavailable to prevent factory selection.
+
+        The factory will only pick NullMicBackend as a last resort because it
+        explicitly returns False — best_available() falls through to it only
+        when no real backend returns True.
+
+        Note: this is intentionally False (not True) so the factory can use the
+        conventional "try each in order, pick first True" pattern.  NullMicBackend
+        is appended directly to the fallback chain in best_available(), not selected
+        via available().
+        """
+        return False
 
     def start_stream(self, callback: Callable[[bytes], None]) -> None:
         """No-op — NullMicBackend does not capture audio."""

@@ -34,7 +34,14 @@ Audio input contract (shared with microphone.py and vad.py):
 from __future__ import annotations
 
 import abc
+import asyncio
 import logging
+import shutil
+import struct
+import tempfile
+import threading
+import wave
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -165,8 +172,11 @@ class PyWhisperCppBackend(WhisperEngine):
     Model loading is lazy: the ggml model file is loaded from disk on first call
     to load_model(), not at construction. This keeps Kynding fast.
 
-    Audio conversion: pywhispercpp expects float32 audio; Forge will implement
-    the int16->float32 conversion (divide by 32768.0) inside transcribe().
+    Audio conversion: pywhispercpp expects float32 audio; transcribe() converts
+    the incoming int16 bytes by dividing each sample by 32768.0.
+
+    Thread safety: load_model() uses a threading.Lock to prevent concurrent loads
+    if the caller ever invokes it from multiple threads (unusual but defensive).
     """
 
     def __init__(self, config: "RoddSttConfig", logger: logging.Logger) -> None:
@@ -180,6 +190,7 @@ class PyWhisperCppBackend(WhisperEngine):
         self._log = logger
         self._model: object | None = None  # pywhispercpp.model.Whisper at runtime
         self._loaded: bool = False
+        self._load_lock = threading.Lock()
 
     @property
     def is_loaded(self) -> bool:
@@ -188,39 +199,128 @@ class PyWhisperCppBackend(WhisperEngine):
 
     @classmethod
     def available(cls) -> bool:
-        """Return True if pywhispercpp can be imported."""
-        raise NotImplementedError(
-            "Forge will implement: attempt `import pywhispercpp.model` and return True. "
-            "Catch ImportError, return False. Never raise."
-        )
+        """Return True if pywhispercpp can be imported.
+
+        Does NOT check whether the model file exists — that is checked at
+        load_model() time so the factory can still select this backend even if
+        the model hasn't been downloaded yet.
+
+        Never raises.
+        """
+        try:
+            import importlib
+            importlib.import_module("pywhispercpp.model")
+            return True
+        except ImportError:
+            return False
 
     async def load_model(self) -> None:
         """Load the ggml model from config.model_path.
 
-        Forge will implement: run the blocking pywhispercpp.model.Whisper(model_path)
-        load in a thread-pool executor (run_in_executor) so the asyncio event loop
-        is not blocked during the several-second model load. Set self._loaded = True
-        on success. Raise WhisperModelLoadError on any failure (missing file,
-        corrupt ggml, insufficient memory).
+        Runs the blocking pywhispercpp.model.Whisper(model_path) call in a
+        thread-pool executor to avoid blocking the asyncio event loop during
+        the several-second model load.
+
+        Idempotent: if already loaded, returns immediately.
+
+        Raises:
+            WhisperModelLoadError: if the model file is missing or cannot be loaded.
         """
-        raise NotImplementedError(
-            "Forge will implement: run_in_executor(None, pywhispercpp.model.Whisper, model_path), "
-            "store result in self._model, set self._loaded = True. "
-            "Raise WhisperModelLoadError on FileNotFoundError or ggml load failure."
+        from heretic.rodd.errors import WhisperModelLoadError
+
+        # Idempotent: fast-path if already loaded
+        if self._loaded:
+            return
+
+        model_path = Path(self._config.model_path)
+        if not model_path.is_absolute():
+            # Relative paths are resolved from the current working directory,
+            # which is typically the project root when heretic is invoked via CLI.
+            # This matches the RULES.AI requirement: no absolute paths in config.
+            model_path = Path.cwd() / model_path
+
+        if not model_path.exists():
+            raise WhisperModelLoadError(
+                f"PyWhisperCppBackend.load_model: model file not found at {self._config.model_path}. "
+                f"Download the ggml model and place it at the configured path.",
+                model_path=self._config.model_path,
+            )
+
+        self._log.info(
+            "PyWhisperCppBackend: loading model from %r (this may take a few seconds)...",
+            str(self._config.model_path),
         )
+
+        def _load_blocking() -> object:
+            # This runs on the thread pool — NOT the asyncio thread.
+            # threading.Lock protects against concurrent load_model() calls.
+            with self._load_lock:
+                if self._loaded:
+                    # Another coroutine beat us to it — short-circuit.
+                    return self._model
+                import importlib
+                pwc_model = importlib.import_module("pywhispercpp.model")
+                return pwc_model.Whisper(str(model_path))
+
+        try:
+            model = await asyncio.get_running_loop().run_in_executor(None, _load_blocking)
+            self._model = model
+            self._loaded = True
+            self._log.info("PyWhisperCppBackend: model loaded successfully")
+        except Exception as exc:
+            raise WhisperModelLoadError(
+                f"PyWhisperCppBackend.load_model failed: {exc}",
+                model_path=self._config.model_path,
+            ) from exc
 
     async def transcribe(self, audio: bytes, sample_rate: int = 16_000) -> str:
         """Transcribe int16 PCM bytes via pywhispercpp.
 
-        Forge will implement: convert int16 bytes to float32 numpy array
-        (divide by 32768.0), run_in_executor(None, self._model.transcribe, float32_array),
-        collect segments, join as a single stripped string. Raise WhisperError on failure.
+        Converts int16 bytes to float32 (divides by 32768.0) and runs the
+        blocking transcription in a thread-pool executor.
+
+        Args:
+            audio: Raw int16 little-endian PCM bytes.
+            sample_rate: Must be 16 000 Hz for whisper.cpp.
+
+        Returns:
+            Stripped transcript string. Empty if no speech found.
+
+        Raises:
+            WhisperError: on transcription failure.
+            WhisperModelLoadError: if model not loaded.
         """
-        raise NotImplementedError(
-            "Forge will implement: int16 bytes -> float32 array (div 32768.0), "
-            "run blocking self._model.transcribe() in executor, "
-            "join returned segments into a single stripped text string."
-        )
+        from heretic.rodd.errors import WhisperError, WhisperModelLoadError
+
+        if not self._loaded or self._model is None:
+            raise WhisperModelLoadError(
+                "PyWhisperCppBackend.transcribe called before load_model(). "
+                "Call await engine.load_model() first."
+            )
+
+        if len(audio) < 2:
+            return ""
+
+        def _transcribe_blocking() -> str:
+            # Convert int16 little-endian bytes to float32 numpy array.
+            # We need numpy here — it's in the [voice] extra alongside pywhispercpp.
+            import numpy as np
+            n_samples = len(audio) // 2
+            int16_array = np.frombuffer(audio[:n_samples * 2], dtype=np.int16)
+            float32_array = int16_array.astype(np.float32) / 32768.0
+
+            # pywhispercpp.model.Whisper.transcribe() returns a list of Segment objects.
+            # Each segment has a .text attribute.
+            segments = self._model.transcribe(float32_array)
+            return " ".join(seg.text for seg in segments if hasattr(seg, "text")).strip()
+
+        try:
+            result = await asyncio.get_running_loop().run_in_executor(None, _transcribe_blocking)
+            return result
+        except Exception as exc:
+            raise WhisperError(
+                f"PyWhisperCppBackend.transcribe failed: {exc}"
+            ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +339,7 @@ class CliSubprocessBackend(WhisperEngine):
     for rapid-fire conversation.
 
     Binary probe: uses shutil.which("whisper-cli") to check PATH availability.
-    The binary name is configurable in future; for v0.3 it is fixed as "whisper-cli".
+    The binary name is fixed as "whisper-cli" for v0.3.
     """
 
     def __init__(self, config: "RoddSttConfig", logger: logging.Logger) -> None:
@@ -254,41 +354,139 @@ class CliSubprocessBackend(WhisperEngine):
 
     @classmethod
     def available(cls) -> bool:
-        """Return True if whisper-cli is found on PATH."""
-        raise NotImplementedError(
-            "Forge will implement: `import shutil; return shutil.which('whisper-cli') is not None`."
-        )
+        """Return True if whisper-cli is found on PATH.
+
+        Uses shutil.which which is cross-platform (Windows .exe extension handled).
+        Never raises.
+        """
+        try:
+            return shutil.which("whisper-cli") is not None
+        except Exception:
+            return False
 
     async def load_model(self) -> None:
-        """No-op for CLI backend — the binary loads the model per invocation.
+        """Verify binary and model file exist; set is_loaded = True.
 
-        Sets self._loaded = True to satisfy the is_loaded contract.
-        Verifies the whisper-cli binary is still on PATH and the model file
-        exists, raising WhisperModelLoadError if either is absent.
+        The CLI backend loads the model on each subprocess invocation, so
+        there is no persistent in-memory load here. This method validates that
+        the necessary resources are present before the first transcription.
+
+        Raises:
+            WhisperModelLoadError: if the whisper-cli binary or model file is absent.
         """
-        raise NotImplementedError(
-            "Forge will implement: verify whisper-cli on PATH (shutil.which) "
-            "and model_path exists (Path(model_path).exists()); "
-            "set self._loaded = True; raise WhisperModelLoadError on missing binary or file."
+        from heretic.rodd.errors import WhisperModelLoadError
+
+        if self._loaded:
+            return
+
+        binary = shutil.which("whisper-cli")
+        if binary is None:
+            raise WhisperModelLoadError(
+                "CliSubprocessBackend.load_model: whisper-cli binary not found on PATH. "
+                "Install whisper.cpp and ensure 'whisper-cli' is on your PATH."
+            )
+
+        model_path = Path(self._config.model_path)
+        if not model_path.is_absolute():
+            model_path = Path.cwd() / model_path
+
+        if not model_path.exists():
+            raise WhisperModelLoadError(
+                f"CliSubprocessBackend.load_model: model file not found at "
+                f"{self._config.model_path}.",
+                model_path=self._config.model_path,
+            )
+
+        self._loaded = True
+        self._log.info(
+            "CliSubprocessBackend: binary=%r, model=%r — ready",
+            binary,
+            str(self._config.model_path),
         )
 
     async def transcribe(self, audio: bytes, sample_rate: int = 16_000) -> str:
         """Write audio to a temp WAV file, invoke whisper-cli, return transcript.
 
-        Forge will implement:
-            1. Write audio bytes as a valid 16 kHz mono int16 WAV file in a
-               NamedTemporaryFile (use the wave stdlib module).
-            2. subprocess.run(['whisper-cli', '-m', model_path, '-l', language,
-                               '--output-txt', '-f', tmp_wav_path], ...)
-            3. Parse stdout for the transcript text (strip timing markup).
+        Sequence:
+            1. Write int16 PCM bytes as a valid 16 kHz mono int16 WAV file.
+            2. subprocess whisper-cli with model_path, language, and audio file.
+            3. Parse stdout for transcript text (strips any timing markup).
             4. Delete the temp WAV file.
-            5. Return stripped text. Raise WhisperError on non-zero exit code.
+            5. Return stripped text.
+
+        Args:
+            audio: Raw int16 little-endian PCM bytes.
+            sample_rate: Must be 16 000 Hz.
+
+        Returns:
+            Stripped transcript string.
+
+        Raises:
+            WhisperError: on subprocess failure or non-zero exit code.
         """
-        raise NotImplementedError(
-            "Forge will implement: write int16 PCM to temp WAV (wave stdlib), "
-            "subprocess whisper-cli with model_path and language from config, "
-            "parse stdout transcript, cleanup temp file, return stripped text."
-        )
+        import subprocess
+        from heretic.rodd.errors import WhisperError, WhisperModelLoadError
+
+        if not self._loaded:
+            raise WhisperModelLoadError(
+                "CliSubprocessBackend.transcribe called before load_model()."
+            )
+
+        model_path = Path(self._config.model_path)
+        if not model_path.is_absolute():
+            model_path = Path.cwd() / model_path
+
+        def _run_blocking() -> str:
+            # Write audio to a temp WAV file using the stdlib wave module.
+            # NamedTemporaryFile with delete=False so we can pass the path to subprocess,
+            # then clean up manually.
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
+            try:
+                with wave.open(tmp_path, "wb") as wav_out:
+                    wav_out.setnchannels(1)       # mono
+                    wav_out.setsampwidth(2)        # int16 = 2 bytes per sample
+                    wav_out.setframerate(sample_rate)
+                    wav_out.writeframes(audio)
+
+                # Invoke whisper-cli with the audio file and model
+                cmd = [
+                    "whisper-cli",
+                    "-m", str(model_path),
+                    "-l", self._config.language,
+                    "--output-txt",
+                    "--no-timestamps",
+                    "-f", tmp_path,
+                ]
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,  # 60-second hard cap for transcription
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"whisper-cli exited with code {result.returncode}: {result.stderr}"
+                    )
+                # Parse stdout — whisper-cli prints lines like "[00:00:00 --> 00:00:02] text"
+                # With --no-timestamps the output is plain text; strip leading/trailing whitespace.
+                transcript = result.stdout.strip()
+                return transcript
+            finally:
+                # Always clean up the temp file — even on exception
+                try:
+                    Path(tmp_path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        try:
+            result = await asyncio.get_running_loop().run_in_executor(None, _run_blocking)
+            return result
+        except Exception as exc:
+            raise WhisperError(
+                f"CliSubprocessBackend.transcribe failed: {exc}"
+            ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +497,8 @@ class NullWhisperBackend(WhisperEngine):
     """No-op Whisper backend. Always available; transcribe() returns empty string.
 
     Used when no real Whisper backend is available. Hlust detects the Null backend
-    and falls back to stdin input for the ceremony rather than attempting transcription.
+    via isinstance() and falls back to stdin input for the ceremony rather than
+    attempting transcription.
     """
 
     def __init__(self, config: "RoddSttConfig", logger: logging.Logger) -> None:
