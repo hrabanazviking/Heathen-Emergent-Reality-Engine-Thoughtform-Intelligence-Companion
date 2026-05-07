@@ -142,7 +142,7 @@ async def test_light_instantiates_tunga_when_tts_enabled() -> None:
          patch("heretic.rodd.chatterbox.ChatterboxHttpClient"), \
          patch("heretic.rodd.playback.AudioPlayback.best_available", return_value=mock_playback), \
          patch("heretic.rodd.tunga.Tunga", new=CapturingTunga), \
-         patch("asyncio.get_event_loop") as mock_loop_getter:
+         patch("asyncio.get_running_loop") as mock_loop_getter:
         mock_loop = MagicMock()
         mock_loop.run_in_executor = _fake_run_in_executor
         mock_loop_getter.return_value = mock_loop
