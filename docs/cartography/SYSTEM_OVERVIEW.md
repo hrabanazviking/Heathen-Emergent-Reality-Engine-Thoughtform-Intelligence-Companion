@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -78,11 +78,14 @@ inhabits the body. When the ceremony ends, the body sleeps and the shrine endure
        |    Tailscale-aware (uses tailscale IP as endpoint)
        |
        |-- [L2] Rödd
-       |    Hlust: Whisper.cpp (STT)  — runs in-process or subprocess  [v0.3]
-       |    Tunga: ChatterBox client  — HTTP to Pi:7851/v1/audio/speech  [v0.2 — ACTIVE]
+       |    Tunga: ChatterBox client  — HTTP to Pi:7851/v1/audio/speech  [v0.2 — SHIPPED]
        |    (Tunga voice flow: SSE chunk → sentence-boundary chunker → ChatterboxClient
        |     → POST /v1/audio/speech → WAV bytes → AudioPlayback → speakers;
        |     full path mapped in DATA_FLOW.md §4.6)
+       |    Hlust: Whisper.cpp (STT)  — mic → VAD → Whisper → transcript  [v0.3 — IN PROGRESS]
+       |    (Hlust flow: 16kHz int16 30ms frames → VadDetector utterance boundary
+       |     → utterance buffer → WhisperEngine lazy load → transcript → CLI display → Bifröst;
+       |     full path in DATA_FLOW.md §4.7; component diagram in DATA_FLOW.md §12)
        |
        |-- [L3] Sjón
        |    screen capture (OS screenshot API)
@@ -278,7 +281,8 @@ skilningr:
   Tauri app launching                         Hermes Agent: running (unaware)
   Holdvörðr starting                          ChatterBox: running (unaware)
   heretic.yaml loading
-  Whisper.cpp model loading to RAM
+  Hlust initialised: mic probed, VAD backend selected, Whisper engine object created
+  (Whisper model weights NOT loaded at Kynding — lazy load on first utterance per C-Q-C1)
   MCP sense servers initializing
   Tailscale daemon: queried for connectivity
   Eldahús: showing kindling animation
@@ -302,7 +306,8 @@ skilningr:
 ```
   LAPTOP                                      PI
   ------                                      --
-  Whisper.cpp: listening to mic               Hermes Agent: processing requests
+  Hlust: mic capture active, VAD detecting utterances, Whisper   Hermes Agent: processing requests
+  model lazy-loads on first utterance (first-utterance latency)
   Screen capture: available on demand         ChatterBox: synthesizing audio on demand
   All senses: responding to tool calls
   Session log: appending events
@@ -424,13 +429,20 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
 ```
   v0.0  Bones            docs only          L0 (config schema only)
   v0.1  First Communion  CLI ceremony       L0 + L1 (Bifröst live, text only)       SHIPPED HEAD 926de2e
-  v0.2  First Voice      TTS                L0 + L1 + L2 Tunga                      ACTIVE (Forge in progress)
+  v0.2  First Voice      TTS                L0 + L1 + L2 Tunga                      SHIPPED HEAD f9c58cd AUDITED
         |  Tunga path: SSE stream → sentence-boundary chunker → ChatterboxClient
         |    → POST /v1/audio/speech (Pi 100.66.178.105:7851) → WAV bytes
         |    → AudioPlayback → OS audio device → speakers
         |  Fallback: /health fail or synthesis error → text-only, ceremony continues
         |  See DATA_FLOW.md §4.6 and §11 for full cartography of this path.
-  v0.3  First Listening  STT                L0 + L1 + L2 full Rödd (Hlust / Whisper.cpp)
+  v0.3  First Listening  STT                L0 + L1 + L2 full Rödd (Hlust / Whisper.cpp)   IN PROGRESS
+        |  Hlust path: mic 16kHz int16 30ms frames → VadDetector (webrtcvad primary,
+        |    energy-threshold fallback) → utterance buffer → WhisperEngine (pywhispercpp
+        |    primary, whisper-cli fallback) → transcript → CLI display → Bifröst user message
+        |  Lazy load: Whisper model loads on first utterance (resolves C-Q-C1); not at Kynding
+        |  Fallback chain: sounddevice fail → Hlust disabled → stdin; webrtcvad fail → energy RMS;
+        |    pywhispercpp fail → whisper-cli; neither Whisper → stdin fallback; ceremony never crashes
+        |  See DATA_FLOW.md §4.7 and §12 for full cartography of this path.
   v0.4  Summoning Circle Tauri UI           L4 added (Eldahús + Vébond)
         |  v0.4 note: SSE text chunks will fork here to chat display alongside v0.2 Tunga
   v0.5  First Sight      screen capture     L3 added (Sjón substrate + auga sense)

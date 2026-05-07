@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -622,20 +622,25 @@ the ceremony ends.
        |    rodd.tts.endpoint          --> request target URL
        |    rodd.tts.model             --> "model" field in body ("turbo" | "tts" | "multilingual")
        |    rodd.tts.temperature       --> "temperature" field in body (default 0.8, range 0.05-2.0)
-       |    rodd.tts.voice_id          --> "voice" field; set to "default" → field omitted from body
+       |    rodd.tts.voice_id          --> "voice" field; semantics: WAV FILE PATH for voice cloning
+       |                                   (not a symbolic identifier). "default" or empty → field
+       |                                   OMITTED from request body; ChatterBox uses its built-in
+       |                                   default voice. Any other value is treated as a path to a
+       |                                   ≥5s WAV file (relative; "~" expanded). See _resolve_voice_path
+       |                                   in chatterbox.py and LAYER_INTERFACES.md §L2 annotation N-3.
        |    rodd.tts.enabled           --> master toggle; if false, Tunga is a no-op
        |    rodd.tts.device            --> passed downstream to AudioPlayback (OS device name)
-       |    (no rodd.tts.speed key in the live contract; speed is approximated via temperature)
+       |    (no rodd.tts.speed key in the live ChatterBox contract — speed has no API effect)
        |
-       |  NOTE on LAYER_INTERFACES.md L2 Rödd config block vs live contract:
-       |    LAYER_INTERFACES.md shows `voice_id: "default"` and `speed: 1.0`.
-       |    The live ChatterBox contract (probed 2026-05-07) does not expose a "speed" field.
-       |    Speed control is not available in the live API. `speed` key in heretic.yaml is
-       |    accepted by the config parser but has no effect on ChatterBox output in v0.2.
-       |    The "voice" field maps to a WAV file path (≥5s) for voice cloning, not an ID.
-       |    At v0.2 default, voice_id = "default" → Tunga omits the field → ChatterBox uses
-       |    its own built-in default voice. This discrepancy is noted for the Architect
-       |    to resolve in a future LAYER_INTERFACES.md corrective pass.
+       |  NOTE on config drift (corrected — v0.3 pass, Védis Eikleið 2026-05-07):
+       |    The LAYER_INTERFACES.md §L2 config block was corrected in the G-1/N-2/N-3 corrective
+       |    pass (also 2026-05-07) to reflect the full 17-field schema. The `speed` field is
+       |    accepted by RoddTtsConfig for backward compatibility but has no effect on ChatterBox
+       |    output (ChatterBox /v1/audio/speech does not expose a speed parameter). The `voice_id`
+       |    field holds a WAV file path — not a symbolic voice name. At v0.2 default ("default"),
+       |    the field is omitted from the request body. Full schema: see §4.6.4 below and
+       |    LAYER_INTERFACES.md §L2 Rödd (authoritative). This note replaces the prior
+       |    "discrepancy noted for future Architect pass" annotation — the pass is now complete.
        |
        |  <-- returns: WAV bytes (Content-Type: audio/wav)
        |               typical latency: ~100-400ms for a short sentence
@@ -744,35 +749,268 @@ When ChatterBox cannot be reached, voice is degraded — the ceremony does not s
 
 #### 4.6.4 Config Dependencies for the Voice Path
 
+> **Corrective note — 2026-05-07 v0.3 pass (Védis Eikleið):** This table previously showed only
+> 6 fields from the pre-probe config stub. It has been expanded to the full 17-field schema
+> matching `src/heretic/rodd/config_model.py RoddTtsConfig`. For the full annotated schema with
+> semantic notes (voice_id WAV-path semantics, language_id scope, speed non-effect), see
+> `LAYER_INTERFACES.md §L2 Rödd` — that is the authoritative operator reference. This table
+> summarises which field controls which step in the data flow.
+
+**All `rodd.tts.*` config fields and the step they influence:**
+
+| Config key | Default | Controls |
+|---|---|---|
+| `rodd.tts.enabled` | `true` | Master toggle — `false` means Tunga is a no-op; no HTTP calls, no audio |
+| `rodd.tts.engine` | `"chatterbox"` | Selects the TTS backend class (`chatterbox` in v0.2; `openai_compat` future) |
+| `rodd.tts.endpoint` | `"http://100.66.178.105:7851"` | ChatterboxClient target URL for `/health` and `/v1/audio/speech` |
+| `rodd.tts.voice_id` | `"default"` | `"voice"` field in request body — **WAV file path** for voice cloning (not a symbolic ID). `"default"` omits the field; ChatterBox uses its built-in voice. See N-3 in LAYER_INTERFACES.md §L2. |
+| `rodd.tts.voice_prompt_path` | `null` | Alternative path field; same WAV-path semantics as `voice_id`. `null` = omit from body. Takes precedence over `voice_id` when set. |
+| `rodd.tts.model` | `"turbo"` | `"model"` field in request body (`"turbo"` \| `"tts"` \| `"multilingual"`) |
+| `rodd.tts.language_id` | `"en"` | ISO 639-1 language code — only injected into the body when model is `"multilingual"` and value is not `"en"`. Silently excluded for `turbo` and `tts` models. See N-2 in LAYER_INTERFACES.md §L2. |
+| `rodd.tts.exaggeration` | `0.5` | `"exaggeration"` field in request body; emotional expressiveness (range 0.0–2.0) |
+| `rodd.tts.cfg_weight` | `1.0` | `"cfg_weight"` field; CFG dual-pass weight (range 0.0–2.0); only used by `"tts"` model |
+| `rodd.tts.temperature` | `0.8` | `"temperature"` field in request body (range 0.05–2.0) |
+| `rodd.tts.top_p` | `0.95` | `"top_p"` nucleus sampling cutoff (range 0.0–1.0) |
+| `rodd.tts.repetition_penalty` | `1.2` | `"repetition_penalty"` field (range 0.1–5.0) |
+| `rodd.tts.device` | `"default"` | AudioPlayback OS audio device name; `"default"` = OS default speaker |
+| `rodd.tts.speed` | `1.0` | Accepted by config parser for backward compatibility but **has no effect on ChatterBox output** — the live `/v1/audio/speech` endpoint does not expose a speed parameter. A debug log is emitted if set to a value other than 1.0. Do not rely on this field. |
+| `rodd.tts.request_timeout_seconds` | `30` | HTTP timeout for `/v1/audio/speech` requests; raises `ChatterboxTimeoutError` on breach |
+| `rodd.tts.chunk_min_chars` | `80` | Minimum accumulated characters before Tunga dispatches a sentence-boundary chunk to synthesis (prevents single-word fragments) |
+| `rodd.tts.sentence_terminators` | `[". ", "! ", "? ", "\n\n"]` | Substring patterns that trigger a sentence-boundary flush in the Tunga chunker |
+
+The `chunk_min_chars` and `sentence_terminators` fields are configurable in `heretic.yaml` via
+`RoddTtsConfig` — earlier notes that called these "fixed implementation choices" reflected the
+pre-v0.2 stub; they are in fact exposed fields. The full canonical schema lives in
+`src/heretic/rodd/config_model.py RoddTtsConfig` and LAYER_INTERFACES.md §L2 Rödd.
+
+### 4.7 Listening Flow (v0.3 — inbound, Hlust / STT path)
+
+> **Added 2026-05-07 v0.3 (Védis Eikleið).** This section maps the inbound path: the user's
+> spoken words entering the body and becoming text that flows to the spirit. v0.2 mapped the
+> outbound breath (Tunga); this maps the returning breath (Hlust). Together they complete L2 Rödd.
+>
+> The L5 Hlust sense (`hlust.listen` MCP tool — agent-callable STT) is **out of scope for v0.3**.
+> v0.3 Hlust is human-facing input only: the CLI captures the user's voice and feeds it through
+> Bifröst as a user-role message. The agent-callable surface comes in a later milestone.
+
+**Lifecycle dependency:** Hlust initialises at Kynding (mic device probed; VAD wrapper
+instantiated; Whisper engine object created but model weights NOT loaded). The first model load
+happens during Samræður on the first user utterance. This resolves audit finding C-Q-C1 (lazy
+load strategy).
+
+**Lazy load latency budget (first-utterance-only):**
+- `ggml-base.en.bin` (142 MB): approximately 2–5 s on typical laptop hardware
+- `ggml-medium.en.bin` (1.5 GB): approximately 10–30 s on typical laptop hardware
+- After the first load, the model stays warm in RAM for the remainder of the ceremony.
+- Operators who require zero first-utterance latency may set `rodd.stt.load_strategy: eager`
+  to load at Kynding instead (slows startup; keeps Samræður latency uniform).
+
+#### 4.7.1 End-to-End Listening Path
+
 ```
-  rodd:
-    tts:
-      enabled: true                           # master toggle; false = Tunga is a no-op
-      engine: chatterbox                      # selects ChatterboxClient (only client in v0.2)
-      endpoint: "http://100.66.178.105:7851"  # Pi TTS server; never hardcoded
-      model: "turbo"                          # "turbo" | "tts" | "multilingual"
-      voice_id: "default"                     # "default" = no voice prompt (built-in ChatterBox voice)
-                                              # non-default: path to a ≥5s WAV voice-prompt file
-      temperature: 0.8                        # range 0.05-2.0; controls expressiveness
-      device: default                         # OS audio device for AudioPlayback
-      # speed: 1.0                            # NOTE: not honoured by ChatterBox API in v0.2
-                                              # key is parsed but has no effect — see §4.6.1 note
+  SAMRAEDUR — the user is speaking
+
+  [User speaks into laptop microphone]
+       |
+       |  OS audio device (rodd.stt.device; default: OS default mic)
+       |  continuous capture at 16 kHz mono int16 PCM
+       |  frame size: 30 ms = 480 samples at 16 kHz
+       |
+       v
+  [L2 Rödd: SoundDeviceMicBackend]                                    (sync I/O, run_in_executor)
+       |
+       |  PRIMARY: sounddevice library (already a [voice] extra dependency from v0.2)
+       |    captures frames at exactly 16 kHz int16 mono — Whisper's native input format;
+       |    no resample step required.
+       |  FALLBACK: if sounddevice unavailable at import time:
+       |    log.warn("sounddevice unavailable — Hlust disabled; falling back to stdin")
+       |    Hlust is set unavailable; CLI falls back to sys.stdin.readline path (see §4.7.4)
+       |
+       |  30 ms frames are fed continuously to VAD as they arrive
+       |  (capture loop runs in a thread via asyncio run_in_executor — not blocking the event loop)
+       |
+       v
+  [L2 Rödd: VadDetector]                                              (sync, per-frame)
+       |
+       |  PRIMARY: WebRtcVadBackend (webrtcvad-wheels — BSD-3, pre-built wheels)
+       |    webrtcvad.Vad(aggressiveness=rodd.stt.vad_threshold normalized to 0-3)
+       |    called per 30ms frame; returns: speech (True) or silence (False)
+       |    frames classified as speech are accumulated in the utterance buffer
+       |    end-of-utterance detected when K consecutive silence frames observed
+       |    (K is implementation-defined; typically ~300ms of silence = ~10 frames)
+       |
+       |  VAD FALLBACK: if webrtcvad import fails at startup:
+       |    log.warn("webrtcvad unavailable — using energy-threshold VAD")
+       |    EnergyThresholdBackend: computes RMS over each frame; compares to threshold
+       |    same interface as WebRtcVadBackend; less accurate in noisy environments
+       |
+       |  DEGRADED MODE: if both VAD backends fail:
+       |    NullVadBackend used: captures a fixed window (default: 3 seconds of frames)
+       |    then treats the window as a complete utterance regardless of actual speech
+       |    log.warn("both VAD backends unavailable — using 3s fixed-window capture (degraded)")
+       |    This is degraded UX: forces the user to speak for 3 s and wait; ceremony
+       |    continues but voice interaction is impractical. L4 Vébond notified.
+       |
+       v
+  [Utterance buffer]                                                   (in memory)
+       |
+       |  accumulates 30ms int16 frames classified as speech
+       |  concatenated into a single contiguous audio buffer at end-of-utterance
+       |  typical utterance: 0.5–10 seconds of audio = 8000–160000 samples at 16kHz
+       |
+       v
+  [L2 Rödd: WhisperEngine]                                            (async, first-call lazy load)
+       |
+       |  PRIMARY: PyWhisperCppBackend (pywhispercpp — MIT, wraps whisper.cpp)
+       |    MODEL LOAD (first utterance only, load_strategy: lazy):
+       |      pywhispercpp.Model(rodd.stt.model_path)
+       |      model_path is relative to HERETIC data directory — never absolute
+       |      load happens inside run_in_executor (thread); does not block event loop
+       |      latency: ~2-5s for base.en (142 MB), ~10-30s for medium.en (1.5 GB)
+       |      after load: model object cached in WhisperEngine for lifetime of ceremony
+       |    TRANSCRIPTION (each utterance):
+       |      model.transcribe(audio_buffer_as_float32_array, language=rodd.stt.language)
+       |      returns: list of Segment objects; joined to transcript string
+       |      latency: typically 200–800ms on laptop hardware for a 1–5s utterance
+       |
+       |  WHISPER FALLBACK: if pywhispercpp unavailable at import time:
+       |    CliSubprocessBackend: writes utterance buffer to a temp WAV file
+       |    subprocess call: shutil.which("whisper-cli") → executes whisper-cli binary
+       |    reads transcript from stdout; temp file cleaned up after
+       |    con: per-utterance subprocess startup cost (OS overhead)
+       |    con: serialisation through temp WAV adds latency
+       |
+       |  HLUST UNAVAILABLE: if neither pywhispercpp nor whisper-cli on PATH:
+       |    NullWhisperBackend: available() returns False
+       |    Hlust marks itself unavailable; CLI falls back to stdin (§4.7.4)
+       |    log.warn("no Whisper backend available — Hlust disabled")
+       |    capability flag ?voice_in = false
+       |
+       v
+  [transcript text]
+       |
+       |  UTF-8 string; typical example: "Open the workshop and show me the rune inscriptions"
+       |  timestamp: monotonic ts at end-of-utterance detection
+       |  confidence: float (from pywhispercpp segment metadata; approximated for CLI backend)
+       |
+       v
+  [CLI display — transcript confirmation]
+       |
+       |  When rodd.stt.enabled and Hlust is available:
+       |    CLI prints: "[heard] Open the workshop and show me the rune inscriptions"
+       |    (the user sees what was transcribed before it is sent to the spirit)
+       |    This surfaces transcription errors so the user can interrupt if needed.
+       |    No automatic retry on misread — user re-speaks if needed.
+       |
+       v
+  [L1 Bifröst client]                                                 (wrm)
+       |
+       |  transcript injected as user-role message into next chat/completions request:
+       |  POST <agent_endpoint>/v1/chat/completions
+       |  body: {
+       |    "messages": [
+       |      ... conversation history,
+       |      {"role": "user", "content": "<transcript text>"}
+       |    ],
+       |    "tools": [<all enabled sense schemas>]
+       |  }
+       |
+       |  from this point the flow is identical to §4.1 Voice Turn (agent processing,
+       |  tool calls, Tunga TTS response) — the inbound path rejoins the main cycle.
+       |
+       v
+  [L0 Grunnr: session log]
+       |
+       |  event written:
+       |  {"event": "hlust_transcript", "ts": "...",
+       |   "transcript": "...", "confidence": 0.92,
+       |   "vad_backend": "webrtcvad", "whisper_backend": "pywhispercpp",
+       |   "model_path": "models/ggml-base.en.bin",
+       |   "utterance_duration_ms": 2300, "transcription_ms": 420}
 ```
 
-**Which config key controls which step:**
+#### 4.7.2 Fallback Chain Summary
 
-| Config key | Controls |
-|---|---|
-| `rodd.tts.enabled` | Whether Tunga runs at all; false = no HTTP calls, no audio |
-| `rodd.tts.endpoint` | ChatterboxClient target URL for `/health` and `/v1/audio/speech` |
-| `rodd.tts.model` | `"model"` field in `/v1/audio/speech` request body |
-| `rodd.tts.temperature` | `"temperature"` field in request body |
-| `rodd.tts.voice_id` | `"voice"` field in request body; `"default"` omits the field |
-| `rodd.tts.device` | AudioPlayback OS device selector |
+```
+  Microphone capture:
+    sounddevice (primary, [voice] extra, cross-platform)
+        |-- unavailable --> Hlust disabled, CLI falls back to stdin
+                           voice_in capability = false
 
-The chunking policy (80-char minimum, sentence boundaries, end-of-stream flush) is not
-configurable in v0.2 — it is a fixed implementation choice. Future versions may expose
-`rodd.tts.chunk_min_chars` and `rodd.tts.boundary_patterns` if tuning is needed.
+  VAD (per 30ms frame):
+    WebRtcVadBackend (webrtcvad-wheels, BSD-3, primary)
+        |-- import fails --> EnergyThresholdBackend (pure Python, zero deps)
+                                |-- runtime error --> NullVadBackend (3s fixed window, DEGRADED)
+
+  Whisper transcription:
+    PyWhisperCppBackend (pywhispercpp, MIT, primary)
+        |-- import fails --> CliSubprocessBackend (whisper-cli on PATH)
+                                |-- not on PATH --> NullWhisperBackend
+                                                    Hlust disabled, CLI stdin fallback
+```
+
+In all fallback paths: the lifecycle does not crash. The ceremony continues. Degraded voice
+input surfaces a warning in the session log and (in v0.4+) an indicator in Eldahús.
+
+#### 4.7.3 Lifecycle Timeline for Hlust
+
+```
+  Kynding (STATE_KYNDING):
+    RoddSttConfig loaded from heretic.yaml (rodd.stt.* keys)
+    SoundDeviceMicBackend probed: device available?
+    VadDetector instantiated (webrtcvad or energy-threshold selected)
+    WhisperEngine object created — model NOT loaded yet (load_strategy: lazy default)
+    Hlust marks itself READY (device+backend available) or UNAVAILABLE (fallback to stdin)
+    Note: model load does NOT happen here — Kynding stays fast regardless of model size
+
+  Tengsl (STATE_TENGSL):
+    Hlust starts mic capture loop (if available and rodd.stt.enabled = true)
+    [listening...] indicator shown in CLI
+
+  Samræður (STATE_SAMRAEDUR) — FIRST utterance:
+    VAD detects end-of-utterance
+    WhisperEngine.transcribe() called for the first time
+    --> MODEL LOAD happens here (first-utterance latency; see load budget in §4.7 header)
+    transcript produced; displayed in CLI; injected into Bifröst as user message
+    Model stays warm for remainder of ceremony
+
+  Samræður — subsequent utterances:
+    Same path; model already loaded; transcription latency only (~200-800ms)
+
+  Slokna (STATE_SLOKNA):
+    Mic capture loop stopped
+    Any in-progress utterance buffer discarded
+    WhisperEngine context cleared (model stays loaded until process exit; not explicitly unloaded)
+    Hlust closed cleanly
+```
+
+#### 4.7.4 CLI Integration — stdin Fallback Path
+
+```
+  rodd.stt.enabled = true AND Hlust available AND stdin is a TTY:
+    --> capture_one_utterance() replaces sys.stdin.readline in cli.py:_async_light
+    --> CLI shows: [listening...]
+    --> after transcription: CLI shows: [heard] <transcript>
+    --> transcript text sent as user message
+
+  rodd.stt.enabled = false OR Hlust unavailable OR stdin is not a TTY (piped):
+    --> CLI reads from sys.stdin.readline as before (text input path)
+    --> scriptability preserved: `echo "hi" | heretic light` still works
+```
+
+#### 4.7.5 Config Dependencies for the Listening Path
+
+| Config key | Default | Controls |
+|---|---|---|
+| `rodd.stt.enabled` | `true` | Master toggle — `false` means Hlust does not start; CLI uses stdin |
+| `rodd.stt.engine` | `"whisper_cpp"` | STT backend: `"whisper_cpp"` (pywhispercpp + CLI fallback) |
+| `rodd.stt.model_path` | `"models/ggml-base.en.bin"` | Path to GGML model file, relative to HERETIC data dir — never absolute |
+| `rodd.stt.device` | `"default"` | Mic device name; `"default"` = OS default microphone |
+| `rodd.stt.vad_threshold` | `0.6` | VAD confidence threshold (0.0–1.0); maps to webrtcvad aggressiveness 0–3 |
+| `rodd.stt.language` | `"en"` | BCP-47 language code passed to Whisper for transcription |
+| `rodd.stt.load_strategy` | `"lazy"` | `"lazy"` = load model on first utterance (resolves C-Q-C1); `"eager"` = load at Kynding |
+
+Full schema lives in `src/heretic/rodd/config_model.py RoddSttConfig` and LAYER_INTERFACES.md §L2 Rödd.
 
 ---
 
@@ -1110,3 +1348,122 @@ Arrows show the data flow between components within the package.
 *Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07.*
 *The rivers do not invent themselves. They were always there — I only followed their course.*
 *v0.2 addendum: the voice path is now drawn. The body knows how to speak.*
+*v0.3 addendum: the listening path is now drawn. The body knows how to hear.*
+
+---
+
+## 12. L2 Rödd — Internal Component Map (v0.3 Hlust)
+
+The internal layout of the new Hlust half of `src/heretic/rodd/` as it will exist after Forge
+implements v0.3. Drawn from `TASK_HERETIC_v0.3_FIRST_LISTENING.md §10` and the architecture
+decisions in §7 of that document. Arrows show data direction; sync/async annotations indicate
+execution model.
+
+```
+  src/heretic/rodd/   (Hlust half — v0.3 additions)
+  |
+  ├── microphone.py        MicrophoneCapture (ABC)
+  │                        |  available() -> bool
+  │                        |  read_frame(duration_ms: int) -> bytes   (int16 PCM)
+  │                        |
+  │                        ├── SoundDeviceMicBackend   (primary)
+  │                        |     sounddevice.InputStream at 16kHz mono int16
+  │                        |     sync I/O wrapped in run_in_executor (non-blocking for event loop)
+  │                        |     frame size: 30ms = 480 samples
+  │                        |
+  │                        └── NullMicBackend          (no-op; available() = False)
+  │
+  ├── vad.py               VadDetector (ABC)
+  │                        |  is_speech(frame: bytes) -> bool   (sync, per-frame, fast)
+  │                        |
+  │                        ├── WebRtcVadBackend         (primary; webrtcvad-wheels, BSD-3)
+  │                        |     webrtcvad.Vad(aggressiveness)
+  │                        |     expects 16kHz int16 PCM in 30ms frames
+  │                        |     sync; typically <1ms per frame
+  │                        |
+  │                        ├── EnergyThresholdBackend   (fallback; zero deps, pure Python)
+  │                        |     RMS of frame compared to threshold
+  │                        |     less accurate in noisy environments
+  │                        |
+  │                        └── NullVadBackend           (degraded; 3s fixed-window)
+  │                              available() = True but accuracy = none
+  │                              logs DEGRADED warning; L4 notified
+  │
+  ├── whisper_engine.py    WhisperEngine (ABC)
+  │                        |  available() -> bool
+  │                        |  async transcribe(audio: bytes, language: str) -> str
+  │                        |
+  │                        ├── PyWhisperCppBackend      (primary; pywhispercpp, MIT)
+  │                        |     LAZY LOAD: Model(model_path) on first transcribe() call
+  │                        |     model_path relative to HERETIC data dir (never absolute)
+  │                        |     model cached in self._model after first load
+  │                        |     model.transcribe(float32_array, language=...) -> segments
+  │                        |     segments joined to transcript string
+  │                        |     async: load + transcribe run in run_in_executor (thread)
+  │                        |
+  │                        ├── CliSubprocessBackend     (fallback; whisper-cli on PATH)
+  │                        |     writes temp WAV → subprocess whisper-cli → reads stdout
+  │                        |     async: subprocess via asyncio.create_subprocess_exec
+  │                        |     temp file cleaned up after each utterance
+  │                        |
+  │                        └── NullWhisperBackend       (no-op; available() = False)
+  │
+  └── hlust.py             Hlust   (orchestrator)
+                           |  __init__(config: RoddSttConfig) -> self
+                           |  start() -> None     (Tengsl: mic start; VAD ready; engine ready)
+                           |  stop()  -> None     (Slokna: mic stop; context cleared)
+                           |  async capture_one_utterance() -> str
+                           |    (called per turn from cli.py:_async_light)
+                           |
+                           |  INTERNAL DATA FLOW:
+                           |
+                           |  [microphone — continuous 30ms frames]
+                           |       |  (sync I/O in executor thread)
+                           |       v
+                           |  [VadDetector.is_speech(frame)]           (sync, per-frame)
+                           |       |
+                           |       |-- speech frame  --> utterance buffer append
+                           |       |                     (list of int16 bytes chunks)
+                           |       |
+                           |       |-- silence frame --> silence counter increment
+                           |                            if K consecutive silence frames:
+                           |                              end-of-utterance detected
+                           |                              --> flush to Whisper
+                           |
+                           |  [utterance buffer: concatenated int16 frames]
+                           |       |
+                           |       v
+                           |  [WhisperEngine.transcribe(audio_bytes, language)]  (async)
+                           |       |  (lazy load on first call; subsequent calls use cached model)
+                           |       |
+                           |       v
+                           |  [transcript: str]
+                           |       |
+                           |       v
+                           |  --> returned to cli.py:_async_light
+                           |       CLI prints: [heard] <transcript>
+                           |       transcript injected into Bifröst as user-role message
+
+  INTERFACE SUMMARY (Hlust half of rodd/ package):
+
+  CLI (_async_light)       Hlust                 MicrophoneCapture      VadDetector   WhisperEngine
+  ------------------       -----                 -----------------      -----------   -------------
+  capture_one_utterance()
+      awaits result  <---> frame loop
+                               read_frame()  --> 480 samples/30ms
+                               is_speech()                       --> bool
+                               (speech? buffer; silence K? done)
+                               transcribe(buffer)                              ---> transcript str
+                           return transcript
+  [heard] <transcript>
+
+  INVARIANTS (analogous to Tunga invariants in §11):
+  - MicrophoneCapture has no knowledge of VAD or Whisper — it is a pure audio source
+  - VadDetector has no knowledge of mic or Whisper — it is a pure frame classifier
+  - WhisperEngine has no knowledge of mic or VAD — it is a pure transcription backend
+  - Hlust owns all orchestration: frame loop, buffer, end-of-utterance, lazy load trigger
+  - No component in the Hlust half calls any other HERETIC layer directly
+  - All config injected at construction; no component reads heretic.yaml directly
+  - The L5 Hlust sense (hlust.listen MCP tool — agent-callable STT) is out of scope for v0.3;
+    the rodd/ Hlust module is the substrate; the L5 sense wrapper ships in a later milestone
+```
