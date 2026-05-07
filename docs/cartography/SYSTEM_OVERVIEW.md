@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -78,8 +78,11 @@ inhabits the body. When the ceremony ends, the body sleeps and the shrine endure
        |    Tailscale-aware (uses tailscale IP as endpoint)
        |
        |-- [L2] Rödd
-       |    Hlust: Whisper.cpp (STT)  — runs in-process or subprocess
-       |    Tunga: ChatterBox proxy   — HTTP client to Pi:7851
+       |    Hlust: Whisper.cpp (STT)  — runs in-process or subprocess  [v0.3]
+       |    Tunga: ChatterBox client  — HTTP to Pi:7851/v1/audio/speech  [v0.2 — ACTIVE]
+       |    (Tunga voice flow: SSE chunk → sentence-boundary chunker → ChatterboxClient
+       |     → POST /v1/audio/speech → WAV bytes → AudioPlayback → speakers;
+       |     full path mapped in DATA_FLOW.md §4.6)
        |
        |-- [L3] Sjón
        |    screen capture (OS screenshot API)
@@ -419,23 +422,55 @@ to it. Tool calls to this sense are prefixed `blender.*` (e.g., `blender.screens
 Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
 
 ```
-  v0.0  Bones          docs only          L0 (config schema only)
-  v0.1  First Communion  CLI ceremony     L0 + L1 (Bifröst live, text only)
-  v0.2  First Voice     TTS              L0 + L1 + L2 (Tunga)
-  v0.3  First Listening  STT             L0 + L1 + L2 (full Rödd)
-  v0.4  Summoning Circle  Tauri UI       L4 added (Eldahús + Vébond)
-  v0.5  First Sight      screen capture  L3 added (Sjón substrate + auga sense)
-  v0.6  Hands at the Forge  Blender MCP  L5.5 (blender sense + Seidr-Smidja)
-  v0.7  Files & Terminal   FS + terminal L5.1 + L5.2 (filesystem + terminal senses)
-  v0.7.5 First Drink       Mímisbrunnr  L5.9 light (library sense + Norse seed corpus)
-  v0.8  The Open Web       Browser MCP  L5.3 (browser sense)
-  v0.9  The Painter        Photopea MCP L5.4 (photopea sense)
+  v0.0  Bones            docs only          L0 (config schema only)
+  v0.1  First Communion  CLI ceremony       L0 + L1 (Bifröst live, text only)       SHIPPED HEAD 926de2e
+  v0.2  First Voice      TTS                L0 + L1 + L2 Tunga                      ACTIVE (Forge in progress)
+        |  Tunga path: SSE stream → sentence-boundary chunker → ChatterboxClient
+        |    → POST /v1/audio/speech (Pi 100.66.178.105:7851) → WAV bytes
+        |    → AudioPlayback → OS audio device → speakers
+        |  Fallback: /health fail or synthesis error → text-only, ceremony continues
+        |  See DATA_FLOW.md §4.6 and §11 for full cartography of this path.
+  v0.3  First Listening  STT                L0 + L1 + L2 full Rödd (Hlust / Whisper.cpp)
+  v0.4  Summoning Circle Tauri UI           L4 added (Eldahús + Vébond)
+        |  v0.4 note: SSE text chunks will fork here to chat display alongside v0.2 Tunga
+  v0.5  First Sight      screen capture     L3 added (Sjón substrate + auga sense)
+  v0.6  Hands at the Forge  Blender MCP     L5.5 (blender sense + Seidr-Smidja)
+  v0.7  Files & Terminal    FS + terminal   L5.1 + L5.2 (filesystem + terminal senses)
+        |  v0.7 also: L5.11 Tunga sense (tunga.speak MCP tool — agent-callable TTS)
+  v0.7.5 First Drink     Mímisbrunnr        L5.9 light (library sense + Norse seed corpus)
+  v0.8  The Open Web     Browser MCP        L5.3 (browser sense)
+  v0.9  The Painter      Photopea MCP       L5.4 (photopea sense)
   v0.10 The Longhouse Beyond VRChat + MindSpark  L5.6 (vrchat sense) + L5.9 MindSpark backend
-  v0.11 Correspondence    AgentMail      L5.7 (agentmail sense)
-  v1.0  First Manifestation  full polish L5.8 (Nýr Limr custom plugin system)
-  v1.x+ New Limbs          community MCPs  Nýr Limr slots open
-  v2.x  (stretch)          UE5/VR         optional photorealistic layer
+  v0.11 Correspondence   AgentMail          L5.7 (agentmail sense)
+  v1.0  First Manifestation  full polish    L5.8 (Nýr Limr custom plugin system)
+  v1.x+ New Limbs           community MCPs Nýr Limr slots open
+  v2.x  (stretch)           UE5/VR          optional photorealistic layer
 ```
+
+**v0.2 Tunga — layer topology addition:**
+
+The following connections become active when v0.2 ships:
+
+```
+  LAPTOP                                      PI
+  ------                                      --
+  [L1 Bifröst SSE stream parser]
+       |
+       | text_delta per token
+       v
+  [L2 Rödd: Tunga orchestrator]          ChatterBox TTS :7851
+       |  sentence-boundary chunker            |
+       |  synthesis queue                      |
+       +--- POST /v1/audio/speech -----------> |
+       <--- WAV bytes ------------------------ |
+       |
+       v
+  [AudioPlayback: sounddevice → speakers]
+```
+
+This Tunga path is purely automatic in v0.2 (pass-through from Bifröst). The agent does not
+call a tool to speak — the body speaks automatically as the spirit's words arrive. The
+agent-callable `tunga.speak` tool surface (L5.11) comes in v0.7.
 
 ---
 

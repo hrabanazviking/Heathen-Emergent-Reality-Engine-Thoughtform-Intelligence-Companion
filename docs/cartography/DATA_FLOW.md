@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f)
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -170,10 +170,13 @@ Bifröst opens. The spirit enters the body.
        v
   [L2 Rödd: Tunga] receives agent text response
        |
-       |  POST <chatterbox_endpoint>/tts  (or configured TTS API)
-       |  body: {"text": "<agent greeting text>", "voice": "<configured voice>"}
+       |  POST <chatterbox_endpoint>/v1/audio/speech           (v0.2 live contract)
+       |  body: {"model": "turbo", "input": "<agent greeting text>",
+       |         "response_format": "wav", "temperature": 0.8}
+       |  NOTE: v0.1 docs showed `/tts` — corrected here.  Live endpoint is
+       |        `/v1/audio/speech` (probed 2026-05-07, see TASK_HERETIC_v0.2_FIRST_VOICE §3).
        |
-       |  <-- returns: audio/wav or audio/mp3 stream
+       |  <-- returns: audio/wav bytes (Content-Type: audio/wav)
        |
        |  audio played through local speakers
        v
@@ -244,20 +247,26 @@ The central repeating cycle during Samræður.
   [L1 Bifröst client: receives agent response]
        |
        |-- if response is text only (case A):
-       |       text --> L2 Rödd: Tunga --> ChatterBox TTS --> audio --> speakers
+       |       SSE text chunks fork here:
+       |         path 1 --> L4 Vébond chat display    [v0.4; not yet active in v0.2]
+       |         path 2 --> L2 Rödd: Tunga            [v0.2 — sentence-boundary chunker]
+       |         (see §4.6 for the full voice flow path through L2 Rödd Tunga)
        |
        |-- if response contains tool_call(s) (case B):
        |       tool_call(s) --> L5 Skilningr (MCP dispatch)  [see §4.2]
-       |       after tool results returned: final text --> L2 Rödd: Tunga
+       |       after tool results returned: final text --> L2 Rödd: Tunga  [see §4.6]
        v
   [L2 Rödd: Tunga]
        |
-       |  POST <chatterbox_endpoint>/tts
-       |  body: {"text": "<agent response>", "voice": "<configured voice>"}
+       |  POST <chatterbox_endpoint>/v1/audio/speech           (v0.2 live contract)
+       |  body: {"model": "turbo", "input": "<agent response>",
+       |         "response_format": "wav", "temperature": 0.8}
+       |  NOTE: v0.1 docs showed `/tts` — corrected here.  See §4.6 for the full
+       |        streaming chunking path (sentence-boundary chunker → queue → playback).
        |
-       |  <-- audio stream returned (warm)
+       |  <-- WAV bytes returned (warm)
        |
-       |  audio plays through speakers
+       |  audio plays through speakers (via AudioPlayback — sounddevice primary)
        v
   [L0 Grunnr: session log]
        |
@@ -353,7 +362,7 @@ When the agent issues a tool call, Bifröst routes it through Skilningr to the a
        |
        |  <-- agent final response (text)
        v
-  [L2 Rödd: Tunga] --> ChatterBox --> speakers  (as in §4.1)
+  [L2 Rödd: Tunga] --> ChatterBox /v1/audio/speech --> WAV bytes --> speakers  (see §4.1 and §4.6)
 ```
 
 **Tool call latency depends on which sense is called:**
@@ -468,7 +477,7 @@ When the agent needs to search the offline well of wisdom.
        |
        |  agent incorporates search results into next response
        v
-  [L2 Rödd: Tunga --> ChatterBox --> speakers]
+  [L2 Rödd: Tunga --> ChatterBox /v1/audio/speech --> WAV bytes --> speakers  (see §4.6)]
 ```
 
 **Note on attribution:** Mímisbrunnr result objects carry attribution metadata at all times.
@@ -518,8 +527,10 @@ A single turn with tool use, from first breath to final word:
                and basic surface divisions. Want me to add edge loops for detail work?"
 
   T+5200ms    L2 Tunga sends to ChatterBox:
-              POST <chatterbox>/tts
-              {text: "The shield mesh is ready..."}
+              POST <chatterbox>/v1/audio/speech             (v0.2 live contract)
+              {model: "turbo", input: "The shield mesh is ready...",
+               response_format: "wav", temperature: 0.8}
+              NOTE: v0.1 trace showed `/tts` — corrected; see §4.6 for streaming detail
 
   T+5200–5500ms ChatterBox synthesizes audio (~300ms)                         (wrm)
 
@@ -529,6 +540,239 @@ A single turn with tool use, from first breath to final word:
               {type:"voice_turn_with_tool", transcript:"...", tool:"blender.run_script",
                tool_result_summary:"shield mesh created", ts_start: T+0, ts_audio_start: T+5500}
 ```
+
+### 4.6 Voice Flow (v0.2 — outbound only, Tunga / TTS path)
+
+This section maps the full route of a spoken agent response through L2 Rödd in v0.2 First
+Voice. Only the outbound (Tunga / TTS) half is implemented in v0.2. The inbound (Hlust / STT)
+half is v0.3 First Listening. The L5 Tunga sense wrapper (agent-callable `tunga.speak` tool)
+is v0.7 and later.
+
+**Lifecycle dependency:** Tunga is initialized at Kynding (client warm, no audio yet) and
+first becomes active during Tengsl. It operates fully during Samræður. At Slokna, any queued
+speech is flushed before the queue is closed — the agent may speak its final words before
+the ceremony ends.
+
+#### 4.6.1 End-to-End Path
+
+```
+  SAMRAEDUR — the spirit is speaking
+
+  [L1 Bifröst: SSE stream parser]
+       |
+       |  agent response arrives as a stream of SSE chunks (if stream: true):
+       |    data: {"choices":[{"delta":{"content":"word "}}]}
+       |    data: {"choices":[{"delta":{"content":"by "}}]}
+       |    data: [DONE]
+       |
+       |  each chunk is a token or small fragment of the spirit's reply
+       |
+       |  the raw SSE stream FORKS at this point:
+       |    --> path A: chat display in L4 Vébond  (v0.4 Summoning Circle; not in v0.2)
+       |    --> path B: L2 Rödd Tunga orchestrator (v0.2 — this section)
+       v
+  [L2 Rödd: Tunga orchestrator — sentence-boundary chunker]
+       |
+       |  CHUNKING POLICY:
+       |  Tunga accumulates incoming text deltas into an internal buffer.
+       |  A chunk is dispatched to synthesis when EITHER condition is met:
+       |
+       |    Condition 1 — sentence boundary detected:
+       |      triggers on: ". " (period-space)
+       |                   "! " (exclamation-space)
+       |                   "? " (question-space)
+       |                   "\n\n" (paragraph break)
+       |      AND the accumulated buffer has reached the minimum threshold:
+       |                   min 80 characters accumulated before boundary fires
+       |      (the 80-char minimum prevents single-word or very-short-fragment synthesis,
+       |       which sounds jarring. A sentence boundary on buffer <80 chars is swallowed
+       |       into the accumulator until the next boundary or end-of-stream.)
+       |
+       |    Condition 2 — end-of-stream flush:
+       |      when the SSE stream sends [DONE], Tunga flushes any remaining buffer
+       |      regardless of boundary or minimum threshold.
+       |      This ensures the last sentence of a response is always spoken.
+       |
+       |  SERIALIZATION:
+       |    chunks are dispatched in strict arrival order
+       |    only one HTTP request to ChatterBox is in-flight at a time (single-request queue)
+       |    the next chunk waits until playback of the previous chunk has begun
+       |    (not completed — started; this allows near-pipelined audio without overlap)
+       |
+       v
+  [ChatterboxClient — async httpx, POST /v1/audio/speech]            (wrm)
+       |
+       |  Health check path (at Kynding / Tengsl init):
+       |    GET <rodd.tts.endpoint>/health
+       |    --> 200 OK: client warm, proceed
+       |    --> timeout or error: emit warning, set voice_available = false
+       |                          (see fallback path in §4.6.2)
+       |
+       |  Per-chunk synthesis request:
+       |    POST <rodd.tts.endpoint>/v1/audio/speech
+       |    body: {
+       |      "model":           "<rodd.tts.model>"             (default: "turbo")
+       |      "input":           "<chunk text, 1-4000 chars>"
+       |      "response_format": "wav"                          (only format supported)
+       |      "temperature":     <rodd.tts.temperature>         (default: 0.8)
+       |      "voice":           <rodd.tts.voice_prompt_path>   (optional; omit for default voice)
+       |    }
+       |
+       |  Config keys that influence this step:
+       |    rodd.tts.endpoint          --> request target URL
+       |    rodd.tts.model             --> "model" field in body ("turbo" | "tts" | "multilingual")
+       |    rodd.tts.temperature       --> "temperature" field in body (default 0.8, range 0.05-2.0)
+       |    rodd.tts.voice_id          --> "voice" field; set to "default" → field omitted from body
+       |    rodd.tts.enabled           --> master toggle; if false, Tunga is a no-op
+       |    rodd.tts.device            --> passed downstream to AudioPlayback (OS device name)
+       |    (no rodd.tts.speed key in the live contract; speed is approximated via temperature)
+       |
+       |  NOTE on LAYER_INTERFACES.md L2 Rödd config block vs live contract:
+       |    LAYER_INTERFACES.md shows `voice_id: "default"` and `speed: 1.0`.
+       |    The live ChatterBox contract (probed 2026-05-07) does not expose a "speed" field.
+       |    Speed control is not available in the live API. `speed` key in heretic.yaml is
+       |    accepted by the config parser but has no effect on ChatterBox output in v0.2.
+       |    The "voice" field maps to a WAV file path (≥5s) for voice cloning, not an ID.
+       |    At v0.2 default, voice_id = "default" → Tunga omits the field → ChatterBox uses
+       |    its own built-in default voice. This discrepancy is noted for the Architect
+       |    to resolve in a future LAYER_INTERFACES.md corrective pass.
+       |
+       |  <-- returns: WAV bytes (Content-Type: audio/wav)
+       |               typical latency: ~100-400ms for a short sentence
+       v
+  [AudioPlayback — sounddevice primary, platform fallback]            (hot)
+       |
+       |  PRIMARY: sounddevice library
+       |    reads WAV bytes into numpy array
+       |    plays through OS audio device (rodd.tts.device, default: "default")
+       |    non-blocking playback start; Tunga marks chunk as "playing" and accepts next
+       |
+       |  FALLBACK CHAIN (if sounddevice unavailable at import time):
+       |    Windows: winsound.PlaySound(wav_bytes, winsound.SND_MEMORY)
+       |    macOS:   afplay via subprocess (writes temp file, plays, removes)
+       |    Linux:   aplay via subprocess (writes temp file, plays, removes)
+       |    all fallbacks: blocking playback (next chunk waits for completion)
+       |
+       |  Config key: rodd.tts.device --> OS audio device name
+       |              "default" = OS default output device
+       |
+       v
+  [OS audio device → speakers]                                        (hot)
+       |
+       |  The spirit's words emerge in the room.
+       |
+       |  Events emitted (to L4 Vébond, for waveform / activity display):
+       |    voice::speaking_start   (emitted when first WAV chunk begins playback)
+       |    voice::speaking_end     (emitted when queue is empty and last chunk finishes)
+       |
+       v
+  [L0 Grunnr: session log]
+       |
+       |  event written:
+       |  {"event": "tunga_chunk_spoken", "ts": "...", "chunk_length_chars": ...,
+       |   "tts_latency_ms": ..., "playback_device": "..."}
+```
+
+#### 4.6.2 Fallback Path (ChatterBox unavailable)
+
+When ChatterBox cannot be reached, voice is degraded — the ceremony does not stop.
+
+```
+  [Tunga: health check at Kynding]
+       |
+       |  GET <rodd.tts.endpoint>/health
+       |
+       |-- 200 OK --> voice_available = true, proceed normally (§4.6.1)
+       |
+       |-- connection refused, timeout, or non-2xx:
+       |       log.warn("ChatterBox unreachable at <endpoint> — voice disabled for this ceremony")
+       |       voice_available = false
+       |       capability flag ?voice_out = false
+       |       --> L4 Vébond: voice::error(VOICE_TTS_UNREACHABLE)
+       |       --> UI: voice degraded indicator shown
+       |       ceremony continues in TEXT-ONLY mode
+       v
+  [Per-chunk synthesis request — if voice_available = false]:
+       |
+       |  Tunga short-circuits: chunk is discarded (no HTTP call made)
+       |  The agent's text still flows to L4 Vébond for display (v0.4 path)
+       |  No audio is played; no crash; no block on the conversation
+       |
+  [Mid-ceremony TTS error (after initial health check succeeded)]:
+       |
+       |  HTTP error on /v1/audio/speech (connection dropped, 5xx, timeout):
+       |    log.warn("ChatterBox synthesis failed for chunk — skipping audio")
+       |    discard chunk audio; do NOT stop the conversation
+       |    if 3 consecutive failures:
+       |      voice_available = false; emit voice::error(VOICE_TTS_UNREACHABLE)
+       |      Tunga stops attempting synthesis for remainder of Samræður
+       |      user notified via L4 Vébond
+```
+
+#### 4.6.3 Lifecycle Timeline for Tunga
+
+```
+  Kynding (STATE_KYNDING):
+    RoddConfig loaded from heretic.yaml (rodd.tts.* keys)
+    ChatterboxClient instantiated (httpx async session created)
+    GET /health called once:
+      success  --> client warm; voice_available = true
+      failure  --> voice_available = false; warning logged; ceremony proceeds
+
+  Tengsl (STATE_TENGSL):
+    Tunga queue initialized (empty)
+    voice::speaking_start / voice::speaking_end handlers registered with L4
+    No audio produced yet (spirit has not spoken)
+
+  Samræður (STATE_SAMRAEDUR):
+    Tunga fully active — sentence-chunker consuming Bifröst SSE stream
+    ChatterBox synthesis on demand per chunk
+    AudioPlayback operating
+
+  Slokna (STATE_SLOKNA) — teardown sequence:
+    Bifröst stops feeding new text chunks to Tunga
+    Tunga flushes current queue:
+      any pending synthesized WAV (not yet started): played
+      any pending text (not yet sent to ChatterBox): synthesized and played
+      (the agent's parting words are spoken before silence falls)
+    Drain window: bifrost.drain_timeout_seconds (default 10s)
+      if queue not empty at drain timeout: remaining chunks discarded cleanly
+    Tunga queue closed; httpx session closed
+    voice::speaking_end emitted
+    L4 Vébond receives final state
+```
+
+#### 4.6.4 Config Dependencies for the Voice Path
+
+```
+  rodd:
+    tts:
+      enabled: true                           # master toggle; false = Tunga is a no-op
+      engine: chatterbox                      # selects ChatterboxClient (only client in v0.2)
+      endpoint: "http://100.66.178.105:7851"  # Pi TTS server; never hardcoded
+      model: "turbo"                          # "turbo" | "tts" | "multilingual"
+      voice_id: "default"                     # "default" = no voice prompt (built-in ChatterBox voice)
+                                              # non-default: path to a ≥5s WAV voice-prompt file
+      temperature: 0.8                        # range 0.05-2.0; controls expressiveness
+      device: default                         # OS audio device for AudioPlayback
+      # speed: 1.0                            # NOTE: not honoured by ChatterBox API in v0.2
+                                              # key is parsed but has no effect — see §4.6.1 note
+```
+
+**Which config key controls which step:**
+
+| Config key | Controls |
+|---|---|
+| `rodd.tts.enabled` | Whether Tunga runs at all; false = no HTTP calls, no audio |
+| `rodd.tts.endpoint` | ChatterboxClient target URL for `/health` and `/v1/audio/speech` |
+| `rodd.tts.model` | `"model"` field in `/v1/audio/speech` request body |
+| `rodd.tts.temperature` | `"temperature"` field in request body |
+| `rodd.tts.voice_id` | `"voice"` field in request body; `"default"` omits the field |
+| `rodd.tts.device` | AudioPlayback OS device selector |
+
+The chunking policy (80-char minimum, sentence boundaries, end-of-stream flush) is not
+configurable in v0.2 — it is a fixed implementation choice. Future versions may expose
+`rodd.tts.chunk_min_chars` and `rodd.tts.boundary_patterns` if tuning is needed.
 
 ---
 
@@ -601,8 +845,8 @@ A reference table of what crosses each layer boundary.
   Skilningr → Bifröst inward      tool result                       JSON string
   Rödd (Hlust) → Bifröst inward   user transcript                   UTF-8 string
   Bifröst → Rödd (Tunga) outward  agent response text               UTF-8 string
-  Rödd (Tunga) → ChatterBox outward text-to-speech request          HTTP POST JSON
-  ChatterBox → Rödd (Tunga) inward audio stream                     audio/wav or audio/mp3
+  Rödd (Tunga) → ChatterBox outward text-to-speech request          HTTP POST JSON to /v1/audio/speech (live contract; v0.1 showed /tts — corrected)
+  ChatterBox → Rödd (Tunga) inward audio bytes                      audio/wav (only "wav" supported per live contract)
   Sjón → Skilningr   outward      screenshot PNG                    bytes (base64 encoded for API)
   Skilningr → blender (Smiðja) outward Blender tool call            MCP call (JSON)
   blender (Smiðja) → Brúarhönd outward remote desktop dispatch     HTTP POST JSON
@@ -769,5 +1013,100 @@ Flows that run asynchronously, outside the hot/warm ceremony cycle.
 
 ---
 
+---
+
+## 11. L2 Rödd — Internal Component Map (v0.2 Tunga)
+
+The internal layout of `src/heretic/rodd/` as it will exist after Forge implements v0.2.
+Arrows show the data flow between components within the package.
+
+```
+  src/heretic/rodd/
+  ├── config_model.py      RoddConfig + RoddTtsConfig + RoddSttConfig
+  │                        Loaded once at Kynding from heretic.yaml
+  │                        Passed to ChatterboxClient and AudioPlayback constructors
+  │
+  ├── errors.py            RoddError (base)
+  │                        ChatterboxError     (HTTP failure, bad response, unreachable)
+  │                        PlaybackError       (device unavailable, sounddevice import fail)
+  │                        TtsDisabledError    (rodd.tts.enabled = false — not a crash condition)
+  │
+  ├── chatterbox.py        ChatterboxClient
+  │                        |  __init__(config: RoddTtsConfig) -> self
+  │                        |  async health_check() -> bool
+  │                        |  async synthesize(text: str) -> bytes   (WAV bytes)
+  │                        |
+  │                        |  internally: httpx.AsyncClient
+  │                        |    GET  /health
+  │                        |    POST /v1/audio/speech  {model, input, response_format, temperature, [voice]}
+  │                        |    raises ChatterboxError on non-2xx or timeout
+  │
+  ├── playback.py          AudioPlayback
+  │                        |  __init__(config: RoddTtsConfig) -> self
+  │                        |  play(wav_bytes: bytes) -> None
+  │                        |
+  │                        |  internally: attempts sounddevice first
+  │                        |    sounddevice.play(numpy_array, sample_rate)  [primary]
+  │                        |    winsound.PlaySound(...)                     [Windows fallback]
+  │                        |    subprocess afplay temp_file                 [macOS fallback]
+  │                        |    subprocess aplay  temp_file                 [Linux fallback]
+  │                        |    raises PlaybackError if all backends fail
+  │
+  └── tunga.py             Tunga   (orchestrator)
+                           |  __init__(config: RoddTtsConfig) -> self
+                           |  start() -> None     (Tengsl: init queue; health check)
+                           |  stop()  -> None     (Slokna: flush queue; close client)
+                           |  feed(text_delta: str) -> None
+                           |    (called per SSE chunk from Bifröst stream parser)
+                           |
+                           |  INTERNAL DATA FLOW:
+                           |
+                           |  Bifröst SSE chunks
+                           |       |
+                           |       v
+                           |  [text accumulator buffer]
+                           |       |
+                           |       | boundary detected AND len >= 80
+                           |       | OR end-of-stream flush
+                           |       v
+                           |  [synthesis queue]  (asyncio.Queue, maxsize=1 in-flight)
+                           |       |
+                           |       v
+                           |  ChatterboxClient.synthesize(chunk_text)
+                           |       |
+                           |       | WAV bytes
+                           |       v
+                           |  AudioPlayback.play(wav_bytes)
+                           |       |
+                           |       v
+                           |  events: voice::speaking_start / voice::speaking_end -> L4
+
+  INTERFACE SUMMARY (within rodd/ package):
+
+  Bifröst                Tunga                ChatterboxClient      AudioPlayback
+  --------               -----                ----------------      -------------
+  text_delta  ------>  feed(text_delta)
+                         accumulate
+                         detect boundary
+                         flush              -----> synthesize(text)
+                                                    POST /v1/audio/speech
+                                                    <-- WAV bytes     -----> play(wav_bytes)
+                                                                              OS audio device
+                                                                              --> speakers
+```
+
+**Key invariants for this package:**
+- `ChatterboxClient` has no knowledge of buffering or chunking — it is a pure HTTP client
+- `AudioPlayback` has no knowledge of TTS — it is a pure audio output wrapper
+- `Tunga` owns all orchestration: chunking, queue, ordering, lifecycle, event emission
+- No component in `rodd/` calls any other HERETIC layer directly — they emit events
+  and are called by the layer that owns them (L1 Bifröst feeds Tunga; L4 consumes events)
+- All config is injected at construction time; no component reads `heretic.yaml` directly
+- `rodd/` is the L2 substrate; the L5 Tunga sense (`tunga.speak` MCP tool) is a separate
+  package in `v0.7`. In v0.2, Tunga runs as automatic pass-through, not as agent tool.
+
+---
+
 *Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07.*
 *The rivers do not invent themselves. They were always there — I only followed their course.*
+*v0.2 addendum: the voice path is now drawn. The body knows how to speak.*
