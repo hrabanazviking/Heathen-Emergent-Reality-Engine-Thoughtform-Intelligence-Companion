@@ -56,7 +56,7 @@ from heretic.rodd.errors import (
     RoddError,
     TungaConfigError,
 )
-from heretic.rodd.playback import AudioPlayback, PlatformFallbackBackend, SoundDeviceBackend
+from heretic.rodd.playback import AudioPlayback, NullPlaybackBackend, PlatformFallbackBackend, SoundDeviceBackend
 from heretic.rodd.tunga import Tunga
 
 __all__ = [
@@ -73,6 +73,7 @@ __all__ = [
     "AudioPlayback",
     "SoundDeviceBackend",
     "PlatformFallbackBackend",
+    "NullPlaybackBackend",
     # Errors
     "RoddError",
     "ChatterboxError",
