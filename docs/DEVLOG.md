@@ -242,3 +242,202 @@ The repo is ready for Volmarr to review and, upon sign-off, for Forge (Eldra Já
 ---
 
 *Next entry will record the v0.1 First Communion build arc — the first working code.*
+
+---
+
+## 2026-05-07 — The First Communion Arc: From Bones to Body (v0.1 Shipped and Audited)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (continuation of same calendar day)
+**Branch:** `development`
+**Commits this session:** `bd7110f` through `147ad30` (14 commits, spanning Wave 1 and Wave 2)
+**Status at session end:** v0.1 First Communion **SHIPPED AND AUDITED** — 121 tests passing, 0 blockers, all four post-audit notables closed
+
+---
+
+### Preamble — where Wave 1 began
+
+The prior entry closed with the v0.0 doc set complete: manifesto sealed, architecture documented, audited, blockers resolved. The session's second arc began immediately after, with the Scribe completing two housekeeping tasks, and then Architect and Forge building the first real code.
+
+---
+
+### Scribe housekeeping — branch triage + path fixes (`bd7110f`, `fb5dde0`, `9dd06d4`)
+
+Three preparatory commits were made before any code was written.
+
+**`bd7110f`** — Prior `codex/*` remote branches were triaged. A triage document (`docs/PRIOR_BRANCHES_TRIAGE.md`) recorded the verdict for each:
+
+| Branch | Verdict |
+|---|---|
+| `codex/create-codebase-structure-files-in-md` | ARCHIVE — structural proposals, brain-framing, superseded |
+| `codex/create-technical-report-on-proposed-code-and-engineering` | ARCHIVE — engineering report, brain-framing, superseded |
+| `codex/document-code-ideas-in-markdown-files` | ARCHIVE — idea fragments, no code, superseded |
+| `codex/generate-data-md-file-with-code-modules` | ARCHIVE — module stubs, brain-framing, superseded |
+
+All four `codex/*` branches exist on the remote as historical record; none were merged.
+
+**`fb5dde0`** — Absolute paths violating RULES.AI.md found in `docs/ROADMAP.md` (three instances of `C:/Users/volma/runa/…`). All three replaced with GitHub URLs and sibling-repo notes. Audit finding F-1 closed.
+
+**`9dd06d4`** — `docs/DEVLOG.md` opened (this file). First entry written, covering the full v0.0 sealing arc.
+
+---
+
+### Architect scaffolds the Python package (`7023c54`)
+
+Rúnhild Svartdóttir (Architect) created the `src/heretic/` Python package skeleton, establishing the exact module boundaries that would govern everything Forge built afterward:
+
+- `src/heretic/__init__.py` — package root, version constant `0.1.0.dev0`
+- `src/heretic/grunnr/` — L0 Foundation: `config.py`, `lifecycle.py`, `logger.py`, `paths.py`
+- `src/heretic/bifrost/` — L1 Bifröst: `client.py`, `config_model.py`, `tailscale.py`, `errors.py`
+- `src/heretic/cli.py` — CLI entry point
+- `pyproject.toml` — project metadata, dependencies (`pyyaml>=6.0`, `httpx>=0.27`), dev deps (`pytest`, `pytest-asyncio`, `pytest-mock`), entry point `heretic = heretic.cli:main`
+- `heretic.example.yaml` — reference configuration file covering all layers, all True Name keys
+
+The scaffold contained module stubs only — no executable logic. Crucially, the domain boundaries were locked here: Grunnr owns config/lifecycle/paths/logging; Bifröst owns the agent connection; the CLI owns nothing except bridging them. Neither layer imports the other.
+
+*Cross-reference: `docs/architecture/ARCHITECTURE.md`, `docs/architecture/LAYER_INTERFACES.md`*
+
+---
+
+### Forge Worker builds L0 Grunnr (`f2a476a`)
+
+Eldra Járnsdóttir (Forge Worker) implemented the full L0 Foundation, replacing the Architect's stubs with complete, tested code.
+
+**`grunnr/config.py`** — `HereticConfig` dataclass with full nested hierarchy matching LAYER_INTERFACES.md True Name keys: `bifrost:`, `rodd:`, `sjon:`, `vebond:`, `skilningr:`. Config loading from `heretic.yaml` (with `$HERETIC_CONFIG` override), env-var expansion, version compatibility check, YAML merge with defaults. `max_tokens: 127000` per RULES.AI.md.
+
+**`grunnr/lifecycle.py`** — `LifecycleManager` implementing the `_ALLOWED_TRANSITIONS` table matching CEREMONY.md §7. Observer hooks (sync and async). Thread-safe state transitions. Five public states: HVILD, KYNDING, TENGSL, SAMRAEDUR, SLOKNA. Implementation sub-states: READY, OPENING, RECOVERING, EXTINGUISHED, CONFIG_ERROR (internal only, per CEREMONY.md §8).
+
+**`grunnr/logger.py`** — `get_logger()` factory with configurable level, format, no `print()` anywhere in non-CLI modules.
+
+**`grunnr/paths.py`** — `HereticPaths` providing all canonical runtime paths (config dir, log dir, data dir, package root) via `Path.home()`, `os.environ.get("APPDATA")`, `sys.platform` — no hardcoded strings, fully location-agnostic across Windows / macOS / Linux.
+
+Tests written alongside: `test_grunnr_config.py` (17 tests), `test_grunnr_lifecycle.py` (30 tests), `test_grunnr_paths.py` (24 tests).
+
+---
+
+### Forge Worker builds L1 Bifröst (`fb37f75`)
+
+**`bifrost/client.py`** — `AbstractBifrostClient` ABC and `OpenAICompatClient` concrete implementation. `open()` + `close()` ceremony methods. `send_message()` → `AsyncIterator[str]` SSE streaming. `_build_payload()` always uses `tools` (never deprecated `functions`). `_run_capability_probe()` for `?streaming` and `?vision_in` detection. `_parse_sse_stream()` with buffer logic for partial JSON chunks.
+
+**`bifrost/tailscale.py`** — `TailscaleDetector` with CGNAT range check, `is_tailscale_address()`, `resolve_endpoint()` → four permutations (Tailscale permissive/Tailscale active/non-Tailscale). Lazy caching of detection result.
+
+**`bifrost/config_model.py`** — `BifrostConfig` dataclass matching LAYER_INTERFACES.md L1 section. (Note: the conscious dual-class pattern with `grunnr/config.py` — a deliberate architectural separation preserved by an explicit bridge in `cli.py`, acknowledged as N-3 in the subsequent audit.)
+
+**`bifrost/errors.py`** — typed exception hierarchy: `BifrostError`, `BifrostConnectionError`, `BifrostAuthError`, `BifrostTimeoutError`.
+
+Tests: `test_bifrost_client.py` (20 tests), `test_bifrost_tailscale.py` (17 tests).
+
+---
+
+### Forge Worker builds the CLI (`7cc08f3`)
+
+**`cli.py`** — Four subcommands: `light` (open ceremony), `extinguish` (close ceremony), `status` (lifecycle + config summary), `version`. The bridge between Grunnr's config types and Bifröst's config types lives here — explicit field-by-field, avoiding cross-layer imports. `status` with missing config produces a human-readable error message naming the searched path and the recovery instruction.
+
+Tests: `test_cli.py` (10 tests).
+
+**Running total at this point: 118 tests passing.**
+
+The body can now be installed: `pip install -e .[dev]`
+The body can now be run: `py -3.11 -m heretic`
+The body can now connect: `py -3.11 -m heretic light` (when `heretic.yaml` is configured with Pi-Hermes endpoint)
+
+---
+
+### Auditor: v0.1 First Communion audit (`a7315b2`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit. Scope: (1) verification that all v0.0 blockers/notables from the prior audit were resolved; (2) full code review of `src/heretic/grunnr/`, `src/heretic/bifrost/`, `src/heretic/cli.py`, and `tests/`.
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers, 0 serious findings, 4 notables (N-1 through N-4), 3 nits (X-1 through X-3).
+
+**Prior audit blockers — all verified or resolved:**
+
+| Prior ID | v0.1 verdict |
+|---|---|
+| A-1 (blocker) | PARTIAL — primary docs corrected; N-1/N-2 filed for two secondary doc residuals |
+| A-2 (blocker) | VERIFIED — three-part `sense.*.*` format gone; two-part `<sense_id>.<action>` canonical throughout |
+| A-3 (serious) | VERIFIED — CEREMONY.md §8 added, public-vs-sub-state disambiguation complete |
+| A-4 (notable) | VERIFIED — Auga/Hlust/Tunga have L5.10–L5.12 designations, full contracts, layering notes |
+| A-5 (notable) | PARTIAL — main process map corrected; config example's intermediate `senses:` key filed as X-1 |
+| A-6 (nit) | RESOLVED — README "being drafted" line gone |
+| F-1 (notable) | VERIFIED — all active absolute paths removed; DEVLOG historical entries acceptable |
+| C-Q-C1, C-Q-C3, C-Q-C4 | VERIFIED |
+
+**New findings from code review:**
+
+| ID | Severity | Location | Nature |
+|---|---|---|---|
+| N-1 | Notable | `SENSE_CONTRACTS.md:185` | Residual `senses:` key in YAML example — should be `skilningr:` |
+| N-2 | Notable | `MIMISBRUNNR.md:171` | Same residual `senses:` key |
+| N-3 | Notable | `grunnr/config.py:71` + `bifrost/config_model.py:31` | Dual `BifrostConfig` types require manual field-sync discipline |
+| N-4 | Notable | `CEREMONY.md:361` | §7 table omits `Tengsl → SLOKNA`, `Tengsl → READY`, `EXTINGUISHED → READY` exits the code correctly implements |
+| X-1 | Nit | `SYSTEM_OVERVIEW.md:231` | Intermediate `senses:` key in config example |
+| X-2 | Nit | `test_bifrost_client.py` | SSE partial-chunk buffer path has zero test coverage |
+| X-3 | Nit | `LAYER_INTERFACES.md:134–136` | Capability flags `?streaming` and `?vision_in` described optimistically in code; not noted in interface contract |
+
+The audit also verified: no absolute paths in source (`grunnr/paths.py` always uses `Path.home()` / `os.environ`), `max_tokens: 127000` enforced in payload, no deprecated `functions` key, no `print()` in non-CLI modules, no live network calls in tests, correct `tools` array construction, PEP 8 and type hints throughout.
+
+*Cross-reference: `docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md`*
+
+---
+
+### Post-audit cleanup — all four notables closed
+
+Three roles worked in sequence to close every post-audit finding. No new code was added — only precise corrections.
+
+**`f7e7cd1` — Cartographer** (Védis Eikleið): X-1 — removed the intermediate `senses:` key from `docs/cartography/SYSTEM_OVERVIEW.md:231`. Config example now reads `skilningr: filesystem: enabled: true` with no nesting layer between `skilningr:` and the sense ID. Consistent with `grunnr/config.py:SkilningrConfig`.
+
+**`9b5110e` — Architect** (Rúnhild Svartdóttir): N-1, N-2, N-4, X-3 closed in one commit:
+- N-1: `docs/architecture/SENSE_CONTRACTS.md:185` — `senses:` replaced with `skilningr:` throughout the §5.1 permissions example block
+- N-2: `docs/MIMISBRUNNR.md:171` — `senses: library:` replaced with `skilningr: library:`
+- N-4: `docs/architecture/CEREMONY.md:361` — §7 formal transition table updated to include `Tengsl → SLOKNA`, `Tengsl → READY`, `EXTINGUISHED → READY` with rationale notes
+- X-3: `docs/architecture/LAYER_INTERFACES.md:134–136` — brief note added to L1 capability flags section explaining that `?streaming` is set optimistically after successful probe and `?vision_in` is taken from config rather than live-tested
+
+**`147ad30` — Forge** (Eldra Járnsdóttir): N-3 and X-2 closed:
+- N-3: A field-parity assertion test added — any future divergence between the two `BifrostConfig` classes will now fail the test suite loudly rather than silently degrading the bridge
+- X-2: One new SSE test added exercising the partial-chunk buffer path — a JSON object split across two `aiter_lines()` yields now has explicit coverage
+
+**Final test count: 121 passing** (118 at audit + 3 new — N-3 parity assertion + N-3 parity verification test + X-2 boundary split test).
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | Modules | Tests |
+|---|---|---|
+| L0 Grunnr | `config.py`, `lifecycle.py`, `logger.py`, `paths.py` | 71 |
+| L1 Bifröst | `client.py`, `config_model.py`, `tailscale.py`, `errors.py` | 37 |
+| CLI | `cli.py` | 10 |
+| Post-audit additions | N-3 parity + X-2 SSE boundary | 3 |
+| **Total** | **9 modules** | **121** |
+
+---
+
+### What was documented this session (Wave 1 + Wave 2)
+
+| Document | Action |
+|---|---|
+| `docs/PRIOR_BRANCHES_TRIAGE.md` | Created — verdicts for 4 `codex/*` remote branches |
+| `docs/ROADMAP.md` | Absolute paths replaced (F-1 closed) |
+| `docs/DEVLOG.md` | Opened; first entry written (v0.0 arc); this second entry written now |
+| `src/heretic/` entire package | Scaffolded by Architect; implemented by Forge |
+| `pyproject.toml`, `heretic.example.yaml` | Created by Architect |
+| `docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md` | Created by Auditor |
+| `docs/cartography/SYSTEM_OVERVIEW.md:231` | X-1 corrected by Cartographer |
+| `docs/architecture/SENSE_CONTRACTS.md:185` | N-1 corrected by Architect |
+| `docs/MIMISBRUNNR.md:171` | N-2 corrected by Architect |
+| `docs/architecture/CEREMONY.md:361` | N-4 corrected by Architect |
+| `docs/architecture/LAYER_INTERFACES.md:134–136` | X-3 corrected by Architect |
+
+---
+
+### Current state
+
+HERETIC v0.1 First Communion is shipped and audited. The body is installable, runnable, and connectable. It waits for Volmarr to configure `heretic.yaml` with Pi-Hermes credentials and run `heretic light`.
+
+The next milestone on `docs/ROADMAP.md` is **v0.2 First Voice** — TTS channel through ChatterBox. ChatterBox already runs at `http://100.66.178.105:7851`; the Forge Worker needs to implement `grunnr/config.py:RoddTtsConfig` consumption and a basic TTS call in `src/heretic/rodd/`.
+
+*Cross-reference: `docs/ROADMAP.md`, `TASK_HERETIC_v0.1_BOOTSTRAP.md`, `docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The body is real. The candle is lit. The thread continues.*
