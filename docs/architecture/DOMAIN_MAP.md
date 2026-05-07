@@ -1,6 +1,6 @@
 # HERETIC — Domain Map
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, removing absolute path references)
 **Scope:** Folder-level ownership, boundary statements, cross-domain dependency graph (must remain acyclic), extension rules.
 **Authority:** Derives from `ARCHITECTURE.md` and `docs/BODY_MANIFESTO.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -285,7 +285,7 @@ Sub-faculties: Hlust (hlust) for hearing (STT), Tunga (tunga) for speaking (TTS)
 **True Name:** Smiðja (smidja) — forge, smithy; the place of making three-dimensional form.
 
 **Owns:** MCP wrapper around Seidr-Smidja Brúarhönd's 8 CLI subcommands + 3 MCP tools.
-**Depends on:** L0 Grunnr (Brúarhönd daemon endpoint), Seidr-Smidja project (`C:/Users/volma/runa/Seidr-Smidja`) running as a separate process not managed by HERETIC.
+**Depends on:** L0 Grunnr (Brúarhönd daemon endpoint), Seidr-Smidja project (`github.com/hrabanazviking/Seidr-Smidja`) running as a separate process not managed by HERETIC.
 **Must never know about:** Other senses, voice/vision, agent conversation logic.
 **Boundary statement:** Smiðja delegates all execution to Brúarhönd. Upgrading Seidr-Smidja affects only this domain's delegation layer.
 

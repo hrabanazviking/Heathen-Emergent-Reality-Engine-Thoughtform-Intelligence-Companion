@@ -1,6 +1,6 @@
 # HERETIC — Agent-Agnostic Protocol (Bifröst Contract)
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, canonicalizing tool-name format reference, confirming screen frame format)
 **Scope:** The exact protocol any inhabiting agent must speak; what HERETIC promises; what HERETIC requires; authentication; routing; capability negotiation; tool call format; lifecycle messages mapped to True Names.
 **Authority:** Derives from `ARCHITECTURE.md` (L1 Bifröst domain).
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -304,7 +304,7 @@ If probe fails entirely: `?tool_use = false`, `?vision_in = false`, `?streaming 
 
 On connection, L1 Bifröst calls `sense_hub::get_tools()` and receives a flat list of `ToolSchema` objects. These are injected into every `/v1/chat/completions` request in the `tools` array. The agent sees one unified tool surface — it has no knowledge of which sense owns which tool.
 
-Tool naming convention: `<sense_id>.<action>` — e.g., `filesystem.read_file`, `blender.screenshot`, `library.search`. Full tool naming spec in `SENSE_CONTRACTS.md`.
+Tool naming convention: `<sense_id>.<action>` — e.g., `filesystem.read_file`, `blender.screenshot`, `library.search`, `hlust.listen`, `tunga.speak`, `auga.snapshot`. This is the canonical two-part format. There is no `sense.` prefix — every tool HERETIC exposes is a sense by definition; the prefix is redundant. Full specification in `SENSE_CONTRACTS.md` §2 "Tool Naming Convention — Canonical Format v1.0".
 
 The sense True Names correspond to their `sense_id` code-facing identifiers as follows:
 - Minni (minni) → `filesystem.*`
@@ -476,7 +476,7 @@ These are binding commitments. Violating them constitutes a Bifröst breach.
 
 6. **Voice transcripts as clean user messages.** STT (Hlust) transcripts are injected as `{"role": "user", "content": [{"type": "text", "text": transcript}]}` — standard user-role messages; no custom wrapper, no proprietary fields.
 
-7. **Vision frames as standard image_url.** Sjón captures are injected as `{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}` within user content — standard OpenAI vision format.
+7. **Vision frames as standard image_url.** Sjón captures are injected as `{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}` within user content — standard OpenAI vision format. Inline base64 is the canonical frame delivery format (not URL references). This avoids any file-server dependency and keeps frames within the Tailscale trust boundary. Frames are included only when `?vision_in` capability is confirmed. At 1280×720 PNG, worst-case frame size is approximately 1.2 MB — within the `max_tokens: 127000` budget as image content.
 
 ---
 

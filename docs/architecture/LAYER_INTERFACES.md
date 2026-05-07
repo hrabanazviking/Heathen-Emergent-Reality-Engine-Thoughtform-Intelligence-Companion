@@ -1,6 +1,6 @@
 # HERETIC — Layer Interfaces
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1)
 **Scope:** Per-layer and per-sense contracts: inputs, outputs, owns, never-controls, error model, config keys, event types, capability flags, and SLO tier.
 **Authority:** Derives from `ARCHITECTURE.md` and `DOMAIN_MAP.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -44,13 +44,16 @@ Agent conversation, sense data, audio, screen frames, network routing.
 
 ### Config keys
 ```yaml
-heretic:
+grunnr:
   log_level: info           # trace | debug | info | warn | error
   log_file: null            # path or null (stdout only)
   config_version: "1"       # schema version; Grunnr refuses to start if mismatch
   startup_timeout_seconds: 30
 
-senses:
+# Per-sense process supervision is declared under skilningr: (the sense hub layer owns
+# the subprocess registry). The keys below are nested inside skilningr.<sense_id>.
+# See L5 Skilningr config block for the full example.
+skilningr:
   <sense_id>:
     restart_policy:
       max_retries: 3
@@ -143,6 +146,8 @@ bifrost:
 ### Role
 Ears (Hlust — STT inbound) and mouth (Tunga — TTS outbound). Two independent halves of the voice faculty.
 
+**Infrastructure vs agent surface:** L2 Rödd owns the physical capture and playback infrastructure — mic device, Whisper.cpp subprocess, ChatterBox client, speaker output. However, Hlust and Tunga are also exposed as **agent-callable L5 senses** (`hlust.*` and `tunga.*` tools in Skilningr). The L2 infrastructure is the substrate; the L5 sense is the tool surface the agent calls. L2 Rödd does not expose tools directly to the agent. All agent contact with voice capability flows through L5 Skilningr's Hlust and Tunga sense subprocesses, which call into L2's infrastructure. See `ARCHITECTURE.md` §"Sense layering" and `SENSE_CONTRACTS.md` §"Auga, Hlust, Tunga" for the full layering resolution.
+
 ### Inputs (Hlust / STT half)
 - ← `L0 Grunnr Config` (mic device, Whisper model path, VAD config)
 - OS audio stream from microphone
@@ -172,7 +177,7 @@ What the agent says, conversation routing, MCP tools, screen capture data.
 
 ### Config keys
 ```yaml
-voice:
+rodd:
   stt:
     enabled: true
     engine: whisper_cpp                    # whisper_cpp | (future: whisper_api)
@@ -180,6 +185,7 @@ voice:
     device: default                        # OS device name or "default"
     vad_threshold: 0.6
     language: en
+    load_strategy: lazy                    # lazy | eager; default lazy — see C-Q-C1 resolution
   tts:
     enabled: true
     engine: chatterbox                     # chatterbox | openai_compat
@@ -223,7 +229,7 @@ Frame interpretation, what the agent does with images, audio, MCP tools.
 
 ### Config keys
 ```yaml
-vision:
+sjon:
   screen:
     enabled: true
     interval_ms: 5000         # how often to capture
@@ -237,6 +243,8 @@ vision:
     device: default
     interval_ms: 10000
 ```
+
+**Infrastructure vs agent surface:** L3 Sjón owns the physical capture schedule, backend, and frame buffer. Auga (`auga.*` tools) is the **agent-callable L5 sense** that surfaces snapshot capability. The capture infrastructure lives in L3; the agent tool surface lives in L5 Skilningr. L3 does not expose tools directly. See `ARCHITECTURE.md` §"Sense layering" for the full resolution.
 
 ### Capability flags
 - `?vision_screen` — screen capture enabled and permission granted
@@ -280,7 +288,7 @@ Agent conversation content, MCP tools, audio DSP, network routing.
 
 ### Config keys
 ```yaml
-ui:
+vebond:
   theme: dark_norse              # dark_norse | (future: custom)
   show_frame_thumbnail: false
   show_agent_text_stream: true   # show streaming text in status panel
@@ -322,8 +330,11 @@ Agent conversation context, voice/vision data, what tools actually do, UI render
 - `SENSE_TIMEOUT` — sense took too long; return `tool_error(SENSE_TIMEOUT)` to agent; log; do not crash hub.
 
 ### Config keys
+
+The `skilningr:` top-level key is the namespace for the entire sense hub and all its subprocesses. Each sense uses its code-facing identifier (not its True Name) as the sub-key — per NAMING.md line 81.
+
 ```yaml
-senses:
+skilningr:
   filesystem:
     enabled: true
     # (see L5.1 below for full keys)
@@ -370,7 +381,7 @@ Aggregate of all enabled senses' capability flags. Reported to agent as the merg
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   filesystem:
     enabled: true
     allowed_roots:
@@ -401,13 +412,15 @@ senses:
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   terminal:
     enabled: true
     allowed_dirs:
       - "~/heretic_workspace"
     shell: "bash"                # bash | powershell | cmd | sh
     default_timeout_seconds: 30
+    safe_mode: true              # Tier 0 default — see SENSE_CONTRACTS.md §L5.2 for tier model
+    allow_unrestricted_dirs: false   # Tier 2 opt-in
     forbidden_patterns:          # regex list; commands matching any are blocked
       - "rm -rf /"
       - "format c:"
@@ -442,7 +455,7 @@ senses:
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   browser:
     enabled: false
     browser_binary: null         # null = auto-detect Chromium/Chrome/Firefox
@@ -479,7 +492,7 @@ Hönd depends on Leið (L5.3 Browser) — Photopea runs as a web app. Leið must
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   photopea:
     enabled: false
     photopea_url: "https://www.photopea.com"
@@ -488,7 +501,7 @@ senses:
 ### Capability flags
 - `?photopea` — enabled and Leið (L5.3 Browser) is available
 
-**Open question:** Photopea's JavaScript API surface (`app.echoToOE()` inter-frame messaging) needs verification against the current live version before implementation. Discovery audit required at v0.9 scope entry.
+**API verified 2026-05-07:** `app.echoToOE()` and `app.activeDocument.saveToOE()` confirmed documented at https://www.photopea.com/api/live. The integration is viable via postMessage-based iframe messaging within a Tauri WebView. Hönd requires its own WebView panel — it cannot route through Leið's headless Playwright instance, as Photopea requires direct iframe postMessage communication. Implementation target: v0.9 scope.
 
 ---
 
@@ -510,7 +523,7 @@ Depends on Seidr-Smidja Brúarhönd daemon running at configured endpoint (separ
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   blender:
     enabled: false
     brunhand_endpoint: "http://localhost:8765"
@@ -535,7 +548,7 @@ senses:
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   vrchat:
     enabled: false
     osc_host: "127.0.0.1"
@@ -545,7 +558,7 @@ senses:
 ### Capability flags
 - `?vrchat` — enabled
 
-**Open question:** Full VRChat OSC API surface (readable/writable parameters, receivable events) needs verification against current VRChat OSC spec. OSC vs SDK tradeoffs. Audit required at v0.10 entry.
+**OSC protocol verified 2026-05-07:** Standard UDP 9000 (send) / 9001 (receive), VRChat OSC format confirmed at docs.vrchat.com/docs/osc-overview. Address format: `/avatar/parameters/<parameterName>`. `get_avatar_parameters()` returns whatever parameters VRChat broadcasts — a static list cannot be defined (avatar-specific). Implementation target: v0.10 scope.
 
 ---
 
@@ -563,7 +576,7 @@ senses:
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   agentmail:
     enabled: false
     smtp_host: "smtp.example.com"
@@ -589,7 +602,7 @@ Defined entirely by the user-provided MCP server. Loaded from tool schemas at se
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   custom:
     enabled: false
     plugins:
@@ -624,7 +637,7 @@ heretic library list | inspect | download | status | index | remove | reindex | 
 
 ### Config keys
 ```yaml
-senses:
+skilningr:
   library:
     enabled: false
     backends:

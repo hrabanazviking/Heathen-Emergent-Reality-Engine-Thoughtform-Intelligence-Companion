@@ -1,6 +1,6 @@
 # HERETIC — Master Architecture Document
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, adding sense layering section, fixing cross-repo references)
 **Scope:** Whole-system structural decomposition — layers, process model, data ownership, lifecycle, licensing layout, technology decisions, and non-goals.
 **Authority:** Derives from `docs/BODY_MANIFESTO.md` (sealed vision). All conflicts defer to the manifesto.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -167,7 +167,64 @@ The body/spirit separation is the single most load-bearing invariant in this sys
 | Stable contract | `sense_hub::get_tools() -> Vec<ToolSchema>` and `sense_hub::call_tool(name, args) -> ToolResult` — two calls, full encapsulation |
 | SLO tier | Warm for interactive tools (tool call dispatch < 100 ms); Cold for library search and file indexing operations |
 
-Sub-senses (L5.1–L5.9) are documented in full in `SENSE_CONTRACTS.md`. Each runs as an independent subprocess. Failure of one sense does not crash the body.
+Sub-senses (L5.1–L5.12) are documented in full in `SENSE_CONTRACTS.md`. Each runs as an independent subprocess. Failure of one sense does not crash the body.
+
+---
+
+## 2a. Sense Layering — L5 Surface, L2/L3 Substrate
+
+**The architectural resolution for Auga, Hlust, and Tunga.**
+
+NAMING.md assigns `sense.auga`, `sense.hlust`, and `sense.tunga` identifiers to three things that look like they belong in L2/L3:
+- Hlust (hearing / STT) and Tunga (speech / TTS) — physically owned by L2 Rödd
+- Auga (sight / screen capture) — physically owned by L3 Sjón
+
+The resolution: **all senses are exposed as L5.x MCP tool subprocesses**, regardless of which layer's hardware they operate on top of. L2 and L3 own the physical infrastructure (mic capture, speaker output, Whisper subprocess, ChatterBox client, screen capture schedule, frame buffer). They do not expose tools directly to the agent. The agent has no direct contact with L2 or L3.
+
+The L5 sense subprocesses for Hlust (L5.10), Tunga (L5.11), and Auga (L5.12) call into L2/L3 via internal Holdvörðr IPC to fulfil agent tool calls:
+
+```
+Agent calls tunga.speak(text)
+    ↓
+L5 Skilningr routes to heretic-sense-tunga subprocess
+    ↓
+heretic-sense-tunga calls L2 Rödd's TTS interface (internal IPC, not MCP)
+    ↓
+L2 Rödd invokes ChatterBox HTTP client; plays audio
+    ↓
+heretic-sense-tunga returns ok: true to agent
+```
+
+```
+Agent calls hlust.listen(duration_ms)
+    ↓
+L5 Skilningr routes to heretic-sense-hlust subprocess
+    ↓
+heretic-sense-hlust requests a transcript segment from L2 Rödd's STT interface (internal IPC)
+    ↓
+L2 Rödd reads from its VAD/transcript buffer (or initiates a capture segment)
+    ↓
+heretic-sense-hlust returns transcript to agent
+```
+
+```
+Agent calls auga.snapshot(source)
+    ↓
+L5 Skilningr routes to heretic-sense-auga subprocess
+    ↓
+heretic-sense-auga requests a frame from L3 Sjón's capture interface (internal IPC)
+    ↓
+L3 Sjón captures or returns the buffered frame
+    ↓
+heretic-sense-auga returns base64_png to agent
+```
+
+**What this means for boundaries:**
+- L2 Rödd: owns infrastructure; exposes no tools; never speaks to the agent endpoint.
+- L3 Sjón: owns infrastructure; exposes no tools; never speaks to the agent endpoint.
+- L5.10 Hlust, L5.11 Tunga, L5.12 Auga: thin MCP wrappers over L2/L3 infrastructure; the only surfaces the agent touches.
+
+The Auga sense differs from L3's scheduled background capture: L3 captures on a timer and injects frames into turns automatically (when `?vision_in` is set). Auga gives the agent an on-demand snapshot tool (`auga.snapshot`) — complementary, not redundant.
 
 ---
 
@@ -380,9 +437,9 @@ HERETIC merely calls their APIs. Their licenses have no effect on HERETIC's MIT 
 |---|---|---|---|
 | L1 Bifröst — primary spirit | Hermes on Pi (`100.101.39.30:8643/v1`) | OpenAI-compat client | Live |
 | L2 Rödd TTS — Tunga | ChatterBox at `100.66.178.105:7851` | Native HTTP client | Live |
-| L5.5 Smiðja — Blender | Seidr-Smidja Brúarhönd v0.1 (`runa/Seidr-Smidja`) | MCP wrapper over Brúarhönd REST + 3 MCP tools | Shipped; 489 tests green |
-| L5.9 Mímisbrunnr — MindSpark backend | MindSpark ThoughtForge (`runa/MindSpark_ThoughtForge`) | MCP wrapper; optional library backend | v1.2.0 shipped |
-| L5.8 Nýr Limr — WYRD Protocol (optional) | WYRD Protocol (`runa/WYRD-Protocol`) | Optional custom MCP if user wants world-model access | v1.0 shipped |
+| L5.5 Smiðja — Blender | Seidr-Smidja Brúarhönd v0.1 (`github.com/hrabanazviking/Seidr-Smidja`) | MCP wrapper over Brúarhönd REST + 3 MCP tools | Shipped; 489 tests green |
+| L5.9 Mímisbrunnr — MindSpark backend | MindSpark ThoughtForge (`github.com/hrabanazviking/MindSpark_ThoughtForge`) | MCP wrapper; optional library backend | v1.2.0 shipped |
+| L5.8 Nýr Limr — WYRD Protocol (optional) | WYRD Protocol (`github.com/hrabanazviking/WYRD-Protocol-World-Yielding-Real-time-Data-AI-world-model`) | Optional custom MCP if user wants world-model access | v1.0 shipped |
 
 ---
 

@@ -1,6 +1,6 @@
 # HERETIC — Ceremony (Lifecycle State Machine)
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, adding public lifecycle vs sub-state disambiguation, fixing config key reference)
 **Scope:** The five ceremonial phases mapped to True Names; runtime states; instantiation/teardown sequences; error/abort paths; full state diagram; recovery behaviors; timeouts; persistent vs ephemeral state; Holdvörðr responsibilities.
 **Authority:** Derives from `docs/BODY_MANIFESTO.md` and `ARCHITECTURE.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -344,7 +344,7 @@ bifrost:
 
 - Agent conversation history (the spirit brings its mind; it keeps its own history)
 - User audio recordings (Rödd's capture buffer is a ring; not persisted)
-- Screen capture images (Sjón's ring buffer; not persisted unless user explicitly enables `vision.save_frames: true`)
+- Screen capture images (Sjón's ring buffer; not persisted unless user explicitly enables `sjon.screen.save_frames: true`)
 
 **Open question:** Should HERETIC offer an optional `session.save_transcript: true` config that appends STT transcripts to a local log file? This would aid post-ceremony review without constituting agent memory. Deferred to v1.x design review — requires explicit user opt-in; the manifesto does not address it.
 
@@ -364,3 +364,36 @@ bifrost:
 | `Slokna` | Extinguish triggered | L0, L4, L1 (draining), L5 (shutting down) | Drain complete → EXTINGUISHED |
 | `EXTINGUISHED` | Drain complete, session zeroed | L0, L4 (returning to READY UI) | New ceremony → Kynding; close app → Hvíld |
 | `CONFIG_ERROR` | Config parse failed at Kynding | None | User fixes config; re-launch → Kynding |
+
+---
+
+## 8. Public Lifecycle vs Implementation Sub-States
+
+**The five public ceremony states** (NAMING.md canon) are what the user sees and what the system reports externally via `bifrost::lifecycle` events. They map to the manifesto's five phases — Hvíld, Kynding, Tengsl, Samræður, Slokna — and are the only states that carry True Names.
+
+**The implementation sub-states** (READY, OPENING, RECOVERING, EXTINGUISHED, CONFIG_ERROR) are internal Holdvörðr details. They exist to give the Forge Worker granular transitions for graceful error handling, UI feedback, and recovery logic. They are useful for debugging, telemetry, and structured recovery — but they are not visible to the user as ceremony phases, and they do not carry True Names.
+
+### Mapping of sub-states to their parent public state
+
+| Sub-state | Parent public state | What it represents |
+|---|---|---|
+| `READY` | Within Kynding (after init completes) | All layers initialized; Bifröst not yet open; awaiting user action |
+| `OPENING` | Within Kynding (after user clicks connect) | L1 Bifröst performing capability probe |
+| `RECOVERING` | Within Tengsl / Samræður | Connection dropped; reconnect in progress; body holding |
+| `EXTINGUISHED` | Within Slokna (after drain completes) | Session state zeroed; transitioning back to READY or Hvíld |
+| `CONFIG_ERROR` | Kynding terminal failure | Config parse failed; ceremony cannot proceed |
+
+### What gets reported externally
+
+`bifrost::lifecycle` events report the **public states only**: Hvíld, Kynding, Tengsl, Samræður, Slokna. Sub-states are logged internally by Holdvörðr at `debug` level but are not surfaced as public lifecycle events.
+
+Exception: `CONFIG_ERROR` surfaces as `heretic::lifecycle::config_error(detail)` — a distinct error event, not a lifecycle phase. The user sees a human-readable error message with the config path and validation failure detail. It does not map to a True Name because it is not a phase of the ceremony — it is a failure to begin one.
+
+### L4 Vébond display rules
+
+The fire-language indicators in Eldahús must translate sub-states to their public parent:
+- READY → show as Kynding (fire kindled, not yet rising — still in Phase 1)
+- OPENING → show as Kynding (fire rising — connecting)
+- RECOVERING → show as Tengsl/Samræður with a "flickering" visual modifier
+- EXTINGUISHED → show as Slokna transitioning to Hvíld (fire dying to embers)
+- CONFIG_ERROR → show as a distinct error state with a clear actionable message; not a phase indicator

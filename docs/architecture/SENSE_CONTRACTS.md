@@ -1,6 +1,6 @@
 # HERETIC — Sense Contracts
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-2, A-3, A-4; tool format canonicalized; Auga/Hlust/Tunga layering resolved; Skepja sandboxing tiers added; open questions closed)
 **Scope:** The standard MCP interface every sense must implement; tool naming convention; capability flags; error taxonomy; version negotiation; sandbox/permission model; per-sense detail subsections for L5.1–L5.9 with True Names.
 **Authority:** Derives from `ARCHITECTURE.md`, `DOMAIN_MAP.md`, `LAYER_INTERFACES.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -49,9 +49,15 @@ If the sense does not exit within `senses.<id>.shutdown_grace_seconds` (default 
 
 ---
 
-## 2. Tool Naming Convention
+## 2. Tool Naming Convention — Canonical Format v1.0
 
-All tool names follow the pattern: `<sense_id>.<action_name>`
+**This is the single canonical tool-name format for HERETIC. No other format is valid.**
+
+All tool names follow the two-part pattern: `<sense_id>.<action_name>`
+
+The `sense_id` is the code-facing identifier for the sense (not the True Name). There is no `sense.` prefix. Tool names are flat strings; the dot is a namespace separator only. The agent receives these strings as-is in the `tools` array and must use the exact string when making a tool call.
+
+**Why two-part, no prefix:** The `sense.` prefix is redundant — every tool HERETIC exposes is a sense by definition. Removing it produces shorter, cleaner tool names. L5.8 Nýr Limr custom senses declare their own top-level prefix, which correctly does not force a `sense.` that would be inaccurate for non-sense plugins (e.g., `wyrd.query_world_state` from the WYRD Protocol custom sense).
 
 ```
 filesystem.read_file
@@ -65,22 +71,31 @@ blender.vroid_export
 vrchat.send_osc
 agentmail.send
 library.search
+hlust.listen              ← L5.10 Hlust — voice hearing (STT)
+tunga.speak               ← L5.11 Tunga — voice speaking (TTS)
+auga.snapshot             ← L5.12 Auga — screen/visual capture
 home.turn_on_light        ← example L5.8 Nýr Limr custom sense
+wyrd.query_world_state    ← example L5.8 Nýr Limr custom sense (WYRD Protocol)
 ```
 
 The sense True Name to `sense_id` mapping:
 
-| True Name | sense_id (code-facing) |
-|---|---|
-| Minni (minni) | `filesystem` |
-| Skepja (skepja) | `terminal` |
-| Leið (leid) | `browser` |
-| Hönd (hond) | `photopea` |
-| Smiðja (smidja) | `blender` |
-| Líkami (likami) | `vrchat` |
-| Boð (bod) | `agentmail` |
-| Nýr Limr (nyr_limr) | user-declared `prefix` per plugin |
-| Mímisbrunnr (mimisbrunnr) | `library` |
+| True Name | sense_id (code-facing) | Layer position |
+|---|---|---|
+| Minni (minni) | `filesystem` | L5.1 |
+| Skepja (skepja) | `terminal` | L5.2 |
+| Leið (leid) | `browser` | L5.3 |
+| Hönd (hond) | `photopea` | L5.4 |
+| Smiðja (smidja) | `blender` | L5.5 |
+| Líkami (likami) | `vrchat` | L5.6 |
+| Boð (bod) | `agentmail` | L5.7 |
+| Nýr Limr (nyr_limr) | user-declared `prefix` per plugin | L5.8 |
+| Mímisbrunnr (mimisbrunnr) | `library` | L5.9 |
+| Hlust (hlust) | `hlust` | L5.10 — voice hearing (STT); substrate in L2 Rödd |
+| Tunga (tunga) | `tunga` | L5.11 — voice speaking (TTS); substrate in L2 Rödd |
+| Auga (auga) | `auga` | L5.12 — sight/snapshot; substrate in L3 Sjón |
+
+**Auga, Hlust, Tunga — layering note:** These three have `sense.*` identifiers in NAMING.md because they are agent-callable L5 senses. Their physical capture/playback infrastructure lives in L2 Rödd (Hlust/Tunga) and L3 Sjón (Auga), but those layers own the substrate only — they expose no tools directly to the agent. The L5 sense subprocesses for Hlust, Tunga, and Auga call into L2/L3 infrastructure via internal IPC to fulfill agent tool calls. Full architectural resolution in `ARCHITECTURE.md` §"Sense layering — L5 surface, L2/L3 substrate".
 
 Rules:
 - `sense_id` is always a single lowercase word (underscore permitted for multi-word; brevity preferred)
@@ -184,12 +199,25 @@ The agent may call tools within the bounds of what is already enabled. It cannot
 
 The agent can describe a need that requires a currently-disabled sense — but the human user must act on that request via the L4 Vébond toggle. HERETIC does not auto-enable senses based on agent text.
 
-### 5.3 Per-sense permission flags summary
+### 5.3 Skepja (Terminal) — Sandboxing Tiers
+
+Skepja uses an allowlist-first, opt-in escalation model. The tier is controlled by `heretic.yaml` config.
+
+| Tier | Config | What it permits |
+|---|---|---|
+| **Tier 0 (default)** | `safe_mode: true`, `allow_unrestricted_dirs: false` | `allowed_dirs` restricted to `~/heretic_workspace`; `forbidden_patterns` active; no network commands |
+| **Tier 1 (operator opt-in)** | Operator expands `allowed_dirs` | Additional dirs added by user; forbidden patterns still active |
+| **Tier 2 (power user opt-in)** | `allow_unrestricted_dirs: true` | Directory restriction removed; forbidden patterns still enforced; explicit config required |
+| **Tier 3 (explicit unsafe)** | `safe_mode: false` | All restrictions removed; must be set with a warning comment in config schema |
+
+Default `heretic.yaml` ships with Tier 0 settings. Forge must refuse to run any command if the resolved `cwd` falls outside the permitted scope for the active tier.
+
+### 5.4 Per-sense permission flags summary
 
 | Sense (True Name) | Key permission flags |
 |---|---|
 | Minni (filesystem) | `allow_write`, `allow_delete`, `allowed_roots` list |
-| Skepja (terminal) | `allowed_dirs`, `forbidden_patterns` regex list |
+| Skepja (terminal) | `allowed_dirs`, `forbidden_patterns` regex list, sandboxing tier (§5.3) |
 | Leið (browser) | `allowed_domains` (empty = all), `headless` |
 | Hönd (photopea) | Inherits Leið's permissions (browser must be enabled) |
 | Smiðja (blender) | Inherits from Seidr-Smidja Brúarhönd's auth token |
@@ -197,6 +225,9 @@ The agent can describe a need that requires a currently-disabled sense — but t
 | Boð (agentmail) | Configured mail account scope (no cross-account access) |
 | Nýr Limr (custom) | User-defined per plugin |
 | Mímisbrunnr (library) | `allowed_sources` list; vector retrieval opt-in |
+| Hlust (hlust) | Inherits L2 Rödd device config; no additional sandbox |
+| Tunga (tunga) | Inherits L2 Rödd TTS endpoint config; no additional sandbox |
+| Auga (auga) | Inherits L3 Sjón capture config; `save_frames` opt-in only |
 
 ---
 
@@ -335,7 +366,73 @@ The agent can describe a need that requires a currently-disabled sense — but t
 
 **License of underlying:** Photopea is proprietary — accessed as web service. No license concern for HERETIC's MIT grant.
 
-**Open question:** Photopea's automation surface (`app.echoToOE()` inter-frame JavaScript messaging API) must be verified against the current live version before L5.4 implementation begins. Discovery audit required at v0.9 scope entry. The API has not been formally documented by Photopea.
+**API verified 2026-05-07:** `app.echoToOE()` and `app.activeDocument.saveToOE()` confirmed documented at https://www.photopea.com/api/live. Communication model is postMessage-based iframe messaging. Hönd requires its own WebView panel embedded in the Tauri window — cannot route through Leið's Playwright/Chromium headless instance. Implementation target: v0.9 scope.
+
+---
+
+### L5.10 — Hlust (Voice Hearing Sense)
+
+**True Name:** Hlust (hlust) — ear; the organ of hearing and attentive listening.
+**Subprocess name:** `heretic-sense-hlust`
+**Purpose:** Give the agent the capacity to hear — microphone capture, VAD, and STT transcription. Agent-callable tool surface over L2 Rödd's STT infrastructure.
+
+**L2/L3 substrate:** L2 Rödd owns the physical microphone capture loop, VAD, and Whisper.cpp subprocess. Hlust (L5.10) wraps this infrastructure as an MCP tool, making it callable by the agent. L2 Rödd does not expose tools directly.
+
+**Tools exposed:**
+
+| Tool | Arguments | Returns | Notes |
+|---|---|---|---|
+| `hlust.listen` | `duration_ms: int` | `{transcript: string, confidence: float, timestamp: int}` | Captures and transcribes a voice segment |
+| `hlust.is_speaking` | none | `{speaking: bool}` | VAD state query |
+
+**Config:** Inherits from `rodd.stt.*` (L2 Rödd config). No separate sense config block — Hlust reads from the L2 Rödd config section via Skilningr.
+
+**Capability flags:**
+- `?hlust` — L2 Rödd STT enabled and mic available
+
+---
+
+### L5.11 — Tunga (Voice Speaking Sense)
+
+**True Name:** Tunga (tunga) — tongue; the organ of speech and word-making.
+**Subprocess name:** `heretic-sense-tunga`
+**Purpose:** Give the agent a voice — TTS synthesis and audio playback. Agent-callable tool surface over L2 Rödd's TTS infrastructure.
+
+**L2/L3 substrate:** L2 Rödd owns the ChatterBox HTTP client and speaker output. Tunga (L5.11) wraps this as an MCP tool, making it callable by the agent. L2 Rödd does not expose tools directly.
+
+**Tools exposed:**
+
+| Tool | Arguments | Returns | Notes |
+|---|---|---|---|
+| `tunga.speak` | `text: string` | `ok: true` | Synthesizes and plays audio via ChatterBox |
+| `tunga.is_speaking` | none | `{speaking: bool}` | TTS playback state |
+
+**Config:** Inherits from `rodd.tts.*` (L2 Rödd config). No separate sense config block.
+
+**Capability flags:**
+- `?tunga` — L2 Rödd TTS enabled and speaker available
+
+---
+
+### L5.12 — Auga (Sight Sense)
+
+**True Name:** Auga (auga) — eye; the faculty by which the world becomes visible.
+**Subprocess name:** `heretic-sense-auga`
+**Purpose:** Give the agent the ability to actively request a snapshot of what is currently visible — screen or webcam. Agent-callable tool surface over L3 Sjón's capture infrastructure.
+
+**L2/L3 substrate:** L3 Sjón owns the capture schedule, backend, and frame ring buffer. Auga (L5.12) provides the agent with on-demand snapshot access — distinct from L3's background scheduled capture. L3 Sjón does not expose tools directly.
+
+**Tools exposed:**
+
+| Tool | Arguments | Returns | Notes |
+|---|---|---|---|
+| `auga.snapshot` | `source: string` | `base64_png: string` | `source`: `"screen"` (default) or `"webcam"` |
+| `auga.describe` | `source: string` | `{caption: string}` | Optional: returns a simple description if vision model available; may return `null` |
+
+**Config:** Inherits from `sjon.*` (L3 Sjón config). No separate sense config block.
+
+**Capability flags:**
+- `?auga` — L3 Sjón screen capture enabled and permission granted
 
 ---
 
@@ -345,7 +442,7 @@ The agent can describe a need that requires a currently-disabled sense — but t
 **Subprocess name:** `heretic-sense-smidja`
 **Purpose:** 3D modeling, rendering, and VRM avatar creation via Blender, mediated through Seidr-Smidja Brúarhönd.
 
-**Dependency:** Seidr-Smidja Brúarhönd daemon must be running at the configured endpoint (managed separately — not spawned by HERETIC). Brúarhönd is a separate project at `C:/Users/volma/runa/Seidr-Smidja`.
+**Dependency:** Seidr-Smidja Brúarhönd daemon must be running at the configured endpoint (managed separately — not spawned by HERETIC). Brúarhönd is a sibling repository; see `github.com/hrabanazviking/Seidr-Smidja`.
 
 **Tools exposed** (current Brúarhönd v0.1 surface — 8 CLI + 3 MCP tools):
 
@@ -399,7 +496,7 @@ The agent can describe a need that requires a currently-disabled sense — but t
 
 **License of underlying:** VRChat is proprietary (TOS) — accessed via OSC protocol, not SDK; no license concern for HERETIC. python-osc is MIT — vendorable.
 
-**Open question:** The full VRChat OSC API surface (which parameters are readable/writable, which events are receivable, OSC vs SDK tradeoffs for full avatar control) needs verification against the current VRChat OSC specification before implementation. Audit required at v0.10 scope entry.
+**OSC protocol verified 2026-05-07:** Standard UDP 9000 (HERETIC → VRChat) / 9001 (VRChat → HERETIC). Address format: `/avatar/parameters/<parameterName>`. Bool, Int, Float types. Built-in parameters include VelocityX/Y/Z, Grounded, MuteSelf, Seated, InStation. `get_avatar_parameters()` returns whatever VRChat currently broadcasts — parameter set is avatar-specific and cannot be statically defined. `get_player_position()` reads VRChat-provided position events. Implementation target: v0.10 scope.
 
 ---
 
