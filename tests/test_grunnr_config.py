@@ -1,67 +1,30 @@
 """
 Tests for grunnr.config — HereticConfig and load_config().
 
-Placeholder suite. Forge will implement real tests here covering:
-    - load_config() with a minimal heretic.yaml in a tmp_path
-    - load_config() with the $HERETIC_CONFIG env var override
-    - load_config() with a malformed YAML → ConfigLoadError raised
-    - load_config() with a missing file → ConfigLoadError raised
-    - config_version mismatch → ConfigLoadError raised
-    - All top-level True Name keys (grunnr/bifrost/rodd/sjon/vebond/skilningr) round-trip
-    - ${ENV_VAR} references in api_key are expanded correctly
-    - HereticConfig.default() returns a fully populated struct with correct defaults
-    - BifrostConfig defaults match LAYER_INTERFACES.md reference block
-
-Each test is currently marked skip so the suite stays green while the skeleton
-awaits Forge implementation.
+Covers: loading, missing files, malformed YAML, version mismatch,
+recursive merge with defaults, env var expansion, and round-trip for all
+six top-level True Name keys.
 """
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
+import yaml
 
-from heretic.grunnr.config import HereticConfig, ConfigLoadError
-
-
-@pytest.mark.skip(reason="Forge will implement: load_config() not yet built")
-def test_load_config_minimal_yaml(tmp_path: pytest.TempPathFactory) -> None:
-    """load_config() returns a valid HereticConfig from a minimal heretic.yaml."""
-    pass
-
-
-@pytest.mark.skip(reason="Forge will implement: load_config() not yet built")
-def test_load_config_missing_file_raises() -> None:
-    """load_config() raises ConfigLoadError when heretic.yaml is absent."""
-    pass
+from heretic.grunnr.config import (
+    HereticConfig,
+    ConfigLoadError,
+    SUPPORTED_CONFIG_VERSION,
+    load_config,
+)
 
 
-@pytest.mark.skip(reason="Forge will implement: load_config() not yet built")
-def test_load_config_malformed_yaml_raises(tmp_path: pytest.TempPathFactory) -> None:
-    """load_config() raises ConfigLoadError when heretic.yaml contains invalid YAML."""
-    pass
-
-
-@pytest.mark.skip(reason="Forge will implement: load_config() not yet built")
-def test_config_version_mismatch_raises(tmp_path: pytest.TempPathFactory) -> None:
-    """load_config() raises ConfigLoadError when config_version does not match."""
-    pass
-
-
-@pytest.mark.skip(reason="Forge will implement: load_config() not yet built")
-def test_all_top_level_keys_round_trip(tmp_path: pytest.TempPathFactory) -> None:
-    """heretic.yaml with all six True Name keys (grunnr/bifrost/rodd/sjon/vebond/skilningr)
-    loads correctly and populates every sub-config."""
-    pass
-
-
-@pytest.mark.skip(reason="Forge will implement: load_config() not yet built")
-def test_env_var_reference_expanded_in_api_key(
-    tmp_path: pytest.TempPathFactory,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """${HERETIC_AGENT_KEY} in bifrost.api_key is expanded from the environment."""
-    pass
-
+# ---------------------------------------------------------------------------
+# HereticConfig.default() structural tests
+# ---------------------------------------------------------------------------
 
 def test_default_config_is_valid() -> None:
     """HereticConfig.default() returns without raising and has correct top-level structure."""
@@ -78,3 +41,211 @@ def test_bifrost_default_max_tokens() -> None:
     """BifrostConfig defaults to max_tokens=127000 per RULES.AI.md."""
     cfg = HereticConfig.default()
     assert cfg.bifrost.max_tokens == 127000
+
+
+def test_grunnr_default_log_level() -> None:
+    """GrunnrConfig defaults to log_level='info'."""
+    cfg = HereticConfig.default()
+    assert cfg.grunnr.log_level == "info"
+
+
+def test_grunnr_default_config_version() -> None:
+    """GrunnrConfig.config_version defaults to the supported version."""
+    cfg = HereticConfig.default()
+    assert cfg.grunnr.config_version == SUPPORTED_CONFIG_VERSION
+
+
+def test_bifrost_default_stream_true() -> None:
+    """BifrostConfig defaults to stream=True — SSE streaming is preferred."""
+    cfg = HereticConfig.default()
+    assert cfg.bifrost.stream is True
+
+
+def test_tailscale_default_prefer_true() -> None:
+    """Tailscale defaults to prefer=True."""
+    cfg = HereticConfig.default()
+    assert cfg.bifrost.tailscale.prefer is True
+
+
+def test_sjon_default_save_frames_false() -> None:
+    """Screen save_frames defaults to False — opt-in only, never auto-saves."""
+    cfg = HereticConfig.default()
+    assert cfg.sjon.screen.save_frames is False
+
+
+# ---------------------------------------------------------------------------
+# load_config() — file not found
+# ---------------------------------------------------------------------------
+
+def test_load_config_missing_file_raises(tmp_path: Path) -> None:
+    """load_config() raises ConfigLoadError when the file does not exist."""
+    missing = tmp_path / "does_not_exist.yaml"
+    with pytest.raises(ConfigLoadError, match="Cannot find"):
+        load_config(str(missing))
+
+
+# ---------------------------------------------------------------------------
+# load_config() — malformed YAML
+# ---------------------------------------------------------------------------
+
+def test_load_config_malformed_yaml_raises(tmp_path: Path) -> None:
+    """load_config() raises ConfigLoadError when heretic.yaml contains invalid YAML."""
+    bad = tmp_path / "heretic.yaml"
+    bad.write_text(": this: is: broken yaml:\n  bad\n  - [", encoding="utf-8")
+    with pytest.raises(ConfigLoadError):
+        load_config(str(bad))
+
+
+# ---------------------------------------------------------------------------
+# load_config() — empty file
+# ---------------------------------------------------------------------------
+
+def test_load_config_empty_file_returns_defaults(tmp_path: Path) -> None:
+    """An empty heretic.yaml (null document) returns a default config."""
+    empty = tmp_path / "heretic.yaml"
+    empty.write_text("", encoding="utf-8")
+    cfg = load_config(str(empty))
+    assert cfg.grunnr.log_level == "info"
+    assert cfg.bifrost.max_tokens == 127000
+
+
+# ---------------------------------------------------------------------------
+# load_config() — minimal valid YAML
+# ---------------------------------------------------------------------------
+
+def test_load_config_minimal_yaml(tmp_path: Path) -> None:
+    """load_config() returns a valid HereticConfig from a minimal heretic.yaml."""
+    config_file = tmp_path / "heretic.yaml"
+    config_file.write_text(
+        "grunnr:\n  log_level: debug\n  config_version: \"1\"\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(str(config_file))
+    assert cfg.grunnr.log_level == "debug"
+    # Unspecified fields retain defaults
+    assert cfg.bifrost.max_tokens == 127000
+
+
+# ---------------------------------------------------------------------------
+# load_config() — version mismatch
+# ---------------------------------------------------------------------------
+
+def test_config_version_mismatch_raises(tmp_path: Path) -> None:
+    """load_config() raises ConfigLoadError when config_version does not match."""
+    config_file = tmp_path / "heretic.yaml"
+    config_file.write_text(
+        "grunnr:\n  config_version: \"999\"\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigLoadError, match="config_version"):
+        load_config(str(config_file))
+
+
+# ---------------------------------------------------------------------------
+# load_config() — all six True Name keys round-trip
+# ---------------------------------------------------------------------------
+
+def test_all_top_level_keys_round_trip(tmp_path: Path) -> None:
+    """heretic.yaml with all six True Name keys populates every sub-config."""
+    config_file = tmp_path / "heretic.yaml"
+    config_file.write_text(
+        """
+grunnr:
+  log_level: warn
+  config_version: "1"
+bifrost:
+  model: my-model
+  max_tokens: 99999
+rodd:
+  stt:
+    enabled: false
+sjon:
+  screen:
+    width: 640
+vebond:
+  theme: dark_norse
+skilningr:
+  filesystem:
+    enabled: true
+""",
+        encoding="utf-8",
+    )
+    cfg = load_config(str(config_file))
+    assert cfg.grunnr.log_level == "warn"
+    assert cfg.bifrost.model == "my-model"
+    assert cfg.bifrost.max_tokens == 99999
+    assert cfg.rodd.stt.enabled is False
+    assert cfg.sjon.screen.width == 640
+    assert cfg.vebond.theme == "dark_norse"
+    assert cfg.skilningr.filesystem.enabled is True
+
+
+# ---------------------------------------------------------------------------
+# load_config() — nested merge preserves defaults for unspecified subkeys
+# ---------------------------------------------------------------------------
+
+def test_partial_bifrost_block_preserves_defaults(tmp_path: Path) -> None:
+    """Specifying only some bifrost keys leaves others at their defaults."""
+    config_file = tmp_path / "heretic.yaml"
+    config_file.write_text(
+        "grunnr:\n  config_version: \"1\"\nbifrost:\n  model: test-model\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(str(config_file))
+    assert cfg.bifrost.model == "test-model"
+    assert cfg.bifrost.stream is True          # default preserved
+    assert cfg.bifrost.max_tokens == 127000    # default preserved
+
+
+# ---------------------------------------------------------------------------
+# load_config() — env var expansion in api_key
+# ---------------------------------------------------------------------------
+
+def test_env_var_reference_expanded_in_api_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """${HERETIC_AGENT_KEY} in bifrost.api_key is expanded from the environment."""
+    monkeypatch.setenv("HERETIC_AGENT_KEY", "super-secret-token")
+    config_file = tmp_path / "heretic.yaml"
+    config_file.write_text(
+        'grunnr:\n  config_version: "1"\nbifrost:\n  api_key: "${HERETIC_AGENT_KEY}"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(str(config_file))
+    assert cfg.bifrost.api_key == "super-secret-token"
+
+
+def test_env_var_unset_warns_and_uses_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing env var substitutes empty string and logs a warning (does not raise)."""
+    monkeypatch.delenv("HERETIC_AGENT_KEY", raising=False)
+    config_file = tmp_path / "heretic.yaml"
+    config_file.write_text(
+        'grunnr:\n  config_version: "1"\nbifrost:\n  api_key: "${HERETIC_AGENT_KEY}"\n',
+        encoding="utf-8",
+    )
+    # Should not raise — warn and substitute empty string
+    cfg = load_config(str(config_file))
+    assert cfg.bifrost.api_key == ""
+
+
+# ---------------------------------------------------------------------------
+# load_config() — HERETIC_CONFIG env var override
+# ---------------------------------------------------------------------------
+
+def test_heretic_config_env_var_overrides_search(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When $HERETIC_CONFIG is set, load_config() uses that file."""
+    config_file = tmp_path / "custom_heretic.yaml"
+    config_file.write_text(
+        "grunnr:\n  config_version: \"1\"\n  log_level: error\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HERETIC_CONFIG", str(config_file))
+    cfg = load_config()  # no explicit path
+    assert cfg.grunnr.log_level == "error"
