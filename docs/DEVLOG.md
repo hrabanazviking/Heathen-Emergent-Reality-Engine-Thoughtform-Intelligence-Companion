@@ -644,3 +644,194 @@ The next milestone on `docs/ROADMAP.md` is **v0.3 First Listening** — STT via 
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
 *The body speaks now. The voice was kept. The thread holds for what listens next.*
+
+---
+
+## 2026-05-07 — The First Listening Arc: Ears to Match the Mouth (v0.3 Shipped and Audited)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (fourth arc, same calendar day)
+**Branch:** `development`
+**Commits this session:** `c446023` through `cf8dad1` (10 commits, spanning task open through Wave 3 cleanup)
+**Status at session end:** v0.3 First Listening **SHIPPED AND AUDITED** — 339 tests passing, 0 open findings (D-5/N-1/N-2 resolved in Wave 3; H-1 resolved in Architect cleanup pass)
+
+---
+
+### Preamble — where this arc began
+
+The third entry closed with v0.2 First Voice shipped: L2 Rödd Tunga gave the body a mouth — text became speech via ChatterBox on the Pi, sound reached the laptop speakers. What remained was the other half of L2: ears. Hlust, the listening sense, would complete the voice faculty and make Samræður (communion) genuinely bidirectional as the `BODY_MANIFESTO.md` envisioned.
+
+Beginning point: HEAD `f9c58cd` (Scribe's v0.2 close commit). 224 tests passing. `RoddSttConfig` already declared in `rodd/config_model.py` from the v0.2 pass — the shape was there; the organs were not.
+
+The v0.3 task brief also carried one important design pivot: the prior planning material had assumed **ChatterBox** as the STT backend, but ChatterBox is a TTS system. The correct local STT solution is **Whisper.cpp** — MIT-licensed, runs fully on the laptop without a cloud call, wrappable via `pywhispercpp` Python bindings. This was recorded in the task file before any code was written.
+
+---
+
+### Task file opened; STT design locked (`c446023`)
+
+`TASK_HERETIC_v0.3_FIRST_LISTENING.md` created at repo root. The task file established the three-layer substrate architecture (microphone → VAD → Whisper engine), the preferred backend chain for each layer, the CLI integration model, the lazy-load contract (sealed in the v0.0 audit as C-Q-C1), and the fault-tolerance invariant: if any substrate layer is unavailable, the ceremony falls back to stdin rather than crashing.
+
+Key architectural decisions locked:
+- Whisper integration: `pywhispercpp` primary (MIT, Python bindings); CLI subprocess fallback; `NullWhisperBackend` as last resort
+- VAD: `webrtcvad-wheels` primary (BSD-3, 30ms frames, 16kHz PCM); energy-threshold pure-Python fallback
+- Microphone: reuse `sounddevice` already in `[voice]` extra from v0.2; capture at 16kHz mono int16
+- Model loading: lazy — load on first utterance, not at Kynding; honours v0.0 audit sealed decision
+- CLI: gate Hlust behind `stt.enabled`, `is_available`, and `isatty()` checks; fall back to stdin on failure
+
+*Cross-reference: `TASK_HERETIC_v0.3_FIRST_LISTENING.md §3–§7`*
+
+---
+
+### Wave 1 — Three roles in parallel
+
+#### Skald: THE_FIRST_LISTENING vision essay (`0ad4672`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_LISTENING.md` — the fourth panel of the vision cycle (following `WHY_HERETIC.md`, `CEREMONY_NARRATIVE.md`, `THE_FIRST_VOICE.md`). The essay frames hearing not as a technical capability but as a threshold: the moment the body becomes not merely a speaker but an interlocutor, able to receive the world as well as address it. The Tunga-Hlust dyad is now named and framed as a single sense faculty split across two milestones; together they constitute Samræður as the manifesto intended.
+
+#### Cartographer: listening flow mapped + v0.2.x backlog cleared (`26030f7`)
+
+Védis Eikleið (Cartographer) updated `docs/cartography/DATA_FLOW.md` with two major additions and two backlog closures:
+
+**New:** §4.7 — complete mapping of the inbound voice path: microphone frames → 30ms VAD windows → utterance buffer → Whisper transcription → Bifröst send. Includes the `vad_threshold` impedance mismatch flag: HERETIC config exposes a float (0.0–1.0) but `webrtcvad` expects an integer aggressiveness level (0–3). The Cartographer recorded this mismatch and its resolution formula (`aggressiveness = max(0, min(3, round(vad_threshold * 3)))`) in §4.7.5, with an explicit note that the Forge Worker must implement and document the mapping.
+
+**New:** §12 (Hlust) — component diagram for the L2 Rödd Hlust subpackage.
+
+**Closed from v0.2.x backlog:**
+- `DATA_FLOW.md §4.6.4` — abbreviated 6-key config table expanded to the full 17-field `RoddTtsConfig` schema per the corrected `LAYER_INTERFACES.md §L2`
+- `DATA_FLOW.md §4.6.1` — inline annotation corrected from `rodd.tts.voice_id` to `rodd.tts.voice_prompt_path`
+
+*Cross-reference: `docs/cartography/DATA_FLOW.md §4.7, §4.7.5, §12`*
+
+#### Architect: Hlust module scaffold + INTERFACE.md + 53 skip-marked tests (`0422a44`)
+
+Rúnhild Svartdóttir (Architect) built the four new module skeletons and updated `rodd/INTERFACE.md §Hlust` with contracts, invariants, the lazy-load policy, the frame format invariant (SAMPLE_RATE=16000, CHANNELS=1, dtype=int16, FRAME_MS=30, FRAME_SAMPLES=480, FRAME_BYTES=960), and the threading bridge pattern (`loop.call_soon_threadsafe()` exclusively). No business logic — only abstract shapes, type contracts, and domain boundaries.
+
+`pyproject.toml [voice]` extra extended with `pywhispercpp>=1.0` and `webrtcvad-wheels>=2.0`.
+
+---
+
+### Wave 2 — Forge implements
+
+#### Forge: microphone + VAD + Whisper substrate engines (`95439a1`)
+
+Eldra Járnsdóttir (Forge Worker) built the three substrate layers:
+
+**`microphone.py`** — Frame format constants locked here (`SAMPLE_RATE`, `CHANNELS`, `dtype`, `FRAME_MS`, `FRAME_SAMPLES`, `FRAME_BYTES`); imported (not redefined) by `vad.py` and `whisper_engine.py`. `SoundDeviceMicBackend` probes `sd.query_devices()` for input channels before claiming availability. `NullMicBackend` always returns `available() = False`.
+
+**`vad.py`** — `WebRtcVadBackend` with the `vad_threshold` impedance mismatch fully resolved: `aggressiveness = max(0, min(3, round(vad_threshold * 3)))`. The mapping is documented in the module docstring, in `vad.py:26–34`, and in `INTERFACE.md §Config Keys`. `EnergyThresholdBackend` as pure-Python fallback. `NullVadBackend` does not disable Hlust — fixed-window capture is used instead.
+
+**`whisper_engine.py`** — `PyWhisperCppBackend` with lazy model loading (`_loaded = False` at construction; `load_model()` deferred to `_ensure_model_loaded()` on first call). `CliSubprocessBackend` using `shutil.which("whisper-cli")` for cross-platform discovery; Windows-safe temp WAV handling via `NamedTemporaryFile(delete=False)` + manual `unlink`. `NullWhisperBackend`.
+
+#### Forge: Hlust orchestrator (`9648ca8`)
+
+**`hlust.py`** — `Hlust` orchestrator managing the full pipeline:
+- PortAudio callback bridges to asyncio via `loop.call_soon_threadsafe(frame_queue.put_nowait, pcm_bytes)` — no asyncio primitives touched from the C thread
+- `_capture_loop()` accumulates 30ms frames from the mic queue; VAD detects utterance end; 30-second hard cap (`_MAX_UTTERANCE_FRAMES = 1000`); 5-second per-frame timeout
+- `_ensure_model_loaded()` called on first utterance (lazy contract honoured); `open()` calls it only for eager strategy
+- Null component check: `NullMicBackend` or `NullWhisperBackend` → `self._available = False`; `NullVadBackend` → Hlust remains available, fixed-window capture used
+- `capture_one_utterance()` outer `except Exception` returns `""` and logs — ceremony never crashes
+
+#### Forge: CLI wiring + listening tests (`ab7c466`)
+
+`cli.py` extended: Hlust construction behind `if grunnr_stt.enabled:`; `try/except Exception` on init with `hlust = None` on failure; `await hlust.open()` at TENGSL; turn loop replaces `sys.stdin.readline` with `await hlust.capture_one_utterance()` when `hlust is not None and hlust.is_available and sys.stdin.isatty()`; inner `try/except` falls back to stdin on any capture exception; `await hlust.close()` at Slokna before Tunga.
+
+Five new test files: `test_rodd_microphone.py`, `test_rodd_vad.py`, `test_rodd_whisper.py`, `test_rodd_hlust.py`, `test_cli_listen.py`.
+
+**Test count at Wave 2 close: 336 passing** (+112 new tests since v0.2).
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`c938f0e`)
+
+Sólrún Hvítmynd (Auditor) ran a full review across all new source, test, and documentation files.
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers. 30 internal consistency claims verified (A-1 through F-7).
+
+Key verifications:
+- VAD aggressiveness mapping: correct in code, documented, tested at 10 boundary values (A-1)
+- Frame format constants: locked in `microphone.py`, imported by `vad.py` (A-2)
+- Lazy model load: no `load_model()` at `__init__` or `open()` (lazy path) — A-3
+- Threading bridge: `loop.call_soon_threadsafe()` exclusively — A-4
+- Null backend semantics: `NullVadBackend` does not disable Hlust — A-5
+- Hard caps: 30s utterance cap + 5s frame timeout — A-6
+- Cross-platform: `shutil.which`, Windows-safe temp WAV, `available()` probes — C-1 through C-4
+- Fault tolerance: three independent fallback layers in CLI — B-3
+
+**1 SERIOUS finding:**
+
+| ID | Location | Finding |
+|---|---|---|
+| D-5 | `hlust.py:283–285` | WhisperModelLoadError does not set a permanent disable flag; `_model_loaded` remains `False` on failure; subsequent utterances retry `load_model()` on every turn, producing repeated `[loading model...]` cues and spurious error logs rather than a clean single-failure-then-silence behaviour |
+
+**3 NOTABLE findings:**
+
+| ID | Finding |
+|---|---|
+| N-1 | `vad_threshold=0.1667` (boundary: `0.1667*3=0.5001→1`) not in the 10 parametrized test cases; mapping is correct but this edge is near banker's rounding territory |
+| N-2 | Three `print()` calls in `hlust.py:284,291,363` — library module bypassing logging infrastructure; future non-CLI callers (Tauri GUI, MCP adapter) will emit unexpected stderr output |
+| H-1 | `AGENT_AGNOSTIC_PROTOCOL.md §5.2` lists `?tool_use`, `?vision_in`, `?streaming` but has no `?voice_in` flag; drift between INTERFACE.md (flag declared) and the agent-facing protocol document (flag absent) |
+
+*Cross-reference: `docs/audit/AUDIT_v0.3_FIRST_LISTENING.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed
+
+#### Architect: H-1 resolved — `?voice_in` added to AGENT_AGNOSTIC_PROTOCOL.md (`4e50093`)
+
+Rúnhild Svartdóttir closed the H-1 drift finding: `?voice_in` added to `AGENT_AGNOSTIC_PROTOCOL.md §5.2` with the condition `rodd.stt.enabled: true AND Hlust.is_available is True`. The Architect also added `?voice_out` for symmetry — this closed a consistency gap from v0.2 where Tunga (TTS output) had no corresponding capability flag in the agent protocol. Both flags are now present in the document the inhabiting agent reads to understand the body's capabilities.
+
+#### Forge: D-5 + N-1 + N-2 resolved (`cf8dad1`)
+
+- **D-5:** A `_model_load_failed` flag added inside `capture_one_utterance()`'s exception handler — when a `WhisperModelLoadError` is caught, the flag is set; all subsequent calls return `""` immediately without re-attempting `load_model()`. One clear failure, clean silence thereafter. The `[loading model...]` print path was also consolidated with this change.
+- **N-1:** `vad_threshold=0.1667` added to the parametrized boundary test set; expected mapping `1` (since `0.1667 * 3 = 0.5001`, which rounds to `1` under both standard and banker's rounding). All 11 boundary cases now pass.
+- **N-2:** The three `print()` calls in `hlust.py` replaced with `self._log.info()` structured logging. The CLI now emits its own user-facing status cues at the appropriate points in the turn loop rather than relying on library-layer prints. Future non-CLI callers can configure log level without receiving unexpected stderr output.
+
+**Final test count: 339 passing** (+3 new wave-3 tests: `_model_load_failed` guard, `0.1667` boundary case, no further tests needed for N-2 as logging infrastructure was already tested).
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | New modules | New tests |
+|---|---|---|
+| L2 Rödd (Hlust) | `rodd/microphone.py`, `rodd/vad.py`, `rodd/whisper_engine.py`, `rodd/hlust.py`, `rodd/errors.py` (Hlust additions) | 112 (Wave 2) |
+| CLI (listening integration) | `cli.py` extended | (included above) |
+| Wave 3 cleanup | D-5 load-fail guard, N-1 boundary case | 3 |
+| **Total new** | **4 new modules + 1 extended** | **+115** |
+| **Running total** | **20 modules** | **339** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.3_FIRST_LISTENING.md` | Created — full task scope, STT design choices, wave plan, Whisper/VAD/mic architecture |
+| `docs/vision/THE_FIRST_LISTENING.md` | Created — Skald's vision essay; fourth panel of vision cycle |
+| `docs/cartography/DATA_FLOW.md` | Extended — §4.7 inbound voice flow + §12 Hlust diagram; v0.2.x backlog cleared |
+| `src/heretic/rodd/INTERFACE.md` | Extended — §Hlust: contracts, invariants, frame format, lazy-load policy, threading bridge |
+| `docs/audit/AUDIT_v0.3_FIRST_LISTENING.md` | Created — PASS WITH CONCERNS; 0 blockers, 1 SERIOUS, 3 NOTABLE (all resolved) |
+| `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §5.2` | Extended — `?voice_in` and `?voice_out` flags added (H-1 resolved; `?voice_out` v0.2 gap closed) |
+
+---
+
+### What is now fully resolved
+
+The v0.2.x backlog that the Cartographer carried forward is now closed. The H-1 drift between INTERFACE.md's declared `?voice_in` flag and AGENT_AGNOSTIC_PROTOCOL.md is resolved. No items carry forward from v0.3 as open backlog — the wave-3 cleanup was complete.
+
+The `?voice_out` symmetry addition deserves a note: the Architect observed during the H-1 fix that Tunga (TTS, shipped in v0.2) also had no capability flag in the agent protocol. This was a v0.2 consistency gap never caught by the v0.2 audit. It was silently mended during the v0.3 cleanup wave — not a new finding, but a thread that had been loose since v0.2 and is now bound.
+
+---
+
+### Current state
+
+HERETIC v0.3 First Listening is shipped and audited. The body can now connect (L1 Bifröst), speak (L2 Rödd Tunga), and listen (L2 Rödd Hlust). Samræður is two-directional as the manifesto required. 339 tests pass. 0 open findings. The whole of L2 Rödd is implemented.
+
+The next milestone on `docs/ROADMAP.md` is **v0.4 Summoning Circle** — the Tauri + React UI shell (L4 Vébond): the visual ceremony control surface, the light-the-candle and extinguish ceremony interface, the Norse aesthetic as described in `docs/vision/AESTHETIC.md` and embodied in `docs/vision/CEREMONY_NARRATIVE.md`. The body has its inner voice; now it needs its visible face.
+
+*Cross-reference: `docs/ROADMAP.md`, `TASK_HERETIC_v0.3_FIRST_LISTENING.md`, `docs/audit/AUDIT_v0.3_FIRST_LISTENING.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The body hears now. Both halves of the voice are kept. The thread holds for the face that comes next.*

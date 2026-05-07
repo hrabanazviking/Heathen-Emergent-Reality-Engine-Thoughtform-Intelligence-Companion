@@ -3,6 +3,7 @@
 > **Operational task resumption file** — per Volmarr's session-resume protocol. If a session breaks, the next session reads this first.
 
 > **Started: 2026-05-07** (immediately after v0.2 First Voice shipped + audited at HEAD `f9c58cd`)
+> **Status: v0.3 SHIPPED + AUDITED 2026-05-07** — HEAD `cf8dad1`, 339 tests passing, 0 open findings
 
 ---
 
@@ -18,7 +19,7 @@ The canonical contract for L2 Rödd lives in `docs/architecture/LAYER_INTERFACES
 
 ## 2. Current status — 2026-05-07
 
-**Phase:** v0.2 SHIPPED + AUDITED at `f9c58cd`. v0.3 work begins now. Baseline: 224 tests passing.
+**Phase:** v0.3 SHIPPED + AUDITED 2026-05-07 at HEAD `cf8dad1`. 339 tests passing. 0 open findings.
 
 ### Done in v0.1+v0.2 (recap, do not redo)
 - v0.1: L0 Grunnr, L1 Bifröst, CLI shell — 121 tests
@@ -26,15 +27,15 @@ The canonical contract for L2 Rödd lives in `docs/architecture/LAYER_INTERFACES
 - All audit findings closed
 - `RoddSttConfig` dataclass already exists at `src/heretic/rodd/config_model.py:130-160`
 
-### v0.3 deliverables (this milestone)
-- ⏳ `src/heretic/rodd/microphone.py` — cross-platform mic capture (sounddevice primary, platform fallback)
-- ⏳ `src/heretic/rodd/vad.py` — Voice Activity Detection wrapper (webrtcvad primary, energy-threshold fallback)
-- ⏳ `src/heretic/rodd/whisper_engine.py` — Whisper.cpp wrapper (pywhispercpp primary, CLI subprocess fallback)
-- ⏳ `src/heretic/rodd/hlust.py` — Hlust orchestrator: mic → VAD → Whisper → text
-- ⏳ Lazy model loading per audit C-Q-C1 resolution: model loads on first utterance, NOT at Kynding
-- ⏳ CLI integration — when `rodd.stt.enabled: true`, the `light` command captures from mic instead of stdin (with stdin fallback for piped input / non-interactive contexts)
-- ⏳ `heretic.example.yaml` — `rodd.stt:` block already complete from v0.2; verify
-- ⏳ Tests — mocked microphone, mocked Whisper, mocked VAD; aim for 30+ new tests; total ~255+
+### v0.3 deliverables — ALL COMPLETE (Done 2026-05-07)
+- ~~`src/heretic/rodd/microphone.py`~~ — Done 2026-05-07 (`95439a1`); sounddevice primary, NullMicBackend fallback; frame constants locked here
+- ~~`src/heretic/rodd/vad.py`~~ — Done 2026-05-07 (`95439a1`); webrtcvad primary, energy-threshold fallback; vad_threshold impedance mismatch resolved
+- ~~`src/heretic/rodd/whisper_engine.py`~~ — Done 2026-05-07 (`95439a1`); pywhispercpp primary, CLI subprocess fallback, NullWhisperBackend; lazy model load honoured
+- ~~`src/heretic/rodd/hlust.py`~~ — Done 2026-05-07 (`9648ca8`); full mic → VAD → Whisper → transcript orchestrator; threading bridge via call_soon_threadsafe; hard caps + per-frame timeout
+- ~~Lazy model loading per audit C-Q-C1 resolution~~ — Done 2026-05-07; load on first utterance, not at Kynding; `_model_load_failed` flag prevents retry on permanent failure (D-5 Wave 3 fix)
+- ~~CLI integration~~ — Done 2026-05-07 (`ab7c466`); Hlust gated behind `stt.enabled`, `is_available`, `isatty()`; stdin fallback preserved; transcript confirmed before send
+- ~~`heretic.example.yaml`~~ — Verified: `rodd.stt:` block complete and correct from v0.2
+- ~~Tests~~ — Done 2026-05-07; 115 new tests (112 Wave 2 + 3 Wave 3); total 339 (224 baseline + 115 new)
 
 ### Constraints carried from v0.1+v0.2
 - All settings via `heretic.yaml` (no hardcoding)
@@ -157,20 +158,21 @@ Exit criteria (this task):
 
 Same protocol as v0.1 + v0.2.
 
-### Wave 1 — parallel (no inter-dependencies)
-- **Cartographer** (Védis Eikleið) — map the listening flow: mic → 30ms frames → VAD → utterance buffer → Whisper → transcript → Bifröst. Update `docs/cartography/DATA_FLOW.md` with the new inbound voice path. Add a per-component diagram for L2 Rödd Hlust. Also clean v0.2.x backlog items (§4.6.4 abbreviated config table + §4.6.1 inline `voice_id` annotation alignment).
-- **Skald** (Sigrún Ljósbrá) — `docs/vision/THE_FIRST_LISTENING.md` — vision essay companion to THE_FIRST_VOICE. The body has had a tongue since v0.2; v0.3 gives it ears. Pair with WHY_HERETIC, CEREMONY_NARRATIVE, THE_FIRST_VOICE.
-- **Architect** (Rúnhild Svartdóttir) — scaffold the four new modules (microphone.py, vad.py, whisper_engine.py, hlust.py) with INTERFACE.md updates, abstract base classes, NotImplementedError stubs, skip-marked placeholder tests. Update pyproject.toml `[voice]` extra with `pywhispercpp` and `webrtcvad-wheels` (both as optional). No business logic.
+### Wave 1 — parallel (no inter-dependencies) — COMPLETE
+- ~~**Cartographer** (Védis Eikleið)~~ — Done `26030f7`: DATA_FLOW.md §4.7 listening flow + §12 Hlust diagram; v0.2.x backlog cleared (§4.6.4 table + §4.6.1 annotation)
+- ~~**Skald** (Sigrún Ljósbrá)~~ — Done `0ad4672`: `docs/vision/THE_FIRST_LISTENING.md` — fourth panel of vision cycle
+- ~~**Architect** (Rúnhild Svartdóttir)~~ — Done `0422a44`: four module skeletons + INTERFACE.md §Hlust + 53 skip-marked tests; pyproject.toml [voice] updated
 
-### Wave 2 — sequential (Forge depends on Architect; Auditor depends on Forge)
-- **Forge** (Eldra Járnsdóttir) — implement Hlust end-to-end: mic capture, VAD wrapper, Whisper engine, orchestrator, CLI integration in `cli.py` `light`. Real tests against mocked sounddevice / mocked VAD / mocked Whisper. Cross-platform.
-- **Auditor** (Sólrún Hvítmynd) — `docs/audit/AUDIT_v0.3_FIRST_LISTENING.md`. Verify: mic capture cross-platform; VAD logic sane; lazy model loading honoured; transcript confirmation surfaces; tests cover happy path + mic-unavailable + Whisper-unavailable + VAD-unavailable + invalid-config; no absolute paths; no hardcoded settings; fault tolerance solid.
+### Wave 2 — sequential — COMPLETE
+- ~~**Forge** (Eldra Járnsdóttir)~~ — Done `95439a1` (microphone + VAD + Whisper substrate), `9648ca8` (Hlust orchestrator), `ab7c466` (CLI wiring + 336 tests)
+- ~~**Auditor** (Sólrún Hvítmynd)~~ — Done `c938f0e`: AUDIT_v0.3_FIRST_LISTENING.md — PASS WITH CONCERNS, 0 blockers, 1 SERIOUS (D-5), 3 NOTABLE (N-1, N-2, H-1)
 
-### Wave 3 — cleanup (only if Auditor finds notables)
-- Per-finding dispatch, same pattern as v0.1 and v0.2.
+### Wave 3 — cleanup — COMPLETE
+- ~~**Architect**~~ — Done `4e50093`: H-1 resolved (`?voice_in` added to AGENT_AGNOSTIC_PROTOCOL.md §5.2); `?voice_out` added for symmetry (closes v0.2 consistency gap)
+- ~~**Forge**~~ — Done `cf8dad1`: D-5 (`_model_load_failed` permanent-disable guard), N-1 (`0.1667` boundary test), N-2 (`print()` → `self._log.info()`)
 
-### Close-out
-- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 4 + update this TASK file + memory refresh.
+### Close-out — COMPLETE
+- ~~**Scribe** (Eirwyn Rúnblóm)~~ — Done 2026-05-07: DEVLOG entry 4 + this TASK file update + memory files updated
 
 ---
 
@@ -223,17 +225,39 @@ Cartographer wave-1 brief includes these.
 
 ---
 
-## 13. How to resume this task in a future session
+## 13. Resume state — v0.3 closed; forward to v0.4
 
+**v0.3 is complete.** No items remain open. The task is sealed.
+
+**Current state (2026-05-07):**
+- HEAD: `cf8dad1` on `development`
+- Tests: 339 passing, 0 failures
+- Audit: PASS WITH CONCERNS — all findings resolved (D-5, N-1, N-2, H-1)
+- L2 Rödd: fully implemented — Tunga (mouth, v0.2) + Hlust (ears, v0.3)
+- Samræður: two-directional voice as the manifesto required
+
+**Next milestone: v0.4 Summoning Circle** — L4 Vébond, Tauri + React UI shell
+- The visual ceremony control surface
+- Light the candle / extinguish ceremony interface
+- Norse aesthetic per `docs/vision/AESTHETIC.md` and `docs/vision/CEREMONY_NARRATIVE.md`
+- No new voice work in v0.4 — the voice faculty is complete
+
+**To start v0.4:**
 1. Read `docs/BODY_MANIFESTO.md` — sealed vision
-2. Read this file from top to bottom
-3. Read `docs/audit/AUDIT_v0.2_FIRST_VOICE.md` for v0.2 closing state
-4. Read `docs/audit/AUDIT_v0.3_FIRST_LISTENING.md` if it exists (audit complete)
-5. Run `git log --oneline -15` and `git status` in `C:/Users/volma/runa/HERETIC`
-6. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
-7. Continue from the first unchecked deliverable in §2
+2. Read `docs/vision/AESTHETIC.md` and `docs/vision/CEREMONY_NARRATIVE.md` for UI register
+3. Read `docs/architecture/CEREMONY.md` for lifecycle states the UI must expose
+4. Read `docs/cartography/SYSTEM_OVERVIEW.md` for component topology
+5. Read `docs/ROADMAP.md §v0.4` for milestone scope
+6. Run `git log --oneline -5` and `git status` in `C:/Users/volma/runa/HERETIC`
+7. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
+8. Open `TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md` (to be created at session start)
+
+## 14. v0.3.x backlog
+
+**No open items.** All v0.2.x backlog was cleared in Wave 1 (Cartographer). All audit findings were resolved in Wave 3. The `?voice_out` v0.2 consistency gap was mended as a bonus during the H-1 fix. The ledger is clean.
 
 ---
 
 *Task file authored by Runa Gridweaver Freyjasdottir, 2026-05-07.*
-*v0.3 First Listening — when the body learns to listen.*
+*Updated by Eirwyn Rúnblóm (Scribe), 2026-05-07 — v0.3 closed, ledger clean.*
+*v0.3 First Listening — when the body learned to listen.*
