@@ -150,7 +150,7 @@ async def _async_light(args: argparse.Namespace) -> int:
             # Read user input from stdin (blocking — CLI mode)
             try:
                 print("you> ", end="", flush=True)
-                line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
+                line = await asyncio.get_running_loop().run_in_executor(None, sys.stdin.readline)
             except (EOFError, KeyboardInterrupt):
                 break
 
