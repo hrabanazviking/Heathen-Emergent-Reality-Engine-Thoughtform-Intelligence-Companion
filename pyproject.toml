@@ -20,10 +20,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Core dev toolchain — always install for any contributor.
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-mock>=3.14",
+]
+# Voice output — install when the machine has speakers and the user wants TTS.
+# sounddevice is NOT a core dep: ``pip install heretic`` works on headless machines.
+# ``pip install heretic[voice]`` activates SoundDeviceBackend (cross-platform audio).
+voice = [
+    "sounddevice>=0.4.6",
 ]
 
 [project.scripts]
