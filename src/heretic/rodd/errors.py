@@ -130,3 +130,103 @@ class TungaConfigError(RoddError):
     Recovery: abort Tunga initialisation; lifecycle must catch this and
     disable the voice-out capability flag without crashing the ceremony.
     """
+
+
+# ---------------------------------------------------------------------------
+# Hlust STT errors (v0.3)
+# ---------------------------------------------------------------------------
+
+class HlustError(RoddError):
+    """Base class for all Hlust (STT / ear) errors.
+
+    Raised when any component of the STT pipeline — microphone capture, VAD,
+    or Whisper transcription — encounters a fault.
+
+    Recovery: caller (CLI) falls back to stdin input with a warning log.
+    The ceremony must not crash on Hlust failure.
+    """
+
+
+class MicrophoneError(HlustError):
+    """A microphone capture operation failed.
+
+    Raised when the mic stream cannot be opened, a device is lost mid-capture,
+    or the capture backend encounters an unrecoverable error.
+
+    Maps to VOICE_DEVICE_UNAVAILABLE (mic side) from LAYER_INTERFACES.md §L2.
+    """
+
+
+class MicrophoneBackendUnavailableError(MicrophoneError):
+    """No microphone backend is available on this platform.
+
+    Raised when ``MicrophoneCapture.best_available()`` cannot find a working
+    backend (sounddevice absent and no platform fallback). Hlust will be in
+    unavailable state; CLI falls back to stdin.
+
+    Maps to VOICE_DEVICE_UNAVAILABLE from LAYER_INTERFACES.md §L2.
+    """
+
+
+class VadError(HlustError):
+    """A Voice Activity Detection operation failed.
+
+    Raised when the VAD backend receives malformed audio (wrong frame length)
+    or encounters an internal classification error.
+    """
+
+
+class VadBackendUnavailableError(VadError):
+    """No VAD backend is available on this platform.
+
+    Raised when neither webrtcvad-wheels nor EnergyThresholdBackend (always
+    available) initialises successfully. In practice this should not happen
+    because EnergyThresholdBackend has no deps — but the error is defined
+    for completeness and defensive coding.
+    """
+
+
+class WhisperError(HlustError):
+    """A Whisper transcription operation failed.
+
+    Raised when the transcription backend returns an error, the audio is
+    malformed, or the backend encounters an unexpected runtime fault.
+    """
+
+
+class WhisperBackendUnavailableError(WhisperError):
+    """No Whisper backend is available on this machine.
+
+    Raised when neither pywhispercpp nor the whisper-cli binary is available.
+    Hlust will be in unavailable state; CLI falls back to stdin.
+    """
+
+
+class WhisperModelLoadError(WhisperError):
+    """The Whisper GGML model could not be loaded.
+
+    Raised when the model file is missing, corrupt, has an incompatible format,
+    or the system does not have enough memory to load it.
+
+    Maps to VOICE_STT_CRASH from LAYER_INTERFACES.md §L2.
+
+    Attributes:
+        model_path: The path that was attempted (relative; never absolute).
+    """
+
+    def __init__(self, message: str, model_path: str | None = None) -> None:
+        super().__init__(message)
+        self.model_path = model_path
+
+
+class HlustConfigError(HlustError):
+    """Hlust was initialised with an invalid config or in an unusable state.
+
+    Raised by capture_one_utterance() when:
+      - Hlust is marked unavailable (Null backends for mic, VAD, or Whisper).
+      - Hlust has been closed.
+      - The RoddSttConfig contains logically inconsistent values that prevent
+        safe operation.
+
+    Recovery: CLI disables voice input for this ceremony and falls back to stdin.
+    """

@@ -26,12 +26,21 @@ dev = [
     "pytest-asyncio>=0.23",
     "pytest-mock>=3.14",
 ]
-# Voice output — install when the machine has speakers and the user wants TTS.
+# Voice I/O — install when the machine has a mic/speakers and the user wants TTS + STT.
 # sounddevice is NOT a core dep: ``pip install heretic`` works on headless machines.
-# ``pip install heretic[voice]`` activates SoundDeviceBackend (cross-platform audio).
+# ``pip install heretic[voice]`` activates:
+#   - SoundDeviceBackend      (TTS playback, cross-platform)
+#   - SoundDeviceMicBackend   (STT mic capture at 16 kHz mono int16)
+#   - WebRtcVadBackend        (VAD via webrtcvad-wheels, BSD-3, prebuilt wheels)
+#   - PyWhisperCppBackend     (Whisper transcription via pywhispercpp, MIT)
+# All four are optional — Hlust/Tunga degrade gracefully when any dep is absent.
+# whisper-cli (CliSubprocessBackend fallback) is a user-installed binary, not a
+# Python package; it is not listed here.
 voice = [
     "sounddevice>=0.4.6",
     "numpy>=1.21",
+    "webrtcvad-wheels>=2.0",
+    "pywhispercpp>=1.0",
 ]
 
 [project.scripts]

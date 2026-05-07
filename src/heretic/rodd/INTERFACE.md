@@ -234,7 +234,7 @@ the `effective_language` block at approximately line 254.
 
 ---
 
-## SLO Tier
+## SLO Tier (Tunga)
 
 **Hot** — TTS first audio chunk playback start < 60 ms after first audio chunk received from
 ChatterBox (per LAYER_INTERFACES.md §L2 SLO tier).
@@ -242,6 +242,171 @@ ChatterBox (per LAYER_INTERFACES.md §L2 SLO tier).
 **Warm** — ChatterBox synthesis round-trip (text sent → WAV bytes received) is not under
 HERETIC's control; it depends on the Pi's GPU. The chunking policy (chunk_min_chars: 80)
 is designed to keep chunks large enough that ChatterBox latency is amortised.
+
+---
+
+---
+
+## Hlust Contract (STT / Ear half) — v0.3
+
+> **Added 2026-05-07 — Rúnhild Svartdóttir — v0.3 scaffold pass.**
+> Hlust is the ear of Rödd. The four substrate modules (microphone.py, vad.py,
+> whisper_engine.py, hlust.py) are scaffolded; Forge implements in Wave 2.
+
+### What Hlust Owns
+
+- Microphone stream lifecycle: device open, frame callback, stream stop
+- VAD classification loop: 30 ms frame -> is_speech() -> utterance_complete()
+- Whisper model lifecycle: lazy (or eager) load, transcription call
+- Hlust orchestrator: coordinating mic, VAD, and Whisper into a single `capture_one_utterance()` call
+- Frame format invariant: 16 kHz mono int16, 30 ms frames (960 bytes) — locked across all three substrate layers
+
+### What Hlust Never Controls
+
+- What the transcript text contains (Whisper decides)
+- Routing the transcript to L1 Bifröst (caller's responsibility)
+- TTS (Tunga) — the two halves are independent
+- UI display of transcription (L4 Vébond)
+- Config file loading — Hlust receives `RoddConfig`; it never reads `heretic.yaml`
+
+### Inputs
+
+| Input | Source | Notes |
+|---|---|---|
+| `RoddConfig` | L0 Grunnr `load_config()` | Hlust reads `config.stt` for device, model_path, VAD threshold, language, load_strategy. |
+| OS audio stream | System mic device | Captured via MicrophoneCapture backend; 16 kHz mono int16. |
+
+### Outputs
+
+| Output | Consumer | Notes |
+|---|---|---|
+| `str` (transcript) | Caller (`cli.py` `_async_light`) | Return value of `capture_one_utterance()`. Stripped of leading/trailing whitespace. |
+| `voice::transcript(text, timestamp, confidence)` | L1 Bifröst | Caller injects transcript as a user-role message. Hlust does not inject directly. |
+
+### Public API
+
+| Export | Module | Purpose |
+|---|---|---|
+| `Hlust` | `rodd.hlust` | STT orchestrator. One instance per ceremony. |
+| `MicrophoneCapture` | `rodd.microphone` | ABC for all mic backends. |
+| `SoundDeviceMicBackend` | `rodd.microphone` | Primary mic (sounddevice, optional dep). |
+| `NullMicBackend` | `rodd.microphone` | Silent fallback; no capture. |
+| `VadDetector` | `rodd.vad` | ABC for all VAD backends. |
+| `WebRtcVadBackend` | `rodd.vad` | Primary VAD (webrtcvad-wheels, optional dep). |
+| `EnergyThresholdBackend` | `rodd.vad` | Fallback VAD (pure Python; always available). |
+| `NullVadBackend` | `rodd.vad` | Silent fallback; never detects speech. |
+| `WhisperEngine` | `rodd.whisper_engine` | ABC for all Whisper backends. |
+| `PyWhisperCppBackend` | `rodd.whisper_engine` | Primary Whisper (pywhispercpp, optional dep). |
+| `CliSubprocessBackend` | `rodd.whisper_engine` | Fallback Whisper (whisper-cli binary). |
+| `NullWhisperBackend` | `rodd.whisper_engine` | Silent fallback; returns empty string. |
+
+All of the above are re-exported from `heretic.rodd` directly.
+
+### Frame Format Invariant (locked by Architect)
+
+The frame format contract is shared and immutable across MicrophoneCapture, VadDetector, and WhisperEngine:
+
+| Property | Value | Rationale |
+|---|---|---|
+| Sample rate | 16 000 Hz | Whisper native; webrtcvad-compatible |
+| Channels | 1 (mono) | Whisper requirement |
+| Dtype | int16 | Whisper native; webrtcvad requirement |
+| Frame duration | 30 ms | webrtcvad supports 10/20/30 ms; 30 chosen for balance |
+| Frame samples | 480 | 16 000 * 30 / 1000 |
+| Frame bytes | 960 | 480 samples * 2 bytes/sample |
+
+This frame format is defined as constants in `rodd/microphone.py` and must not be changed without a full INTERFACE.md revision.
+
+### Lazy-Load Contract (resolves C-Q-C1)
+
+`WhisperEngine.load_model()` is NEVER called at Kynding when `rodd.stt.load_strategy` is `lazy` (default).
+It is called by Hlust on the first invocation of `capture_one_utterance()`.
+When `load_strategy` is `eager`, the caller (lifecycle) calls `await hlust.preload_model()` at Kynding.
+
+The `is_loaded` property on any `WhisperEngine` instance reflects load state.
+Callers must not call `transcribe()` before `load_model()` has completed.
+
+### Backend Selection (best_available() factories)
+
+Each substrate layer follows the same factory pattern:
+
+```
+MicrophoneCapture.best_available(device, logger)
+    -> SoundDeviceMicBackend   if sounddevice importable
+    -> NullMicBackend          (fallback; Hlust sets is_available = False)
+
+VadDetector.best_available(config, logger)
+    -> WebRtcVadBackend        if webrtcvad-wheels importable
+    -> EnergyThresholdBackend  (always available; pure Python)
+    -> NullVadBackend          (last resort; Hlust sets is_available = False)
+
+WhisperEngine.best_available(config, logger)
+    -> PyWhisperCppBackend     if pywhispercpp importable
+    -> CliSubprocessBackend    if whisper-cli binary on PATH
+    -> NullWhisperBackend      (fallback; Hlust sets is_available = False)
+```
+
+Hlust sets `self._available = False` if ANY of the three backends is a Null backend.
+When unavailable, `capture_one_utterance()` raises `HlustConfigError` immediately.
+The caller (CLI) falls back to stdin without crashing the ceremony.
+
+### Error Model
+
+| Code | Class | Condition | Recovery |
+|---|---|---|---|
+| N/A | `HlustConfigError` | Hlust unavailable (Null backends) or closed | Caller falls back to stdin; ceremony continues |
+| `VOICE_DEVICE_UNAVAILABLE` | `MicrophoneBackendUnavailableError` | No mic backend available | Hlust enters unavailable state; CLI uses stdin |
+| N/A | `MicrophoneError` | Mic stream open or frame read failed | Raised to caller; CLI falls back to stdin |
+| N/A | `VadError` | VAD frame malformed or backend error | Raised to caller; CLI falls back to stdin |
+| `VOICE_STT_CRASH` | `WhisperModelLoadError` | Model file missing, corrupt, or OOM | Raised to caller; CLI falls back to stdin |
+| N/A | `WhisperError` | Transcription runtime failure | Raised to caller; CLI falls back to stdin |
+| N/A | `WhisperBackendUnavailableError` | Neither pywhispercpp nor whisper-cli present | Hlust enters unavailable state |
+
+### Capability Flags
+
+| Flag | Meaning | Set True When |
+|---|---|---|
+| `?voice_in` | STT enabled and mic available | `rodd.stt.enabled: true` AND `Hlust.is_available is True` |
+
+### Config Keys (Hlust / STT)
+
+Full reference: `docs/architecture/LAYER_INTERFACES.md §L2 Rödd config keys`.
+Canonical type definitions: `src/heretic/rodd/config_model.py RoddSttConfig`.
+
+```yaml
+rodd:
+  stt:
+    enabled: true
+    engine: whisper_cpp                    # whisper_cpp | (future: whisper_api)
+    model_path: "models/ggml-base.en.bin"  # relative to heretic data dir — never absolute
+    device: default                        # OS device name or "default"
+    vad_threshold: 0.6                     # float 0.0–1.0; maps to webrtcvad mode 0-3
+    language: en                           # BCP-47 language code for Whisper
+    load_strategy: lazy                    # lazy | eager — see lazy-load contract above
+```
+
+### SLO Tier (Hlust)
+
+**Warm** — utterance end to transcript returned < 1 200 ms p95 (per LAYER_INTERFACES.md §L2).
+The dominant cost is Whisper transcription; ggml-base on CPU typically < 500 ms for a 3–5 s utterance.
+
+### Invariants (Hlust)
+
+1. No Hlust module reads `heretic.yaml` directly. All config flows through `RoddSttConfig`.
+2. No absolute paths anywhere in Hlust. `model_path` is always resolved relative to the heretic data dir at runtime.
+3. `capture_one_utterance()` never raises a generic `Exception`. All faults are wrapped in an `HlustError` subclass.
+4. `Hlust.close()` is idempotent — calling it multiple times is safe.
+5. The microphone stream is always stopped before `capture_one_utterance()` returns, whether on success or failure.
+6. `WhisperEngine.load_model()` is never called at construction time, regardless of load_strategy.
+7. When `Hlust.is_available` is False, `capture_one_utterance()` raises `HlustConfigError` on the first call — it never silently returns empty.
+
+### What Callers Must Not Assume
+
+- That `Hlust` is reentrant. One caller, one asyncio task, in order.
+- That `Hlust` can be reused after `close()`.
+- That `is_available` is True — always check or catch `HlustConfigError`.
+- That the model is loaded after construction — only after `load_model()` (lazy) or `preload_model()` (eager).
+- That sounddevice or pywhispercpp are importable — use `available()` factory methods.
 
 ---
 
