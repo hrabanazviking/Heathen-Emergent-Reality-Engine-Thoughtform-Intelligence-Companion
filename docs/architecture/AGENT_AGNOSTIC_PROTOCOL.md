@@ -1,6 +1,6 @@
 # HERETIC — Agent-Agnostic Protocol (Bifröst Contract)
 
-**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, canonicalizing tool-name format reference, confirming screen frame format)
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, canonicalizing tool-name format reference, confirming screen frame format) | 2026-05-07 H-1 corrective pass — Rúnhild Svartdóttir: `?voice_in` and `?voice_out` capability flags added to §5.1 and §5.2. Both flags are HERETIC-internal: they are set from `rodd` layer state at Tengsl and delivered to the agent in the senses manifest, not derived from the agent capability probe. Audit finding H-1 (AUDIT_v0.3_FIRST_LISTENING.md §H-1) closed.
 **Scope:** The exact protocol any inhabiting agent must speak; what HERETIC promises; what HERETIC requires; authentication; routing; capability negotiation; tool call format; lifecycle messages mapped to True Names.
 **Authority:** Derives from `ARCHITECTURE.md` (L1 Bifröst domain).
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -288,13 +288,41 @@ A separate short image probe is sent only if `vision_in: true` in config:
 
 If probe fails entirely: `?tool_use = false`, `?vision_in = false`, `?streaming = false` as conservative defaults. Ceremony proceeds without those capabilities.
 
+**Capability flags set from HERETIC body state (not from agent probe):**
+
+The following flags are set by HERETIC from its own layer state at Tengsl entry and delivered to the agent in the senses manifest system message. They are not determined by the agent probe — the agent cannot affect them, and they remain stable for the duration of the ceremony.
+
+| Flag | Set by | Condition |
+|---|---|---|
+| `?voice_in` | L2 Rödd (Hlust) | `rodd.stt.enabled: true` AND `Hlust.is_available is True` at Tengsl |
+| `?voice_out` | L2 Rödd (Tunga) | `rodd.tts.enabled: true` AND a playback backend is available at Tengsl |
+
+**`?voice_in` semantics:**
+- When `?voice_in` is true, user messages MAY arrive via STT transcription (Hlust) rather than typed keyboard input. The agent's response need not differ in structure — `?voice_in` is informational.
+- It is useful for tone calibration: when both `?voice_in` and `?voice_out` are true, the agent MAY choose to format responses for spoken delivery — shorter sentences, no markdown that will not be voiced aloud (headings, code fences, bullet syntax that Tunga will read literally).
+- `?voice_in` does NOT grant the agent the ability to call a sense to listen on demand. That is `hlust.listen` — an L5 Skilningr sense tool, planned for v0.7. In v0.3 Hlust is human-facing only; the agent has no tool surface into it.
+- Implementation: set by HERETIC at Tengsl from `config.rodd.stt.enabled AND Hlust.is_available`. The agent receives it in the senses-manifest system message injected at session open (see §7.1 step 7). Cross-references: `docs/architecture/LAYER_INTERFACES.md §L2 Rödd Capability flags`; `src/heretic/rodd/INTERFACE.md §Hlust — Capability Flags`.
+
+**`?voice_out` semantics:**
+- When `?voice_out` is true, HERETIC will speak the agent's text responses aloud via Tunga (ChatterBox TTS). The agent need not change its output format, but MAY respect `?voice_in + ?voice_out` together for spoken-delivery formatting as described above.
+- Implementation: set by HERETIC at Tengsl from `config.rodd.tts.enabled AND playback backend available`. Cross-reference: `docs/architecture/LAYER_INTERFACES.md §L2 Rödd Capability flags`.
+
 ### 5.2 Capability flag effects
+
+**Agent-probed flags** (derived from the capability probe exchange with the agent):
 
 | Flag | If true | If false |
 |---|---|---|
 | `?tool_use` | Tool schemas injected into all turns; tool_call dispatch active | No tools sent; agent operates text-only |
 | `?vision_in` | Sjón frames injected as image_url content blocks | Frames buffered in Sjón but not sent |
 | `?streaming` | SSE streaming used for all turns | Non-streaming POST used; L4 shows response when complete |
+
+**HERETIC body-state flags** (derived from L2 Rödd layer state at Tengsl; delivered in senses manifest):
+
+| Flag | If true | If false |
+|---|---|---|
+| `?voice_in` | User turns MAY be voice transcripts; agent MAY adjust formatting for spoken delivery when `?voice_out` is also true | All user input is typed text; no STT active |
+| `?voice_out` | Agent text responses are spoken aloud via Tunga (ChatterBox TTS); agent MAY adjust formatting for spoken delivery when `?voice_in` is also true | Agent responses displayed as text only; no TTS active |
 
 ---
 
@@ -474,7 +502,7 @@ These are binding commitments. Violating them constitutes a Bifröst breach.
 
 5. **Respect for agent rate limits.** If the agent returns HTTP 429, L1 backs off per the `Retry-After` header or exponential backoff; it does not hammer the endpoint.
 
-6. **Voice transcripts as clean user messages.** STT (Hlust) transcripts are injected as `{"role": "user", "content": [{"type": "text", "text": transcript}]}` — standard user-role messages; no custom wrapper, no proprietary fields.
+6. **Voice transcripts as clean user messages.** STT (Hlust) transcripts are injected as `{"role": "user", "content": [{"type": "text", "text": transcript}]}` — standard user-role messages; no custom wrapper, no proprietary fields. When `?voice_in` is true, the agent was informed of STT availability in the senses manifest at Tengsl; it should not be surprised by voice-origin text arriving in this standard form.
 
 7. **Vision frames as standard image_url.** Sjón captures are injected as `{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}` within user content — standard OpenAI vision format. Inline base64 is the canonical frame delivery format (not URL references). This avoids any file-server dependency and keeps frames within the Tailscale trust boundary. Frames are included only when `?vision_in` capability is confirmed. At 1280×720 PNG, worst-case frame size is approximately 1.2 MB — within the `max_tokens: 127000` budget as image content.
 
