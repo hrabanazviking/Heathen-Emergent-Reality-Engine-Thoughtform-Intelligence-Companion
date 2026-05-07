@@ -19,10 +19,13 @@ Ref:
 from __future__ import annotations
 
 import ipaddress
+import shutil
 import socket
+import subprocess
 from typing import Optional
 
 from heretic.bifrost.config_model import BifrostConfig
+from heretic.bifrost.errors import BifrostConnectionError
 
 # Tailscale address space: 100.64.0.0/10
 # This is the CGNAT range Tailscale uses for its mesh addresses.
@@ -58,25 +61,37 @@ class TailscaleAwareness:
     def resolve_endpoint(self) -> str:
         """Return the best endpoint URL given current Tailscale state and config.
 
-        Logic:
-            - If tailscale.prefer is True and Tailscale is active: return the
-              configured endpoint as-is (it may already be a Tailscale address).
-            - If tailscale.prefer is True and Tailscale is inactive:
-              - If tailscale.fallback_to_direct is True: return configured endpoint.
-              - Else: raise BifrostConnectionError explaining Tailscale is required.
-            - If tailscale.prefer is False: return configured endpoint directly.
+        Logic per AGENT_AGNOSTIC_PROTOCOL.md §4.1:
+            - prefer=True  + Tailscale active  → use configured endpoint (Tailscale route)
+            - prefer=True  + Tailscale inactive + fallback_to_direct=True → use endpoint directly
+            - prefer=True  + Tailscale inactive + fallback_to_direct=False → raise
+            - prefer=False → return configured endpoint directly (bypass Tailscale logic)
 
         Returns:
-            The resolved endpoint URL string (never hardcoded; derived from config).
+            The resolved endpoint URL string — always derived from config, never hardcoded.
 
         Raises:
-            NotImplementedError: Forge will implement the full routing logic.
+            BifrostConnectionError: if Tailscale is required but not available.
         """
-        raise NotImplementedError(
-            "Forge will implement: TailscaleAwareness.resolve_endpoint — "
-            "apply prefer/fallback logic from BifrostConfig.tailscale, "
-            "raise BifrostConnectionError if Tailscale is required but absent, "
-            "return the selected endpoint URL string."
+        endpoint = self._config.endpoint
+        prefer = self._config.tailscale.prefer
+        fallback = self._config.tailscale.fallback_to_direct
+
+        if not prefer:
+            # User explicitly opted out of Tailscale routing — use endpoint directly
+            return endpoint
+
+        if self.tailscale_active:
+            return endpoint
+
+        # Tailscale is not active
+        if fallback:
+            return endpoint
+
+        raise BifrostConnectionError(
+            f"Tailscale is not active and fallback_to_direct is disabled. "
+            f"Cannot reach agent at {endpoint!r}. "
+            f"Start Tailscale or set bifrost.tailscale.fallback_to_direct: true."
         )
 
     def is_tailscale_address(self, host: str) -> bool:
@@ -98,23 +113,46 @@ class TailscaleAwareness:
 
 
 def _detect_tailscale() -> bool:
-    """Attempt to detect whether Tailscale is running on the local machine.
+    """Detect whether Tailscale is running on the local machine.
 
-    This is a best-effort check. A positive result means Tailscale appears to be
-    active. A negative result may be a false negative on unusual configurations.
+    Best-effort check — false negatives are possible on unusual configurations,
+    but any exception returns False rather than crashing.
 
-    Strategy (Forge will implement the full version):
-        1. Check if any local network interface has a 100.64.x.x address.
-        2. If not detectable via interfaces, attempt to call ``tailscale status``
-           as a subprocess with a short timeout.
-        3. Return False on any exception — do not crash on detection failure.
+    Strategy:
+        1. Check if the ``tailscale`` CLI binary is on PATH (shutil.which).
+           If not found, Tailscale is almost certainly not installed → return False.
+        2. If found, call ``tailscale status --json`` with a 2-second timeout
+           to see if the daemon is actually running.
+        3. Fall back to checking local sockets for a 100.64.0.0/10 address via
+           socket.gethostbyname("100.100.100.100") as a Tailscale magic DNS probe.
 
     Returns:
-        True if Tailscale appears active; False otherwise.
+        True if Tailscale appears active; False on any detection failure.
     """
-    raise NotImplementedError(
-        "Forge will implement: tailscale._detect_tailscale — "
-        "enumerate network interfaces (psutil or socket) for 100.64.0.0/10 addresses, "
-        "OR subprocess-call 'tailscale status' with timeout=2s, "
-        "return True if detected, False on any failure."
-    )
+    # Step 1: Is the CLI even installed?
+    if shutil.which("tailscale") is None:
+        return False
+
+    # Step 2: Call `tailscale status` — non-zero exit means daemon is not running
+    try:
+        result = subprocess.run(
+            ["tailscale", "status"],
+            capture_output=True,
+            timeout=2,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
+        # TimeoutExpired: daemon is hung or not responding
+        # OSError/FileNotFoundError: CLI found by shutil.which but exec failed
+        pass
+
+    # Step 3: Probe Tailscale magic DNS as a last resort
+    # 100.100.100.100 is Tailscale's own DNS resolver; resolving it means TS is up
+    try:
+        socket.setdefaulttimeout(1)
+        socket.gethostbyname("100.100.100.100")
+        return True
+    except (socket.gaierror, OSError):
+        return False
+    finally:
+        socket.setdefaulttimeout(None)
