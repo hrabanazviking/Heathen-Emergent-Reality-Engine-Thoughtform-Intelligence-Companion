@@ -2,46 +2,42 @@
 
 > **Operational task resumption file** — per Volmarr's session-resume protocol. If a session breaks, the next session reads this first.
 
+> **Last update: 2026-05-07** — Framing decision **RESOLVED** (Body, not Brain). Layer model revised. Roadmap revised. Mímisbrunnr subsystem added. Manifesto canonicalized at `docs/BODY_MANIFESTO.md`.
+
 ---
 
 ## 1. Task scope
 
-Bring H.E.R.E.T.I.C. — *Heathen Emergent Reality Engine Thoughtform Intelligence Companion* — from a long-planned vision repo to a real, modular, MIT-licensed cyber-Heathen application that:
+Bring H.E.R.E.T.I.C. — *Host Environment for Realtime Embodiment, Tooling & Interactive Control* — from a long-planned vision repo to a real, modular, MIT-licensed cyber-Heathen runtime body that any AI agent can inhabit to gain realtime sensory access to a human's computing world.
 
-- Connects to **any open-source AI agent** (Hermes Agent by Nous Research, OpenClaw, plus generic OpenAI-compat fallbacks) as the brain
-- Provides **voice** (TTS via ChatterBox + STT via Whisper.cpp)
-- Provides **animated avatars** (VRM via three-vrm in v0.6, photoreal UE5 in v1.1)
-- Provides an **MCP tool hub** so agents can use Volmarr's other projects (Seidr-Smidja for VRoid, MindSpark for memory, etc.)
-- **Modular** — every layer optional, user picks via single config file
-- **Phased** — 12 milestones, each independently shippable and usable
+The canonical vision is `docs/BODY_MANIFESTO.md`. **Read it first before doing anything in this repo.** It supersedes earlier framings where they conflict.
 
-The Pi runs the agent (Hermes); the laptop runs all heavy stuff (HERETIC, voice, avatar, UE5).
+The Pi runs the agent (Hermes); the laptop runs the body (HERETIC + voice + senses + MCP tool bridge to local applications).
 
 ---
 
 ## 2. Current status — 2026-05-07
 
-**Phase: VISION / PLANNING — repo cloned, no architecture docs canonicalized yet, zero code written.**
+**Phase: VISION SEALED, CODE BEGINS.** Repo cloned. `development` branch created. Framing decision RESOLVED. Manifesto canonicalized. Mímisbrunnr subsystem specified. Architecture aligned with manifesto. Zero implementation code yet.
 
 ### Done
 - ✅ Repo cloned to `C:\Users\volma\runa\HERETIC` from `hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion`
-- ✅ `development` branch created locally
+- ✅ `development` branch created locally + pushed to remote
 - ✅ Both Tier 1 backends verified:
   - Hermes Agent (Nous Research) — `https://github.com/NousResearch/hermes-agent`, MIT, 137k★, Python
   - OpenClaw — `https://github.com/openclaw/openclaw`, MIT, 369k★, TypeScript
 - ✅ Pi-Hermes endpoint verified live at `http://100.101.39.30:8643/v1` (model `coding`, key `hermes`)
 - ✅ ChatterBox TTS reachable at `http://100.66.178.105:7851`
-- ✅ Architecture decisions made (see §4)
+- ✅ **Framing decision RESOLVED** — Framing B (Body, not Brain) confirmed by `BODY_MANIFESTO.md` (co-authored 2026-05-07 by Volmarr Viking & Runa Gridweaver Freyjasdottir)
+- ✅ Manifesto canonicalized to `docs/BODY_MANIFESTO.md` on the `development` branch
+- ✅ Mímisbrunnr subsystem spec captured at `docs/MIMISBRUNNR.md`
 - ✅ Memory captured to `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
 
 ### Pending
-- ⏳ **DEFERRED**: HERETIC role framing — brain (A) vs node/channel (B). Volmarr to decide. (See §5.)
-- ⏳ Read Hermes Gateway RPC reference (`hermes-agent.nousresearch.com/docs/reference/rpc`)
-- ⏳ Read OpenClaw Gateway RPC reference (`docs.openclaw.ai/reference/rpc`)
-- ⏳ Consolidate the existing planning material in the repo into canonical ME-protocol doc set (after framing decided)
-- ⏳ Write plunder maps for all v0.1 plundered targets
-- ⏳ First push to `development`
-- ⏳ Sign-off from Volmarr → Forge starts on v0.1
+- ⏳ Triage existing repo planning material (`proposed_system_report/`, `heretic_v2_implementation_pack/`, the 8 April-2026 vision docs) against the manifesto — identify what carries forward vs what's now superseded
+- ⏳ Triage the 4 `codex/*` remote branches — review what they propose, decide for each: cherry-pick, merge, archive, or close
+- ⏳ Draft the rest of the canonical doc set (see §8)
+- ⏳ Sign-off from Volmarr → Forge starts on **v0.1 First Communion**
 
 ---
 
@@ -49,38 +45,40 @@ The Pi runs the agent (Hermes); the laptop runs all heavy stuff (HERETIC, voice,
 
 The repo is **not** empty bones. It has substantial pre-existing planning material from prior AI-collaboration sessions (April 2026):
 
-### Top-level vision/philosophy docs (already exist)
+### Top-level vision/philosophy docs (already exist, partially canonical)
 
-| File | Size | Purpose |
-|---|---|---|
-| `PHILOSOPHY.md` | 3.8K | Skald-tier vision (Wyrd of the Code, mythic ethos) |
-| `README.md` | 12K | Initial vision document |
-| `RULES.AI.md` | 21K | Coding rules per Volmarr's standard |
-| `MYTHIC_ENGINEERING_PLUNDERING_WORKFLOW.md` | 31K | Plunder rules — already canonical here |
-| `Heathen_Third_Path_and_Cyber-Viking_Ethos.md` | 31K | Cultural/philosophical context |
-| `Technical_Architecture_of_Volmarrs_AI_Ecosystem.md` | 54K | Broader ecosystem context (cross-repo) |
-| `WORLD_MODELING_SKILL.md` | 19K | World-modeling design |
-| `heretic_dependency_map.md` | 13K | Dependency map |
+| File | Size | Purpose | Status vs manifesto |
+|---|---|---|---|
+| `docs/BODY_MANIFESTO.md` | new 2026-05-07 | **CANONICAL VISION** | ✅ authoritative |
+| `docs/MIMISBRUNNR.md` | new 2026-05-07 | Library subsystem spec | ✅ authoritative |
+| `PHILOSOPHY.md` | 3.8K | Skald-tier vision | ✅ aligned, retain |
+| `README.md` | 12K | Initial vision | ⚠ pre-manifesto framing — needs update or supersede notice |
+| `RULES.AI.md` | 21K | Coding rules | ✅ canonical |
+| `MYTHIC_ENGINEERING_PLUNDERING_WORKFLOW.md` | 31K | Plunder rules | ✅ canonical |
+| `Heathen_Third_Path_and_Cyber-Viking_Ethos.md` | 31K | Cultural context | ✅ retain as cultural reference |
+| `Technical_Architecture_of_Volmarrs_AI_Ecosystem.md` | 54K | Cross-repo context | ✅ retain |
+| `WORLD_MODELING_SKILL.md` | 19K | World-modeling design | ⚠ pre-manifesto — review for relevance |
+| `heretic_dependency_map.md` | 13K | Dependency map | ⚠ pre-manifesto — review |
 
 ### Planning/research docs from April 2026 (un-integrated, by various AI agents)
 
-| File | Size |
-|---|---|
-| `H.E.R.E.T.I.C.-Complete_Development_Study_and_Implementation_Knowledge_Base_version_1.md` | 236K |
-| `H.E.R.E.T.I.C.deep-research-report-April-2-2026.md` | 39K |
-| `H.E.R.E.T.I.C.-Full_Technical_Architecture_Map_version_1.md` | 12K |
-| `H.E.R.E.T.I.C.-LangGraph_Agentic_Core-The_30th-Century_Digital_Seiðr_Nexus_version_1.md` | 11K |
-| `H.E.R.E.T.I.C.v2_upgrade_roadmap_recommendation_by_ChatGPT-April-2-2026.md` | 15K |
-| `H.E.R.E.T.I.C.-Fractal_Edge_Superposition_version_1.md` | 9.3K |
-| `H.E.R.E.T.I.C.-ChatGPTs_Insights-April-2-2026.md` | 6.2K |
-| `H.E.R.E.T.I.C.-Geminis_Insight-April-2-3026.md` | 5K |
+These were drafted under the earlier "HERETIC as brain" framing. Manifesto supersedes them where conflicting. Retain as historical record.
 
-### Structured directories (already exist)
+- `H.E.R.E.T.I.C.-Complete_Development_Study_and_Implementation_Knowledge_Base_version_1.md` (236K)
+- `H.E.R.E.T.I.C.deep-research-report-April-2-2026.md` (39K)
+- `H.E.R.E.T.I.C.-Full_Technical_Architecture_Map_version_1.md` (12K)
+- `H.E.R.E.T.I.C.-LangGraph_Agentic_Core-The_30th-Century_Digital_Seiðr_Nexus_version_1.md` (11K)
+- `H.E.R.E.T.I.C.v2_upgrade_roadmap_recommendation_by_ChatGPT-April-2-2026.md` (15K)
+- `H.E.R.E.T.I.C.-Fractal_Edge_Superposition_version_1.md` (9.3K)
+- `H.E.R.E.T.I.C.-ChatGPTs_Insights-April-2-2026.md` (6.2K)
+- `H.E.R.E.T.I.C.-Geminis_Insight-April-2-3026.md` (5K)
 
-- `proposed_system_report/` — 9 numbered docs (00-08) covering exec architecture, eng workstreams, ML-ops, security, infra, roadmap
-- `heretic_v2_implementation_pack/docs/specs/` — 24 spec files (event ledger, kernel-vs-mythic boundary, thoughtform state v2, ghost echoes, replay/resurrection, eval harness, etc.)
-- `possible_barrowed_code_from_my_other_projects_to_use/` — ~30 Python files curated for plunder from NSE / VGSK / etc.
-- `data/` — Norse cultural/lore JSON+JSONL+YAML
+### Structured directories
+
+- `proposed_system_report/` — 9 numbered docs (00-08). Pre-manifesto framing. Significant overlap with what we now know we need. Triage required: parts useful (delivery roadmap structure, security-spec format, infra cost model), parts now superseded (memory architecture, persona orchestration).
+- `heretic_v2_implementation_pack/docs/specs/` — 24 spec files (event ledger, kernel-vs-mythic boundary, thoughtform state v2, ghost echoes, replay/resurrection, eval harness). Pre-manifesto. Deeply assumed "HERETIC as brain" framing. Most likely superseded; some primitives (event ledger, eval harness) may carry forward.
+- `possible_barrowed_code_from_my_other_projects_to_use/` — ~30 Python files curated for plunder. Plunder targets remain valid; relevance to specific layers needs re-mapping under new architecture.
+- `data/` — Norse cultural/lore JSONs (similar to NSE). Becomes the seed corpus for Mímisbrunnr.
 - `data_project_development_resources/`, `research_data/`, `docs/codebase_structure/`
 
 ### Remote branches (from prior AI sessions)
@@ -90,137 +88,192 @@ The repo is **not** empty bones. It has substantial pre-existing planning materi
 - `codex/document-code-ideas-in-markdown-files`
 - `codex/generate-data-md-file-with-code-modules`
 
-These contain prior AI-generated drafts. They are **not yet reviewed or merged**. May or may not align with current architecture decisions.
+These contain prior AI-generated drafts under the older framing. Triage required. May become reference branches or be closed.
 
 ### Implication
 
-The doc-set work is **NOT** "write 13 fresh docs." It's "consolidate existing material + integrate new architecture decisions + reconcile with deferred framing decision." Most pieces exist in some form; the work is canonicalization, not invention.
+The doc-set work is **NOT** "write 13 fresh docs." It's:
+1. Honor the canonical manifesto.
+2. Produce the supporting docs the manifesto implies.
+3. Triage + supersede earlier brain-framing planning material.
+4. Carry forward the parts that survive the framing change (plunder rules, cultural philosophy, lore data, mythic engineering protocol).
 
 ---
 
-## 4. Architecture decisions made 2026-05-07
+## 4. Architecture decisions — 2026-05-07 (post-manifesto, current)
+
+### Architectural shape
+
+**HERETIC is a body, not a brain.** The agent (spirit) is remote and brings its mind. HERETIC is the local runtime that gives the spirit senses and tools. Connection is ceremonial — opened when summoned, closed when done.
+
+### The 6-layer model + sense hub
+
+```
+┌────────────────────────────────────────────────────────┐
+│ HERETIC RUNTIME (Tauri + React, Norse aesthetic)        │
+│                                                         │
+│  L4 UI — Summoning Circle (light/extinguish ceremony)   │
+│  L3 Vision — screen capture + optional webcam           │
+│  L2 Voice — STT (Whisper.cpp) + TTS (ChatterBox)        │
+│                                                         │
+│  L5 MCP Sense Hub — hosts the senses, each optional:    │
+│     5.1 FileSystem    5.6 VRChat                        │
+│     5.2 Terminal      5.7 AgentMail                     │
+│     5.3 Browser       5.8 Custom plugins                │
+│     5.4 Photopea      5.9 Library MCP (Mímisbrunnr,     │
+│     5.5 Blender              MindSpark, file-index)     │
+│         (wraps Seidr-Smidja)                            │
+│                                                         │
+│  L1 Bifröst — Tailscale-aware OpenAI-compat agent       │
+│              client; ceremonial open/close              │
+│                                                         │
+│  L0 Foundation — Tauri shell, config, logging           │
+└────────────────────────────────────────────────────────┘
+```
+
+### Confirmed decisions
 
 | Decision | Status | Notes |
 |---|---|---|
-| HERETIC is the project | ✅ | Existing repo, MIT, never built — populating |
-| 12-layer modular stack | ✅ | L0 foundation, L1 brain, L2 voice, L3 persona, L4 GUI, L5 2D avatar, L6 VRM, L7 MCP, L8 memory, L9 UE5, L10 VR, L11 wild |
+| HERETIC is the project | ✅ | Existing repo, MIT, populating now |
+| **HERETIC role: Body, not Brain (Framing B)** | ✅ **RESOLVED 2026-05-07** | Sealed by `docs/BODY_MANIFESTO.md` |
+| 6-layer model (L0-L5 with sense subsystems) | ✅ | Replaces prior 12-layer plan |
 | Each layer optional via `heretic.yaml` | ✅ | User runs as much or as little as wanted |
 | Pattern A — monorepo with feature flags | ✅ | Matches NSE / MindSpark / WYRD pattern |
-| Frontend: Tauri + React + three-vrm | ✅ | Confirmed after LobeChat-Electron-lag pain |
-| UE5 integration: Hybrid (separate process, WebSocket bridge) | ✅ | UE not embedded, runs side-by-side, optional |
-| 12-milestone phased roadmap (v0.0 → v1.2) | ✅ | UE/VR are v1.1+ stretch |
-| Multi-license layout | ✅ | Own code MIT, plundered code in `vendor/` under permissive license, runtime engines (UE5) external |
-| Persona ↔ Agent decoupling | ✅ | Personas client-side, agents pluggable |
-| LiteLLM (Apache-2.0) for Tier 2/3 wire-format normalization | ✅ | Avoids reinventing 100+ provider adapters |
-| Tier 1 backends: Nous Research Hermes + OpenClaw, native | ✅ | Both designed-for-natively, not adapted-onto |
-| L7 MCP unifies HERETIC's local tools with agent's native tools | ✅ | HERETIC exposes MCP server; Hermes/OpenClaw consume it |
-| **HERETIC role framing — brain (A) vs node (B)** | ⏳ **DEFERRED** | See §5 |
+| Frontend: Tauri + React | ✅ | Light, fast cold-start, fits ceremonial activation |
+| Bifröst: Tailscale + OpenAI-compat | ✅ | Hermes Pi primary, any OpenAI-compat agent inhabits |
+| **Persona system removed from HERETIC** | ✅ | Manifesto: "the spirit brings its mind" |
+| **Agent memory removed from HERETIC** | ✅ | Manifesto: spirit's mind, not HERETIC's |
+| **Library memory present, optional, not auto-injected** | ✅ | Bookshelf in the longhouse, not the agent's mind |
+| Mímisbrunnr subsystem | ✅ specified | `docs/MIMISBRUNNR.md` — feeds L5.9 |
+| MCP servers as the senses | ✅ | 10 senses enumerated in manifesto |
+| Multi-license layout | ✅ | Own MIT, plundered code in `vendor/`, runtime engines (Blender/Photopea/UE5/VRChat) external |
+| Native Hermes Gateway RPC + OpenClaw RPC adapters | ❌ DROPPED | Manifesto: OpenAI-compat is enough. Both speak it. Native RPC adapters become v2.x stretch only if needed. |
+| LiteLLM wire-format normalizer | ❌ DROPPED for v1 | Not needed when target is OpenAI-compat only |
+| Photoreal UE5 environment / MetaHuman | ❌ DEMOTED | Not central. v2.x stretch only if user demand. Manifesto routes embodiment via existing apps (VRChat, Blender), not custom UE5 environment. |
+| In-window VRM avatar (three-vrm) | ❌ DEMOTED | Not central. The agent's avatar lives in VRChat (via L5.6) — there's no need to render one in HERETIC's window. |
+
+### What HERETIC still owns
+
+- Voice I/O (mic + speakers, STT + TTS) — L2
+- Vision (screen capture) — L3
+- UI shell (summoning circle, status display, ceremony controls) — L4
+- The Sense Hub (MCP server, hosting all the senses) — L5
+- Bifröst connection (auth, Tailscale awareness, OpenAI-compat client, ceremonial lifecycle) — L1
+- Foundation (Tauri shell, config, logging) — L0
+- An optional library (Mímisbrunnr) — L5.9
+
+### What HERETIC does NOT own
+
+- The agent's mind (memory, skills, persona — that's the spirit's)
+- Conversation history persistence (the spirit's job, or its server's)
+- Photoreal rendering (too heavy, not core to embodiment)
+- An always-on background service (manifesto: ceremonial activation)
+- A character-card system (the spirit IS the character)
 
 ---
 
-## 5. DEFERRED DECISION — HERETIC role framing
+## 5. Cross-repo plug-in slots — confirmed under new architecture
 
-Two framings on the table. Volmarr deferred 2026-05-07 ("we will sort that part later").
-
-### Framing A — HERETIC as brain
-HERETIC is a full chat client + UI shell. Agent backends are LLM endpoints. Memory, skills, persona orchestration all live in HERETIC. Backends do raw LLM inference.
-
-- L8 (Memory) is HERETIC's own — SQLite → Chroma → Neo4j, optional MindSpark integration
-- L7 (MCP) — HERETIC hosts MCP, all tools called from HERETIC's loop
-- L3 (Persona) — character cards owned by HERETIC; system prompts drive backends
-- AgentBackend interface = OpenAI-compat-shaped, Hermes/OpenClaw treated as flexible OpenAI-compat targets
-
-### Framing B — HERETIC as node/channel
-HERETIC is a custom immersive cyber-Heathen *node* for the agent runtimes — like OpenClaw's iOS/Android nodes today, but with avatar + voice + UE5 + VR + ritual UI. Hermes/OpenClaw own memory/skills/persona; HERETIC contributes embodiment.
-
-- L8 (Memory) shrinks to a fallback — only used for raw LLM backends without their own memory
-- L7 (MCP) — HERETIC exposes itself as an MCP server; Hermes/OpenClaw consume it as clients
-- L3 (Persona) — SOUL.md lives in Hermes/OpenClaw; HERETIC reads/displays
-- AgentBackend interface = native Gateway RPC for Hermes + OpenClaw, OpenAI-compat as fallback
-
-### Tradeoffs
-
-| | A (brain) | B (node) |
-|---|---|---|
-| HERETIC scope | Larger | Smaller, more focused |
-| Reinventing | More memory/skill systems | Less |
-| Faithful to original README | Less ("they live in your VR worlds") | More |
-| Coupling to Hermes/OpenClaw | Loose | Tight (gateway protocols) |
-| Works without Hermes/OpenClaw | Yes | Needs raw-LLM fallback path |
-| Roadmap impact | L8 stays full size | L8 shrinks substantially |
-
-### Recommendation in our chat (Runa, 2026-05-07): Framing B
-But Volmarr deferred. No architecture docs locked to either until decided.
+| HERETIC slot | Existing repo plugged in | How | Status |
+|---|---|---|---|
+| L1 Bifröst | Hermes-on-Pi (`100.101.39.30:8643/v1`) | OpenAI-compat client | Live |
+| L2 Voice TTS | ChatterBox at `100.66.178.105:7851` | Native client | Live |
+| L5.5 Blender MCP | **Seidr-Smidja Brúarhönd v0.1** (`runa/Seidr-Smidja`) | MCP wrapper around Brúarhönd's existing 8 subcommands + 3 MCP tools | Shipped, 489 tests green |
+| L5.9 Library MCP — MindSpark backend | MindSpark ThoughtForge (`runa/MindSpark_ThoughtForge`) | MCP wrapper, optional library backend | v1.2.0 shipped, plug-and-play |
+| L5.8 Custom MCPs (slot for) | WYRD Protocol (`runa/WYRD-Protocol`) | Optional MCP if user wants world-model access | v1.0 shipped |
+| (deprecated) L9 alt engine | pygame Viking Edition (`runa/pygame`) | Not used in v1 — deprecated under manifesto | Phase 1A-1D done, but no longer central |
 
 ---
 
-## 6. Tier 1 native backend research — what to read before drafting AgentBackend interface
+## 6. Revised milestone roadmap
 
-When framing decision is made and we're ready to draft the AgentBackend interface, READ THESE FIRST so the interface fits both natively rather than coercing one to fit the other:
+| Ver | Codename | What ships | Layers | Est |
+|---|---|---|---|---|
+| **v0.0** | Bones | Repo scaffold, manifesto canonicalized, Mímisbrunnr spec, plunder maps, license layout | docs only | ~1 wk |
+| **v0.1** | First Communion | Bifröst — connect to Hermes-on-Pi, basic CLI loop | L0 + L1 | 1-2 wk |
+| **v0.2** | First Voice | TTS — Hermes speaks through ChatterBox | L2 (out) | 1 wk |
+| **v0.3** | First Listening | STT — you speak to Hermes via Whisper.cpp | L2 (in) | 1-2 wk |
+| **v0.4** | Summoning Circle | Tauri UI shell — Norse aesthetic, light/extinguish ceremony | L4 | 2-3 wk |
+| **v0.5** | First Sight | Screen capture sense | L3 | 1-2 wk |
+| **v0.6** | Hands at the Forge | Blender MCP + Seidr-Smidja Brúarhönd integration — Hermes sculpts | L5.5 | 2 wk |
+| **v0.7** | Files & Terminal | FS + Terminal MCPs | L5.1 + L5.2 | 1-2 wk |
+| **v0.7.5** | First Drink at the Well | Mímisbrunnr — download manager + ZIM ingest, starter Norse pack | L5.9 (file-index + Mímisbrunnr light tier) | 2-3 wk |
+| **v0.8** | The Open Web | Browser MCP + Mímisbrunnr full source manifest catalog | L5.3 | 2 wk |
+| **v0.9** | The Painter | Photopea MCP + Mímisbrunnr vector indexing | L5.4 | 2 wk |
+| **v0.10** | The Longhouse Beyond | VRChat MCP + Mímisbrunnr MindSpark backend | L5.6 | 2-3 wk |
+| **v0.11** | Correspondence | AgentMail MCP | L5.7 | 1 wk |
+| **v1.0** | First Manifestation | Polish, custom-MCP plugin system, public release | L5.8 + polish | 2-3 wk |
+| **v1.x+** | New Limbs | Whatever MCP servers users build / community needs | open | rolling |
+| **v2.x** | (stretch) | UE5 / photoreal environments / VR — only if demand | optional | open |
 
-- [ ] Hermes Architecture — `https://hermes-agent.nousresearch.com/docs/developer-guide/architecture`
-- [ ] Hermes Gateway RPC reference — `https://hermes-agent.nousresearch.com/docs/reference/rpc` (or wherever it actually lives — find it)
-- [ ] Hermes MCP integration — `https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp`
-- [ ] Hermes Skills system — `https://hermes-agent.nousresearch.com/docs/user-guide/features/skills`
-- [ ] OpenClaw Architecture — `https://docs.openclaw.ai/concepts/architecture`
-- [ ] OpenClaw Gateway protocol — `https://docs.openclaw.ai/reference/rpc`
-- [ ] OpenClaw Agent concept — `https://docs.openclaw.ai/concepts/agent`
-- [ ] OpenClaw Session model — `https://docs.openclaw.ai/concepts/session`
-- [ ] OpenClaw Tools / Skills — `https://docs.openclaw.ai/tools`
-- [ ] OpenClaw Live Canvas / A2UI — `https://docs.openclaw.ai/platforms/mac/canvas`
-- [ ] agentskills.io open standard — for skill compatibility
-
-Estimated 3-4 hours of focused reading + cross-reference. Yields: AgentBackend interface that supports both natively + clear boundaries between what HERETIC owns vs what the agent runtime owns (resolves Framing A/B by surfacing real constraints).
-
----
-
-## 7. Cross-repo plug-in slots — confirmed
-
-| HERETIC layer | Existing repo | Status of integration |
-|---|---|---|
-| L1 Brain | Hermes-on-Pi (`100.101.39.30:8643/v1`) | Live |
-| L2 Voice TTS | ChatterBox at `100.66.178.105:7851` | Live |
-| L7 MCP — VRoid avatar build | **Seidr-Smidja Brúarhönd v0.1** (`runa/Seidr-Smidja`) | Shipped, 489 tests green |
-| L7 MCP — game state | WYRD Protocol (`runa/WYRD-Protocol`) | v1.0 shipped |
-| L8 Memory (fallback) | MindSpark ThoughtForge (`runa/MindSpark_ThoughtForge`) | v1.2.0 shipped |
-| L9 alternative engine | pygame Viking Edition (`runa/pygame`) | Phase 1A-1D done |
+**Total to v1.0 (full feature set): roughly 4-6 months at sustainable pace.**
 
 ---
 
-## 8. Next concrete steps (in order)
+## 7. Tier 1 native backend research — what to read
 
-1. **Push this task file** to `development` (this commit)
-2. **Volmarr decides** Framing A vs B
-3. **Read Hermes + OpenClaw gateway RPC + architecture docs** (3-4 h)
-4. **Survey existing repo planning material** — read PHILOSOPHY.md, proposed_system_report/00-08, heretic_v2_implementation_pack/specs/*, the 8 April-2026 vision docs — identify what carries forward vs what's now superseded by 2026-05-07 decisions
-5. **Triage the 4 `codex/*` remote branches** — review what they propose, decide for each: cherry-pick, merge, archive, or close
-6. **Draft canonical ME doc set** in `docs/`:
-   - `docs/SYSTEM_VISION.md` (Skald — extends existing PHILOSOPHY.md)
-   - `docs/ARCHITECTURE.md` (Architect — 12-layer model, hybrid UE, layer interfaces)
-   - `docs/DOMAIN_MAP.md` (Architect — folder ownership)
-   - `docs/DATA_FLOW.md` (Cartographer — wires across all layers + cross-repo)
-   - `docs/ROADMAP.md` (12-milestone table, detailed)
-   - `docs/AGENT_BACKEND_INTERFACE.md` (post-research)
-   - `docs/AGENTS_SUPPORTED.md` (running list of Tier 1-4 backends)
-   - `docs/PERSONA_AGENT_BINDING.md` (decoupling pattern + config recipe)
-   - `docs/LAYER_INTERFACES.md` (per-layer contract)
-   - `docs/plunder/SILLYTAVERN_PLUNDER_MAP.md` (architectural reference only — AGPL)
-   - `docs/plunder/THREE_VRM_PLUNDER_MAP.md` (MIT)
-   - `docs/plunder/WHISPER_CPP_PLUNDER_MAP.md` (MIT)
-   - `docs/plunder/TAURI_PLUNDER_MAP.md` (Apache-2.0/MIT)
-   - `docs/plunder/MCP_SDK_PLUNDER_MAP.md` (MIT)
-   - `docs/plunder/HERMES_AGENT_PLUNDER_MAP.md` (MIT — for native backend study)
-   - `docs/plunder/OPENCLAW_PLUNDER_MAP.md` (MIT — for native backend study)
-   - `THIRD_PARTY_NOTICES.md` (root, running list)
-7. **Push doc set** to `development`
-8. **Volmarr review** — sign-off / redirect / addenda
-9. **Then and only then**: Forge starts on **v0.1 First Word** (L0 + L1)
+Per the manifesto, OpenAI-compat is enough for both Hermes and OpenClaw — neither requires native gateway RPC adapters in v1. Light-touch reading still useful for v0.1 to confirm the contract:
+
+- [ ] Hermes "any OpenAI-compatible endpoint" mode — `https://hermes-agent.nousresearch.com/docs/user-guide/configuration` (find the OpenAI-compat client config + authentication contract)
+- [ ] OpenClaw OpenAI-compat client surface — `https://docs.openclaw.ai/concepts/agent` + `https://docs.openclaw.ai/concepts/models`
+- [ ] Hermes MCP integration — `https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp` — confirms HERETIC's senses surface as MCP servers Hermes can consume
+- [ ] OpenClaw MCP / tool concept — `https://docs.openclaw.ai/tools`
+- [ ] MCP SDK (Anthropic, MIT) — for the L5 Sense Hub server implementation pattern
+- [ ] agentskills.io standard — relevance to L5.8 custom plugin format
+
+Estimated 1-2 hours of focused reading. Confirms protocol assumptions; if anything surprises us, surface it before starting Forge work on v0.1.
 
 ---
 
-## 9. Operational rules in effect
+## 8. Doc set still to draft
 
-Per Volmarr's standing rules:
+Already in place:
+- ✅ `docs/BODY_MANIFESTO.md` — canonical vision
+- ✅ `docs/MIMISBRUNNR.md` — library subsystem spec
+- ✅ `PHILOSOPHY.md` — pre-existing, retains
+- ✅ `MYTHIC_ENGINEERING_PLUNDERING_WORKFLOW.md` — pre-existing, retains
+- ✅ `RULES.AI.md` — pre-existing, retains
+- ✅ `LICENSE` — MIT, pre-existing
+- ✅ `TASK_HERETIC_v0.1_BOOTSTRAP.md` — this file
+
+Remaining for v0.0:
+- ⏳ `docs/ARCHITECTURE.md` — 6-layer model + sense hub interfaces, hardware/software dependency tree, data flow (Cartographer-tier diagram)
+- ⏳ `docs/ROADMAP.md` — the 14-milestone table above, expanded with per-milestone deliverables, exit criteria, and dependencies
+- ⏳ `docs/LAYER_INTERFACES.md` — per-layer contract: inputs, outputs, what it owns, what it never controls
+- ⏳ `docs/AGENT_AGNOSTIC_PROTOCOL.md` — exactly what an inhabiting agent must speak (OpenAI-compat subset), what HERETIC promises (sense MCPs, voice channels, Bifröst lifecycle)
+- ⏳ `docs/CEREMONY.md` — the lifecycle: light/connect/inhabit/commune/extinguish — both as user UX and as runtime state machine
+- ⏳ `docs/SENSE_CONTRACTS.md` — the standard MCP surface every sense exposes (or one doc per sense if cleaner)
+- ⏳ `docs/plunder/` directory:
+  - `MCP_SDK_PLUNDER_MAP.md` (MIT, Anthropic — for the Sense Hub)
+  - `WHISPER_CPP_PLUNDER_MAP.md` (MIT — for STT)
+  - `TAURI_PLUNDER_MAP.md` (Apache-2.0/MIT — for the runtime shell)
+  - `LIBZIM_PLUNDER_MAP.md` (GPL-2 — caution! used as runtime dep, not vendored)
+  - `KIWIX_TOOLS_PLUNDER_MAP.md` (GPL-3 — caution! similar)
+  - `HERMES_AGENT_PLUNDER_MAP.md` (MIT — architectural reference for native compat)
+  - `OPENCLAW_PLUNDER_MAP.md` (MIT — architectural reference)
+  - `SILLYTAVERN_PLUNDER_MAP.md` (AGPL — reference only, no code)
+- ⏳ `THIRD_PARTY_NOTICES.md` — root, running list of every plundered/runtime dep
+- ⏳ `README.md` update — point at `docs/BODY_MANIFESTO.md` as the authoritative vision; keep the original README's flavor as historical context
+
+---
+
+## 9. Next concrete steps (in order)
+
+1. ✅ **DONE 2026-05-07** — Push manifesto + Mímisbrunnr spec + revised task file to `development`
+2. **Triage existing repo planning material** against manifesto — produce a brief note (`docs/PRIOR_PLANNING_TRIAGE.md`) listing what carries forward, what's superseded, what's parked for later reference
+3. **Triage the 4 `codex/*` remote branches** — review what they propose, decide for each: cherry-pick, merge, archive, or close
+4. **Read backend docs** per §7 — confirm OpenAI-compat assumptions
+5. **Draft remaining v0.0 doc set** per §8
+6. **Push doc set** to `development`
+7. **Volmarr review** — sign-off / redirect / addenda
+8. **Then and only then**: Forge starts on **v0.1 First Communion** (L0 + L1)
+
+---
+
+## 10. Operational rules in effect
+
+Per Volmarr's standing rules (canonical sources: `RULES.AI.md`, `MYTHIC_ENGINEERING_PLUNDERING_WORKFLOW.md`, his global rules in `~/.claude/rules/`):
 
 - ✅ Branch: all work on `development` (per push-often / branch-discipline laws)
 - ✅ Push frequently
@@ -228,20 +281,22 @@ Per Volmarr's standing rules:
 - ✅ Always finish all connections — no orphans
 - ✅ Modular, fault-tolerant, file-location-agnostic code
 - ✅ Plunder rules: Apache-2.0 / MIT / BSD only into `vendor/`; AGPL/GPL never plundered, only studied
-- ✅ Multi-license respect: own code MIT, plunder keeps original headers, runtime engines external
+  - Note: `libzim` and `kiwix-tools` are GPL — used as runtime deps (layer 3 in the multi-license layout), never vendored. User installs via package manager. Their attribution lives in `THIRD_PARTY_NOTICES.md`.
+- ✅ Multi-license respect: own code MIT, plunder keeps original headers, runtime engines (Blender, Photopea, VRChat, libzim, etc.) external under their own licenses
 - ✅ Mythic Engineering protocol: Skald → Architect → Cartographer → Forge → Auditor → Scribe
 - ✅ Update this task file at the end of every work session
 - ✅ Update `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md` after each phase
 
 ---
 
-## 10. How to resume this task in a future session
+## 11. How to resume this task in a future session
 
-1. Read this file from top to bottom.
-2. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md` for memory state.
-3. Run `git status` and `git log --oneline -10` in `C:\Users\volma\runa\HERETIC` to see latest work state.
-4. Check whether Volmarr has resolved the Framing A vs B decision in §5.
-5. Continue from "Next concrete steps" §8 at the first uncompleted item.
+1. Read `docs/BODY_MANIFESTO.md` first — that is the canonical vision.
+2. Read this file from top to bottom.
+3. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md` for memory state.
+4. Run `git status` and `git log --oneline -10` in `C:\Users\volma\runa\HERETIC` to see latest work state.
+5. Check whether all items in §9 are completed.
+6. Continue from the first uncompleted item.
 
 ---
 
