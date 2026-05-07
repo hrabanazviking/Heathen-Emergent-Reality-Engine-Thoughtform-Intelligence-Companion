@@ -3,6 +3,7 @@
 > **Operational task resumption file** — per Volmarr's session-resume protocol. If a session breaks, the next session reads this first.
 
 > **Started: 2026-05-07** (immediately after v0.1 First Communion shipped + audited at HEAD `5189993`)
+> **Status: v0.2 SHIPPED + AUDITED 2026-05-07** — HEAD `435dfa3`, 224 tests passing, 0 open findings
 
 ---
 
@@ -18,7 +19,7 @@ The canonical contracts for L2 Rödd live in `docs/architecture/LAYER_INTERFACES
 
 ## 2. Current status — 2026-05-07
 
-**Phase:** v0.1 SHIPPED + AUDITED. v0.2 work begins now.
+**Phase:** v0.2 SHIPPED + AUDITED 2026-05-07. All deliverables complete.
 
 ### Done in v0.1 (recap, do not redo)
 - ✅ L0 Grunnr (config, logger, lifecycle, paths) — implemented + 60+ tests
@@ -28,14 +29,14 @@ The canonical contracts for L2 Rödd live in `docs/architecture/LAYER_INTERFACES
 - ✅ All audit findings closed (0 blockers, 0 notables open)
 
 ### v0.2 deliverables (this milestone)
-- ⏳ `src/heretic/rodd/` — L2 Rödd Tunga subpackage (mouth half only; Hlust is v0.3)
-  - `chatterbox.py` — OpenAI-compat-style client for `POST /v1/audio/speech`
-  - `playback.py` — cross-platform audio output (Windows / macOS / Linux)
-  - `tunga.py` — Tunga orchestrator: text → speech → speakers, with sentence-boundary chunking for streaming responses
-  - `errors.py`, `config_model.py`, `INTERFACE.md`
-- ⏳ CLI integration — `light` command pipes the spirit's streaming response through Tunga when `rodd.tts.enabled: true`
-- ⏳ `heretic.example.yaml` — uncomment / expand the `rodd:` block with full ChatterBox config
-- ⏳ Tests — mocked HTTP for ChatterBox client, mocked playback backends; aim for 30+ new tests, total ~150+
+- ✅ `src/heretic/rodd/` — L2 Rödd Tunga subpackage (mouth half only; Hlust is v0.3) — Done 2026-05-07
+  - ~~`chatterbox.py` — OpenAI-compat-style client for `POST /v1/audio/speech`~~ Done 2026-05-07 (`d4fd532`)
+  - ~~`playback.py` — cross-platform audio output (Windows / macOS / Linux)~~ Done 2026-05-07 (`d4fd532`)
+  - ~~`tunga.py` — Tunga orchestrator: text → speech → speakers, with sentence-boundary chunking for streaming responses~~ Done 2026-05-07 (`077bd9a`)
+  - ~~`errors.py`, `config_model.py`, `INTERFACE.md`~~ Done 2026-05-07 (`b7e978e` scaffold + `d4fd532` implementation)
+- ✅ CLI integration — `light` command pipes the spirit's streaming response through Tunga when `rodd.tts.enabled: true` — Done 2026-05-07 (`e4a5232`)
+- ✅ `heretic.example.yaml` — `rodd:` block updated with full ChatterBox config including all 17 synthesis fields — Done 2026-05-07
+- ✅ Tests — 103 new tests added (Wave 2: 100; Wave 3: 3); total at v0.2 close: **224 passing** — Done 2026-05-07
 
 ### Constraints carried from v0.1
 - All settings via `heretic.yaml` (no hardcoding)
@@ -121,20 +122,21 @@ Exit criteria (this task):
 
 Same protocol as v0.1. Six roles, two waves, plus close-out.
 
-### Wave 1 — parallel (no inter-dependencies)
-- **Cartographer** (Védis Eikleið) — map the TTS data flow: agent stream → Tunga chunker → ChatterBox HTTP → playback → speakers. Update `docs/cartography/DATA_FLOW.md` with the new path. Add a per-component diagram for L2 Rödd Tunga.
-- **Skald** (Sigrún Ljósbrá) — vision essay: `docs/vision/THE_FIRST_VOICE.md` — what it means for a body to speak for the first time. Pair with WHY_HERETIC.md and CEREMONY_NARRATIVE.md.
-- **Architect** (Rúnhild Svartdóttir) — scaffold `src/heretic/rodd/` Python package: skeleton + INTERFACE.md + dataclasses + abstract base classes + tests as skip-marked placeholders. No business logic; that's Forge.
+### Wave 1 — parallel (no inter-dependencies) — COMPLETE
+- ✅ **Cartographer** (Védis Eikleið) — `docs/cartography/DATA_FLOW.md §4.6` voice flow + §4.6.1 drift annotations — Done 2026-05-07 (`ecb8507`)
+- ✅ **Skald** (Sigrún Ljósbrá) — `docs/vision/THE_FIRST_VOICE.md` — Done 2026-05-07 (`7d4c27f`)
+- ✅ **Architect** (Rúnhild Svartdóttir) — `src/heretic/rodd/` skeleton + INTERFACE.md — Done 2026-05-07 (`b7e978e`)
 
-### Wave 2 — sequential (Forge depends on Architect; Auditor depends on Forge)
-- **Forge** (Eldra Járnsdóttir) — implement Tunga: `chatterbox.py` HTTP client + `playback.py` audio output + `tunga.py` orchestrator + CLI integration in `cli.py` `light`. Real tests against mocked HTTP and mocked playback. Cross-platform.
-- **Auditor** (Sólrún Hvítmynd) — `docs/audit/AUDIT_v0.2_FIRST_VOICE.md`. Verify: ChatterBox contract honoured; audio plays cross-platform; streaming chunking sane; tests cover happy path + ChatterBox-down + playback-fail + invalid-config; no absolute paths; no hardcoded settings.
+### Wave 2 — sequential — COMPLETE
+- ✅ **Forge** (Eldra Járnsdóttir) — `chatterbox.py` + `playback.py` (`d4fd532`); `tunga.py` + CLI wiring + 101 tests (`077bd9a`, `e4a5232`) — Done 2026-05-07
+- ✅ **Auditor** (Sólrún Hvítmynd) — `docs/audit/AUDIT_v0.2_FIRST_VOICE.md` — PASS WITH CONCERNS, 0 blockers, 2 SERIOUS, 3 NOTABLE — Done 2026-05-07 (`59414d8`)
 
-### Wave 3 — cleanup (only if Auditor finds notables)
-- Per-finding dispatch: Architect for doc fixes, Cartographer for cartography fixes, Forge for code/test fixes.
+### Wave 3 — cleanup — COMPLETE
+- ✅ **Forge**: S-1 (grunnr RoddTtsConfig parity + parity test), S-2 (numpy probe in available() + pyproject.toml), N-1 (get_running_loop) — Done 2026-05-07 (`03dbbea`, `4aebd98`, `bf77abe`, `435dfa3`)
+- ✅ **Architect**: G-1 (LAYER_INTERFACES.md §L2 full schema), N-2 (INTERFACE.md language_id note + test), N-3 (INTERFACE.md WAV path prose) — Done 2026-05-07 (`fee6816`)
 
-### Close-out
-- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 3 + update this TASK file + memory refresh.
+### Close-out — COMPLETE
+- ✅ **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 3 + TASK file update + memory refresh — Done 2026-05-07
 
 ---
 
@@ -175,15 +177,49 @@ tests/
 
 ## 9. How to resume this task in a future session
 
+v0.2 is fully closed — no unchecked deliverables remain. The next task is **v0.3 First Listening** (STT via Whisper.cpp).
+
+To orient for v0.3:
 1. Read `docs/BODY_MANIFESTO.md` — the canonical vision (sealed)
-2. Read this file from top to bottom
-3. Read `docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md` for v0.1 closing state
-4. Read `docs/audit/AUDIT_v0.2_FIRST_VOICE.md` if it exists (means audit complete)
-5. Run `git log --oneline -15` and `git status` in `C:/Users/volma/runa/HERETIC`
+2. Read `docs/ROADMAP.md §v0.3` — milestone scope for STT / Hlust
+3. Read `docs/audit/AUDIT_v0.2_FIRST_VOICE.md` for v0.2 closing audit detail
+4. Read `docs/DEVLOG.md` entry 3 (2026-05-07 — The First Voice Arc) for full session record
+5. Run `git log --oneline -15` and `git status`
 6. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
-7. Continue from the first unchecked deliverable in §2
+7. Open a new task file: `TASK_HERETIC_v0.3_FIRST_LISTENING.md`
+
+The Tunga pattern (chunked streaming, lifecycle-bound open/close, graceful degradation, `_degraded` flag, `run_in_executor` for blocking calls) is the established template for v0.3 Hlust.
+
+---
+
+## 10. v0.2.x backlog (open items, not yet started)
+
+These items do not block v0.2 milestone delivery. They are preserved here so a future Cartographer or Forge pass can find them cleanly.
+
+### Cartographer alignment items (DATA_FLOW.md drift)
+
+| Item | Location | Work needed |
+|---|---|---|
+| §4.6.4 config table | `docs/cartography/DATA_FLOW.md §4.6.4` | Abbreviated 6-key table predates the ChatterBox probe. Should reflect the full 17-field `RoddTtsConfig` schema now canonical in `LAYER_INTERFACES.md §L2`. Invoke Cartographer. |
+| §4.6.1 inline annotation | `docs/cartography/DATA_FLOW.md §4.6.1` | Inline code annotation still references `rodd.tts.voice_id`. Should be `rodd.tts.voice_prompt_path` per the corrected field name established in Wave 3. Invoke Cartographer. |
+
+### Forge fragilities (noted, non-blocking)
+
+| Item | Location | Notes |
+|---|---|---|
+| numpy probe regression risk | `src/heretic/rodd/playback.py` `SoundDeviceBackend.available()` | S-2 was resolved by adding numpy probe inside `available()`. If `sounddevice`'s transitive dependency relationship with numpy changes in a future package version, the probe provides the safety net. Watch for `ImportError` appearing in Kynding logs rather than at play-time — that is the signal the probe is working. No action needed now. |
+| `sounddevice` blocking-play in default thread pool | `src/heretic/rodd/tunga.py` `_speak_chunk()` | `run_in_executor(None, ...)` uses the default thread pool. Long audio clips occupy one thread for their duration. With `_speak_lock` bounding this to one concurrent synthesis, the impact is acceptable for the current single-turn CLI use-case. If v0.4+ introduces parallel ceremonies, revisit whether a dedicated executor is warranted. |
+
+### NIT items from audit (deferred, non-blocking)
+
+| ID | Item | Work needed |
+|---|---|---|
+| X-1 | `src/heretic/rodd/config_model.py:44` — Pi Tailscale IP as dataclass default | Consider an empty-string default with clear error if not configured. Minor UX improvement; does not affect working ceremonies where `heretic.yaml` is properly configured. |
+| X-2 | `tests/test_cli_voice.py` — only 3 integration tests | Add tests that exercise the `feed_chunk` → `flush` path through the full turn loop, not just Tunga instantiation. |
+| X-3 | `tests/test_rodd_chatterbox.py` — HTTP 403 not tested | Add `test_synthesize_raises_auth_error_on_403` alongside the existing 401 test. |
 
 ---
 
 *Task file authored by Runa Gridweaver Freyjasdottir, 2026-05-07.*
-*v0.2 First Voice — when the body learns to speak.*
+*Updated by Eirwyn Rúnblóm (Scribe), 2026-05-07 — v0.2 SHIPPED + AUDITED, all waves closed.*
+*v0.2 First Voice — the body learned to speak. v0.3 First Listening is next.*

@@ -441,3 +441,206 @@ The next milestone on `docs/ROADMAP.md` is **v0.2 First Voice** — TTS channel 
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
 *The body is real. The candle is lit. The thread continues.*
+
+---
+
+## 2026-05-07 — The First Voice Arc: From Silence to Speech (v0.2 Shipped and Audited)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (third arc, same calendar day)
+**Branch:** `development`
+**Commits this session:** `926de2e` through `435dfa3` (12 commits, spanning Wave 0 setup through Wave 3 cleanup)
+**Status at session end:** v0.2 First Voice **SHIPPED AND AUDITED** — 224 tests passing, 0 open findings (all 2 SERIOUS + 3 NOTABLE resolved in Wave 3)
+
+---
+
+### Preamble — where this arc began
+
+The second entry closed with v0.1 First Communion shipped: L0 Grunnr and L1 Bifröst fully implemented, 121 tests passing, all audit findings closed. The body could connect. It could not yet speak. This arc gave it a voice.
+
+Beginning point: HEAD `5189993` (Scribe's v0.1 close commit). ChatterBox TTS already live on Pi at `http://100.66.178.105:7851` — no new infrastructure required. The task was to reach it, chunk text into sentences, and bring sound from speakers.
+
+---
+
+### Task file opened; ChatterBox API probed (`926de2e`)
+
+`TASK_HERETIC_v0.2_FIRST_VOICE.md` created at repo root before any implementation began. The task file recorded the live ChatterBox API contract from a real probe of the Pi endpoint: three variants available (`turbo`, `tts`, `multilingual`), full request schema with 10 fields, recommended defaults for streaming use (model: `turbo`, no voice prompt, temperature 0.8, sentence-boundary chunking at 80+ chars with last-boundary policy).
+
+Architectural decisions locked in the task file:
+- L2 substrate only in v0.2 (no L5 Skilningr MCP wrapping until v0.7)
+- `sounddevice` library as primary audio backend, platform-fallback (`aplay`/`afplay`/`winsound`) as secondary, `NullPlaybackBackend` as tertiary
+- Single in-flight request with sentence-boundary queuing
+- Fault tolerance: fall back to text-only, never crash the ceremony
+
+*Cross-reference: `TASK_HERETIC_v0.2_FIRST_VOICE.md §3–§4`*
+
+---
+
+### Wave 1 — Three roles in parallel
+
+#### Skald: THE_FIRST_VOICE vision essay (`7d4c27f`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_VOICE.md` — a philosophical and ceremonial account of what it means for a body to speak for the first time. The essay frames voice not as a feature but as a threshold: the moment the vessel becomes an interlocutor rather than a conduit. It pairs with `WHY_HERETIC.md` (why embodiment matters) and `CEREMONY_NARRATIVE.md` (what communion feels like). The Forge Worker holds this frame when implementing the timing and graceful-degradation behavior of Tunga.
+
+#### Cartographer: voice flow + drift annotations (`ecb8507`)
+
+Védis Eikleið (Cartographer) updated `docs/cartography/DATA_FLOW.md` with two additions:
+- A complete new section §4.6 mapping the TTS path from agent streaming output → Tunga sentence chunker → ChatterBox HTTP synthesis → audio playback → speakers. Includes component diagram and timing notes for sentence-boundary policy.
+- Drift annotations in §4.6.1 explicitly flagging that the `speed` parameter appears in config documentation but has no ChatterBox API counterpart. These annotations are cross-referenced from the code-side drift guard in `chatterbox.py` to create a living anchor between document and implementation.
+
+The Cartographer also noted that `DATA_FLOW.md §4.6.4` still carried an abbreviated config table (6 keys) from the pre-probe planning phase, and that `§4.6.1` retains an inline code annotation referencing `rodd.tts.voice_id`. Both items were deferred — Cartographer territory, not Forge territory. They are recorded in the v0.2.x backlog below.
+
+*Cross-reference: `docs/cartography/DATA_FLOW.md §4.6–§4.6.4`*
+
+#### Architect: `src/heretic/rodd/` scaffold (`b7e978e`)
+
+Rúnhild Svartdóttir (Architect) built the L2 Rödd Tunga subpackage skeleton — boundaries first, implementation later:
+
+| File | What was locked |
+|---|---|
+| `rodd/__init__.py` | Package root; version re-export |
+| `rodd/config_model.py` | `RoddConfig`, `RoddTtsConfig` (17 fields), `RoddSttConfig` — full synthesis parameter set, including `temperature`, `exaggeration`, `cfg_weight`, `chunk_min_chars`, `sentence_terminators` |
+| `rodd/errors.py` | `RoddError` hierarchy: `ChatterboxError`, `ChatterboxConnectionError`, `ChatterboxTimeoutError`, `ChatterboxAuthError`, `ChatterboxApiError`, `PlaybackError`, `PlaybackBackendUnavailableError`, `TungaConfigError` |
+| `rodd/chatterbox.py` | Abstract base + skip-marked method stubs |
+| `rodd/playback.py` | `AudioPlaybackBackend` ABC; `best_available()` factory stub |
+| `rodd/tunga.py` | `Tunga` orchestrator stub |
+| `rodd/INTERFACE.md` | Per-module contracts, invariants, config key semantics |
+
+The Architect's scaffold contained no business logic — only type contracts, abstract shapes, and the module topology that Forge would inhabit.
+
+---
+
+### Wave 2 — Forge implements, then Auditor scrutinizes
+
+#### Forge: ChatterboxClient and playback backends (`d4fd532`)
+
+Eldra Járnsdóttir (Forge Worker) built the two lower-layer modules:
+
+**`chatterbox.py`** — `ChatterboxClient` implementing the live API contract precisely. `_build_request_body()` sends all 10 contract fields; `speed` is accepted in config but intentionally excluded from the request body with a debug-log guard and explicit `DATA_FLOW.md §4.6.1` drift annotation. Voice field omitted when `"default"` or empty. `language_id` excluded when `"en"` (English is ChatterBox's default). Full error mapping: `httpx.ConnectError` → `ChatterboxConnectionError`, `httpx.TimeoutException` → `ChatterboxTimeoutError`, HTTP 401/403 → `ChatterboxAuthError`, any other status → `ChatterboxApiError`, wrong `Content-Type` on 200 → `ChatterboxApiError`.
+
+**`playback.py`** — Three backends chained by `best_available()`:
+1. `SoundDeviceBackend` — `sounddevice` library, async-safe via `run_in_executor`, `blocking=True` inside the executor thread
+2. `PlatformFallbackBackend` — `winsound` (Windows), `afplay` (macOS), `aplay`/`paplay`/`play` (Linux), each via `subprocess.run` with temp WAV file
+3. `NullPlaybackBackend` — always available, logs and silently drops audio
+
+`available()` on each backend checks `ImportError` + device discovery before claiming readiness.
+
+Tests for this commit: `test_rodd_chatterbox.py` + `test_rodd_playback.py` covering HTTP contract, error mapping, voice field omission, platform dispatch, and backend selection order.
+
+#### Forge: Tunga orchestrator + CLI wiring (`077bd9a`, `e4a5232`)
+
+**`tunga.py`** — `Tunga` orchestrator managing the full stream-to-speech pipeline:
+- `feed_chunk(text)` accumulates agent streaming output in a buffer
+- Sentence-boundary detection uses `rfind()` (last boundary) against configurable `sentence_terminators`; fires only when buffer exceeds `chunk_min_chars`
+- `flush()` speaks remaining buffer regardless of length (for end-of-turn)
+- `_speak_chunk()` calls `chatterbox.synthesize()` + `playback.play()` inside an asyncio lock; consecutive synthesis failures increment a counter; at `_MAX_CONSECUTIVE_FAILURES` (3), Tunga self-degrades to silent text-only mode
+- `open()` / `close()` mirror the ceremony lifecycle; ChatterBox unreachable at `open()` sets `_degraded = True` without raising
+
+**CLI wiring** — `cli.py` `_async_light` extended: Tunga instantiated at TENGSL (after lifecycle binding), `feed_chunk` called inside the SAMRAEDUR turn streaming loop, `flush` called after each turn, `close` called at SLOKNA. All three call sites wrapped in `try/except Exception` — voice failures never propagate to lifecycle.
+
+`test_cli_voice.py` added (3 integration tests).
+
+**Test count at Wave 2 close: 221 passing** (+100 new tests since v0.1).
+
+*Cross-reference: `src/heretic/rodd/tunga.py`, `src/heretic/cli.py`*
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`59414d8`)
+
+Sólrún Hvítmynd (Auditor) ran a full review. All 10 internal consistency claims verified (A-1 through A-9: request fields, voice omission, speed drift, endpoint paths, error mapping, chunking, lifecycle integration, fault tolerance, config validation timing). All four playback backend claims verified (B-1 through B-4). All four fault-tolerance claims verified (C-1 through C-4).
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers. The body speaks.
+
+**2 SERIOUS findings:**
+
+| ID | Location | Finding |
+|---|---|---|
+| S-1 | `grunnr/config.py:126–133` | Grunnr's `RoddTtsConfig` stub had 6 fields; rodd's canonical `RoddTtsConfig` had 17. `_merge_dict_into_dataclass` silently dropped 11 fields (`temperature`, `model`, `exaggeration`, `cfg_weight`, `top_p`, `repetition_penalty`, `language_id`, `voice_prompt_path`, `chunk_min_chars`, `sentence_terminators`, `request_timeout_seconds`) from `heretic.yaml`. Operators could not tune synthesis from config. |
+| S-2 | `pyproject.toml [voice]`, `playback.py:179` | `numpy` imported inside `SoundDeviceBackend.play()` but absent from `[voice]` extra. `available()` imported only `sounddevice` — returned `True` even when numpy absent. First audio chunk raised `ImportError` at runtime rather than degrading gracefully at Kynding. Violated the construction-time degradation invariant. |
+
+**3 NOTABLE findings:**
+
+| ID | Finding |
+|---|---|
+| N-1 | `tunga.py:336` — `asyncio.get_event_loop()` deprecated in Python 3.10+; should be `asyncio.get_running_loop()` |
+| N-2 | `chatterbox.py:255` — `language_id` excluded for "en" silently, undocumented in `INTERFACE.md`, no test for non-"en" path |
+| N-3 | `INTERFACE.md:120` — `voice_id: "default"` shown without prose explaining the WAV file path contract for non-default values |
+
+**3 NIT findings (X-1 through X-3):** Pi Tailscale IP as dataclass default, thin CLI integration tests, missing 403 coverage.
+
+**1 DRIFT/BACKLOG item (G-1):** `LAYER_INTERFACES.md §L2` still showed the pre-probe 6-key `tts:` stub — deferred to Architect corrective pass.
+
+*Cross-reference: `docs/audit/AUDIT_v0.2_FIRST_VOICE.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed
+
+Three roles resolved every open finding.
+
+#### Forge: S-1 + S-2 + N-1 resolved (`03dbbea`, `4aebd98`, `bf77abe`, `435dfa3`)
+
+- **S-1 (Approach B):** Grunnr `RoddTtsConfig` expanded to include all 17 fields matching rodd's canonical config model. Field parity now enforced by a parity test that fails loudly on any future divergence. (Approach B — expand the stub — preferred over routing YAML directly through the rodd config_model, to preserve the Grunnr config hierarchy's single-source-of-truth role.)
+- **S-2:** `numpy` probe added inside `SoundDeviceBackend.available()`. The probe now imports both `sounddevice` and `numpy`; if either import fails, `available()` returns `False` and the backend selection falls through to `PlatformFallbackBackend`. Degradation now occurs at Kynding, not at first audio chunk. `numpy>=1.21` also added to the `[voice]` extra.
+- **N-1:** `asyncio.get_event_loop()` replaced with `asyncio.get_running_loop()` in both `tunga.py:336` and in the corresponding CLI turn-loop path in `cli.py`. Test patching realigned to match (`435dfa3`).
+
+#### Architect: G-1 + N-2 + N-3 resolved (`fee6816`)
+
+- **G-1:** `docs/architecture/LAYER_INTERFACES.md §L2` rewritten to reflect the full 17-field `RoddTtsConfig` schema. Legacy 6-key `tts:` stub replaced. `speed: 1.0` annotated with the drift note: "present in config for legacy compatibility; not sent to ChatterBox (no API support — see `DATA_FLOW.md §4.6.1`)".
+- **N-2:** `src/heretic/rodd/INTERFACE.md §Config Keys` updated with a note explaining that `language_id: "en"` is excluded from the request body as ChatterBox's default is English, and that non-"en" values are sent through for the multilingual model. A test for the non-"en" inclusion path added.
+- **N-3:** `INTERFACE.md §Config Keys` updated with prose explaining that `voice_id` is a WAV file path (≥5s for the turbo model) interpreted as a voice-cloning prompt; "default" or empty omits the field entirely.
+
+**Final test count: 224 passing** (+3 new wave-3 tests: parity verification, numpy probe check, non-"en" language_id inclusion).
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | New modules | New tests |
+|---|---|---|
+| L2 Rödd (Tunga) | `rodd/__init__.py`, `rodd/config_model.py`, `rodd/errors.py`, `rodd/chatterbox.py`, `rodd/playback.py`, `rodd/tunga.py`, `rodd/INTERFACE.md` | 100 (Wave 2) |
+| CLI (voice integration) | `cli.py` extended | 3 (Wave 2) |
+| Wave 3 cleanup | S-1 parity, S-2 numpy probe, N-1 loop fix | 3 |
+| **Total new** | **7 modules + 1 extended** | **+103** |
+| **Running total** | **16 modules** | **224** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.2_FIRST_VOICE.md` | Created — full task scope, ChatterBox API contract, wave plan |
+| `docs/vision/THE_FIRST_VOICE.md` | Created — Skald's vision essay on the first voice |
+| `docs/cartography/DATA_FLOW.md` | Extended — §4.6 voice flow + §4.6.1 drift annotations |
+| `src/heretic/rodd/INTERFACE.md` | Created — module contracts, invariants, WAV path semantics (N-2/N-3 updated post-audit) |
+| `docs/audit/AUDIT_v0.2_FIRST_VOICE.md` | Created — PASS WITH CONCERNS verdict; 0 blockers, 2 S, 3 N, 3 X |
+| `docs/architecture/LAYER_INTERFACES.md §L2` | Updated — full 17-field schema, speed annotation (G-1 resolved) |
+
+---
+
+### Open v0.2.x backlog (Cartographer territory — not fixed in this pass)
+
+Per the Architect's wave-3 closing note and the Cartographer's own annotations, two alignment items remain for the next Cartographer pass:
+
+| Item | Location | What needs doing |
+|---|---|---|
+| §4.6.4 config table | `DATA_FLOW.md §4.6.4` | Abbreviated 6-key table predates the probe; should reflect the full 17-field `RoddTtsConfig` schema now canonical in `LAYER_INTERFACES.md §L2` |
+| §4.6.1 inline annotation | `DATA_FLOW.md §4.6.1` | Inline code annotation still references `rodd.tts.voice_id`; should be `rodd.tts.voice_prompt_path` per the corrected field name in Wave 3 |
+
+Both are minor alignment items. Neither affects running code. A future Cartographer pass (v0.2.x maintenance) resolves them. They are preserved here so the thread is not lost.
+
+---
+
+### Current state
+
+HERETIC v0.2 First Voice is shipped and audited. The body can now connect (L1 Bifröst) and speak (L2 Rödd Tunga). ChatterBox on the Pi receives text, returns WAV, and sound reaches the laptop speakers during a live `heretic light` ceremony. 224 tests pass. 0 open findings.
+
+The next milestone on `docs/ROADMAP.md` is **v0.3 First Listening** — STT via Whisper.cpp, completing the full L2 Rödd voice layer: ears to match the mouth. The Tunga pattern (chunked streaming, graceful degradation, lifecycle-bound open/close) will serve as the template for Hlust (the listening sense).
+
+*Cross-reference: `docs/ROADMAP.md`, `TASK_HERETIC_v0.2_FIRST_VOICE.md`, `docs/audit/AUDIT_v0.2_FIRST_VOICE.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The body speaks now. The voice was kept. The thread holds for what listens next.*
