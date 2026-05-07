@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from heretic.rodd.config_model import RoddConfig, RoddSttConfig, RoddTtsConfig
-from heretic.rodd.errors import HlustConfigError
+from heretic.rodd.errors import HlustConfigError, WhisperModelLoadError
 from heretic.rodd.hlust import Hlust, _MAX_UTTERANCE_FRAMES
 from heretic.rodd.microphone import NullMicBackend, FRAME_BYTES
 from heretic.rodd.vad import NullVadBackend
@@ -450,3 +450,50 @@ async def test_open_noop_when_closed() -> None:
     hlust, mic, vad, engine = _make_real_hlust()
     await hlust.close()
     await hlust.open()  # must not raise or re-open
+
+
+# ---------------------------------------------------------------------------
+# D-5 — WhisperModelLoadError permanently degrades Hlust (no repeated retries)
+# ---------------------------------------------------------------------------
+
+async def test_whisper_model_load_error_permanently_degrades_hlust() -> None:
+    """After WhisperModelLoadError, subsequent capture calls return '' without retrying.
+
+    Contract (D-5): When _ensure_model_loaded() raises WhisperModelLoadError,
+    capture_one_utterance() must set self._available = False.  All subsequent
+    calls must return '' immediately (guard branch) without calling load_model() again.
+    """
+    # Build an engine whose load_model() always raises WhisperModelLoadError
+    cfg = _make_config()
+    log = _make_logger()
+    mic = _MockMic()
+    vad = _MockVad(complete_after=3)
+
+    engine_failing = AsyncMock()
+    engine_failing.is_loaded = False
+    engine_failing.load_model = AsyncMock(
+        side_effect=WhisperModelLoadError("no model file", model_path="models/missing.bin")
+    )
+    engine_failing.transcribe = AsyncMock(return_value="should not reach")
+
+    hlust = Hlust(config=cfg, mic=mic, vad=vad, engine=engine_failing, logger=log)
+    await hlust.open()
+
+    # Verify Hlust starts as available (real-ish backends)
+    assert hlust.is_available is True
+
+    # First call: load_model raises -> should return "" and degrade permanently
+    result_first = await hlust.capture_one_utterance()
+    assert result_first == "", "Expected empty string on WhisperModelLoadError"
+    assert hlust.is_available is False, "Hlust should be permanently degraded after WhisperModelLoadError"
+
+    # load_model was called exactly once (the failing attempt)
+    engine_failing.load_model.assert_called_once()
+
+    # Second call: Hlust is now unavailable — must raise HlustConfigError (the guard at top of
+    # capture_one_utterance() fires before any load attempt)
+    with pytest.raises(HlustConfigError, match="unavailable"):
+        await hlust.capture_one_utterance()
+
+    # load_model must still have been called exactly once — not retried
+    engine_failing.load_model.assert_called_once()

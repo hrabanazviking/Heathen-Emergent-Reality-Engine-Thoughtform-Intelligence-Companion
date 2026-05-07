@@ -48,10 +48,17 @@ Degraded mode:
     NullVadBackend does NOT make Hlust unavailable — it just means a fixed-window
     capture strategy is used.  The body can still listen without smart VAD.
 
+    WhisperModelLoadError permanent-disable (D-5):
+    If the Whisper model fails to load (missing file, OOM, incompatible format),
+    capture_one_utterance() catches WhisperModelLoadError specifically and sets
+    self._available = False. All subsequent calls return "" immediately without
+    re-attempting the load. The CLI falls back to stdin for the remainder of the session.
+
 Fault model:
     Any exception during a live capture cycle is caught, logged, and either:
     - Returned as empty string (for recoverable faults — mic stutter, VAD noise).
     - Re-raised as HlustError after cleanup (for fatal faults — device lost).
+    WhisperModelLoadError is treated as a permanent session fault — not recoverable.
     The CLI treats empty string as "no input this turn" and continues.
 """
 
@@ -59,13 +66,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from typing import TYPE_CHECKING
 
 from heretic.rodd.errors import (
     HlustConfigError,
     HlustError,
     WhisperError,
+    WhisperModelLoadError,
 )
 from heretic.rodd.microphone import NullMicBackend
 from heretic.rodd.whisper_engine import NullWhisperBackend
@@ -230,9 +237,9 @@ class Hlust:
             7. When VAD signals utterance complete (or _MAX_UTTERANCE_FRAMES reached),
                stop the stream.
             8. Concatenate accumulated frames.
-            9. Print '[loading model...]' only if we had to lazy-load.
+            9. Log INFO '[loading model...]' only if we had to lazy-load.
             10. Call engine.transcribe(audio_bytes, sample_rate=16000).
-            11. Print '[heard: <transcript>]' to stderr for confirmation.
+            11. Log INFO '[heard: <transcript>]' for confirmation.
             12. Return the stripped transcript string.
 
         Returns:
@@ -262,6 +269,19 @@ class Hlust:
             return await self._capture_loop()
         except HlustConfigError:
             raise  # propagate guard errors unchanged
+        except WhisperModelLoadError as exc:
+            # Permanent fault — Whisper model cannot be loaded (missing file, OOM, etc.).
+            # Set _available = False so subsequent calls return "" immediately without
+            # re-attempting the load on every utterance.  The CLI will fall back to stdin
+            # for the rest of this session.
+            self._log.warning(
+                "Hlust: Whisper model load failed permanently — "
+                "degrading to stdin for this session: %s",
+                exc,
+            )
+            self._available = False
+            self._stop_mic_safe()
+            return ""
         except Exception as exc:
             # Recoverable fault — log, clean up, return empty string so CLI continues
             self._log.warning("Hlust.capture_one_utterance: fault during capture: %s", exc)
@@ -281,14 +301,14 @@ class Hlust:
         # We do this BEFORE opening the mic so the '[loading model...]' pause
         # does not affect the listening cue timing.
         if not self._model_loaded:
-            print("[loading model...]", file=sys.stderr, flush=True)
+            self._log.info("[loading model...]")
             await self._ensure_model_loaded()
 
         # Reset VAD state for a clean utterance
         self._vad.reset()
         frames: list[bytes] = []
 
-        print("[listening...]", file=sys.stderr, flush=True)
+        self._log.info("[listening...]")
 
         # Build the mic frame callback.
         # CRITICAL: this callback fires on a PortAudio C background thread.
@@ -360,7 +380,7 @@ class Hlust:
             return ""
 
         transcript = transcript.strip()
-        print(f"[heard: {transcript}]", file=sys.stderr, flush=True)
+        self._log.info("[heard: %s]", transcript)
         return transcript
 
     def _stop_mic_safe(self) -> None:

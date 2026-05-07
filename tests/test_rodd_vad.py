@@ -227,16 +227,18 @@ def _make_webrtcvad_backend(vad_threshold: float) -> WebRtcVadBackend:
 
 
 @pytest.mark.parametrize("threshold,expected_aggressiveness", [
-    (0.0, 0),   # 0.0 * 3 = 0.0 -> round -> 0
-    (0.1, 0),   # 0.1 * 3 = 0.3 -> round -> 0
-    (0.2, 1),   # 0.2 * 3 = 0.6 -> round -> 1
-    (0.33, 1),  # 0.33 * 3 = 0.99 -> round -> 1
-    (0.5, 2),   # 0.5 * 3 = 1.5 -> round -> 2
-    (0.6, 2),   # 0.6 * 3 = 1.8 -> round -> 2 (default config value)
-    (0.67, 2),  # 0.67 * 3 = 2.01 -> round -> 2
-    (0.8, 2),   # 0.8 * 3 = 2.4 -> round -> 2
-    (0.85, 3),  # 0.85 * 3 = 2.55 -> round -> 3
-    (1.0, 3),   # 1.0 * 3 = 3.0 -> round -> 3
+    (0.0, 0),     # 0.0 * 3 = 0.0    -> round -> 0
+    (0.1, 0),     # 0.1 * 3 = 0.3    -> round -> 0
+    (0.166, 0),   # 0.166 * 3 = 0.498 -> round -> 0 (just below aggressiveness-0/1 boundary)
+    (0.1667, 1),  # 0.1667 * 3 = 0.5001 -> round -> 1 (just above aggressiveness-0/1 boundary)
+    (0.2, 1),     # 0.2 * 3 = 0.6    -> round -> 1
+    (0.33, 1),    # 0.33 * 3 = 0.99  -> round -> 1
+    (0.5, 2),     # 0.5 * 3 = 1.5    -> round -> 2
+    (0.6, 2),     # 0.6 * 3 = 1.8    -> round -> 2 (default config value)
+    (0.67, 2),    # 0.67 * 3 = 2.01  -> round -> 2
+    (0.8, 2),     # 0.8 * 3 = 2.4    -> round -> 2
+    (0.85, 3),    # 0.85 * 3 = 2.55  -> round -> 3
+    (1.0, 3),     # 1.0 * 3 = 3.0    -> round -> 3
 ])
 def test_webrtcvad_aggressiveness_mapping(
     monkeypatch,
