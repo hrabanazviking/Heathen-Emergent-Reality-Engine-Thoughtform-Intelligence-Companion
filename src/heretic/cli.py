@@ -30,6 +30,10 @@ async def _async_light(args: argparse.Namespace) -> int:
     from heretic.bifrost.client import OpenAICompatClient
     from heretic.bifrost.config_model import BifrostConfig, TailscaleOptions
     from heretic.bifrost.errors import BifrostError
+    from heretic.rodd.chatterbox import ChatterboxHttpClient
+    from heretic.rodd.config_model import RoddConfig, RoddTtsConfig, RoddSttConfig
+    from heretic.rodd.playback import AudioPlayback
+    from heretic.rodd.tunga import Tunga
 
     # --- Kynding: load config and configure logging ---
     try:
@@ -91,6 +95,39 @@ async def _async_light(args: argparse.Namespace) -> int:
         return 1
 
     lc.transition(LifecycleState.TENGSL)
+
+    # --- Tunga: initialise TTS voice if enabled ---
+    # Build a full RoddTtsConfig bridging from the grunnr-layer config snapshot.
+    # This mirrors the BifrostConfig bridge above — neither layer reads heretic.yaml
+    # directly; the CLI wires the grunnr config snapshot into each layer's typed config.
+    tunga: Tunga | None = None
+    grunnr_rodd = cfg.rodd
+    grunnr_tts = grunnr_rodd.tts
+    if grunnr_tts.enabled:
+        try:
+            # Build the full RoddTtsConfig from the grunnr snapshot values.
+            # The grunnr RoddTtsConfig is a lightweight stub; the rodd module's version
+            # carries the full synthesis parameters. We copy what grunnr knows and fill
+            # the rest with defaults from the canonical rodd config_model.
+            rodd_tts_config = RoddTtsConfig(
+                enabled=grunnr_tts.enabled,
+                engine=grunnr_tts.engine,
+                endpoint=grunnr_tts.endpoint,
+                voice_id=grunnr_tts.voice_id,
+                device=grunnr_tts.device,
+                speed=grunnr_tts.speed,
+            )
+            rodd_config = RoddConfig(tts=rodd_tts_config)
+            tts_client = ChatterboxHttpClient(rodd_tts_config, log)
+            playback_backend = AudioPlayback.best_available(rodd_tts_config, log)
+            tunga = Tunga(rodd_config, tts_client, playback_backend, log)
+            await tunga.open()
+        except Exception as exc:
+            log.warning(
+                "Tunga init failed — ceremony continues text-only: %s", exc
+            )
+            tunga = None
+
     print(
         f"[HERETIC] Bifrost open - connected to {bf_config.endpoint} "
         f"(model: {bf_config.model})",
@@ -136,12 +173,27 @@ async def _async_light(args: argparse.Namespace) -> int:
                     else:
                         print(chunk, end="", flush=True)
                         assistant_text += chunk
+                        # Feed each streaming text delta into Tunga's sentence chunker.
+                        # Tunga accumulates until a sentence boundary + min_chars fires,
+                        # then synthesises and plays. Degraded Tunga silently no-ops.
+                        if tunga is not None and not tunga.is_degraded:
+                            try:
+                                await tunga.feed_chunk(chunk)
+                            except Exception as exc:
+                                log.warning("Tunga.feed_chunk error (ignored): %s", exc)
             except BifrostError as exc:
                 print(f"\n[HERETIC] Error: {exc}", file=sys.stderr)
                 if args.debug:
                     import traceback
                     traceback.print_exc()
             print()  # newline after streamed response
+
+            # Flush any remaining buffered speech at end of agent turn
+            if tunga is not None and not tunga.is_degraded:
+                try:
+                    await tunga.flush()
+                except Exception as exc:
+                    log.warning("Tunga.flush error (ignored): %s", exc)
 
             if assistant_text:
                 messages.append({"role": "assistant", "content": assistant_text})
@@ -152,6 +204,14 @@ async def _async_light(args: argparse.Namespace) -> int:
     # --- Slokna: clean shutdown ---
     print("\n[HERETIC] Extinguishing the ceremony...", file=sys.stderr)
     lc.transition(LifecycleState.SLOKNA)
+
+    # Close Tunga first — flush and speak any final buffered words before silence
+    if tunga is not None:
+        try:
+            await tunga.close()
+        except Exception as exc:
+            log.warning("Error closing Tunga: %s", exc)
+
     try:
         await client.close()
     except Exception as exc:
