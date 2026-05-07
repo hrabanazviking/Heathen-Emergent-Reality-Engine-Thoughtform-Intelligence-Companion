@@ -28,6 +28,26 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+# ---------------------------------------------------------------------------
+# L2 Rödd — canonical config types re-imported from the rodd package.
+#
+# The authoritative field definitions live in heretic.rodd.config_model so
+# that the rodd layer is self-contained.  We re-export them here so that
+# grunnr.config.HereticConfig.rodd carries the full schema — including all
+# synthesis parameters (temperature, model, exaggeration, chunk_min_chars,
+# etc.) — without duplicating or drifting from the canonical definitions.
+#
+# heretic.rodd.config_model has no imports from heretic.grunnr, so this
+# import direction is safe and introduces no circular dependency.
+#
+# Ref: docs/audit/AUDIT_v0.2_FIRST_VOICE.md S-1.
+# ---------------------------------------------------------------------------
+from heretic.rodd.config_model import (  # noqa: E402
+    RoddConfig,
+    RoddSttConfig,
+    RoddTtsConfig,
+)
+
 
 # ---------------------------------------------------------------------------
 # L0 Grunnr sub-config
@@ -105,40 +125,11 @@ class BifrostConfig:
 
 
 # ---------------------------------------------------------------------------
-# L2 Rödd sub-config
+# L2 Rödd sub-config — see import block at the top of this file.
+# RoddSttConfig, RoddTtsConfig, and RoddConfig are imported from
+# heretic.rodd.config_model and re-exported from this module so that
+# HereticConfig.rodd carries the full canonical schema.
 # ---------------------------------------------------------------------------
-
-@dataclass
-class RoddSttConfig:
-    """STT (Hlust — ear) half of the voice layer."""
-    enabled: bool = True
-    engine: str = "whisper_cpp"
-    model_path: str = "models/ggml-base.en.bin"
-    """Relative to the HERETIC data directory. Never an absolute path."""
-    device: str = "default"
-    vad_threshold: float = 0.6
-    language: str = "en"
-    load_strategy: str = "lazy"
-    """lazy = load model on first utterance; eager = load at Kynding."""
-
-
-@dataclass
-class RoddTtsConfig:
-    """TTS (Tunga — tongue) half of the voice layer."""
-    enabled: bool = True
-    engine: str = "chatterbox"
-    endpoint: str = "http://100.66.178.105:7851"
-    voice_id: str = "default"
-    device: str = "default"
-    speed: float = 1.0
-
-
-@dataclass
-class RoddConfig:
-    """L2 Rödd — voice layer settings."""
-    stt: RoddSttConfig = field(default_factory=RoddSttConfig)
-    tts: RoddTtsConfig = field(default_factory=RoddTtsConfig)
-
 
 # ---------------------------------------------------------------------------
 # L3 Sjón sub-config

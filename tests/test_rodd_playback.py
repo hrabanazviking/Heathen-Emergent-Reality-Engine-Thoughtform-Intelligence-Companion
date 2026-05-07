@@ -383,3 +383,47 @@ def test_null_backend_close_does_not_raise() -> None:
     backend = NullPlaybackBackend(config, logger)
     backend.close()
     assert backend._closed is True
+
+
+# ---------------------------------------------------------------------------
+# S-2 — numpy absence detected at available() time, not at play() time
+# ---------------------------------------------------------------------------
+
+def test_sound_device_backend_unavailable_when_numpy_missing() -> None:
+    """SoundDeviceBackend.available() returns False when numpy cannot be imported.
+
+    Reproduces the S-2 bug: before the fix, available() only probed sounddevice.
+    numpy was imported inside play(), so available() returned True even when numpy
+    was absent.  On the first audio chunk, play() raised ImportError which surfaced
+    as PlaybackBackendUnavailableError mid-ceremony (Samræður), rather than at
+    Kynding (construction / available() check).
+
+    After the fix, available() also probes numpy.  If numpy is absent, available()
+    returns False so Tunga degrades at construction time, not at play time.
+
+    Ref: docs/audit/AUDIT_v0.2_FIRST_VOICE.md S-2.
+    """
+    import sys
+
+    config = _make_config()
+    logger = _make_logger()
+    backend = SoundDeviceBackend(config, logger)
+
+    # Simulate numpy being absent from the environment by hiding it from sys.modules.
+    # sounddevice must still be importable so we can confirm that numpy alone blocks.
+    original_numpy = sys.modules.get("numpy")
+    mock_sd = MagicMock()
+    mock_sd.query_devices = MagicMock(return_value={"name": "Default", "max_output_channels": 2})
+
+    # Patch sys.modules so that "numpy" raises ImportError when imported.
+    faked_modules = dict(sys.modules)
+    faked_modules["numpy"] = None  # None in sys.modules causes ImportError on import
+    faked_modules["sounddevice"] = mock_sd
+
+    with patch.dict("sys.modules", faked_modules, clear=False):
+        result = backend.available()
+
+    assert result is False, (
+        "SoundDeviceBackend.available() should return False when numpy is absent, "
+        "but returned True.  This would cause a mid-ceremony ImportError at play() time."
+    )

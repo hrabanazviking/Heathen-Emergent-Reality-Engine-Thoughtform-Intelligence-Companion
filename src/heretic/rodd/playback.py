@@ -150,12 +150,20 @@ class SoundDeviceBackend(AudioPlayback):
         self._closed: bool = False
 
     def available(self) -> bool:
-        """Return True if sounddevice is importable and a usable output device exists.
+        """Return True if sounddevice AND numpy are importable and a usable output device exists.
+
+        Both sounddevice and numpy are probed here because play() imports numpy at
+        call time.  If numpy is absent, available() must return False so that
+        degradation is detected at Kynding (construction) rather than mid-ceremony
+        on the first audio chunk.
 
         Never raises — any exception causes a False return so the fallback chain
         proceeds without crashing the ceremony.
+
+        Ref: docs/audit/AUDIT_v0.2_FIRST_VOICE.md S-2.
         """
         try:
+            import numpy  # noqa: F401 — probe: play() needs this at call time
             import sounddevice as sd  # noqa: F401 — testing importability
             # Probe the configured output device to verify it exists
             device_arg = None if self._config.device == "default" else self._config.device

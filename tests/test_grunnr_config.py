@@ -334,3 +334,70 @@ def test_bifrost_config_field_parity() -> None:
         f"TailscaleConfig: {sorted(grunnr_ts_types.items())}\n"
         f"TailscaleOptions: {sorted(bifrost_ts_types.items())}\n"
     )
+
+
+# ---------------------------------------------------------------------------
+# S-1 — RoddTtsConfig consolidation guard
+# ---------------------------------------------------------------------------
+
+def test_rodd_tts_config_is_canonical() -> None:
+    """grunnr.config re-exports the canonical RoddTtsConfig from rodd.config_model.
+
+    After the S-1 consolidation (AUDIT_v0.2_FIRST_VOICE.md S-1), grunnr.config
+    no longer defines its own RoddTtsConfig stub.  It imports and re-exports the
+    canonical class from heretic.rodd.config_model.  This test is the tripwire:
+    if the import is ever accidentally replaced with a local stub again, the
+    identity check fails immediately.
+    """
+    from heretic.grunnr.config import RoddTtsConfig as GrunnrRoddTtsConfig
+    from heretic.rodd.config_model import RoddTtsConfig as RoddRoddTtsConfig
+
+    assert GrunnrRoddTtsConfig is RoddRoddTtsConfig, (
+        "grunnr.config.RoddTtsConfig is NOT the same object as "
+        "rodd.config_model.RoddTtsConfig. The S-1 consolidation has drifted — "
+        "grunnr.config must re-export the canonical class, not define its own stub."
+    )
+
+
+def test_rodd_tts_config_yaml_round_trip(tmp_path: Path) -> None:
+    """Operator-set synthesis fields in heretic.yaml reach HereticConfig.rodd.tts.
+
+    Reproduces the S-1 bug: the old 6-field grunnr stub silently dropped
+    temperature, model, chunk_min_chars and other synthesis fields.  After
+    consolidation, every field in heretic.yaml should flow through to the
+    typed config without being discarded.
+
+    Ref: docs/audit/AUDIT_v0.2_FIRST_VOICE.md S-1.
+    """
+    config_file = tmp_path / "heretic.yaml"
+    config_file.write_text(
+        """
+grunnr:
+  config_version: "1"
+rodd:
+  tts:
+    temperature: 1.5
+    model: tts
+    chunk_min_chars: 120
+    exaggeration: 1.2
+    repetition_penalty: 1.8
+""",
+        encoding="utf-8",
+    )
+    cfg = load_config(str(config_file))
+
+    assert cfg.rodd.tts.temperature == 1.5, (
+        f"temperature not loaded from heretic.yaml — got {cfg.rodd.tts.temperature}"
+    )
+    assert cfg.rodd.tts.model == "tts", (
+        f"model not loaded from heretic.yaml — got {cfg.rodd.tts.model}"
+    )
+    assert cfg.rodd.tts.chunk_min_chars == 120, (
+        f"chunk_min_chars not loaded from heretic.yaml — got {cfg.rodd.tts.chunk_min_chars}"
+    )
+    assert cfg.rodd.tts.exaggeration == 1.2, (
+        f"exaggeration not loaded from heretic.yaml — got {cfg.rodd.tts.exaggeration}"
+    )
+    assert cfg.rodd.tts.repetition_penalty == 1.8, (
+        f"repetition_penalty not loaded from heretic.yaml — got {cfg.rodd.tts.repetition_penalty}"
+    )
