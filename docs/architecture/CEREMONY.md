@@ -1,6 +1,6 @@
 # HERETIC — Ceremony (Lifecycle State Machine)
 
-**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, adding public lifecycle vs sub-state disambiguation, fixing config key reference)
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, adding public lifecycle vs sub-state disambiguation, fixing config key reference; N-4 corrective pass: §7 table extended to match lifecycle.py — three transitions added: Tengsl→SLOKNA, Tengsl→READY, EXTINGUISHED→READY)
 **Scope:** The five ceremonial phases mapped to True Names; runtime states; instantiation/teardown sequences; error/abort paths; full state diagram; recovery behaviors; timeouts; persistent vs ephemeral state; Holdvörðr responsibilities.
 **Authority:** Derives from `docs/BODY_MANIFESTO.md` and `ARCHITECTURE.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -358,12 +358,18 @@ bifrost:
 | `Kynding` | App launched | L0 Grunnr starting, L5 Skilningr spawning | All layers init → READY; config error → CONFIG_ERROR |
 | `READY` | All layers initialized | L0 Grunnr, L4 Vébond, L5 Skilningr (senses idle) | Click "Light the Candle" → OPENING; close app → Hvíld |
 | `OPENING` | User clicked connect | L0, L4, L5, L1 Bifröst probing | Probe succeeds → Tengsl; probe fails → READY; cancel → READY |
-| `Tengsl` | Probe succeeded | All layers active | First input/turn → Samræður; connection drop → RECOVERING |
+| `Tengsl` | Probe succeeded | All layers active | First input/turn → Samræður; connection drop → RECOVERING; Extinguish before first turn → SLOKNA; Bifröst close without ending lifecycle → READY |
 | `Samræður` | Spirit active, turns flowing | All layers at full operation | Click Extinguish → Slokna; connection drop → RECOVERING |
 | `RECOVERING` | Connection dropped during Samræður | L0, L4, L5 (active), L1 (reconnecting), L2/L3 (buffering) | Reconnect succeeds → Samræður; retries exhausted → READY |
 | `Slokna` | Extinguish triggered | L0, L4, L1 (draining), L5 (shutting down) | Drain complete → EXTINGUISHED |
-| `EXTINGUISHED` | Drain complete, session zeroed | L0, L4 (returning to READY UI) | New ceremony → Kynding; close app → Hvíld |
+| `EXTINGUISHED` | Drain complete, session zeroed | L0, L4 (returning to READY UI) | New ceremony → Kynding; close app → Hvíld; re-light without restart → READY |
 | `CONFIG_ERROR` | Config parse failed at Kynding | None | User fixes config; re-launch → Kynding |
+
+**N-4 addendum (2026-05-07):** Three transitions were present in `lifecycle.py:_ALLOWED_TRANSITIONS` but absent from the table above. They are documented here for completeness; code is the authority.
+
+- `Tengsl → SLOKNA` — the user may trigger Extinguish while in Tengsl, before the first Samræður turn begins. The drain sequence proceeds normally. The code permits this so that a user who opens a ceremony and immediately decides against it can close cleanly without forcing a Samræður entry.
+- `Tengsl → READY` — Bifröst may close (agent-side disconnect, timeout, or forced teardown) after the spirit bound but before any turn exchanged. Returning to READY rather than HVILD lets the running process re-attempt connection without full restart.
+- `EXTINGUISHED → READY` — after a ceremony is fully drained and session state zeroed, the running process may re-light into READY without a full process restart. This supports rapid successive ceremonies inside one Holdvörðr process lifetime.
 
 ---
 

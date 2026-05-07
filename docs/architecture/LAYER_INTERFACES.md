@@ -1,6 +1,6 @@
 # HERETIC — Layer Interfaces
 
-**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1)
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1; X-3 corrective pass: capability probe conservatism for `?streaming` and `?vision_in` documented in §L1 Bifröst)
 **Scope:** Per-layer and per-sense contracts: inputs, outputs, owns, never-controls, error model, config keys, event types, capability flags, and SLO tier.
 **Authority:** Derives from `ARCHITECTURE.md` and `DOMAIN_MAP.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -135,6 +135,8 @@ bifrost:
 - `?vision_in` — agent can receive image content in messages
 - `?tool_use` — agent can emit tool_call / tool_result format
 - `?streaming` — agent supports SSE streaming responses
+
+> **v0.1 probe conservatism (X-3, 2026-05-07):** In v0.1, these flags are not determined by a full round-trip capability exchange. `?streaming` is set optimistically to `True` after any successful `/models` reachability probe — the assumption is that a reachable OpenAI-compatible endpoint supports SSE streaming. No actual stream response is sent to verify. `?vision_in` is read directly from `bifrost.vision_in` in `heretic.yaml` — no image is transmitted and round-tripped to confirm the agent accepts multimodal content. Both flags are therefore declarations of intent, not verified proofs. This is sufficient for v0.1 where Sjón (L3, screen capture) is not yet active. When Sjón ships in v0.2, a genuine image round-trip probe will replace the config-read path for `?vision_in`, and the `?streaming` probe will be strengthened. Until then, operators must ensure their agent endpoint actually supports the capabilities they declare in config.
 
 ### SLO tier
 **Warm** — response stream start < 1200 ms p95 under normal load. If breached, L4 Vébond can surface a latency warning without aborting the ceremony.

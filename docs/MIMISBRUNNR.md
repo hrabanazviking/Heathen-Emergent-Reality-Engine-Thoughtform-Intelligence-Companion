@@ -1,5 +1,7 @@
 # Mímisbrunnr — The Well of Wisdom
 
+**Last updated (addendum):** 2026-05-07 (N-2 corrective pass — Rúnhild Svartdóttir, post-AUDIT_v0.1 cleanup: library backends YAML example corrected from `senses:` to `skilningr:`)
+
 > *"From there come the dews that drop in the dales — / it stands ever green over Urd's well." — Voluspá*
 >
 > *Mímisbrunnr — Mímir's Well — was the well of wisdom under the second root of Yggdrasil. Odin sacrificed an eye to drink from it once. Mímir himself drank from it daily, and so was the wisest of beings.*
@@ -168,7 +170,7 @@ For semantic retrieval: build a vector index *over* the ZIM contents on demand. 
 The Library MCP server has multiple backends. Mímisbrunnr is one. Others can coexist:
 
 ```yaml
-senses:
+skilningr:
   library:
     enabled: true
     backends:
@@ -183,6 +185,8 @@ senses:
       - type: mindspark                 # plug in MindSpark ThoughtForge
         endpoint: http://localhost:7777
 ```
+
+> **Config key authority:** top-level key is `skilningr:`, matching `grunnr/config.py:SkilningrConfig`. The sense identifier `library` nests directly under `skilningr:` — there is no intermediate `senses:` key. See `NAMING.md` §Configuration File and `LAYER_INTERFACES.md` §L5 for the canonical key structure.
 
 Agent calls `library.search(query)` — the L5.9 server routes across all enabled backends, returns ranked results. The agent does not need to know which corpus answered.
 

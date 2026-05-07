@@ -1,6 +1,6 @@
 # HERETIC — Sense Contracts
 
-**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-2, A-3, A-4; tool format canonicalized; Auga/Hlust/Tunga layering resolved; Skepja sandboxing tiers added; open questions closed)
+**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-2, A-3, A-4; tool format canonicalized; Auga/Hlust/Tunga layering resolved; Skepja sandboxing tiers added; open questions closed; N-1 corrective pass: YAML example key corrected from `senses:` to `skilningr:`)
 **Scope:** The standard MCP interface every sense must implement; tool naming convention; capability flags; error taxonomy; version negotiation; sandbox/permission model; per-sense detail subsections for L5.1–L5.9 with True Names.
 **Authority:** Derives from `ARCHITECTURE.md`, `DOMAIN_MAP.md`, `LAYER_INTERFACES.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -182,11 +182,13 @@ If the Hub version is below the sense's `minHubVersion`, Skilningr refuses the s
 In `heretic.yaml`, each sense has an `enabled` flag and a sense-specific config block. The enabled flag is the master toggle:
 
 ```yaml
-senses:
+skilningr:
   <sense_id>:
     enabled: true | false        # master toggle — agent cannot override
     # ... sense-specific permission fields
 ```
+
+> **Config key authority:** the top-level key is always `skilningr:`, matching `grunnr/config.py:SkilningrConfig` and the canonical key structure defined in `NAMING.md`. The sub-keys are the code-facing sense identifiers: `filesystem`, `terminal`, `browser`, `photopea`, `blender`, `vrchat`, `agentmail`, `library`, `auga`, `hlust`, `tunga`. There is no intermediate `senses:` level — sense IDs nest directly under `skilningr:`.
 
 **The user's `heretic.yaml` is the final authority on what senses are enabled and what they can access.** The agent cannot enable a disabled sense. The agent cannot expand sandbox boundaries.
 
