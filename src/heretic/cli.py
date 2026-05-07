@@ -32,8 +32,12 @@ async def _async_light(args: argparse.Namespace) -> int:
     from heretic.bifrost.errors import BifrostError
     from heretic.rodd.chatterbox import ChatterboxHttpClient
     from heretic.rodd.config_model import RoddConfig, RoddTtsConfig, RoddSttConfig
+    from heretic.rodd.hlust import Hlust
+    from heretic.rodd.microphone import MicrophoneCapture
     from heretic.rodd.playback import AudioPlayback
     from heretic.rodd.tunga import Tunga
+    from heretic.rodd.vad import VadDetector
+    from heretic.rodd.whisper_engine import WhisperEngine
 
     # --- Kynding: load config and configure logging ---
     try:
@@ -101,6 +105,7 @@ async def _async_light(args: argparse.Namespace) -> int:
     # This mirrors the BifrostConfig bridge above — neither layer reads heretic.yaml
     # directly; the CLI wires the grunnr config snapshot into each layer's typed config.
     tunga: Tunga | None = None
+    rodd_tts_config: RoddTtsConfig = RoddTtsConfig()  # default; overwritten if TTS enabled
     grunnr_rodd = cfg.rodd
     grunnr_tts = grunnr_rodd.tts
     if grunnr_tts.enabled:
@@ -128,6 +133,48 @@ async def _async_light(args: argparse.Namespace) -> int:
             )
             tunga = None
 
+    # --- Hlust: initialise STT voice input if enabled ---
+    # Constructed after Tunga; errors here are non-fatal — CLI falls back to stdin.
+    hlust: Hlust | None = None
+    grunnr_stt = grunnr_rodd.stt
+    if grunnr_stt.enabled:
+        try:
+            rodd_stt_config = RoddSttConfig(
+                enabled=grunnr_stt.enabled,
+                engine=grunnr_stt.engine,
+                model_path=grunnr_stt.model_path,
+                device=grunnr_stt.device,
+                vad_threshold=grunnr_stt.vad_threshold,
+                language=grunnr_stt.language,
+                load_strategy=grunnr_stt.load_strategy,
+            )
+            # Build RoddConfig with the STT config merged in (TTS already built above
+            # if tunga is live; if tunga failed, use a default TTS config here).
+            rodd_stt_full_config = RoddConfig(
+                tts=rodd_tts_config if tunga is not None else RoddTtsConfig(),
+                stt=rodd_stt_config,
+            )
+            mic_backend = MicrophoneCapture.best_available(rodd_stt_config.device, log)
+            vad_backend = VadDetector.best_available(rodd_stt_config, log)
+            whisper_backend = WhisperEngine.best_available(rodd_stt_config, log)
+            hlust = Hlust(
+                config=rodd_stt_full_config,
+                mic=mic_backend,
+                vad=vad_backend,
+                engine=whisper_backend,
+                logger=log,
+            )
+            await hlust.open()
+            if not hlust.is_available:
+                log.warning(
+                    "Hlust init succeeded but is_available=False — "
+                    "no real mic/Whisper backend found. Falling back to stdin."
+                )
+                hlust = None
+        except Exception as exc:
+            log.warning("Hlust init failed — ceremony continues text-only: %s", exc)
+            hlust = None
+
     print(
         f"[HERETIC] Bifrost open - connected to {bf_config.endpoint} "
         f"(model: {bf_config.model})",
@@ -147,10 +194,32 @@ async def _async_light(args: argparse.Namespace) -> int:
 
     try:
         while True:
-            # Read user input from stdin (blocking — CLI mode)
+            # Read user input — voice (Hlust) if available and stdin is a TTY,
+            # otherwise fall back to stdin readline (scriptable path).
             try:
-                print("you> ", end="", flush=True)
-                line = await asyncio.get_running_loop().run_in_executor(None, sys.stdin.readline)
+                if hlust is not None and hlust.is_available and sys.stdin.isatty():
+                    # Voice input path: Hlust captures utterance via mic + VAD + Whisper
+                    try:
+                        line = await hlust.capture_one_utterance()
+                    except Exception as exc:
+                        log.warning(
+                            "Hlust capture_one_utterance failed: %s; falling back to stdin",
+                            exc,
+                        )
+                        print("you> ", end="", flush=True)
+                        line = await asyncio.get_running_loop().run_in_executor(
+                            None, sys.stdin.readline
+                        )
+                    else:
+                        # Echo what was heard so the user can confirm before it sends
+                        if line:
+                            print(f"you> {line}", flush=True)
+                else:
+                    # Stdin path: scripted input or voice disabled/unavailable
+                    print("you> ", end="", flush=True)
+                    line = await asyncio.get_running_loop().run_in_executor(
+                        None, sys.stdin.readline
+                    )
             except (EOFError, KeyboardInterrupt):
                 break
 
@@ -205,7 +274,14 @@ async def _async_light(args: argparse.Namespace) -> int:
     print("\n[HERETIC] Extinguishing the ceremony...", file=sys.stderr)
     lc.transition(LifecycleState.SLOKNA)
 
-    # Close Tunga first — flush and speak any final buffered words before silence
+    # Close Hlust first — stop mic capture before we close TTS
+    if hlust is not None:
+        try:
+            await hlust.close()
+        except Exception as exc:
+            log.warning("Error closing Hlust: %s", exc)
+
+    # Close Tunga — flush and speak any final buffered words before silence
     if tunga is not None:
         try:
             await tunga.close()
