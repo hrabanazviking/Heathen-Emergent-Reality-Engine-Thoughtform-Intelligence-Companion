@@ -48,8 +48,17 @@ Agent-agnostic. Hermes on Pi. Claude. GPT. Local Ollama. Any OpenAI-compatible a
 | Coding rules and project laws | `RULES.AI.md` |
 | Cultural philosophy and cyber-Heathen ethos | `PHILOSOPHY.md` |
 | Plunder rules for borrowing from other repos | `MYTHIC_ENGINEERING_PLUNDERING_WORKFLOW.md` |
-
-Architecture docs (ARCHITECTURE.md, LAYER_INTERFACES.md, CEREMONY.md, ROADMAP.md) are being drafted in `docs/` as part of v0.0. When they exist, this table will be updated.
+| 6-layer architecture overview | `docs/architecture/ARCHITECTURE.md` |
+| Per-layer and per-sense contracts | `docs/architecture/LAYER_INTERFACES.md` |
+| Lifecycle state machine | `docs/architecture/CEREMONY.md` |
+| Tool protocol and Bifröst contract | `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md` |
+| Sense MCP contracts | `docs/architecture/SENSE_CONTRACTS.md` |
+| Domain ownership and folder structure | `docs/architecture/DOMAIN_MAP.md` |
+| System-wide data flows | `docs/cartography/DATA_FLOW.md` |
+| 3-machine topology and runtime states | `docs/cartography/SYSTEM_OVERVIEW.md` |
+| True Names and naming principles | `docs/NAMING.md` |
+| Milestone roadmap (v0.0 → v1.0) | `docs/ROADMAP.md` |
+| License registry and third-party credits | `THIRD_PARTY_NOTICES.md` |
 
 ---
 

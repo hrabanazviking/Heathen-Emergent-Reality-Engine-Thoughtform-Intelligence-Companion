@@ -79,13 +79,13 @@ Entries marked **License verification TBD** require Auditor action before the co
 ### ChatterBox TTS
 
 **Name:** ChatterBox TTS
-**Repository:** **License verification TBD** — ChatterBox client is confirmed live at `100.66.178.105:7851`. License of the ChatterBox project must be verified at v0.2 build phase. Auditor action required.
-**License:** **License verification TBD**
-**License URL:** **License verification TBD**
-**Attribution requirement:** Pending license verification
+**Repository:** https://github.com/resemble-ai/chatterbox
+**License:** MIT — Resemble AI. **Verified 2026-05-07** by Sólrún Hvítmynd (Auditor) via `gh repo view resemble-ai/chatterbox --json name,licenseInfo`.
+**License URL:** https://github.com/resemble-ai/chatterbox/blob/main/LICENSE
+**Attribution requirement:** Preserve MIT copyright notice in THIRD_PARTY_NOTICES.md. ChatterBox runs as an external service on the Pi; HERETIC holds no ChatterBox source code. No in-source header required.
 **Usage:** Text-to-speech engine for L2 Rödd Tunga (the tongue). HERETIC's Tunga MCP server sends HTTP POST requests to the ChatterBox endpoint on the Tailscale network; ChatterBox returns synthesized audio. ChatterBox runs on the Pi; HERETIC does not bundle it.
 **Vendor status:** External runtime service (runs on Pi) — HERETIC is a client only
-**Plunder map:** No plunder map created — no code plundering planned; entry exists to flag the license verification requirement
+**Plunder map:** No plunder map created — no code plundering planned; MIT license is compatible but no code is used
 
 ---
 
@@ -184,8 +184,8 @@ No third-party runtime dependencies. Sjón uses OS native screen capture APIs (D
 **Name:** python-libzim
 **Repository:** https://github.com/openzim/python-libzim
 **PyPI package:** `libzim` (same pip package as above — python-libzim IS the pip `libzim` package)
-**License:** **License verification TBD** — claims GPL-3.0; Auditor must verify SPDX metadata of installed pip package before v0.7.5. See `docs/plunder/KIWIX_TOOLS_PLUNDER_MAP.md`.
-**Attribution requirement:** Pending license verification; same GPL external-runtime-dep pattern as libzim C++ library.
+**License:** GPL-3.0 — openzim/kiwix. **Verified 2026-05-07** by Sólrún Hvítmynd (Auditor) via `gh repo view openzim/python-libzim --json name,licenseInfo`. See `docs/plunder/KIWIX_TOOLS_PLUNDER_MAP.md`.
+**Attribution requirement:** GPL-3.0. Same external-runtime-dep pattern as libzim C++ library — `try/except ImportError` guard in `parser_zim.py`; no GPL code enters HERETIC's distribution archive.
 **Usage:** Same as libzim entry above — python-libzim provides the Python API surface used by `parser_zim.py`.
 **Vendor status:** External runtime dependency — user installs via `pip install libzim`. **NEVER vendored.**
 **Plunder map:** `docs/plunder/KIWIX_TOOLS_PLUNDER_MAP.md`
@@ -232,7 +232,7 @@ No third-party runtime dependencies. Sjón uses OS native screen capture APIs (D
 **Attribution requirement:** Preserve MIT copyright notice
 **Usage:** Optional vector indexing for L5.9 Mímisbrunnr when `retrieval: vector` is configured. Used to build and query FAISS indices over ZIM/corpus content for semantic search.
 **Vendor status:** Optional runtime pip dependency — `faiss-cpu` (or `faiss-gpu` for hardware acceleration). `pip install faiss-cpu`.
-**License verification status:** **License verification TBD** — MIT is commonly reported for FAISS; Auditor should verify the exact license of the pip package (Facebook Research has used both MIT and custom licenses across FAISS versions) before v0.7.5.
+**License verification status:** **Verified MIT 2026-05-07** by Sólrún Hvítmynd (Auditor) via `gh repo view facebookresearch/faiss --json name,licenseInfo`. Current FAISS repo is unambiguously MIT.
 
 ---
 
@@ -246,7 +246,7 @@ No third-party runtime dependencies. Sjón uses OS native screen capture APIs (D
 **Attribution requirement:** Apache-2.0: preserve license, copyright notices, and NOTICE file if present. Mark modified files if any.
 **Usage:** Optional embedding library for L5.9 Mímisbrunnr vector retrieval. Used to encode article text into embedding vectors for FAISS indexing.
 **Vendor status:** Optional runtime pip dependency — `pip install sentence-transformers`.
-**License verification status:** Verified Apache-2.0 (commonly known; Auditor should confirm at v0.7.5 build time).
+**License verification status:** **Verified Apache-2.0 2026-05-07** by Sólrún Hvítmynd (Auditor) via `pip show sentence-transformers` (v5.3.0 installed, `License: Apache 2.0`) and `gh repo view UKPLab/sentence-transformers` (redirects to huggingface/sentence-transformers). Repository has migrated from UKPLab org to huggingface org; license unchanged.
 
 ---
 
@@ -309,14 +309,14 @@ The following corpus entries are added **automatically** when a user downloads a
 
 ## License Verification TBD — Auditor Action Required
 
-The following entries require license verification before their corresponding build phases begin:
+All four previously-TBD entries have been resolved. See audit report `docs/audit/AUDIT_v0.0_INITIAL_DOC_SET.md` §B for full evidence.
 
-| Dependency | Required for | Verification needed |
+| Dependency | Required for | Status |
 |---|---|---|
-| ChatterBox TTS | v0.2 First Voice | Confirm project license; source and distribution terms |
-| python-libzim (pip `libzim` SPDX) | v0.7.5 First Drink | Confirm exact SPDX identifier of installed pip package |
-| faiss-cpu | v0.7.5 First Drink | Confirm MIT vs other license for current PyPI release |
-| sentence-transformers | v0.7.5 First Drink | Confirm Apache-2.0 at build time |
+| ChatterBox TTS | v0.2 First Voice | **Resolved 2026-05-07 — MIT (resemble-ai/chatterbox)** |
+| python-libzim (pip `libzim` SPDX) | v0.7.5 First Drink | **Resolved 2026-05-07 — GPL-3.0 (openzim/python-libzim)** |
+| faiss-cpu | v0.7.5 First Drink | **Resolved 2026-05-07 — MIT (facebookresearch/faiss)** |
+| sentence-transformers | v0.7.5 First Drink | **Resolved 2026-05-07 — Apache-2.0 (huggingface/sentence-transformers)** |
 
 ---
 
