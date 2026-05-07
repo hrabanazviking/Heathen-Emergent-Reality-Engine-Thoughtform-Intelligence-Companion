@@ -333,7 +333,7 @@ class Tunga:
 
             # Run blocking playback in a thread-pool executor so we don't block
             # the asyncio event loop while speakers emit audio.
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()  # get_event_loop() deprecated in 3.10+
             try:
                 await loop.run_in_executor(None, self._playback.play, wav_bytes)
             except PlaybackError as exc:
