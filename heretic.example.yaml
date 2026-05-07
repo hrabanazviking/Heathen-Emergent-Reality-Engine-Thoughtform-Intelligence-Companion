@@ -1,0 +1,256 @@
+# heretic.example.yaml
+# =====================
+# Example configuration for H.E.R.E.T.I.C.
+# Copy to ~/heretic.yaml (or the OS config dir — see README_DEV.md) and edit.
+#
+# Top-level keys are the True Names of the six layers (code-facing identifiers):
+#   grunnr:     L0 Foundation (config, logging, lifecycle)
+#   bifrost:    L1 Agent Connection (the Bifröst bridge to the spirit)
+#   rodd:       L2 Voice (STT ears, TTS tongue)
+#   sjon:       L3 Vision (screen capture)
+#   vebond:     L4 UI Ceremony Shell (Eldahús / Summoning Circle)
+#   skilningr:  L5 MCP Sense Hub (all senses and sub-senses)
+#
+# Ref: docs/NAMING.md, docs/architecture/LAYER_INTERFACES.md
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L0 Grunnr — Foundation
+# ─────────────────────────────────────────────────────────────────────────────
+grunnr:
+  log_level: info             # trace | debug | info | warn | error
+  log_file: null              # null = stderr only; or relative path, e.g. "logs/heretic.log"
+  config_version: "1"         # schema version — do not change unless instructed
+  startup_timeout_seconds: 30 # max seconds for Kynding before slow senses are DEGRADED
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L1 Bifröst — Agent Connection
+# ─────────────────────────────────────────────────────────────────────────────
+bifrost:
+  # Primary agent endpoint (Hermes on Pi via Tailscale):
+  endpoint: "http://100.101.39.30:8643/v1"
+
+  # API key — NEVER store plaintext here. Use ${ENV_VAR} syntax:
+  api_key: "${HERETIC_AGENT_KEY}"
+
+  # Model name sent in every request:
+  model: "coding"
+
+  # Timeouts (seconds):
+  timeout_seconds: 30
+  stream_timeout_seconds: 120
+  connect_timeout_seconds: 15
+
+  # Retry and backoff:
+  max_retries: 3
+  backoff_seconds: [2, 5, 15]   # one value per retry attempt
+
+  # Heartbeat (disable for cloud agents to avoid billing):
+  heartbeat_enabled: true
+  heartbeat_interval_seconds: 30
+  heartbeat_miss_threshold: 3
+
+  # Streaming and token limits:
+  stream: true
+  max_tokens: 127000            # keep high — per RULES.AI.md
+
+  # Tool call concurrency:
+  max_parallel_tool_calls: 4
+  max_tool_call_rounds: 20
+
+  # Session queue:
+  drain_timeout_seconds: 10
+  input_queue_depth: 10
+
+  # Optional HERETIC context injection on ceremony start:
+  inject_context_on_connect: false
+
+  # Tailscale routing:
+  tailscale:
+    prefer: true                # prefer Tailscale 100.64.0.0/10 routes
+    fallback_to_direct: true    # fall back to raw endpoint if Tailscale is down
+
+  # Vision injection (send screen frames to agent when capability confirmed):
+  vision_in: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L2 Rödd — Voice
+# ─────────────────────────────────────────────────────────────────────────────
+rodd:
+  # STT (Hlust — the ear):
+  stt:
+    enabled: true
+    engine: whisper_cpp
+    model_path: "models/ggml-base.en.bin"   # relative to heretic data dir — never absolute
+    device: default                          # OS audio device name or "default"
+    vad_threshold: 0.6
+    language: en
+    load_strategy: lazy     # lazy = load on first utterance; eager = load at Kynding
+
+  # TTS (Tunga — the tongue):
+  tts:
+    enabled: true
+    engine: chatterbox
+    endpoint: "http://100.66.178.105:7851"  # ChatterBox on Tailscale mesh
+    voice_id: "default"
+    device: default
+    speed: 1.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L3 Sjón — Vision (screen capture)
+# ─────────────────────────────────────────────────────────────────────────────
+sjon:
+  screen:
+    enabled: true
+    interval_ms: 5000        # capture interval in milliseconds
+    width: 1280
+    height: 720
+    crop: null               # null = full screen; or {x: 0, y: 0, w: 1280, h: 720}
+    buffer_depth: 5          # frames to keep in ring buffer
+    save_frames: false       # opt-in only — never auto-saves
+
+  webcam:
+    enabled: false
+    device: default
+    interval_ms: 10000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L4 Vébond — UI Ceremony Shell (Eldahús / Fire-House)
+# ─────────────────────────────────────────────────────────────────────────────
+vebond:
+  theme: dark_norse               # dark_norse | (future: custom)
+  show_frame_thumbnail: false     # show latest screen frame thumbnail in status panel
+  show_agent_text_stream: true    # show streaming agent text in status panel
+  ceremony_button_confirm: true   # require confirmation before Extinguish
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L5 Skilningr — MCP Sense Hub
+# Each sense uses its code-facing identifier (per NAMING.md §5).
+# In v0.1 all senses are disabled — they activate in v0.5+.
+# ─────────────────────────────────────────────────────────────────────────────
+skilningr:
+  # L5.1 Minni — FileSystem (memory)
+  filesystem:
+    enabled: false
+    allowed_roots:
+      - "~/heretic_workspace"    # relative to home — never absolute
+    allow_write: true
+    allow_delete: false
+    max_file_size_mb: 50
+    restart_policy:
+      max_retries: 3
+      backoff_seconds: [2, 5, 15]
+    shutdown_grace_seconds: 5
+    health_interval_seconds: 15
+
+  # L5.2 Skepja — Terminal (creation)
+  terminal:
+    enabled: false
+    allowed_dirs:
+      - "~/heretic_workspace"
+    shell: "bash"              # bash | powershell | cmd | sh
+    default_timeout_seconds: 30
+    safe_mode: true
+    allow_unrestricted_dirs: false
+    forbidden_patterns:
+      - "rm -rf /"
+      - "format c:"
+    restart_policy:
+      max_retries: 3
+      backoff_seconds: [2, 5, 15]
+    shutdown_grace_seconds: 5
+    health_interval_seconds: 15
+
+  # L5.3 Leið — Browser (path/navigation)
+  browser:
+    enabled: false
+    browser_binary: null       # null = auto-detect Chromium/Chrome/Firefox
+    allowed_domains: []        # empty = all domains; non-empty = allowlist
+    headless: false
+    screenshot_on_navigate: false
+    restart_policy:
+      max_retries: 3
+      backoff_seconds: [2, 5, 15]
+    shutdown_grace_seconds: 5
+    health_interval_seconds: 15
+
+  # L5.4 Hönd — Photopea (hand/touch — requires Leið)
+  photopea:
+    enabled: false
+    photopea_url: "https://www.photopea.com"
+    restart_policy:
+      max_retries: 3
+      backoff_seconds: [2, 5, 15]
+    shutdown_grace_seconds: 5
+    health_interval_seconds: 15
+
+  # L5.5 Smiðja — Blender / Seidr-Smidja (forge)
+  blender:
+    enabled: false
+    brunhand_endpoint: "http://localhost:8765"
+    auth_token: "${SEIDR_BRUNHAND_TOKEN}"
+    timeout_seconds: 60
+    restart_policy:
+      max_retries: 3
+      backoff_seconds: [2, 5, 15]
+    shutdown_grace_seconds: 5
+    health_interval_seconds: 15
+
+  # L5.6 Líkami — VRChat (social body)
+  vrchat:
+    enabled: false
+    osc_host: "127.0.0.1"
+    osc_port: 9000
+    restart_policy:
+      max_retries: 3
+      backoff_seconds: [2, 5, 15]
+    shutdown_grace_seconds: 5
+    health_interval_seconds: 15
+
+  # L5.7 Boð — AgentMail (correspondence)
+  agentmail:
+    enabled: false
+    smtp_host: "smtp.example.com"
+    smtp_port: 587
+    smtp_user: "${HERETIC_MAIL_USER}"
+    smtp_password: "${HERETIC_MAIL_PASSWORD}"
+    imap_host: "imap.example.com"
+    imap_port: 993
+    from_address: "agent@example.com"
+    restart_policy:
+      max_retries: 3
+      backoff_seconds: [2, 5, 15]
+    shutdown_grace_seconds: 5
+    health_interval_seconds: 15
+
+  # L5.8 Nýr Limr — Custom plugin slot (new limb)
+  custom:
+    enabled: false
+    plugins: []
+    # Example plugin entry:
+    # plugins:
+    #   - id: "home_assistant"
+    #     command: "python"
+    #     args: ["-m", "heretic_sense_homeassistant"]
+    #     env:
+    #       HA_TOKEN: "${HA_TOKEN}"
+    #       HA_URL: "http://homeassistant.local:8123"
+    #     prefix: "home."
+
+  # L5.9 Mímisbrunnr — Library (wisdom well)
+  library:
+    enabled: false
+    backends:
+      - type: file_index
+        path: "~/heretic_workspace/library/curated"  # relative to home
+      - type: mimisbrunnr
+        data_dir: "~/.heretic/library/mimisbrunnr"   # configurable; never hardcoded
+        sources: []
+        retrieval: keyword    # keyword | vector | hybrid
+      - type: mindspark
+        endpoint: "http://localhost:7777"
+        enabled: false
+    restart_policy:
+      max_retries: 3
+      backoff_seconds: [2, 5, 15]
+    shutdown_grace_seconds: 5
+    health_interval_seconds: 15

@@ -1,0 +1,36 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+
+# Build artefacts
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Test and coverage artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# HERETIC runtime artefacts (never commit user config or keys)
+heretic.yaml
+.env
