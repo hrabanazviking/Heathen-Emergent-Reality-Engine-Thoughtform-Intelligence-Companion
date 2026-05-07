@@ -20,6 +20,7 @@ Ref:
 from __future__ import annotations
 
 import enum
+import threading
 from typing import Callable, Optional
 
 
@@ -108,11 +109,16 @@ class Lifecycle:
     def __init__(self, initial: LifecycleState = LifecycleState.HVILD) -> None:
         self._state: LifecycleState = initial
         self._observers: list[StateChangeCallback] = []
+        # Single lock guards all reads/writes of _state in multi-threaded contexts.
+        # The CLI is single-threaded in v0.1; the lock costs nothing but prevents
+        # future surprises when the Tauri async bridge arrives at v0.4.
+        self._lock: threading.Lock = threading.Lock()
 
     @property
     def current_state(self) -> LifecycleState:
         """Return the current lifecycle state. Always valid; never None."""
-        return self._state
+        with self._lock:
+            return self._state
 
     def on_state_change(self, callback: StateChangeCallback) -> None:
         """Register a callback to be called on every state transition.
@@ -126,29 +132,34 @@ class Lifecycle:
         """Transition to a new state and notify all observers.
 
         Transitions from a state to itself are silently ignored (no observer
-        calls, no log noise). Invalid transitions raise LifecycleError.
+        calls, no log noise). Invalid transitions raise LifecycleError with the
+        state unchanged — the ceremony continues from its current state.
+
+        Thread-safe: a single lock guards state read+write+swap atomically.
+        Observers are called outside the lock so they cannot deadlock on re-entry.
 
         Args:
             new_state: The target LifecycleState.
 
         Raises:
             LifecycleError: If the transition is not permitted from the current state.
-            NotImplementedError: Forge will implement the full transition guard table
-                                 once the state machine spec is locked in CEREMONY.md.
         """
-        if new_state == self._state:
-            return
+        with self._lock:
+            if new_state == self._state:
+                return
+            _validate_transition(self._state, new_state)
+            old_state = self._state
+            self._state = new_state
 
-        _validate_transition(self._state, new_state)
-
-        old_state = self._state
-        self._state = new_state
+        # Fire observers outside the lock — they must not call transition() themselves
+        # during the callback (re-entrant lock would deadlock). Observers are responsible
+        # for scheduling any follow-on transitions asynchronously.
         for observer in self._observers:
             try:
                 observer(old_state, new_state)
             except Exception:
-                # Observers must not crash the state machine.
-                # Forge will wire this to get_logger(__name__).warning().
+                # A crashing observer must not abort the state machine or silence
+                # subsequent observers. Log at warning level in production code.
                 pass
 
     def is_active(self) -> bool:
@@ -157,7 +168,69 @@ class Lifecycle:
         Active means: KYNDING, READY, OPENING, TENGSL, SAMRAEDUR, RECOVERING,
         SLOKNA, EXTINGUISHED. Inactive means: HVILD, CONFIG_ERROR.
         """
-        return self._state not in {LifecycleState.HVILD, LifecycleState.CONFIG_ERROR}
+        with self._lock:
+            return self._state not in {LifecycleState.HVILD, LifecycleState.CONFIG_ERROR}
+
+
+# Allowed transition table derived from CEREMONY.md §2 Full State Diagram and
+# §7 State Machine Formal Summary. Each key is a current state; the value is
+# the set of states it may legitimately transition into.
+#
+# Reading the table:
+#   HVILD     — can only progress forward to KYNDING (app launch)
+#   KYNDING   — progresses to READY (all layers init) or CONFIG_ERROR (bad yaml)
+#   READY     — user clicks connect → OPENING; app closes → HVILD
+#   OPENING   — probe succeeds → TENGSL; probe fails/cancel → READY
+#   TENGSL    — first turn → SAMRAEDUR; drop → RECOVERING; extinguish → SLOKNA
+#   SAMRAEDUR — extinguish → SLOKNA; drop → RECOVERING
+#   RECOVERING — reconnect → SAMRAEDUR; exhausted → READY
+#   SLOKNA    — drain done → EXTINGUISHED
+#   EXTINGUISHED — new ceremony → KYNDING; app closes → HVILD; reset → READY
+#   CONFIG_ERROR — terminal; only exit is to restart (HVILD via re-launch)
+_ALLOWED_TRANSITIONS: dict[LifecycleState, set[LifecycleState]] = {
+    LifecycleState.HVILD: {
+        LifecycleState.KYNDING,
+    },
+    LifecycleState.KYNDING: {
+        LifecycleState.READY,
+        LifecycleState.CONFIG_ERROR,
+    },
+    LifecycleState.READY: {
+        LifecycleState.OPENING,
+        LifecycleState.HVILD,
+    },
+    LifecycleState.OPENING: {
+        LifecycleState.TENGSL,
+        LifecycleState.READY,
+    },
+    LifecycleState.TENGSL: {
+        LifecycleState.SAMRAEDUR,
+        LifecycleState.RECOVERING,
+        LifecycleState.SLOKNA,
+        LifecycleState.READY,
+    },
+    LifecycleState.SAMRAEDUR: {
+        LifecycleState.SLOKNA,
+        LifecycleState.RECOVERING,
+    },
+    LifecycleState.RECOVERING: {
+        LifecycleState.SAMRAEDUR,
+        LifecycleState.READY,
+    },
+    LifecycleState.SLOKNA: {
+        LifecycleState.EXTINGUISHED,
+    },
+    LifecycleState.EXTINGUISHED: {
+        LifecycleState.KYNDING,
+        LifecycleState.HVILD,
+        LifecycleState.READY,
+    },
+    LifecycleState.CONFIG_ERROR: {
+        # CONFIG_ERROR is a terminal state for this launch. The only escape is
+        # a full process restart, which begins at HVILD again.
+        LifecycleState.HVILD,
+    },
+}
 
 
 def _validate_transition(
@@ -166,18 +239,22 @@ def _validate_transition(
 ) -> None:
     """Validate that the transition from ``current`` to ``target`` is permitted.
 
-    The full guard table is derived from CEREMONY.md §2 Full State Diagram and
-    §7 State Machine Formal Summary. Forge will implement the complete table.
+    Derived from CEREMONY.md §2 Full State Diagram and §7 Formal Summary.
 
     Raises:
-        LifecycleError: if the transition is not in the allowed table.
+        LifecycleError: if the transition is not in _ALLOWED_TRANSITIONS.
     """
-    raise NotImplementedError(
-        "Forge will implement: lifecycle._validate_transition — "
-        "build the allowed transition table from CEREMONY.md §7, "
-        "raise LifecycleError with a clear message on invalid transitions, "
-        "return silently on valid ones."
-    )
+    allowed = _ALLOWED_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise LifecycleError(
+            current,
+            target,
+            detail=(
+                f"Allowed targets from {current.value!r}: "
+                + (", ".join(s.value for s in sorted(allowed, key=lambda s: s.value))
+                   if allowed else "none (terminal state)")
+            ),
+        )
 
 
 class LifecycleError(RuntimeError):

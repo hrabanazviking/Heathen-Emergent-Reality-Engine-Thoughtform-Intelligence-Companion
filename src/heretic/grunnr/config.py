@@ -343,23 +343,105 @@ def _parse_yaml_to_dict(path: Path) -> dict[str, Any]:
     return raw
 
 
+def _merge_dict_into_dataclass(dc_instance: Any, raw: dict[str, Any]) -> None:
+    """Recursively merge raw YAML dict values into an existing dataclass instance.
+
+    Only sets fields that are declared on the dataclass. Unknown keys are silently
+    ignored (permissive parse — lets heretic.yaml grow forward without breaking
+    older code). Nested dicts are merged recursively if the corresponding field is
+    also a dataclass; otherwise the raw value is used directly.
+
+    This mutates dc_instance in-place.
+    """
+    import dataclasses  # local import to avoid circular usage
+    field_names = {f.name for f in dataclasses.fields(dc_instance)}
+    for key, value in raw.items():
+        if key not in field_names:
+            continue  # silently skip unknown keys
+        existing = getattr(dc_instance, key)
+        if dataclasses.is_dataclass(existing) and isinstance(value, dict):
+            # Recurse into nested dataclass (e.g. bifrost.tailscale)
+            _merge_dict_into_dataclass(existing, value)
+        else:
+            setattr(dc_instance, key, value)
+
+
+def _expand_env_vars_in_config(cfg: HereticConfig) -> None:
+    """Walk BifrostConfig string fields and expand ${ENV_VAR} references.
+
+    Warns (but does not fail) if a referenced variable is unset — substitutes
+    an empty string and logs a warning so the user knows something may be wrong.
+    The api_key field is the most common case; others like smtp credentials also
+    use this pattern.
+
+    Per AGENT_AGNOSTIC_PROTOCOL.md §3.3: tokens must not reach HTTP headers as
+    the raw ${...} string.
+    """
+    import re
+    from heretic.grunnr.logger import get_logger
+    log = get_logger(__name__)
+
+    _env_pattern = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
+
+    def _expand(value: str, context: str) -> str:
+        def _replace(match: re.Match) -> str:
+            var_name = match.group(1)
+            env_val = os.environ.get(var_name)
+            if env_val is None:
+                log.warning(
+                    "Config field %s references ${%s} but that environment variable "
+                    "is not set. Substituting empty string — set %s before starting HERETIC.",
+                    context, var_name, var_name,
+                )
+                return ""
+            return env_val
+        return _env_pattern.sub(_replace, value)
+
+    # Expand api_key — the primary secret reference
+    cfg.bifrost.api_key = _expand(cfg.bifrost.api_key, "bifrost.api_key")
+
+
 def _hydrate_config(raw: dict[str, Any]) -> HereticConfig:
     """Convert a raw YAML dict into a typed HereticConfig.
 
-    This function is intentionally permissive about missing keys — it applies
-    defaults from the dataclasses for any absent field. This means a minimal
-    heretic.yaml (just a few overrides) is valid.
+    Applies defaults from the dataclasses for any absent field — a minimal
+    heretic.yaml (just a few overrides) is valid. Unknown keys are silently
+    skipped so future config additions don't break older runtimes.
 
-    Forge will expand this with recursive dict merging and type coercion as
-    the full config schema is exercised in tests.
+    Validates config_version and raises ConfigLoadError on mismatch.
+
+    Args:
+        raw: The top-level dict from yaml.safe_load().
+
+    Returns:
+        Fully populated HereticConfig.
+
+    Raises:
+        ConfigLoadError: if config_version does not match SUPPORTED_CONFIG_VERSION.
     """
-    raise NotImplementedError(
-        "Forge will implement: config._hydrate_config — "
-        "recursively merge raw dict values into the dataclass hierarchy, "
-        "resolve ${ENV_VAR} references via os.environ, "
-        "validate config_version matches SUPPORTED_CONFIG_VERSION, "
-        "return a fully populated HereticConfig."
-    )
+    cfg = HereticConfig()  # start from defaults
+
+    # Check config_version before merging everything else — fail fast if schema mismatch
+    grunnr_raw = raw.get("grunnr", {})
+    if isinstance(grunnr_raw, dict):
+        version_in_file = grunnr_raw.get("config_version", SUPPORTED_CONFIG_VERSION)
+        if str(version_in_file) != SUPPORTED_CONFIG_VERSION:
+            raise ConfigLoadError(
+                f"heretic.yaml specifies config_version: {version_in_file!r} "
+                f"but this HERETIC build expects version {SUPPORTED_CONFIG_VERSION!r}. "
+                f"Please update your heretic.yaml to the new format or upgrade HERETIC."
+            )
+
+    # Merge each top-level block
+    for key in ("grunnr", "bifrost", "rodd", "sjon", "vebond", "skilningr"):
+        block = raw.get(key, {})
+        if isinstance(block, dict):
+            _merge_dict_into_dataclass(getattr(cfg, key), block)
+
+    # Expand ${ENV_VAR} references in string fields that use them
+    _expand_env_vars_in_config(cfg)
+
+    return cfg
 
 
 def load_config(path: Optional[str] = None) -> HereticConfig:
@@ -368,24 +450,33 @@ def load_config(path: Optional[str] = None) -> HereticConfig:
     This is the primary entry point for all layers that need configuration.
     No layer should call _resolve_config_path or _parse_yaml_to_dict directly.
 
+    Config search order when path is None:
+        1. $HERETIC_CONFIG environment variable
+        2. OS config dir (APPDATA/heretic on Windows, XDG_CONFIG_HOME on Linux, etc.)
+        3. ~/heretic.yaml
+
     Args:
-        path: Optional override path to heretic.yaml. If None, the canonical
-              search order is used (env var → XDG → home dir).
+        path: Optional override path to heretic.yaml (from --config CLI flag or
+              $HERETIC_CONFIG). If None, uses the canonical search order.
 
     Returns:
         HereticConfig: fully populated, typed config struct.
 
     Raises:
-        ConfigLoadError: if the file cannot be read, is malformed YAML,
+        ConfigLoadError: if the file cannot be found, read, parsed as YAML,
                          or the config_version does not match.
     """
-    raise NotImplementedError(
-        "Forge will implement: config.load_config — "
-        "call _resolve_config_path(path), "
-        "call _parse_yaml_to_dict(resolved_path), "
-        "call _hydrate_config(raw_dict), "
-        "return HereticConfig."
-    )
+    resolved = _resolve_config_path(path)
+
+    if not resolved.exists():
+        raise ConfigLoadError(
+            f"Cannot find heretic.yaml. Searched: {resolved}\n"
+            f"Create a config file or set the $HERETIC_CONFIG environment variable. "
+            f"See heretic.example.yaml for the full config reference."
+        )
+
+    raw = _parse_yaml_to_dict(resolved)
+    return _hydrate_config(raw)
 
 
 # ---------------------------------------------------------------------------

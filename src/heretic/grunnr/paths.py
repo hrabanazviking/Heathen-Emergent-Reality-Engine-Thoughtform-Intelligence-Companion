@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -41,14 +42,14 @@ def heretic_config_dir() -> Path:
     Returns the directory as a Path (may not exist yet — caller decides whether
     to create it).
     """
-    if os.name == "nt":
+    if sys.platform == "win32":
         appdata = os.environ.get("APPDATA", "")
         if appdata:
             return Path(appdata) / "heretic"
         return Path.home() / "AppData" / "Roaming" / "heretic"
 
-    # macOS
-    if os.uname().sysname == "Darwin":
+    # macOS — sys.platform is "darwin" on all macOS versions
+    if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "heretic"
 
     # Linux / other POSIX
@@ -68,13 +69,13 @@ def heretic_data_dir() -> Path:
     macOS:    ~/Library/Application Support/heretic/data/
     Linux:    $XDG_DATA_HOME/heretic/ or ~/.local/share/heretic/
     """
-    if os.name == "nt":
+    if sys.platform == "win32":
         localappdata = os.environ.get("LOCALAPPDATA", "")
         if localappdata:
             return Path(localappdata) / "heretic"
         return Path.home() / "AppData" / "Local" / "heretic"
 
-    if os.uname().sysname == "Darwin":
+    if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "heretic" / "data"
 
     xdg = os.environ.get("XDG_DATA_HOME", "")
@@ -90,13 +91,13 @@ def heretic_log_dir() -> Path:
     macOS:    ~/Library/Logs/heretic/
     Linux:    $XDG_STATE_HOME/heretic/ or ~/.local/state/heretic/
     """
-    if os.name == "nt":
+    if sys.platform == "win32":
         localappdata = os.environ.get("LOCALAPPDATA", "")
         if localappdata:
             return Path(localappdata) / "heretic" / "logs"
         return Path.home() / "AppData" / "Local" / "heretic" / "logs"
 
-    if os.uname().sysname == "Darwin":
+    if sys.platform == "darwin":
         return Path.home() / "Library" / "Logs" / "heretic"
 
     xdg = os.environ.get("XDG_STATE_HOME", "")
