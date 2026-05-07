@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format)
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -91,19 +91,20 @@ inhabits the body. When the ceremony ends, the body sleeps and the shrine endure
        |    drives Eldahús UI state
        |
        |-- [L5] Skilningr (MCP Sense Hub)
+            |  (tool prefix is the sense_id — no "sense." prefix in any tool name)
             |
-            |-- sense.auga       MCP server  (screen + vision)
-            |-- sense.hlust      MCP server  (STT endpoint)
-            |-- sense.tunga      MCP server  (TTS proxy)
-            |-- sense.hond       MCP server  (Photopea bridge)      [OPTIONAL]
-            |-- sense.smidja     MCP server  (Seidr-Smidja client)  [OPTIONAL]
-            |-- sense.leid       MCP server  (Browser automation)   [OPTIONAL]
-            |-- sense.minni      MCP server  (FileSystem)           [REQUIRED in minimal]
-            |-- sense.skepja     MCP server  (Terminal)             [OPTIONAL]
-            |-- sense.bod        MCP server  (AgentMail)            [OPTIONAL]
-            |-- sense.likami     MCP server  (VRChat bridge)        [OPTIONAL]
-            |-- sense.mimisbrunnr MCP server (Library)              [OPTIONAL]
-            |-- sense.nyr_limr/* MCP server  (custom plugins)       [OPTIONAL]
+            |-- auga        MCP server  [id: auga]        (screen + vision)        [REQUIRED]
+            |-- hlust       MCP server  [id: hlust]       (STT; substrate: L2 Rödd)[REQUIRED STT]
+            |-- tunga       MCP server  [id: tunga]       (TTS; substrate: L2 Rödd)[REQUIRED voice]
+            |-- photopea    MCP server  [id: photopea]    (Photopea bridge)         [OPTIONAL]
+            |-- blender     MCP server  [id: blender]     (Seidr-Smidja client)     [OPTIONAL]
+            |-- browser     MCP server  [id: browser]     (Browser automation)      [OPTIONAL]
+            |-- filesystem  MCP server  [id: filesystem]  (FileSystem)              [REQUIRED min]
+            |-- terminal    MCP server  [id: terminal]    (Terminal)                [OPTIONAL]
+            |-- agentmail   MCP server  [id: agentmail]   (AgentMail)               [OPTIONAL]
+            |-- vrchat      MCP server  [id: vrchat]      (VRChat bridge)           [OPTIONAL]
+            |-- library     MCP server  [id: library]     (Library / Mímisbrunnr)   [OPTIONAL]
+            |-- <prefix>/*  MCP server  [id: user-defined](custom plugins)          [OPTIONAL]
 ```
 
 ### On the Pi — the Spirit and its Voice
@@ -135,25 +136,26 @@ at runtime through the sense layer.
   SIBLING REPOS AND THEIR HERETIC PLUG-IN SLOTS
   ===============================================
 
-  runa/Seidr-Smidja                    --> L5.5 sense.smidja  [OPTIONAL]
+  runa/Seidr-Smidja                    --> L5.5 blender sense  [OPTIONAL]
   |-- Brúarhönd v0.1 — cross-machine VRoid Studio / Blender remote control
-  |-- Provides: screenshot, click, type, hotkey, vroid_open, vroid_export
+  |-- Provides: blender.screenshot, blender.click, blender.type_text, blender.hotkey,
+  |             blender.vroid_open, blender.vroid_export, blender.health, blender.capabilities
   |-- Status: 489 tests green, v0.1 shipped
-  |-- How: sense.smidja wraps Brúarhönd's HTTP API
+  |-- How: blender (Smiðja) sense wraps Brúarhönd's HTTP API
   |-- Lives: laptop (Blender running locally) or remote via Tailscale
 
-  runa/MindSpark_ThoughtForge          --> L5.9 sense.mimisbrunnr backend  [OPTIONAL]
+  runa/MindSpark_ThoughtForge          --> L5.9 library sense backend  [OPTIONAL]
   |-- Universal RAG + cognitive scaffolding layer
   |-- Provides: library search, document ingestion, vector retrieval
   |-- Status: v1.2.0, 620 tests, shipped
-  |-- How: sense.mimisbrunnr sends HTTP POST to MindSpark at localhost:7777
+  |-- How: library (Mímisbrunnr) sense sends HTTP POST to MindSpark at localhost:7777
   |-- Lives: laptop (local process, optional)
 
-  runa/WYRD-Protocol                   --> L5.8 sense.nyr_limr slot  [OPTIONAL, v1.x]
+  runa/WYRD-Protocol                   --> L5.8 Nýr Limr custom sense slot  [OPTIONAL, v1.x]
   |-- ECS-based AI world model
   |-- Provides: deterministic entity state, world ground truth
   |-- Status: v1.0.0 released, all 19 phases complete
-  |-- How: custom MCP server wrapping WYRD oracle API
+  |-- How: custom MCP server wrapping WYRD oracle API; tool prefix: wyrd.*
   |-- Lives: laptop or Pi (flexible)
   |-- Timeline: v1.0 HERETIC — optional; becomes relevant when agent needs situated world model
 
@@ -193,46 +195,62 @@ A traveler should know which roads must be walked and which are chosen paths.
 
   REQUIRED for agent to have ANY tools:
   - At least one sense in L5 must be enabled
-  - Minimum useful: sense.minni (FileSystem) — agent can read/write files
+  - Minimum useful: filesystem sense (True Name: Minni) — agent can read/write files
 ```
 
 ### Minimal install
 
 ```
   Minimal viable ceremony:
-  [L0 Grunnr] + [L1 Bifröst] + [L2 Rödd both] + [L4 Vébond] + [L5.1 sense.minni]
+  [L0 Grunnr] + [L1 Bifröst] + [L2 Rödd both] + [L4 Vébond] + [L5.1 filesystem (Minni)]
 
   What the agent can do:
   - hear you speak
   - speak back
-  - read and write files on your laptop
+  - read and write files on your laptop  (tools: filesystem.read_file, filesystem.write_file, …)
   - nothing else
 
   What requires more senses:
-  - seeing your screen:     add sense.auga  (L3 Sjón enabled)
-  - running commands:       add sense.skepja
-  - browsing the web:       add sense.leid
-  - sculpting in Blender:   add sense.smidja  (+ Seidr-Smidja running)
-  - painting in Photopea:   add sense.hond
-  - library access:         add sense.mimisbrunnr  (+ corpora downloaded)
-  - VRChat presence:        add sense.likami
-  - email:                  add sense.bod
-  - world model:            add sense.nyr_limr wrapping WYRD Protocol
+  - seeing your screen:     enable auga     (L3 Sjón substrate; tools: auga.snapshot, auga.describe)
+  - running commands:       enable terminal (tools: terminal.run_command)
+  - browsing the web:       enable browser  (tools: browser.navigate, browser.screenshot, …)
+  - sculpting in Blender:   enable blender  (+ Seidr-Smidja running; tools: blender.screenshot, …)
+  - painting in Photopea:   enable photopea (tools: photopea.new_document, photopea.evaluate_script, …)
+  - library access:         enable library  (+ corpora downloaded; tools: library.search, …)
+  - VRChat presence:        enable vrchat   (tools: vrchat.send_osc, vrchat.set_avatar_parameter, …)
+  - email:                  enable agentmail(tools: agentmail.send, agentmail.list_inbox, …)
+  - world model:            add custom Nýr Limr sense wrapping WYRD Protocol (prefix: wyrd.*)
 ```
 
-Each sense is individually toggled in `heretic.yaml`:
+Each sense is individually toggled in `heretic.yaml` using the code-facing sense_id as the
+subkey — not the True Name (except for auga/hlust/tunga whose True Names ARE their code-facing IDs).
+See NAMING.md §line 81 and SENSE_CONTRACTS.md §2 for the full True Name → sense_id mapping.
 
 ```yaml
 skilningr:
   senses:
-    minni:
+    filesystem:           # True Name: Minni
       enabled: true
-    auga:
+    auga:                 # True Name: Auga (True Name = code-facing ID for L5.10-12 senses)
       enabled: true
-    smidja:
-      enabled: false   # won't start if Seidr-Smidja isn't running
-    mimisbrunnr:
-      enabled: false   # won't start until corpora are downloaded
+    hlust:                # True Name: Hlust
+      enabled: true
+    tunga:                # True Name: Tunga
+      enabled: true
+    blender:              # True Name: Smiðja
+      enabled: false      # won't start if Seidr-Smidja isn't running
+    browser:              # True Name: Leið
+      enabled: false
+    photopea:             # True Name: Hönd
+      enabled: false
+    terminal:             # True Name: Skepja
+      enabled: false
+    agentmail:            # True Name: Boð
+      enabled: false
+    vrchat:               # True Name: Líkami
+      enabled: false
+    library:              # True Name: Mímisbrunnr
+      enabled: false      # won't start until corpora are downloaded
 ```
 
 ---
@@ -288,7 +306,7 @@ skilningr:
   Session log: appending events
   Eldahús: active ceremony display
   Optional cold-path:
-    sense.mimisbrunnr indexing in background
+    library (Mímisbrunnr) sense indexing in background
     session log archiver compressing old logs
 ```
 
@@ -379,20 +397,21 @@ A single reference for all external connections — physical location, HERETIC s
 |---|---|---|---|---|---|
 | Hermes Agent | Pi: `100.101.39.30:8643/v1` | L1 Bifröst endpoint | Bifröst | Required | Live |
 | ChatterBox TTS | Pi: `100.66.178.105:7851` | L2 Rödd (Tunga) | Rödd | Required for voice | Live |
-| Seidr-Smidja Brúarhönd | Laptop: `runa/Seidr-Smidja` | L5.5 sense.smidja | Skilningr | Optional | Shipped v0.1 |
-| Blender (application) | Laptop: user-installed | Controlled via Smiðja/Brúarhönd | Skilningr | Optional | External |
-| MindSpark ThoughtForge | Laptop: `runa/MindSpark_ThoughtForge` | L5.9 sense.mimisbrunnr backend | Skilningr | Optional | Shipped v1.2.0 |
-| WYRD Protocol | Laptop: `runa/WYRD-Protocol` | L5.8 sense.nyr_limr (custom MCP) | Skilningr | Optional v1.x | Shipped v1.0.0 |
-| Photopea | Laptop: browser/app | L5.4 sense.hond | Skilningr | Optional | External |
-| VRChat | Laptop/network | L5.6 sense.likami | Skilningr | Optional | External |
+| Seidr-Smidja Brúarhönd | Laptop: sibling repo `github.com/hrabanazviking/Seidr-Smidja` | L5.5 blender sense (True Name: Smiðja) | Skilningr | Optional | Shipped v0.1 |
+| Blender (application) | Laptop: user-installed | Controlled via blender sense / Brúarhönd | Skilningr | Optional | External |
+| MindSpark ThoughtForge | Laptop: sibling repo `github.com/hrabanazviking/MindSpark_ThoughtForge` | L5.9 library sense backend (True Name: Mímisbrunnr) | Skilningr | Optional | Shipped v1.2.0 |
+| WYRD Protocol | Laptop: sibling repo `github.com/hrabanazviking/WYRD-Protocol-World-Yielding-Real-time-Data-AI-world-model` | L5.8 Nýr Limr custom MCP (prefix: wyrd.*) | Skilningr | Optional v1.x | Shipped v1.0.0 |
+| Photopea | Laptop: browser/app | L5.4 photopea sense (True Name: Hönd) | Skilningr | Optional | External |
+| VRChat | Laptop/network | L5.6 vrchat sense (True Name: Líkami) | Skilningr | Optional | External |
 | libzim (Kiwix) | Laptop: installed by user | Mímisbrunnr library backend | Skilningr | Optional | GPL-2, runtime dep |
 | Whisper.cpp | Laptop: bundled or installed | L2 Rödd (Hlust) | Rödd | Required for STT | MIT |
 | Tailscale daemon | Laptop + Pi | Bifröst transport | Bifröst | Required | External |
 
-**Note on Seidr-Smidja:** The sense.smidja MCP server in HERETIC wraps Seidr-Smidja's
-Brúarhönd v0.1 API. Seidr-Smidja is a sibling repo (`runa/Seidr-Smidja`) that must be
-running locally. HERETIC calls its HTTP endpoints. Seidr-Smidja is the organ; HERETIC's
-sense.smidja is the nerve that connects to it.
+**Note on Seidr-Smidja:** The `blender` sense MCP server (True Name: Smiðja) in HERETIC wraps
+Seidr-Smidja's Brúarhönd v0.1 API. Seidr-Smidja is a sibling repo at
+`github.com/hrabanazviking/Seidr-Smidja` — it must be running locally. HERETIC calls its HTTP
+endpoints. Seidr-Smidja is the organ; HERETIC's blender sense server is the nerve that connects
+to it. Tool calls to this sense are prefixed `blender.*` (e.g., `blender.screenshot`).
 
 ---
 
@@ -406,15 +425,15 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
   v0.2  First Voice     TTS              L0 + L1 + L2 (Tunga)
   v0.3  First Listening  STT             L0 + L1 + L2 (full Rödd)
   v0.4  Summoning Circle  Tauri UI       L4 added (Eldahús + Vébond)
-  v0.5  First Sight      screen capture  L3 added (Sjón + sense.auga)
-  v0.6  Hands at the Forge  Blender MCP  L5.5 (sense.smidja + Seidr-Smidja)
-  v0.7  Files & Terminal   FS + terminal L5.1 + L5.2 (sense.minni + sense.skepja)
-  v0.7.5 First Drink       Mímisbrunnr  L5.9 light (Norse seed corpus)
-  v0.8  The Open Web       Browser MCP  L5.3 (sense.leid)
-  v0.9  The Painter        Photopea MCP L5.4 (sense.hond)
-  v0.10 The Longhouse Beyond VRChat + MindSpark  L5.6 + L5.9 MindSpark backend
-  v0.11 Correspondence    AgentMail      L5.7 (sense.bod)
-  v1.0  First Manifestation  full polish L5.8 (sense.nyr_limr plugin system)
+  v0.5  First Sight      screen capture  L3 added (Sjón substrate + auga sense)
+  v0.6  Hands at the Forge  Blender MCP  L5.5 (blender sense + Seidr-Smidja)
+  v0.7  Files & Terminal   FS + terminal L5.1 + L5.2 (filesystem + terminal senses)
+  v0.7.5 First Drink       Mímisbrunnr  L5.9 light (library sense + Norse seed corpus)
+  v0.8  The Open Web       Browser MCP  L5.3 (browser sense)
+  v0.9  The Painter        Photopea MCP L5.4 (photopea sense)
+  v0.10 The Longhouse Beyond VRChat + MindSpark  L5.6 (vrchat sense) + L5.9 MindSpark backend
+  v0.11 Correspondence    AgentMail      L5.7 (agentmail sense)
+  v1.0  First Manifestation  full polish L5.8 (Nýr Limr custom plugin system)
   v1.x+ New Limbs          community MCPs  Nýr Limr slots open
   v2.x  (stretch)          UE5/VR         optional photorealistic layer
 ```
@@ -466,8 +485,8 @@ What this looks like running on a desk:
 
   Laptop display:       Available to Sjón for screen capture on demand
 
-  Blender (if open):    Running on laptop, receiving commands from sense.smidja
-                        via Seidr-Smidja — the agent sculpts in your 3D space
+  Blender (if open):    Running on laptop, receiving commands from the blender sense
+                        (Smiðja) via Seidr-Smidja — the agent sculpts in your 3D space
 
   In the closet (Pi):   Hermes Agent quietly running — the spirit in its shrine
                         Waiting to be called, processing when called
