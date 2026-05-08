@@ -12,6 +12,8 @@
 - pip (or uv/pipx — any PEP 517-compatible installer)
 - Git on the `development` branch
 - (Optional) Tailscale installed and authenticated if you want live Bifröst connection tests
+- **v0.4.1+: Rust toolchain** — required to compile and run the Tauri shell (see §Tauri Shell below)
+- **v0.4.1+: Node.js 18+** — required to build the React frontend and run `npm` scripts
 
 ---
 
@@ -156,3 +158,95 @@ Implementation priority order for v0.1 First Communion:
 6. `cli.py` — `_cmd_light()` (the turn loop)
 
 Cover each with real tests as you go. Target ≥ 80% coverage per the v0.1 exit criteria.
+
+---
+
+## Tauri Shell (v0.4.1+)
+
+The native desktop shell wraps the React frontend in a WebView2 (Windows) /
+WebKit (macOS) / WebKitGTK (Linux) window and manages the Python sidecar lifecycle.
+
+### Install Rust
+
+**Windows (recommended via winget):**
+```powershell
+winget install Rustlang.Rust.MSVC
+# Restart your terminal after install to pick up PATH changes.
+rustc --version   # verify: rustc 1.77+
+```
+
+**Windows (alternative via rustup-init):**
+```powershell
+# Download and run https://win.rustup.rs/x86_64 (rustup-init.exe)
+# Then: rustup default stable
+```
+
+**Linux / macOS:**
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup default stable
+```
+
+**Required target for Windows MSI builds:**
+```bash
+rustup target add x86_64-pc-windows-msvc
+```
+
+### Install Tauri CLI
+
+```bash
+cargo install tauri-cli --version "^2" --locked
+# Verify:
+cargo tauri --version
+```
+
+### Install Node dependencies
+
+```bash
+# From the repo root (installs workspace devDeps including @tauri-apps/cli)
+npm install
+# From the frontend directory (installs @tauri-apps/api and React deps)
+cd frontend && npm install
+```
+
+### Run in development mode (Tauri + React + Python)
+
+```bash
+# 1. Ensure the heretic Python package is installed in editable mode:
+pip install -e ".[dev,serve]"
+
+# 2. From the repo root, run Tauri dev mode.
+#    This starts Vite on port 1420 AND the Rust shell simultaneously.
+#    The Rust shell spawns `python -m heretic serve` as a sidecar.
+cargo tauri dev
+```
+
+The window opens when: Vite is serving on 1420, the Rust shell compiled,
+and the Python sidecar passed its /health probe.
+
+### Build for release (platform installer)
+
+```bash
+# Builds: frontend (npm run build) -> Rust release binary -> platform installer
+cargo tauri build
+# Output (Windows): src-tauri/target/release/bundle/msi/heretic_0.4.1_x64_en-US.msi
+# Output (Linux):   src-tauri/target/release/bundle/deb/ and appimage/
+# Output (macOS):   src-tauri/target/release/bundle/dmg/
+```
+
+**v0.4.1 prerequisite note:** The .msi installer does NOT bundle Python. The
+end user must have Python 3.10+ on PATH with `pip install heretic[serve]` completed.
+Full self-contained bundling (PyInstaller) is v0.4.1.x work.
+
+### Troubleshoot: Rust not found after install
+
+```powershell
+# Windows: ensure Cargo bin directory is on PATH
+$env:PATH += ";$env:USERPROFILE\.cargo\bin"
+# Add that line to your PowerShell profile ($PROFILE) to persist it.
+```
+
+### Architecture reference
+
+See `docs/architecture/TAURI_SHELL.md` for the full window lifecycle diagram,
+sidecar approach rationale, IPC delineation, and Tauri 2 vs 1 differences.

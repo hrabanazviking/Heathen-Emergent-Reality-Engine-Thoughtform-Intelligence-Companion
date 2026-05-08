@@ -1,0 +1,17 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema/acl-manifest.json",
+  "identifier": "default",
+  "description": "Default capabilities for the HERETIC Summoning Circle window (v0.4.1).",
+  "windows": ["summoning-circle"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
+    "log:default",
+    "single-instance:default"
+  ]
+}

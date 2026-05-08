@@ -1,0 +1,46 @@
+[package]
+name = "heretic"
+version = "0.4.1"
+description = "H.E.R.E.T.I.C. native desktop shell — Tauri 2.x wrapper for the Summoning Circle"
+authors = []
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# Lib target required for iOS and Android mobile targets in future milestones.
+# crate-type includes cdylib for dynamic loading and rlib for Rust-linkable.
+name = "heretic_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "heretic"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri 2.x core — do NOT use "1.*" crates; the API surface differs substantially.
+tauri = { version = "2", features = ["macos-private-api"] }
+
+# Tauri 2 plugins — these replace v1 built-ins.
+tauri-plugin-single-instance = "2"
+tauri-plugin-log = "2"
+
+# Serde — required for Tauri IPC command serialization.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Logging facade — pairs with tauri-plugin-log.
+log = "0.4"
+
+# Async runtime — needed for sidecar health-probe future in spawn.
+tokio = { version = "1", features = ["full"] }
+
+# Error ergonomics — thiserror for typed errors; anyhow for top-level error chains.
+thiserror = "1"
+anyhow = "1"
