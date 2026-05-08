@@ -82,70 +82,13 @@ def test_forge_client_repr_does_not_include_token(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Stub method tests — all methods raise NotImplementedError in Wave 1
+# NOTE: Wave-1 placeholder tests asserting NotImplementedError on each stub
+# were removed when Forge implemented the method bodies in Wave 2 (commit
+# salvaged after Anthropic usage cap interrupted Forge mid-test-replacement).
+# Coverage gap is intentional and recorded for the v0.6.1 Auditor pass: the
+# implementation is real, but real-mocked-httpx tests for happy-path + error
+# mapping per failure mode F-1..F-5 should be added before v0.6.2.
 # ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_forge_client_open_raises_not_implemented():
-    """ForgeHttpClient.open() must raise NotImplementedError (Wave 2 stub)."""
-    cfg = ForgeConfig()
-    client = ForgeHttpClient(cfg)
-    with pytest.raises(NotImplementedError):
-        await client.open()
-
-
-@pytest.mark.asyncio
-async def test_forge_client_close_raises_not_implemented():
-    """ForgeHttpClient.close() must raise NotImplementedError (Wave 2 stub)."""
-    cfg = ForgeConfig()
-    client = ForgeHttpClient(cfg)
-    with pytest.raises(NotImplementedError):
-        await client.close()
-
-
-@pytest.mark.asyncio
-async def test_forge_client_health_raises_not_implemented():
-    """ForgeHttpClient.health() must raise NotImplementedError (Wave 2 stub)."""
-    cfg = ForgeConfig()
-    client = ForgeHttpClient(cfg)
-    with pytest.raises(NotImplementedError):
-        await client.health()
-
-
-@pytest.mark.asyncio
-async def test_forge_client_build_avatar_raises_not_implemented():
-    """ForgeHttpClient.build_avatar() must raise NotImplementedError (Wave 2 stub)."""
-    cfg = ForgeConfig()
-    client = ForgeHttpClient(cfg)
-    with pytest.raises(NotImplementedError):
-        await client.build_avatar({"base_asset_id": "test"})
-
-
-@pytest.mark.asyncio
-async def test_forge_client_get_avatar_raises_not_implemented():
-    """ForgeHttpClient.get_avatar() must raise NotImplementedError (Wave 2 stub)."""
-    cfg = ForgeConfig()
-    client = ForgeHttpClient(cfg)
-    with pytest.raises(NotImplementedError):
-        await client.get_avatar("fake-session-id")
-
-
-@pytest.mark.asyncio
-async def test_forge_client_inspect_avatar_raises_not_implemented():
-    """ForgeHttpClient.inspect_avatar() must raise NotImplementedError (Wave 2 stub)."""
-    cfg = ForgeConfig()
-    client = ForgeHttpClient(cfg)
-    with pytest.raises(NotImplementedError):
-        await client.inspect_avatar("output/test.vrm")
-
-
-@pytest.mark.asyncio
-async def test_forge_client_list_assets_raises_not_implemented():
-    """ForgeHttpClient.list_assets() must raise NotImplementedError (Wave 2 stub)."""
-    cfg = ForgeConfig()
-    client = ForgeHttpClient(cfg)
-    with pytest.raises(NotImplementedError):
-        await client.list_assets()
 
 
 # ---------------------------------------------------------------------------
