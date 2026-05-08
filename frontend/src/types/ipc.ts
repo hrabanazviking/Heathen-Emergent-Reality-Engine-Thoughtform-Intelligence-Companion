@@ -163,6 +163,44 @@ export interface ErrorEvent {
   message: string;
 }
 
+/**
+ * State values for a sense.tool_call activity event.
+ *   "started"   — tool call received; routing begun; HTTP not yet sent
+ *   "completed" — tool call succeeded; tool_result returned to agent
+ *   "failed"    — tool call failed; error tool_result returned to agent
+ */
+export type SenseToolCallState = "started" | "completed" | "failed";
+
+/**
+ * Emitted at each milestone of a tool call dispatched through L5 Skilningr.
+ * Frontend: animate the Smidja row in LayerStatusPanel.
+ * Direction: server -> client
+ * Emitted by: L5 Skilningr SmidjaSense.dispatch_tool_call via EventBus
+ */
+export interface SenseToolCall {
+  type: "sense.tool_call";
+  /** Current tool call milestone: "started" | "completed" | "failed" */
+  state: SenseToolCallState;
+  /** Sense prefix of the dispatched tool. Example: "smidja" */
+  sense: string;
+  /** Fully-qualified tool name. Example: "smidja.screenshot" */
+  tool_name: string;
+  /** The tool_call_id from the agent. Correlates start/complete/failed events. */
+  call_id: string;
+  /** ISO 8601 UTC timestamp of this milestone. */
+  timestamp: string;
+  /**
+   * Wall-clock duration in milliseconds.
+   * Set on "completed" and "failed" states. null on "started".
+   */
+  duration_ms: number | null;
+  /**
+   * Human-readable error description. Set on "failed" state only.
+   * Never contains bearer tokens or secret values.
+   */
+  error: string | null;
+}
+
 /** Discriminated union of all events the server may push to the client. */
 export type ProtocolEvent =
   | CeremonyStateChanged
@@ -172,7 +210,8 @@ export type ProtocolEvent =
   | SjonActivity
   | AgentToken
   | AgentTurnComplete
-  | ErrorEvent;
+  | ErrorEvent
+  | SenseToolCall;
 
 // ==============================================================================
 // Client -> Server Commands

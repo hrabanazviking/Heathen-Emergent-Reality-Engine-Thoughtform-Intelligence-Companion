@@ -33,6 +33,9 @@ async function resetStore() {
     hlustState: "idle",
     hlustLevelDb: null,
     sjonState: "idle",
+    smidjaToolCallState: null,
+    smidjaLastToolName: null,
+    smidjaToolCallCount: 0,
     chatHistory: [],
     activeTurnId: null,
     activeTokenSequence: -1,
@@ -344,5 +347,67 @@ describe("ToastSystem", () => {
     const dismissBtn = screen.getByRole("button", { name: /dismiss/i });
     fireEvent.click(dismissBtn);
     expect(useCeremonyStore.getState().toasts).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LayerStatusPanel — Smidja row (v0.6)
+// ---------------------------------------------------------------------------
+
+describe("LayerStatusPanel — Smidja row", () => {
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({
+      smidjaToolCallState: null,
+      smidjaLastToolName: null,
+      smidjaToolCallCount: 0,
+    });
+  });
+
+  it("renders a Smidja row in the panel", async () => {
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    render(<LayerStatusPanel />);
+    expect(screen.getByText("Smidja")).toBeTruthy();
+  });
+
+  it("Smidja dot shows unavailable when tool call state is null", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ smidjaToolCallState: null });
+    render(<LayerStatusPanel />);
+    expect(screen.getByLabelText("Smidja: unavailable")).toBeTruthy();
+  });
+
+  it("Smidja dot shows active when tool call is in flight", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ smidjaToolCallState: "started", smidjaLastToolName: "smidja.screenshot" });
+    render(<LayerStatusPanel />);
+    expect(screen.getByLabelText("Smidja: active")).toBeTruthy();
+  });
+
+  it("Smidja dot shows healthy when last tool call completed", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ smidjaToolCallState: "completed", smidjaLastToolName: "smidja.click" });
+    render(<LayerStatusPanel />);
+    expect(screen.getByLabelText("Smidja: healthy")).toBeTruthy();
+  });
+
+  it("Smidja dot shows degraded when last tool call failed", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ smidjaToolCallState: "failed", smidjaLastToolName: "smidja.vroid_open" });
+    render(<LayerStatusPanel />);
+    expect(screen.getByLabelText("Smidja: degraded")).toBeTruthy();
+  });
+
+  it("shows tool name note while active", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ smidjaToolCallState: "started", smidjaLastToolName: "smidja.hotkey" });
+    render(<LayerStatusPanel />);
+    // Note shows abbreviated name (strips "smidja." prefix)
+    expect(screen.getByText("hotkey")).toBeTruthy();
   });
 });

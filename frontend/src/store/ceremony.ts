@@ -21,6 +21,7 @@ import type {
   TungaState,
   HlustState,
   SjonState,
+  SenseToolCallState,
   WsConnectionStatus,
   CeremonyStateChanged,
   BifrostHealth,
@@ -30,6 +31,7 @@ import type {
   AgentToken,
   AgentTurnComplete,
   ErrorEvent,
+  SenseToolCall,
 } from "../types/ipc";
 import { WsClient } from "../api/ws-client";
 
@@ -78,6 +80,14 @@ export interface CeremonyState {
   // ---- Vision layer (L3 Sjon) ---
   sjonState: SjonState;
 
+  // ---- Sense layer (L5 Skilningr / Smidja) ---
+  /** State of the most-recently dispatched Smidja tool call. null when idle. */
+  smidjaToolCallState: SenseToolCallState | null;
+  /** Name of the most-recently dispatched tool. null when idle. */
+  smidjaLastToolName: string | null;
+  /** Count of tool calls dispatched in the current turn (reset on user message). */
+  smidjaToolCallCount: number;
+
   // ---- Chat ---
   chatHistory: ChatMessage[];
   /** The turn_id of the currently in-flight agent turn, or null. */
@@ -106,6 +116,12 @@ export interface CeremonyState {
 
   /** Called by WsClient when a SjonActivity event arrives. */
   setSjonState: (state: SjonState) => void;
+
+  /** Called by WsClient when a SenseToolCall event arrives for the Smidja sense. */
+  setSmidjaToolCallActivity: (
+    state: SenseToolCallState,
+    toolName: string,
+  ) => void;
 
   /** Called by WsClient when an AgentToken event arrives. Appends to active message. */
   appendAgentToken: (textDelta: string, sequenceId: number, turnId?: string) => void;
@@ -195,6 +211,9 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
   hlustState: "idle",
   hlustLevelDb: null,
   sjonState: "idle" as SjonState,
+  smidjaToolCallState: null,
+  smidjaLastToolName: null,
+  smidjaToolCallCount: 0,
   chatHistory: [],
   activeTurnId: null,
   activeTokenSequence: -1,
@@ -217,6 +236,15 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
 
   setSjonState: (state) =>
     set({ sjonState: state }),
+
+  setSmidjaToolCallActivity: (state, toolName) =>
+    set((s) => ({
+      smidjaToolCallState: state,
+      smidjaLastToolName: toolName,
+      // Increment count on each new STARTED event; reset is deferred to user message
+      smidjaToolCallCount:
+        state === "started" ? s.smidjaToolCallCount + 1 : s.smidjaToolCallCount,
+    })),
 
   appendAgentToken: (textDelta, sequenceId, turnId) => {
     set((s) => {
@@ -371,6 +399,13 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
 
     _wsClient.subscribe<ErrorEvent>("error", (event) => {
       get().addToast(event.level, event.source, event.message);
+    });
+
+    // Wire Smidja tool call activity — shows the hand working in LayerStatusPanel
+    _wsClient.subscribe<SenseToolCall>("sense.tool_call", (event) => {
+      if (event.sense === "smidja") {
+        get().setSmidjaToolCallActivity(event.state, event.tool_name);
+      }
     });
 
     // Attempt connection — throws if backend is unreachable

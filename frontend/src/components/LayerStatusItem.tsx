@@ -9,9 +9,10 @@
  *   "degraded"    -> Varud sienna (#c04020)
  *   "unavailable" -> Hvila-grey (#404850)
  *
- * Accent colors (for "active" state):
+ * Accent colors (for "active" and "healthy" states):
  *   undefined / "default" -> Mal-green (voice layers, Bifrost)
- *   "sjon"                -> Sjon-glow blue (#4080b0 / #60a8e0 glow)
+ *   "sjon"                -> Sjon-glow blue (#4080b0 / #60a8e0 glow) — L3 Vision
+ *   "eld"                 -> Eld-amber (#c8860a / #e8a020 glow) — L5 Smidja / forge
  *
  * The "active" health value is a superset of "healthy" — it adds a pulse animation
  * so that the operator can see when the capture pipeline is in-flight.
@@ -21,7 +22,7 @@ import React from "react";
 import clsx from "clsx";
 
 export type LayerHealth = "healthy" | "active" | "degraded" | "unavailable";
-export type LayerAccent = "sjon" | "default" | undefined;
+export type LayerAccent = "sjon" | "eld" | "default" | undefined;
 
 interface LayerStatusItemProps {
   label: string;
@@ -31,6 +32,7 @@ interface LayerStatusItemProps {
   /**
    * Accent theme for the status dot.
    * "sjon"    — Sjon-glow blue (#4080b0 / #60a8e0 glow per AESTHETIC.md L3 token).
+   * "eld"     — Eld-amber (#c8860a / #e8a020 glow per AESTHETIC.md forge/Smidja token).
    * "default" — Mal-green (standard for voice/connection layers).
    * undefined — falls back to "default".
    */
@@ -45,18 +47,19 @@ export function LayerStatusItem({
 }: LayerStatusItemProps): React.ReactElement {
   // Determine base dot color class.
   // "active" uses the same base color as "healthy" but adds a pulse.
-  // For "sjon" accent, active and healthy both use the Sjon-glow blue.
   const isSjon = accent === "sjon";
+  const isEld = accent === "eld";
 
   const dotColor = clsx({
     // Healthy / active — color depends on accent
-    "bg-mal-glow":  (status === "healthy" || status === "active") && !isSjon,
+    "bg-mal-glow":  (status === "healthy" || status === "active") && !isSjon && !isEld,
     "bg-sjon-glow": (status === "healthy" || status === "active") && isSjon,
+    "bg-eld-glow":  (status === "healthy" || status === "active") && isEld,
     // Degraded — always Varud sienna regardless of accent
     "bg-varud":     status === "degraded",
     // Unavailable — always Hvila-grey
     "bg-hvila":     status === "unavailable",
-    // Pulse animation for the "active" state (capturing / encoding in flight)
+    // Pulse animation for the "active" state (tool call / capture in flight)
     "animate-pulse": status === "active",
   });
 

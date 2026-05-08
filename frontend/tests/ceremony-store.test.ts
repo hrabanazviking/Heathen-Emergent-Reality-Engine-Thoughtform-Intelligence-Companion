@@ -399,3 +399,66 @@ describe("ceremony store — Sjon state v0.5.1 continuous mode", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Smidja tool call state — v0.6
+// ---------------------------------------------------------------------------
+
+describe("ceremony store — Smidja tool call state", () => {
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({
+      smidjaToolCallState: null,
+      smidjaLastToolName: null,
+      smidjaToolCallCount: 0,
+    });
+  });
+
+  it("smidjaToolCallState starts as null", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    expect(useCeremonyStore.getState().smidjaToolCallState).toBeNull();
+  });
+
+  it("smidjaLastToolName starts as null", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    expect(useCeremonyStore.getState().smidjaLastToolName).toBeNull();
+  });
+
+  it("setSmidjaToolCallActivity sets state and tool name", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSmidjaToolCallActivity("started", "smidja.screenshot");
+    const s = useCeremonyStore.getState();
+    expect(s.smidjaToolCallState).toBe("started");
+    expect(s.smidjaLastToolName).toBe("smidja.screenshot");
+  });
+
+  it("setSmidjaToolCallActivity increments count on 'started'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSmidjaToolCallActivity("started", "smidja.click");
+    expect(useCeremonyStore.getState().smidjaToolCallCount).toBe(1);
+    useCeremonyStore.getState().setSmidjaToolCallActivity("started", "smidja.hotkey");
+    expect(useCeremonyStore.getState().smidjaToolCallCount).toBe(2);
+  });
+
+  it("setSmidjaToolCallActivity does not increment count on 'completed'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSmidjaToolCallActivity("started", "smidja.click");
+    useCeremonyStore.getState().setSmidjaToolCallActivity("completed", "smidja.click");
+    expect(useCeremonyStore.getState().smidjaToolCallCount).toBe(1);
+  });
+
+  it("setSmidjaToolCallActivity transitions: started -> completed", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSmidjaToolCallActivity("started", "smidja.screenshot");
+    useCeremonyStore.getState().setSmidjaToolCallActivity("completed", "smidja.screenshot");
+    expect(useCeremonyStore.getState().smidjaToolCallState).toBe("completed");
+  });
+
+  it("setSmidjaToolCallActivity transitions: started -> failed", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSmidjaToolCallActivity("started", "smidja.vroid_open");
+    useCeremonyStore.getState().setSmidjaToolCallActivity("failed", "smidja.vroid_open");
+    expect(useCeremonyStore.getState().smidjaToolCallState).toBe("failed");
+    expect(useCeremonyStore.getState().smidjaLastToolName).toBe("smidja.vroid_open");
+  });
+});
