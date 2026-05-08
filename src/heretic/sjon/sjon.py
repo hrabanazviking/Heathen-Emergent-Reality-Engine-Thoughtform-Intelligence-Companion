@@ -46,6 +46,8 @@ Ref: docs/architecture/LAYER_INTERFACES.md §L3 Sjón.
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 import logging
 import time
 from collections import deque
@@ -61,7 +63,7 @@ from heretic.sjon.errors import (
 
 if TYPE_CHECKING:
     from heretic.sjon.capture import ScreenCaptureBackend
-    from heretic.sjon.config_model import SjonConfig
+    from heretic.sjon.config_model import SjonConfig, SjonWebcamConfig
     from heretic.sjon.encoder import FrameEncoder
     from heretic.sjon.webcam import WebcamCaptureBackend
 
@@ -563,14 +565,14 @@ class Sjón:
         self._logger.info("Sjon closed.")
 
     # ---------------------------------------------------------------------------
-    # Webcam snapshot (v0.5.2 — stub; Forge Wave 2 implements)
+    # Webcam snapshot (v0.5.2 — implemented by Forge Wave 2)
     # ---------------------------------------------------------------------------
 
     async def snapshot_webcam(self) -> list[str]:
         """Capture one webcam frame on demand and return it as a data URL list (v0.5.2).
 
         This is the webcam parallel of snapshot() for the v0.5.2 on-demand model.
-        It mirrors snapshot()'s contract exactly:
+        Mirrors snapshot()'s contract exactly:
             - Returns a list of zero or one data URL strings.
             - NEVER raises — all errors are caught and [] is returned.
             - Does not write frames to disk.
@@ -586,19 +588,6 @@ class Sjón:
         snapshot list. snapshot_webcam() itself is unaware of attach_policy — it
         captures and returns. The CLI / Bifröst turn loop applies the policy.
 
-        Forge Wave 2 implementation notes:
-            1. Gate on self._config.webcam.enabled — return [] if False.
-            2. Gate on self._webcam_backend being set and available() — return [] if not.
-            3. Run self._webcam_backend.capture(self._config.webcam.device_index)
-               in a thread pool executor (cv2.VideoCapture.read() blocks).
-            4. Encode raw BGR bytes:
-                - format == "jpeg": use cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, q])
-                  or Pillow Image.fromarray(rgb_frame).save(buf, "JPEG", quality=q).
-                - format == "png": use FrameEncoder.encode() or equivalent Pillow path.
-            5. Convert to base64 data URL.
-            6. Return [data_url].
-            7. On any exception: log warning; return [].
-
         Returns:
             A list of zero or one inline base64 data URL strings (JPEG or PNG per config).
             Empty list if: webcam disabled, backend unavailable, capture error, encode error.
@@ -611,9 +600,99 @@ class Sjón:
         Ref: src/heretic/sjon/INTERFACE.md §Webcam capture.
              TASK_HERETIC_v0.5.2_WEBCAM.md §Wave 2.
         """
-        raise NotImplementedError(
-            "Sjón.snapshot_webcam() is not yet implemented. "
-            "Forge Wave 2 will implement the full cv2 capture + JPEG/PNG encode + "
-            "base64 data URL path, mirroring snapshot() for screen capture. "
-            "Ref: TASK_HERETIC_v0.5.2_WEBCAM.md §Wave 2."
-        )
+        try:
+            # Gate 1: operator opt-in check.
+            if not self._config.webcam.enabled:
+                return []
+
+            # Gate 2: backend availability check.
+            if self._webcam_backend is None or not self._webcam_backend.available():
+                return []
+
+            # Run the blocking cv2.VideoCapture.read() in a thread pool executor
+            # to keep the asyncio event loop free during device I/O.
+            loop = asyncio.get_event_loop()
+            device_index = self._config.webcam.device_index
+            rgb_bytes, w, h = await loop.run_in_executor(
+                None,
+                lambda: self._webcam_backend.capture(device_index),  # type: ignore[union-attr]
+            )
+
+            # Encode the raw RGB frame to JPEG or PNG → base64 data URL.
+            # Runs in executor too — Pillow encode can be slow for large frames.
+            webcam_cfg = self._config.webcam
+            encoded_bytes, mime_type = await loop.run_in_executor(
+                None,
+                lambda: self._encode_webcam_frame(rgb_bytes, w, h, webcam_cfg),
+            )
+
+            data_url = (
+                f"data:{mime_type};base64,"
+                + base64.b64encode(encoded_bytes).decode("ascii")
+            )
+
+            self._logger.debug(
+                "Sjón webcam snapshot: %dx%d source, %s %d bytes, data_url %d chars.",
+                w, h, mime_type, len(encoded_bytes), len(data_url),
+            )
+            return [data_url]
+
+        except asyncio.CancelledError:
+            # Let CancelledError propagate — not a capture failure.
+            raise
+        except Exception as exc:
+            # Catch-all: snapshot_webcam() must never propagate to the turn loop.
+            self._logger.warning(
+                "Sjón webcam snapshot failed (turn continues without webcam frame): %s",
+                exc, exc_info=True,
+            )
+            return []
+
+    @staticmethod
+    def _encode_webcam_frame(
+        rgb_bytes: bytes,
+        width: int,
+        height: int,
+        webcam_cfg: "SjonWebcamConfig",
+    ) -> tuple[bytes, str]:
+        """Encode raw RGB frame bytes to JPEG or PNG, resized to fit max dimensions.
+
+        This is a pure synchronous helper intended to run in a thread pool executor.
+        Uses Pillow for resize + encode, matching the FrameEncoder path for screen capture.
+
+        BGR→RGB conversion has already been applied by OpenCvBackend.capture().
+        This method receives clean RGB bytes.
+
+        Args:
+            rgb_bytes: Raw RGB pixel data (3 bytes/pixel, row-major), width×height.
+            width:     Frame width in pixels.
+            height:    Frame height in pixels.
+            webcam_cfg: SjonWebcamConfig providing max_width, max_height, format, jpeg_quality.
+
+        Returns:
+            (encoded_bytes, mime_type) where mime_type is "image/jpeg" or "image/png".
+
+        Raises:
+            Any Pillow error on encode failure — callers must wrap in try/except.
+        """
+        from PIL import Image  # noqa: PLC0415 — Pillow is [vision] optional dep
+
+        # Reconstruct PIL Image from raw RGB bytes.
+        img = Image.frombytes("RGB", (width, height), rgb_bytes)
+
+        # Resize to fit within max dimensions, preserving aspect ratio.
+        max_w = webcam_cfg.max_width
+        max_h = webcam_cfg.max_height
+        if img.width > max_w or img.height > max_h:
+            img.thumbnail((max_w, max_h), Image.LANCZOS)
+
+        # Encode to JPEG or PNG.
+        buf = io.BytesIO()
+        if webcam_cfg.format == "jpeg":
+            img.save(buf, "JPEG", quality=webcam_cfg.jpeg_quality, optimize=True)
+            mime_type = "image/jpeg"
+        else:
+            img.save(buf, "PNG")
+            mime_type = "image/png"
+
+        return buf.getvalue(), mime_type

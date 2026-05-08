@@ -238,11 +238,31 @@ class OpenCvBackend(WebcamCaptureBackend):
         cause a short delay (~100 ms). This is acceptable for the backend
         selection probe which runs once at ceremony start.
         """
-        raise NotImplementedError(
-            "OpenCvBackend.available() is not yet implemented. "
-            "Forge Wave 2 will implement the cv2 import probe and VideoCapture "
-            "device open/close cycle. Ref: TASK_HERETIC_v0.5.2_WEBCAM.md §Wave 2."
-        )
+        try:
+            import cv2  # noqa: PLC0415 — lazy import; cv2 is optional
+        except ImportError:
+            self._logger.debug(
+                "OpenCvBackend.available(): cv2 import failed — "
+                "opencv-python not installed. Install heretic[vision]."
+            )
+            return False
+
+        try:
+            cap = cv2.VideoCapture(self._config.device_index)
+            opened = cap.isOpened()
+            cap.release()
+            if not opened:
+                self._logger.debug(
+                    "OpenCvBackend.available(): VideoCapture(%d) did not open — "
+                    "device absent or access denied.",
+                    self._config.device_index,
+                )
+            return bool(opened)
+        except Exception as exc:
+            self._logger.debug(
+                "OpenCvBackend.available(): device probe failed (%s) — returning False.", exc
+            )
+            return False
 
     def open(self) -> None:
         """Open cv2.VideoCapture for the configured device_index.
@@ -259,29 +279,58 @@ class OpenCvBackend(WebcamCaptureBackend):
             WebcamCaptureError: if cv2.VideoCapture cannot open the device.
             WebcamBackendUnavailableError: if cv2 is not installed.
         """
-        raise NotImplementedError(
-            "OpenCvBackend.open() is not yet implemented. "
-            "Forge Wave 2 will implement: import cv2; self._cap = cv2.VideoCapture(...); "
-            "check isOpened(); raise WebcamCaptureError on failure. "
-            "Ref: TASK_HERETIC_v0.5.2_WEBCAM.md §Wave 2."
-        )
+        try:
+            import cv2  # noqa: PLC0415
+        except ImportError as exc:
+            raise WebcamBackendUnavailableError(
+                "opencv-python (cv2) is not installed. "
+                "Install heretic[vision] to enable webcam capture."
+            ) from exc
+
+        with self._lock:
+            # Idempotent: already open → no-op
+            if self._cap is not None:
+                try:
+                    if self._cap.isOpened():  # type: ignore[union-attr]
+                        self._logger.debug(
+                            "OpenCvBackend.open(): already open — no-op."
+                        )
+                        return
+                except Exception:
+                    pass  # cap in an indeterminate state — re-open below
+
+            cap = cv2.VideoCapture(self._config.device_index)
+            if not cap.isOpened():
+                cap.release()
+                raise WebcamCaptureError(
+                    f"OpenCvBackend.open(): cv2.VideoCapture({self._config.device_index}) "
+                    f"did not open — device absent, index out of range, or OS denied access."
+                )
+            self._cap = cap
+            self._logger.debug(
+                "OpenCvBackend.open(): VideoCapture(%d) opened successfully.",
+                self._config.device_index,
+            )
 
     def capture(self, device_index: int) -> tuple[bytes, int, int]:
         """Capture one frame via cv2.VideoCapture.read().
+
+        Reads one frame from the open VideoCapture instance.
+        Returns raw RGB bytes (converted from OpenCV's native BGR).
+
+        BGR→RGB conversion:
+            OpenCV returns frames in BGR channel order. This method converts
+            to RGB via cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) before returning
+            raw bytes. Downstream callers (Pillow, vision API) expect RGB.
 
         cv2 lifecycle:
             retval, frame = self._cap.read()
             if not retval or frame is None:
                 raise WebcamCaptureError(...)
             # frame shape: (height, width, 3) in BGR channel order
-            height, width = frame.shape[:2]
-            raw_bgr_bytes = frame.tobytes()
-            return raw_bgr_bytes, width, height
-
-        The returned bytes are raw BGR pixels (3 bytes per pixel, row-major).
-        Callers must convert to the target format (JPEG or PNG) before encoding
-        to base64. The FrameEncoder or a JPEG-specific path in snapshot_webcam()
-        handles this conversion.
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            height, width = rgb_frame.shape[:2]
+            return rgb_frame.tobytes(), width, height
 
         Args:
             device_index: Zero-based device index. If it differs from the index
@@ -289,18 +338,46 @@ class OpenCvBackend(WebcamCaptureBackend):
                 is used (re-open on index change is a v0.5.x concern).
 
         Returns:
-            (raw_bgr_bytes, width, height).
+            (raw_rgb_bytes, width, height) — RGB channel order, 3 bytes/pixel.
 
         Raises:
             WebcamCaptureError: cap.read() returned retval=False or frame is None.
             WebcamBackendUnavailableError: cv2 not installed; or open() not called.
         """
-        raise NotImplementedError(
-            "OpenCvBackend.capture() is not yet implemented. "
-            "Forge Wave 2 will implement: acquire self._lock; call self._cap.read(); "
-            "check retval; extract shape; return (frame.tobytes(), width, height). "
-            "Ref: TASK_HERETIC_v0.5.2_WEBCAM.md §Wave 2."
-        )
+        try:
+            import cv2  # noqa: PLC0415
+        except ImportError as exc:
+            raise WebcamBackendUnavailableError(
+                "opencv-python (cv2) is not installed. "
+                "Install heretic[vision] to enable webcam capture."
+            ) from exc
+
+        with self._lock:
+            if self._cap is None:
+                raise WebcamBackendUnavailableError(
+                    "OpenCvBackend.capture() called before open(). "
+                    "Call open() first to acquire the device handle."
+                )
+
+            if device_index != self._config.device_index:
+                self._logger.warning(
+                    "OpenCvBackend.capture(): device_index=%d differs from configured %d. "
+                    "Using existing cap (re-open on index change is v0.5.x). "
+                    "Multi-camera is deferred.",
+                    device_index, self._config.device_index,
+                )
+
+            ret, frame = self._cap.read()  # type: ignore[union-attr]
+            if not ret or frame is None:
+                raise WebcamCaptureError(
+                    f"OpenCvBackend.capture(): cv2.VideoCapture.read() returned "
+                    f"retval={ret!r} — device disconnected, permission revoked, or stream ended."
+                )
+
+            # Convert BGR→RGB (Cartographer invariant — cv2 returns BGR; Pillow + vision APIs expect RGB)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            height, width = rgb_frame.shape[:2]
+            return rgb_frame.tobytes(), width, height
 
     def close(self) -> None:
         """Release cv2.VideoCapture and free the OS device handle.
@@ -313,12 +390,20 @@ class OpenCvBackend(WebcamCaptureBackend):
         Must be idempotent. Must not raise. Calling close() when already closed
         (self._cap is None) is a safe no-op.
         """
-        raise NotImplementedError(
-            "OpenCvBackend.close() is not yet implemented. "
-            "Forge Wave 2 will implement: acquire self._lock; call self._cap.release() "
-            "if cap is not None; set self._cap = None. "
-            "Ref: TASK_HERETIC_v0.5.2_WEBCAM.md §Wave 2."
-        )
+        with self._lock:
+            if self._cap is not None:
+                try:
+                    self._cap.release()  # type: ignore[union-attr]
+                except Exception as exc:
+                    # Never raise from close() — log and swallow.
+                    self._logger.debug(
+                        "OpenCvBackend.close(): cap.release() raised (ignored): %s", exc
+                    )
+                finally:
+                    self._cap = None
+                self._logger.debug(
+                    "OpenCvBackend.close(): VideoCapture released."
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -381,10 +466,9 @@ def best_available(
         1. OpenCvBackend — if cv2 is importable and OpenCvBackend.available() is True.
         2. WebcamNullBackend — always-unavailable fallback with warning.
 
-    Note: OpenCvBackend.available() currently raises NotImplementedError (Forge Wave 2
-    implements it). Until then the factory always falls through to WebcamNullBackend.
-    This is intentional for the v0.5.2 pre-stage scaffold — the factory chain is
-    structurally correct and will activate once Forge implements available().
+    Note: OpenCvBackend.available() probes cv2 import and VideoCapture device open.
+    If cv2 is absent or the device is unreachable the factory falls through to
+    WebcamNullBackend, ensuring the chain never returns None.
 
     Args:
         logger: Logger for backend selection diagnostics.
@@ -401,12 +485,6 @@ def best_available(
                 config.device_index,
             )
             return candidate
-    except NotImplementedError:
-        # available() is not yet implemented (Forge Wave 2). Fall through to NullBackend.
-        logger.debug(
-            "OpenCvBackend.available() not yet implemented — falling back to WebcamNullBackend. "
-            "Forge Wave 2 will implement the full backend. Ref: TASK_HERETIC_v0.5.2_WEBCAM.md."
-        )
     except Exception as exc:
         logger.debug(
             "OpenCvBackend availability probe failed (%s) — falling back to WebcamNullBackend.",
