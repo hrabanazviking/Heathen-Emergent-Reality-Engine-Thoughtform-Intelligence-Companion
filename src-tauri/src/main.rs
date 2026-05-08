@@ -101,22 +101,33 @@ async fn get_sidecar_port(state: State<'_, SidecarState>) -> Result<u16, TauriEr
 /// `tauri_plugin_dialog` is used for the native message box. This function
 /// does NOT return — it calls `app.exit(1)` after the user dismisses the dialog.
 ///
-/// FORGE-NOTE: `tauri_plugin_dialog::blocking::MessageDialogBuilder` is the
-/// synchronous API (Tauri 2 dialog plugin). In Tauri 2.x the blocking builder
-/// is available from `tauri_plugin_dialog::blocking`. If the dialog plugin
-/// version does not expose `.blocking()`, fall back to `MessageDialogBuilder`
-/// from the root of the crate and call `.show(|_| {})` (async fire-and-forget).
-/// The exit() call below runs regardless, so the dialog is best-effort UX.
+/// FORGE-NOTE (v0.4.1 first-compile verification):
+///
+/// The call below uses the Tauri 2 DialogExt extension pattern:
+///     app.dialog().message(message).title(title).blocking_show()
+///
+/// This is the documented tauri-plugin-dialog 2.x synchronous API, brought
+/// into scope via `use tauri_plugin_dialog::DialogExt`. If `blocking_show()`
+/// does not resolve at first compile, the safe fallback is:
+///
+///     app.dialog()
+///         .message(message)
+///         .title(title)
+///         .show(|_response| {});  // async; result ignored
+///     // app.exit(1) below still fires
+///
+/// In either path the application exits with code 1 after the dialog is shown.
+/// The async fallback's drawback: control returns before the user dismisses,
+/// so app.exit(1) may interrupt dialog rendering on some platforms. Prefer the
+/// blocking variant. If the synchronous API has been renamed in the installed
+/// crate version, search docs.rs/tauri-plugin-dialog/latest/ for
+/// "MessageDialogBuilder" or its successor trait.
 fn show_fatal_error_and_exit(app: &tauri::App, title: &str, message: &str) {
     log::error!("Fatal startup error — {}: {}", title, message);
 
-    // Show a blocking native message dialog.
-    // FORGE-NOTE: tauri_plugin_dialog 2.x API —
-    //   `tauri_plugin_dialog::blocking::MessageDialogBuilder::new(app, title, message).show()`
-    // This call blocks the current thread until the user clicks OK.
-    // If the blocking API is unavailable in the installed version, remove the
-    // `.blocking()` call and use the async `.show(|_| {})` form instead — the
-    // exit() call below will still run after the closure is enqueued.
+    // Show a blocking native message dialog using the Tauri 2 DialogExt API.
+    // FORGE-NOTE (v0.4.1): actual call is app.dialog().message().title().blocking_show()
+    // — see the doc-comment above for the fallback path if blocking_show() is absent.
     use tauri_plugin_dialog::DialogExt;
     let _ = app
         .dialog()
