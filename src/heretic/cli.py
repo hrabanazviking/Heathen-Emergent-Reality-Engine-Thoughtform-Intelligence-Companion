@@ -101,6 +101,66 @@ async def _async_light(args: argparse.Namespace) -> int:
 
     lc.transition(LifecycleState.TENGSL)
 
+    # --- Skilningr (L5): initialise sense hub and Smiðja hand if enabled ---
+    # Constructed at TENGSL (Bifröst is open; agent capabilities known).
+    # Failure here is non-fatal — ceremony continues without tool use.
+    from heretic.skilningr.senses.smidja.client import BrunhandHttpClient
+    from heretic.skilningr.senses.smidja.sense import SmidjaSense
+    from heretic.skilningr.senses.smidja.errors import (
+        BrunhandAuthError,
+        BrunhandUnreachableError,
+    )
+    from heretic.skilningr.dispatcher import ToolDispatcher
+    from heretic.skilningr.config_model import SmidjaConfig
+
+    dispatcher: ToolDispatcher | None = None
+    smidja_sense: SmidjaSense | None = None
+
+    grunnr_skilningr = cfg.skilningr
+    grunnr_smidja = grunnr_skilningr.smidja
+
+    if grunnr_smidja.enabled:
+        try:
+            smidja_config = SmidjaConfig(
+                enabled=grunnr_smidja.enabled,
+                host=grunnr_smidja.host,
+                port=grunnr_smidja.port,
+                token_env=grunnr_smidja.token_env,
+                request_timeout_seconds=grunnr_smidja.request_timeout_seconds,
+                require_https=grunnr_smidja.require_https,
+                host_name=grunnr_smidja.host_name,
+            )
+            smidja_client = BrunhandHttpClient(smidja_config, log)
+            smidja_sense = SmidjaSense(smidja_config, smidja_client, log, event_emitter=None)
+            await smidja_sense.open()
+            if smidja_sense.is_available:
+                dispatcher = ToolDispatcher()
+                dispatcher.register_sense("smidja", smidja_sense)
+                # Mark the Bifröst client as tool-use capable (body has hands now)
+                client._capability_tool_use = True
+                log.info(
+                    "Smiðja sense ready — %d tools registered.",
+                    len(dispatcher.all_tool_definitions()),
+                )
+            else:
+                log.warning(
+                    "Smiðja sense enabled but is_available=False after open() — "
+                    "ceremony continues without hands."
+                )
+        except (BrunhandAuthError, BrunhandUnreachableError) as exc:
+            log.warning(
+                "Smiðja init failed — ceremony continues without the hand: %s", exc
+            )
+            smidja_sense = None
+            dispatcher = None
+        except Exception as exc:
+            log.warning(
+                "Smiðja init raised unexpected error — ceremony continues without the hand: %s",
+                exc,
+            )
+            smidja_sense = None
+            dispatcher = None
+
     # --- Tunga: initialise TTS voice if enabled ---
     # Build a full RoddTtsConfig bridging from the grunnr-layer config snapshot.
     # This mirrors the BifrostConfig bridge above — neither layer reads heretic.yaml
@@ -338,30 +398,126 @@ async def _async_light(args: argparse.Namespace) -> int:
 
             messages.append({"role": "user", "content": user_content})
 
-            # Stream the response
+            # --- Multi-round tool dispatch loop ---
+            # Build tools array when dispatcher is ready and agent supports tool_use.
+            # Loops until agent emits a text response (no tool calls) or
+            # max_tool_call_rounds is reached (safety cap).
+            tools_array = None
+            if dispatcher is not None and client.capability_tool_use:
+                tools_array = dispatcher.all_tool_definitions() or None
+
+            tool_call_rounds = 0
+            max_rounds = bf_config.max_tool_call_rounds
+
             print("agent> ", end="", flush=True)
             assistant_text = ""
-            try:
-                async for chunk in client.send_message(messages):
-                    # Text chunks are printed directly; tool call JSON goes to log
-                    if chunk.startswith("{") and '"type": "tool_call"' in chunk:
-                        log.info("Tool call: %s", chunk)
-                    else:
-                        print(chunk, end="", flush=True)
-                        assistant_text += chunk
-                        # Feed each streaming text delta into Tunga's sentence chunker.
-                        # Tunga accumulates until a sentence boundary + min_chars fires,
-                        # then synthesises and plays. Degraded Tunga silently no-ops.
-                        if tunga is not None and not tunga.is_degraded:
+
+            while True:
+                # Collect streaming chunks and accumulated tool_calls in this pass
+                accumulated_tool_calls: list[dict] = []
+                collected_text = ""
+                had_bifrost_error = False
+
+                try:
+                    async for chunk in client.send_message(messages, tools=tools_array):
+                        if chunk.startswith("{") and '"type": "tool_call"' in chunk:
+                            # Bifröst emits completed tool_call records as JSON strings
+                            import json as _json
                             try:
-                                await tunga.feed_chunk(chunk)
+                                tc_record = _json.loads(chunk)
+                                # Re-shape into OpenAI tool_call format for dispatcher
+                                accumulated_tool_calls.append({
+                                    "id": tc_record.get("id", ""),
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc_record.get("name", ""),
+                                        "arguments": tc_record.get("arguments", "{}"),
+                                    },
+                                })
+                                log.info(
+                                    "Tool call received: %s (id=%s)",
+                                    tc_record.get("name"), tc_record.get("id"),
+                                )
                             except Exception as exc:
-                                log.warning("Tunga.feed_chunk error (ignored): %s", exc)
-            except BifrostError as exc:
-                print(f"\n[HERETIC] Error: {exc}", file=sys.stderr)
-                if args.debug:
-                    import traceback
-                    traceback.print_exc()
+                                log.warning("Could not parse tool_call record: %s", exc)
+                        else:
+                            print(chunk, end="", flush=True)
+                            collected_text += chunk
+                            if tunga is not None and not tunga.is_degraded:
+                                try:
+                                    await tunga.feed_chunk(chunk)
+                                except Exception as exc:
+                                    log.warning("Tunga.feed_chunk error (ignored): %s", exc)
+                except BifrostError as exc:
+                    print(f"\n[HERETIC] Error: {exc}", file=sys.stderr)
+                    if args.debug:
+                        import traceback
+                        traceback.print_exc()
+                    had_bifrost_error = True
+
+                # If agent produced tool calls and we have a dispatcher and rounds left,
+                # execute the tools and loop
+                if (
+                    accumulated_tool_calls
+                    and dispatcher is not None
+                    and tool_call_rounds < max_rounds
+                    and not had_bifrost_error
+                ):
+                    tool_call_rounds += 1
+                    log.info(
+                        "Dispatching %d tool call(s) (round %d/%d).",
+                        len(accumulated_tool_calls), tool_call_rounds, max_rounds,
+                    )
+
+                    # Append the assistant message with tool_calls to the context
+                    if collected_text:
+                        messages.append({
+                            "role": "assistant",
+                            "content": collected_text,
+                            "tool_calls": accumulated_tool_calls,
+                        })
+                    else:
+                        messages.append({
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": accumulated_tool_calls,
+                        })
+
+                    # Dispatch each tool call and add results to messages
+                    for tool_call in accumulated_tool_calls:
+                        try:
+                            tool_result = await dispatcher.dispatch(tool_call)
+                        except Exception as exc:
+                            log.error(
+                                "Dispatcher raised unexpectedly for tool %r: %s",
+                                tool_call.get("function", {}).get("name"), exc,
+                            )
+                            # Build a safe error result manually
+                            import json as _json
+                            tool_result = {
+                                "tool_call_id": tool_call.get("id", "unknown"),
+                                "role": "tool",
+                                "content": _json.dumps({
+                                    "error": True,
+                                    "code": "SENSE_INTERNAL_ERROR",
+                                    "message": f"Dispatcher error: {type(exc).__name__}",
+                                }),
+                            }
+                        messages.append(tool_result)
+
+                    # Print a separator before next agent response
+                    print("\nagent> ", end="", flush=True)
+                    continue  # Loop for the agent's next response
+
+                # No tool calls OR dispatcher unavailable OR rounds exhausted — done
+                if tool_call_rounds >= max_rounds and accumulated_tool_calls:
+                    log.warning(
+                        "Tool-call round cap reached at %d — breaking dispatch loop.",
+                        max_rounds,
+                    )
+                assistant_text = collected_text
+                break
+
             print()  # newline after streamed response
 
             # Flush any remaining buffered speech at end of agent turn
@@ -380,6 +536,13 @@ async def _async_light(args: argparse.Namespace) -> int:
     # --- Slokna: clean shutdown ---
     print("\n[HERETIC] Extinguishing the ceremony...", file=sys.stderr)
     lc.transition(LifecycleState.SLOKNA)
+
+    # Close Smiðja sense first (L5 hands) — stop any in-flight Brúarhönd sessions
+    if smidja_sense is not None:
+        try:
+            await smidja_sense.close()
+        except Exception as exc:
+            log.warning("Error closing Smiðja sense: %s", exc)
 
     # Close Hlust first — stop mic capture before we close TTS
     if hlust is not None:

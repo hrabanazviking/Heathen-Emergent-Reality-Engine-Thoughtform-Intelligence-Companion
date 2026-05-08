@@ -120,7 +120,7 @@ def _make_mock_client(chunks: list[str] | None = None):
     client.capability_vision_in = False
     client.capability_streaming = True
 
-    async def _fake_send(messages):
+    async def _fake_send(messages, **kwargs):
         for chunk in (chunks or ["ok"]):
             yield chunk
 
@@ -391,7 +391,7 @@ async def test_stdin_path_unaffected_when_stt_disabled() -> None:
     def _fake_readline():
         return readline_responses.pop(0) if readline_responses else ""
 
-    async def _fake_send(messages):
+    async def _fake_send(messages, **kwargs):
         send_message_calls[0] += 1
         yield "response text"
 
