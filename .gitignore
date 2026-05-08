@@ -38,3 +38,4 @@ heretic.yaml
 # Frontend build artifacts
 frontend/node_modules/
 frontend/dist/
+src-tauri/target/
