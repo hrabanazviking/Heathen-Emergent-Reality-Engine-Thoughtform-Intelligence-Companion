@@ -134,17 +134,27 @@ class TestSjonScreenConfigSaveFramesWarning:
 # ---------------------------------------------------------------------------
 
 class TestSjonWebcamConfigDefaults:
+    """Updated v0.5.2: SjonWebcamConfig fields fully activated.
+    Stub fields (device, interval_ms) replaced by the seven canonical v0.5.2 fields.
+    """
+
     def test_defaults(self) -> None:
         from heretic.sjon.config_model import SjonWebcamConfig
         cfg = SjonWebcamConfig()
         assert cfg.enabled is False
-        assert cfg.device == "default"
-        assert cfg.interval_ms == 10000
+        assert cfg.device_index == 0
+        assert cfg.max_width == 1280
+        assert cfg.max_height == 720
+        assert cfg.format == "jpeg"
+        assert cfg.jpeg_quality == 85
+        assert cfg.attach_policy == "screen_only"
 
-    def test_negative_interval_ms_raises(self) -> None:
+    def test_invalid_jpeg_quality_zero_raises(self) -> None:
+        """Replaces test_negative_interval_ms_raises — interval_ms field removed in v0.5.2.
+        jpeg_quality=0 is below the valid range [1, 100] and must raise ValueError."""
         from heretic.sjon.config_model import SjonWebcamConfig
-        with pytest.raises(ValueError, match="interval_ms"):
-            SjonWebcamConfig(interval_ms=-1)
+        with pytest.raises(ValueError, match="jpeg_quality"):
+            SjonWebcamConfig(jpeg_quality=0)
 
 
 # ---------------------------------------------------------------------------

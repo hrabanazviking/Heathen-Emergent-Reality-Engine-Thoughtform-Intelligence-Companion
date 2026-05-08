@@ -7,14 +7,17 @@ can catch the specific subclass.
 
 Error taxonomy (mirrors the thiserror-style hierarchy used in rodd.errors):
 
-    SjonError                        # root — catch-all for any Sjón failure
-        ScreenCaptureError           # failure during screen capture operation
-            PermissionDeniedError    # OS denied screen capture permission
-        BackendUnavailableError      # no capture backend available on this machine
-        FrameEncodingError           # failure during frame encoding (resize/PNG/base64)
-        ThrottleRejectedError        # snapshot rejected — within min_interval_ms window
+    SjonError                          # root — catch-all for any Sjón failure
+        ScreenCaptureError             # failure during screen capture operation
+            PermissionDeniedError      # OS denied screen capture permission
+        BackendUnavailableError        # no screen capture backend available on this machine
+        FrameEncodingError             # failure during frame encoding (resize/PNG/base64)
+        ThrottleRejectedError          # snapshot rejected — within min_interval_ms window
+        WebcamCaptureError             # failure during webcam capture operation (v0.5.2)
+            WebcamBackendUnavailableError  # no webcam backend available / cv2 absent
 
 Ref: docs/architecture/LAYER_INTERFACES.md §L3 Sjón Error model.
+     src/heretic/sjon/INTERFACE.md §Webcam capture (v0.5.2).
 """
 
 from __future__ import annotations
@@ -90,4 +93,38 @@ class ThrottleRejectedError(SjonError):
 
     Callers should treat this as a soft rejection — continue without a frame
     for this turn. The error does NOT indicate a backend failure.
+    """
+
+
+# ---------------------------------------------------------------------------
+# Webcam errors (v0.5.2)
+# ---------------------------------------------------------------------------
+
+class WebcamCaptureError(SjonError):
+    """Raised when a webcam capture operation fails (v0.5.2).
+
+    This covers failures after a working backend has been selected — i.e., the
+    backend is available and open() succeeded, but the capture call (cv2.VideoCapture
+    .read()) returned retval=False or a None/empty frame.
+
+    Distinct from WebcamBackendUnavailableError (no backend/cv2 present at all).
+
+    Recovery: log warning; skip webcam frame for this turn; retry on next
+    snapshot_webcam() call. The ceremony continues without a webcam frame.
+    """
+
+
+class WebcamBackendUnavailableError(WebcamCaptureError):
+    """Raised when no webcam capture backend is available on this machine (v0.5.2).
+
+    Occurs when:
+        - opencv-python (cv2) is not installed (heretic[vision] not installed).
+        - The WebcamNullBackend.capture() is called directly (misconfiguration guard).
+        - OpenCvBackend.capture() is called before open() is called.
+        - The device at device_index is absent or inaccessible.
+
+    Recovery: capability flag ?vision_webcam (internal-bus) becomes False.
+    Sjón webcam capture disables itself for the ceremony; the turn loop continues
+    with screen-only frames (or no frames if screen is also unavailable).
+    The user must install cv2 and/or connect a webcam and restart the ceremony.
     """

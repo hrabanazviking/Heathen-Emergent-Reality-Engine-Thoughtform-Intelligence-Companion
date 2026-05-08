@@ -63,6 +63,7 @@ if TYPE_CHECKING:
     from heretic.sjon.capture import ScreenCaptureBackend
     from heretic.sjon.config_model import SjonConfig
     from heretic.sjon.encoder import FrameEncoder
+    from heretic.sjon.webcam import WebcamCaptureBackend
 
 # Oversize frame threshold: if the PNG exceeds this, we retry at half resolution.
 # 4 MB is a generous upper bound — normal 1280x720 PNGs are ~0.3-1.2 MB.
@@ -118,6 +119,14 @@ class Sjón:
         self._encoder = encoder
         self._logger = logger or logging.getLogger(__name__)
         self._event_emitter = event_emitter
+
+        # Webcam backend slot (v0.5.2 — scaffold).
+        # None until Forge Wave 2 wires best_available(webcam) into __init__ or
+        # a future set_webcam_backend() call. snapshot_webcam() checks for None
+        # and raises NotImplementedError when the backend is not yet injected.
+        # Forge Wave 2 will either add webcam_backend as a constructor parameter
+        # (matching the capture_backend injection pattern) or lazy-init it here.
+        self._webcam_backend: Optional["WebcamCaptureBackend"] = None
 
         # Throttle state — guards min_interval_ms.
         # _throttle_lock is initialised lazily on first snapshot() call so that
@@ -552,3 +561,59 @@ class Sjón:
             )
         self._last_capture_ts = 0.0
         self._logger.info("Sjon closed.")
+
+    # ---------------------------------------------------------------------------
+    # Webcam snapshot (v0.5.2 — stub; Forge Wave 2 implements)
+    # ---------------------------------------------------------------------------
+
+    async def snapshot_webcam(self) -> list[str]:
+        """Capture one webcam frame on demand and return it as a data URL list (v0.5.2).
+
+        This is the webcam parallel of snapshot() for the v0.5.2 on-demand model.
+        It mirrors snapshot()'s contract exactly:
+            - Returns a list of zero or one data URL strings.
+            - NEVER raises — all errors are caught and [] is returned.
+            - Does not write frames to disk.
+            - Respects sjon.webcam.enabled; returns [] immediately when disabled.
+
+        Data URL format:
+            When sjon.webcam.format is "jpeg":
+                "data:image/jpeg;base64,<encoded_jpeg>"
+            When sjon.webcam.format is "png":
+                "data:image/png;base64,<encoded_png>"
+
+        attach_policy governs how the caller combines this list with the screen
+        snapshot list. snapshot_webcam() itself is unaware of attach_policy — it
+        captures and returns. The CLI / Bifröst turn loop applies the policy.
+
+        Forge Wave 2 implementation notes:
+            1. Gate on self._config.webcam.enabled — return [] if False.
+            2. Gate on self._webcam_backend being set and available() — return [] if not.
+            3. Run self._webcam_backend.capture(self._config.webcam.device_index)
+               in a thread pool executor (cv2.VideoCapture.read() blocks).
+            4. Encode raw BGR bytes:
+                - format == "jpeg": use cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, q])
+                  or Pillow Image.fromarray(rgb_frame).save(buf, "JPEG", quality=q).
+                - format == "png": use FrameEncoder.encode() or equivalent Pillow path.
+            5. Convert to base64 data URL.
+            6. Return [data_url].
+            7. On any exception: log warning; return [].
+
+        Returns:
+            A list of zero or one inline base64 data URL strings (JPEG or PNG per config).
+            Empty list if: webcam disabled, backend unavailable, capture error, encode error.
+
+        Contract: never raises. Logs warnings for recoverable errors.
+
+        Privacy: never writes webcam frames to disk. Physical-presence capture —
+        only proceed when sjon.webcam.enabled is explicitly True (operator opt-in).
+
+        Ref: src/heretic/sjon/INTERFACE.md §Webcam capture.
+             TASK_HERETIC_v0.5.2_WEBCAM.md §Wave 2.
+        """
+        raise NotImplementedError(
+            "Sjón.snapshot_webcam() is not yet implemented. "
+            "Forge Wave 2 will implement the full cv2 capture + JPEG/PNG encode + "
+            "base64 data URL path, mirroring snapshot() for screen capture. "
+            "Ref: TASK_HERETIC_v0.5.2_WEBCAM.md §Wave 2."
+        )

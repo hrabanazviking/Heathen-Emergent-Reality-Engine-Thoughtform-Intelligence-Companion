@@ -54,6 +54,11 @@ voice = [
 vision = [
     "mss>=9",
     "Pillow>=10",
+    # opencv-python added v0.5.2 — heaviest dep in this extra (~70 MB wheel).
+    # Required for WebcamCaptureBackend / OpenCvBackend (cv2.VideoCapture).
+    # Opt-in is acceptable: operators without a webcam do not need it.
+    # Apache 2.0 license.
+    "opencv-python>=4.8",
 ]
 # L4 Vebond WebSocket server — install when running the Summoning Circle backend.
 # ``pip install heretic[serve]`` activates:

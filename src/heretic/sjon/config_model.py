@@ -11,6 +11,9 @@ This module has no imports from heretic.grunnr, so the import direction is safe
 and introduces no circular dependency.
 
 Canonical key reference: docs/architecture/LAYER_INTERFACES.md §L3 Sjón.
+
+v0.5.2: SjonWebcamConfig fields activated (was stub). WebcamCaptureBackend
+and OpenCvBackend live in webcam.py. This file owns the config types only.
 """
 
 from __future__ import annotations
@@ -176,28 +179,118 @@ class SjonScreenConfig:
 
 @dataclass
 class SjonWebcamConfig:
-    """Webcam capture settings for L3 Sjón.
+    """Webcam capture settings for L3 Sjón (v0.5.2 — activated).
 
-    Declared here for forward compatibility. Webcam support is NOT implemented
-    in v0.5 — this mirrors the RoddSttConfig pattern where Hlust was declared
-    in v0.2 but implemented in v0.3.
+    Previously a forward-compatibility stub (v0.5). As of v0.5.2 these fields
+    drive the WebcamCaptureBackend selection and OpenCvBackend lifecycle declared
+    in webcam.py.
 
-    Implementation target: v1.x.
+    Privacy invariant (stronger than screen capture):
+        - enabled defaults to False. Webcam captures the user's physical presence.
+          Operators must explicitly opt in. A WARNING is logged at construction
+          time when enabled is True to ensure the choice is visible in the log stream.
+        - Frames are NEVER written to disk in v0.5.2 (on-demand only).
+        - No ring buffer, no continuous mode in v0.5.2. Those are v0.5.x backlog.
+
+    attach_policy governs how webcam frames combine with screen frames in the
+    user-message payload. Default "screen_only" preserves backward compatibility
+    exactly — the webcam backend may be active but contributes no frames unless
+    the policy is changed.
+
+    Ref: docs/architecture/LAYER_INTERFACES.md §L3 Sjón.
+         src/heretic/sjon/webcam.py (WebcamCaptureBackend ABC + OpenCvBackend).
     """
 
     enabled: bool = False
-    """False by default — webcam capture not implemented in v0.5."""
+    """False by default — webcam captures the user's physical presence.
+    Operator must explicitly set to True. A WARNING is logged at construction
+    time when True (matching the save_frames pattern in SjonScreenConfig)."""
 
-    device: str = "default"
-    """OS device identifier or 'default'. Interpretation is backend-specific."""
+    device_index: int = 0
+    """Zero-based OS device index for cv2.VideoCapture(device_index).
+    0 = first available camera (default). Must be >= 0.
+    Multi-camera enumeration is deferred to v0.5.x."""
 
-    interval_ms: int = 10000
-    """Milliseconds between periodic webcam captures. Must be >= 0."""
+    max_width: int = 1280
+    """Maximum output width in pixels. Frame is scaled down proportionally if wider.
+    Balances detail vs. vision-API token cost. Must be >= 1."""
+
+    max_height: int = 720
+    """Maximum output height in pixels. Frame is scaled down proportionally if taller.
+    Must be >= 1."""
+
+    format: Literal["jpeg", "png"] = "jpeg"  # noqa: A003 — field name mirrors YAML key
+    """Encoding format for webcam frames delivered to the agent.
+    "jpeg" (default) — smaller payload (~5-10x vs PNG); acceptable quality for
+    vision API use. "png" — lossless; larger payload; use when visual accuracy
+    is more important than token cost.
+    Valid values: "jpeg" | "png"."""
+
+    jpeg_quality: int = 85
+    """JPEG encoding quality (1–100). Ignored when format is "png".
+    85 is a good balance between size and visual fidelity for vision-API use.
+    Must be in [1, 100]."""
+
+    attach_policy: Literal["screen_only", "webcam_only", "alongside", "alternate"] = "screen_only"
+    """Per-turn frame attachment policy — controls how webcam frames combine with
+    screen frames when building the user-message image_url content blocks.
+
+    Values:
+        "screen_only"  — default; webcam backend may be active but contributes
+                          no frames. Backward-compatible with v0.5.
+        "webcam_only"  — send webcam frame; suppress screen frame even if
+                          sjon.screen.enabled is True.
+        "alongside"    — send BOTH screen and webcam frames in the same turn.
+                          Higher token cost; gives the agent the most context.
+        "alternate"    — odd turns send screen frame; even turns send webcam frame.
+                          Moderate token cost; provides temporal variety.
+
+    Valid values: "screen_only" | "webcam_only" | "alongside" | "alternate".
+    Any other value raises SjonConfigError at construction time."""
 
     def __post_init__(self) -> None:
-        if self.interval_ms < 0:
+        """Validate field ranges and log privacy notice when enabled is True."""
+        _valid_formats = ("jpeg", "png")
+        if self.format not in _valid_formats:
             raise ValueError(
-                f"SjonWebcamConfig.interval_ms must be >= 0, got {self.interval_ms}"
+                f"SjonWebcamConfig.format must be one of {_valid_formats!r}, "
+                f"got {self.format!r}"
+            )
+
+        _valid_policies = ("screen_only", "webcam_only", "alongside", "alternate")
+        if self.attach_policy not in _valid_policies:
+            raise ValueError(
+                f"SjonWebcamConfig.attach_policy must be one of {_valid_policies!r}, "
+                f"got {self.attach_policy!r}"
+            )
+
+        if self.jpeg_quality < 1 or self.jpeg_quality > 100:
+            raise ValueError(
+                f"SjonWebcamConfig.jpeg_quality must be in [1, 100], "
+                f"got {self.jpeg_quality}"
+            )
+
+        if self.max_width < 1:
+            raise ValueError(
+                f"SjonWebcamConfig.max_width must be >= 1, got {self.max_width}"
+            )
+
+        if self.max_height < 1:
+            raise ValueError(
+                f"SjonWebcamConfig.max_height must be >= 1, got {self.max_height}"
+            )
+
+        if self.device_index < 0:
+            raise ValueError(
+                f"SjonWebcamConfig.device_index must be >= 0, got {self.device_index}"
+            )
+
+        if self.enabled:
+            _LOG.warning(
+                "SjonWebcamConfig: enabled is True. Webcam capture will include "
+                "the user's physical presence in agent context. "
+                "Ensure this is intentional — the privacy invariant requires explicit opt-in. "
+                "Ref: src/heretic/sjon/INTERFACE.md §Webcam capture."
             )
 
 

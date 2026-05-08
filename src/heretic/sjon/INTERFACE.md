@@ -1,6 +1,6 @@
 # Sjón Module Interface
 
-**Last updated:** 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
+**Last updated:** 2026-05-08 (v0.5.2 pre-stage — Rúnhild Svartdóttir: added §Webcam capture, extended §Public API, §Config Keys, §Optional Dependencies, §Error Model, §Privacy Invariant for webcam) | 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
 **Scope:** L3 Sjón — the vision layer Python module (`src/heretic/sjon/`)
 **Owner:** Architect (Rúnhild Svartdóttir)
 **Derives from:** `docs/architecture/LAYER_INTERFACES.md §L3 Sjón`
@@ -22,9 +22,12 @@
 - Privacy invariant enforcement: `save_frames` defaults to False; a warning is emitted
   at config construction time when operators explicitly set it True.
 
-Webcam support is declared in `SjonWebcamConfig` but **not implemented in v0.5**.
-Implementation target: v1.x. This mirrors the RoddSttConfig declared-in-v0.2,
-implemented-in-v0.3 pattern.
+Webcam support is scaffolded in v0.5.2:
+- `SjonWebcamConfig` fields are fully activated (was a stub in v0.5).
+- `WebcamCaptureBackend` ABC, `OpenCvBackend` skeleton, `WebcamNullBackend`, and
+  `best_available()` webcam factory live in `webcam.py`.
+- `Sjón.snapshot_webcam()` stub declared; raises NotImplementedError until Forge Wave 2.
+- Full implementation (cv2.VideoCapture, JPEG/PNG encode, data URL return) is Forge Wave 2.
 
 ---
 
@@ -36,11 +39,16 @@ All of the following are re-exported from `heretic.sjon` directly.
 |---|---|---|
 | `SjonConfig` | `sjon.config_model` | Root config: screen + webcam sub-configs. |
 | `SjonScreenConfig` | `sjon.config_model` | Screen capture settings. Canonical definition. |
-| `SjonWebcamConfig` | `sjon.config_model` | Webcam settings. Declared; not active in v0.5. |
+| `SjonWebcamConfig` | `sjon.config_model` | Webcam settings. Fields activated in v0.5.2 (was stub in v0.5). |
 | `ScreenCaptureBackend` | `sjon.capture` | ABC for all screen capture backends. |
 | `MssBackend` | `sjon.capture` | mss-based cross-platform backend (mss in [vision] extra). |
-| `NullBackend` | `sjon.capture` | Always-unavailable silent stub. Final fallback in factory. |
-| `best_available` | `sjon.capture` | Module-level factory: selects the best backend for the current machine. |
+| `NullBackend` | `sjon.capture` | Always-unavailable silent stub. Final fallback in screen factory. |
+| `best_available` | `sjon.capture` | Module-level factory: selects the best screen backend for the current machine. |
+| `WebcamCaptureBackend` | `sjon.webcam` | ABC for all webcam capture backends (v0.5.2). |
+| `OpenCvBackend` | `sjon.webcam` | cv2.VideoCapture-based backend skeleton (v0.5.2; Forge Wave 2 implements). |
+| `WebcamNullBackend` | `sjon.webcam` | Always-unavailable webcam stub. Final fallback in webcam factory. |
+| `best_available` (webcam) | `sjon.webcam` | Module-level factory: selects the best webcam backend. |
+| `Sjón.snapshot_webcam` | `sjon.sjon` | Async on-demand webcam capture stub (v0.5.2; NotImplementedError until Forge Wave 2). |
 | `FrameEncoder` | `sjon.encoder` | Encodes raw BGRA bytes to inline base64 PNG data URL. |
 | `Sjón` | `sjon.sjon` | Async orchestrator: snapshot(), throttle, lifecycle. True Name spelling. |
 | `Sjon` | `sjon.__init__` | ASCII alias for `Sjón` (identical class). |
@@ -51,9 +59,11 @@ All of the following are re-exported from `heretic.sjon` directly.
 | `SjonError` | `sjon.errors` | Root error; catch this to handle any Sjón failure. |
 | `ScreenCaptureError` | `sjon.errors` | Capture operation failure (backend available, capture failed). |
 | `PermissionDeniedError` | `sjon.errors` | OS denied screen capture permission. |
-| `BackendUnavailableError` | `sjon.errors` | No capture backend available on this machine. |
+| `BackendUnavailableError` | `sjon.errors` | No screen capture backend available on this machine. |
 | `FrameEncodingError` | `sjon.errors` | Pillow encoding failure (import, resize, PNG, base64). |
 | `ThrottleRejectedError` | `sjon.errors` | Snapshot rejected within min_interval_ms window. |
+| `WebcamCaptureError` | `sjon.errors` | Webcam capture operation failure (v0.5.2). |
+| `WebcamBackendUnavailableError` | `sjon.errors` | No webcam backend / cv2 absent / device missing (v0.5.2). |
 
 ---
 
@@ -115,8 +125,11 @@ degrade gracefully — ceremony must continue without a frame rather than crashi
 | `BackendUnavailableError` | No backend available | Log warning; return []; set `?vision_screen = False`. |
 | `FrameEncodingError` | Pillow encoding failed | Log warning; discard raw bytes; skip frame for this turn. |
 | `ThrottleRejectedError` | Within min_interval_ms window | Expected; not logged as warning; return [] silently. |
+| `WebcamCaptureError` | Webcam capture failed (v0.5.2) | Log warning; skip webcam frame for this turn; retry on next snapshot_webcam() call. Ceremony continues with screen-only frames. |
+| `WebcamBackendUnavailableError` | cv2 absent or device missing (v0.5.2) | Log warning; return []; webcam capture disabled for ceremony. Install cv2 and/or connect device and restart. |
 
 `Sjón.snapshot()` NEVER raises — all errors are caught internally and [] is returned.
+`Sjón.snapshot_webcam()` will follow the same contract once Forge Wave 2 implements it.
 
 ---
 
@@ -138,10 +151,15 @@ sjon:
     min_interval_ms: 1000     # int >= 0; throttle: minimum ms between captures
     continuous: false         # bool; v0.5.1+; opt-in periodic background capture
     attach_policy: latest     # str; v0.5.1+; "latest" | "all_buffered" | "none"
+  # v0.5.2 — all webcam fields activated (was stub in v0.5)
   webcam:
-    enabled: false            # bool; not implemented in v0.5
-    device: default           # str; OS device identifier
-    interval_ms: 10000        # int >= 0; ms between webcam captures
+    enabled: false            # bool; false = inactive (default); explicit opt-in required
+    device_index: 0           # int >= 0; 0 = first camera; increase for additional devices
+    max_width: 1280           # int >= 1; max output width (proportional scale-down)
+    max_height: 720           # int >= 1; max output height (proportional scale-down)
+    format: jpeg              # "jpeg" | "png"; jpeg = smaller payload; png = lossless
+    jpeg_quality: 85          # int 1-100; JPEG quality; ignored when format: png
+    attach_policy: screen_only  # "screen_only" | "webcam_only" | "alongside" | "alternate"
 ```
 
 ---
@@ -149,6 +167,8 @@ sjon:
 ## Privacy Invariant
 
 **Sealed by audit `docs/audit/AUDIT_v0.0_INITIAL_DOC_SET.md` C-Q-C3 (RESOLVED).**
+
+**Screen capture (v0.5):**
 
 1. Captured frames are NEVER auto-saved to permanent disk locations.
 2. `save_frames` defaults to False and a WARNING is logged at config construction time
@@ -160,6 +180,18 @@ sjon:
    the Bifröst connection log.
 5. This invariant is non-negotiable. Any Forge implementation that violates it
    must be corrected by the Auditor before v0.5 ships.
+
+**Webcam capture (v0.5.2 — stronger gate):**
+
+6. `sjon.webcam.enabled` defaults to False. Webcam captures the user's physical presence.
+   Operators must explicitly opt in. A WARNING is logged at config construction time
+   when `enabled` is True (matching the `save_frames` pattern).
+7. Webcam frames are NEVER written to disk in v0.5.2. No ring buffer, no continuous mode.
+   On-demand only: one frame per `snapshot_webcam()` call, held in memory, transmitted
+   inline as a base64 data URL, then released.
+8. The Auditor must verify this invariant during the v0.5.2 audit: check that
+   `snapshot_webcam()` contains no file-write calls and that `enabled: false` is the
+   tested default.
 
 ---
 
@@ -192,11 +224,14 @@ in `FrameEncoder.encode()` via `img.save(..., compress_level=6)`).
 |---|---|---|---|
 | `mss` | `[vision]` | `>=9` | Cross-platform screen capture (Windows GDI / macOS Quartz / Linux X11) |
 | `Pillow` | `[vision]` | `>=10` | Image manipulation: BGRA→RGB conversion, proportional resize, PNG encoding |
+| `opencv-python` | `[vision]` | `>=4.8` | Webcam capture via cv2.VideoCapture (v0.5.2). Apache 2.0. ~70 MB wheel. |
 
 `pip install heretic` (no extras) works on headless machines without either dep.
-`pip install heretic[vision]` activates both. The `[vision]` extra is deliberately
+`pip install heretic[vision]` activates all three. The `[vision]` extra is deliberately
 separate from `[voice]` — operators may need TTS on a display-less server (voice
-without vision) or screen capture without audio (vision without voice).
+without vision) or screen+webcam capture without audio (vision without voice).
+opencv-python is the heaviest dep in the vision extra; operators without a webcam
+still get MssBackend and FrameEncoder without cost, but the wheel is present in the env.
 
 ---
 
@@ -267,6 +302,101 @@ available monitor geometry before committing to a `monitor_index`.
 
 ---
 
+---
+
+## Webcam Capture (v0.5.2)
+
+Webcam support activates when `sjon.webcam.enabled: true` in `heretic.yaml`.
+The default is `false` — this is a stronger consent gate than screen capture, because
+webcam frames contain the user's physical presence (face, body, environment).
+
+### Privacy stance
+
+This is the strongest privacy boundary in L3 Sjón:
+
+1. `enabled: false` by default. Operators must explicitly opt in. A WARNING is logged at
+   startup when `enabled: true` to ensure the choice is visible in the log stream.
+2. No disk writes in v0.5.2 (on-demand only; no ring buffer, no continuous mode).
+3. Physical-presence frames are transmitted inline as base64 data URLs in agent messages
+   and are never stored server-side, cached between turns, or written to any file.
+4. v0.5.2 is on-demand only — `snapshot_webcam()` mirrors `snapshot()`: one frame per call,
+   no background task, no periodic capture. Continuous webcam is v0.5.x backlog.
+
+### Backend chain
+
+```
+cv2 importable AND device available? → OpenCvBackend
+otherwise                            → WebcamNullBackend (graceful degradation)
+```
+
+`WebcamNullBackend.available()` always returns False; `WebcamNullBackend.capture()` raises
+`WebcamBackendUnavailableError`. Code must check `available()` before calling `capture()`.
+
+### attach_policy paths
+
+| Policy | Screen frame | Webcam frame | Use case |
+|---|---|---|---|
+| `screen_only` (default) | Attached if screen enabled | Never attached | Backward compat with v0.5 |
+| `webcam_only` | Suppressed | Attached | Identity / presence focus |
+| `alongside` | Attached | Attached | Maximum agent context; higher token cost |
+| `alternate` | Odd turns | Even turns | Temporal variety; moderate token cost |
+
+The turn loop (CLI / Bifröst client) applies the attach_policy by calling both
+`snapshot()` (screen) and `snapshot_webcam()` (webcam) and combining the lists.
+Neither method is aware of the other — combination is the caller's responsibility.
+
+### Data URL format
+
+When `format: jpeg`:
+```
+"data:image/jpeg;base64,<encoded_jpeg>"
+```
+
+When `format: png`:
+```
+"data:image/png;base64,<encoded_png>"
+```
+
+Both are injected into the `content` array of a `user`-role message as `image_url`
+content blocks, identical in structure to screen frames. The agent cannot distinguish
+screen frames from webcam frames by URL format alone — context comes from the turn
+prompt, not the frame metadata.
+
+### OpenCvBackend lifecycle
+
+```
+backend = OpenCvBackend(config, logger)
+if not backend.available():
+    # degrade gracefully
+    ...
+backend.open()                           # cv2.VideoCapture(device_index)
+raw_bgr, w, h = backend.capture(idx)    # cap.read() -> (retval, frame)
+backend.close()                          # cap.release()
+```
+
+`open()` and `capture()` are synchronous. `snapshot_webcam()` runs them in a thread
+pool executor to avoid blocking the asyncio event loop (matching the `snapshot()` pattern).
+
+### v0.5.2 scope
+
+**In scope (v0.5.2 scaffold — this file):**
+- `SjonWebcamConfig` fields fully activated.
+- `WebcamCaptureBackend` ABC.
+- `OpenCvBackend` skeleton (NotImplementedError stubs; Forge Wave 2 implements).
+- `WebcamNullBackend` (fully functional fallback).
+- `best_available()` webcam factory (falls through to NullBackend until Wave 2).
+- `Sjón.snapshot_webcam()` stub.
+- `WebcamCaptureError`, `WebcamBackendUnavailableError` error types.
+
+**Deferred (Forge Wave 2):**
+- `OpenCvBackend.available()`, `.open()`, `.capture()`, `.close()` implementation.
+- `Sjón.snapshot_webcam()` full implementation (cv2 capture + JPEG/PNG encode + data URL).
+- CLI attach_policy dispatch combining screen + webcam lists.
+- Frontend Sjón row webcam active badge.
+- Full test coverage (20+ new tests targeting 711+ Python total).
+
+---
+
 ## v0.5 Scope Boundaries
 
 **In scope (v0.5):**
@@ -276,12 +406,19 @@ available monitor geometry before committing to a `monitor_index`.
 - `Sjón` orchestrator with throttle and graceful degradation
 - `SjonActivity` events emitted at capture milestones
 
+**Deferred (v0.5.2 Forge Wave 2):**
+- `OpenCvBackend` full implementation (available, open, capture, close).
+- `Sjón.snapshot_webcam()` full implementation.
+- CLI attach_policy dispatch (combine screen + webcam per policy).
+- Frontend Sjón row webcam active badge.
+
 **Deferred (v0.5.x backlog):**
 - Periodic interval capture (interval_ms activates)
 - Ring buffer recall (buffer_depth activates)
 - Multi-monitor enumeration beyond monitor_index selection
-- Webcam support (SjonWebcamConfig activates)
-- Privacy modes (blur/mask configurable regions before send)
+- Continuous webcam capture + ring buffer (mirrors v0.5.1 for screen)
+- Multi-camera support (device_index > 0 combinations)
+- Privacy modes (blur/mask configurable regions before send — v0.5.3)
 
 **Deferred (v0.7+):**
 - `auga.snapshot` MCP tool (L5 Skilningr — agent-on-demand capture)
