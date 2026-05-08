@@ -1,6 +1,6 @@
 # Sjón Module Interface
 
-**Last updated:** 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
+**Last updated:** 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
 **Scope:** L3 Sjón — the vision layer Python module (`src/heretic/sjon/`)
 **Owner:** Architect (Rúnhild Svartdóttir)
 **Derives from:** `docs/architecture/LAYER_INTERFACES.md §L3 Sjón`
@@ -44,6 +44,10 @@ All of the following are re-exported from `heretic.sjon` directly.
 | `FrameEncoder` | `sjon.encoder` | Encodes raw BGRA bytes to inline base64 PNG data URL. |
 | `Sjón` | `sjon.sjon` | Async orchestrator: snapshot(), throttle, lifecycle. True Name spelling. |
 | `Sjon` | `sjon.__init__` | ASCII alias for `Sjón` (identical class). |
+| `Sjón.start_continuous_capture` | `sjon.sjon` | Start the background periodic capture task (v0.5.1; NotImplementedError until Forge Wave 2). |
+| `Sjón.stop_continuous_capture` | `sjon.sjon` | Stop the background task cleanly and emit CONTINUOUS_STOPPED (v0.5.1; NotImplementedError until Forge Wave 2). |
+| `Sjón.recent_frames` | `sjon.sjon` | Return last N data URLs from ring buffer; n=None = all (v0.5.1; NotImplementedError until Forge Wave 2). |
+| `MssBackend.list_monitors` | `sjon.capture` | Return mss monitor list; index 0 = composite, 1+ = individual (v0.5.1; NotImplementedError until Forge Wave 2). |
 | `SjonError` | `sjon.errors` | Root error; catch this to handle any Sjón failure. |
 | `ScreenCaptureError` | `sjon.errors` | Capture operation failure (backend available, capture failed). |
 | `PermissionDeniedError` | `sjon.errors` | OS denied screen capture permission. |
@@ -124,14 +128,16 @@ Canonical reference: `docs/architecture/LAYER_INTERFACES.md §L3 Sjón config ke
 sjon:
   screen:
     enabled: true             # bool; True = screen capture active
-    interval_ms: 5000         # int >= 0; ms between periodic captures (v0.5.x)
+    interval_ms: 5000         # int >= 0; ms between periodic captures (activates in v0.5.1)
     max_width: 1280           # int >= 1; max output width in pixels
     max_height: 720           # int >= 1; max output height in pixels
     crop: null                # null | {x, y, w, h}; sub-region capture
-    buffer_depth: 5           # int >= 1; ring buffer depth (v0.5.x)
+    buffer_depth: 5           # int >= 1; ring buffer depth (activates in v0.5.1)
     save_frames: false        # bool; NEVER True by default; warning logged when True
-    monitor_index: 0          # int >= 0; 0 = primary monitor
+    monitor_index: 0          # int >= 0; 0 mapping depends on continuous mode (see §Continuous mode)
     min_interval_ms: 1000     # int >= 0; throttle: minimum ms between captures
+    continuous: false         # bool; v0.5.1+; opt-in periodic background capture
+    attach_policy: latest     # str; v0.5.1+; "latest" | "all_buffered" | "none"
   webcam:
     enabled: false            # bool; not implemented in v0.5
     device: default           # str; OS device identifier
@@ -191,6 +197,73 @@ in `FrameEncoder.encode()` via `img.save(..., compress_level=6)`).
 `pip install heretic[vision]` activates both. The `[vision]` extra is deliberately
 separate from `[voice]` — operators may need TTS on a display-less server (voice
 without vision) or screen capture without audio (vision without voice).
+
+---
+
+---
+
+## Continuous Mode (v0.5.1)
+
+Continuous mode activates when `sjon.screen.continuous: true` in `heretic.yaml`.
+It is opt-in; the default (`false`) preserves the v0.5 on-demand behaviour exactly.
+
+### Continuous task lifecycle
+
+At TENGSL, the CLI wires `Sjón.start_continuous_capture()`, which launches a
+background `asyncio.Task`. That task loops indefinitely at `interval_ms`-millisecond
+intervals, calling `snapshot()` internally and appending returned data URLs to the
+ring buffer. At SLOKNA, the CLI calls `Sjón.stop_continuous_capture()`, which
+cancels the task, awaits its completion, and then `close()` clears the buffer.
+
+State transitions emitted on the `sjon.activity` IPC wire event:
+
+| Transition | State emitted |
+|---|---|
+| Task launches successfully | `continuous_running` |
+| Task stops cleanly | `continuous_stopped` |
+| Buffer reaches `buffer_depth` capacity | `buffer_full` (at most once per fill cycle) |
+| Capture or encode failure within loop | `failed` (loop continues; next tick retries) |
+
+### Ring buffer semantics
+
+`self._buffer` is a `collections.deque(maxlen=buffer_depth)`. Appends are O(1).
+When the buffer is full, the oldest entry is evicted automatically. The buffer lives
+entirely in memory — frames are never written to disk (privacy invariant). On
+`Sjón.close()`, `self._buffer.clear()` is called unconditionally, even if continuous
+mode was never active.
+
+`Sjón.recent_frames(n)` returns the last N data URL strings, oldest-to-newest.
+`n=None` returns all buffered frames. Returns `[]` if the buffer is empty.
+
+### Attach policy
+
+When a user message is sent and `continuous=True`, the turn loop reads the buffer
+via `recent_frames()` and applies `attach_policy`:
+
+| Policy | Frames attached |
+|---|---|
+| `"latest"` (default) | The single most-recently captured frame. Mirrors v0.5 behaviour. |
+| `"all_buffered"` | All frames in the buffer at send time (up to `buffer_depth`). Higher token cost. |
+| `"none"` | No frames attached; continuous capture runs but nothing is injected. |
+
+### Multi-monitor index mapping asymmetry
+
+`monitor_index` selects which screen to capture, but the mss index mapping differs
+between modes:
+
+| Mode | `monitor_index = 0` | `monitor_index >= 1` |
+|---|---|---|
+| On-demand (`continuous=False`) | Maps to mss index 1 — the primary single monitor | Direct mapping (config N → mss N) |
+| Continuous (`continuous=True`) | Maps to mss index 0 — the virtual all-monitors composite | Direct mapping (config N → mss N) |
+
+This asymmetry exists because continuous background capture is the natural place to
+watch the full desktop composite (the agent sees everything), while on-demand per-turn
+capture defaults to the focused primary screen. Forge enforces the correct mapping
+inside `MssBackend.capture()` by reading `config.continuous`.
+
+`MssBackend.list_monitors()` (v0.5.1) returns the raw `mss.monitors` list (index 0 =
+composite, 1+ = physical screens) so operators and future config tools can inspect
+available monitor geometry before committing to a `monitor_index`.
 
 ---
 

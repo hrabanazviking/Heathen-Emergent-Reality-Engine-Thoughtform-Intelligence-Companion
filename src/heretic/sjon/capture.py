@@ -313,6 +313,40 @@ class MssBackend(ScreenCaptureBackend):
                     f"Unexpected error during screen capture: {exc}"
                 ) from exc
 
+    def list_monitors(self) -> list[dict]:
+        """Return the list of monitors reported by mss (v0.5.1).
+
+        Raises:
+            NotImplementedError: Forge will implement this method.
+
+        Forge implementation notes:
+            - Open a fresh mss.mss() context (do NOT reuse self._mss_instance to
+              avoid interference with ongoing capture() calls).
+            - Read sct.monitors and return it as a list of plain dicts.
+            - mss.monitors[0]: virtual all-monitors composite bounding box.
+            - mss.monitors[1+]: individual physical screens.
+            - Each dict has at minimum: {"top": int, "left": int,
+              "width": int, "height": int}.
+            - If mss is not installed, raise BackendUnavailableError.
+            - If the probe fails for any other reason, raise ScreenCaptureError.
+            - This method is synchronous (mirrors capture()) — callers run it in
+              a thread pool executor if they need non-blocking behaviour.
+
+        Returns:
+            List of monitor geometry dicts. Index 0 = composite virtual monitor;
+            indices 1+ = individual physical monitors.
+
+        Raises:
+            BackendUnavailableError: mss is not installed.
+            ScreenCaptureError: mss failed to enumerate monitors.
+        """
+        raise NotImplementedError(
+            "Forge will implement: open fresh mss.mss() context; return sct.monitors "
+            "as list[dict]; index 0 = all-monitors composite; 1+ = individual screens; "
+            "raise BackendUnavailableError if mss not installed; "
+            "raise ScreenCaptureError on any other failure."
+        )
+
     def close(self) -> None:
         """Close the mss context manager if one is held open, releasing OS resources.
 

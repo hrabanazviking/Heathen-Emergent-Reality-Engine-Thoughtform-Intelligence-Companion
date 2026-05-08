@@ -48,6 +48,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import deque
 from typing import TYPE_CHECKING, Callable, Optional
 
 from heretic.sjon.errors import (
@@ -124,8 +125,22 @@ class Sjón:
         self._last_capture_ts: float = 0.0
         self._throttle_lock: Optional[asyncio.Lock] = None
 
+        # Ring buffer — holds the most recent `buffer_depth` data URL strings.
+        # deque(maxlen=N) gives O(1) append with automatic oldest-evict on overflow.
+        # Used only in continuous mode (v0.5.1+); always present so recent_frames()
+        # can be called safely in on-demand mode (returns []).
+        self._buffer: deque[str] = deque(maxlen=config.screen.buffer_depth)
+
+        # Continuous capture task slot — populated by start_continuous_capture(),
+        # cleared by stop_continuous_capture(). None in on-demand mode.
+        self._continuous_task: Optional[asyncio.Task] = None  # type: ignore[type-arg]
+
+        # Buffer lock — lazily created inside the event loop (same pattern as
+        # _throttle_lock). Serialises reads/writes to _buffer from concurrent callers.
+        self._buffer_lock: Optional[asyncio.Lock] = None
+
     def _get_lock(self) -> asyncio.Lock:
-        """Lazily initialise the asyncio.Lock.
+        """Lazily initialise the throttle asyncio.Lock.
 
         asyncio.Lock must be created inside a running event loop. We defer
         creation to the first snapshot() call to avoid issues when the Sjón
@@ -134,6 +149,17 @@ class Sjón:
         if self._throttle_lock is None:
             self._throttle_lock = asyncio.Lock()
         return self._throttle_lock
+
+    def _get_buffer_lock(self) -> asyncio.Lock:
+        """Lazily initialise the ring-buffer asyncio.Lock.
+
+        Same lazy-init pattern as _get_lock() — must be created inside a running
+        event loop. Used to serialise reads and appends to self._buffer across
+        the continuous-capture task and any concurrent recent_frames() caller.
+        """
+        if self._buffer_lock is None:
+            self._buffer_lock = asyncio.Lock()
+        return self._buffer_lock
 
     def _emit(self, state: str) -> None:
         """Emit a SjonActivity event via the event_emitter, if one is configured.
@@ -335,12 +361,109 @@ class Sjón:
             self._emit("failed")
             return []
 
+    async def start_continuous_capture(self) -> None:
+        """Start the background periodic capture task (v0.5.1).
+
+        Raises:
+            NotImplementedError: Forge will implement this method.
+
+        Forge implementation notes:
+            - Create an asyncio.Task that loops with asyncio.sleep(interval_ms/1000)
+              between iterations.
+            - Each iteration: call snapshot() (captures + encodes); if a data URL is
+              returned, append it to self._buffer under self._get_buffer_lock().
+            - Backpressure-skip: if the previous iteration's capture is still in flight
+              (detected via an in-flight flag), skip the current tick rather than queuing.
+            - Throttle is still enforced: snapshot() already enforces min_interval_ms.
+            - Emit SjonActivity(state=CONTINUOUS_RUNNING) after the task starts.
+            - Store the task in self._continuous_task for cancellation by
+              stop_continuous_capture().
+            - Idempotent: if a task is already running, log a warning and return.
+        """
+        raise NotImplementedError(
+            "Forge will implement: background asyncio.Task that loops with "
+            "asyncio.sleep(interval_ms/1000), calls capture+encode via snapshot(), "
+            "appends data URLs to self._buffer under _get_buffer_lock(); "
+            "backpressure-skip if previous tick is still in flight; "
+            "throttle still enforced via snapshot(); "
+            "emits SjonActivity CONTINUOUS_RUNNING on start; "
+            "stores task in self._continuous_task; idempotent."
+        )
+
+    async def stop_continuous_capture(self) -> None:
+        """Stop the background periodic capture task cleanly (v0.5.1).
+
+        Raises:
+            NotImplementedError: Forge will implement this method.
+
+        Forge implementation notes:
+            - Cancel self._continuous_task if it is not None.
+            - Await the task with asyncio.shield or try/except CancelledError so that
+              the task is fully finished before this coroutine returns.
+            - Set self._continuous_task = None.
+            - Emit SjonActivity(state=CONTINUOUS_STOPPED).
+            - Idempotent: if no task is running, return without error.
+        """
+        raise NotImplementedError(
+            "Forge will implement: cancel self._continuous_task; await task completion; "
+            "set self._continuous_task = None; emit SjonActivity CONTINUOUS_STOPPED; "
+            "idempotent (no-op if no task running)."
+        )
+
+    def recent_frames(self, n: int | None = None) -> list[str]:
+        """Return the most recent N data URL strings from the ring buffer (v0.5.1).
+
+        Raises:
+            NotImplementedError: Forge will implement this method.
+
+        Forge implementation notes:
+            - If n is None, return all frames currently in self._buffer (oldest first).
+            - If n is specified, return the last n frames (most-recently appended),
+              oldest first within the returned slice.
+            - This method is synchronous — callers in the turn loop do not need to
+              await it. Buffer access is guarded by self._get_buffer_lock() in async
+              contexts; this sync accessor takes a snapshot of the deque safely via
+              list(self._buffer) (thread-safe for reads; asyncio.Lock prevents
+              concurrent modification in the event loop).
+            - Returns [] if the buffer is empty or continuous mode has never run.
+
+        Args:
+            n: Maximum number of frames to return. None = return all buffered frames.
+
+        Returns:
+            List of inline base64 PNG data URL strings, ordered oldest-to-newest.
+        """
+        raise NotImplementedError(
+            "Forge will implement: return list(self._buffer)[-n:] if n else "
+            "list(self._buffer); ordered oldest-to-newest; returns [] if buffer empty."
+        )
+
     async def close(self) -> None:
         """Release all resources held by Sjón (backend + encoder).
 
         Called during ceremony shutdown (Slokna) before the process exits.
         Must be idempotent. Must not raise.
+
+        v0.5.1 additions: cancels the continuous capture task if one is running
+        (privacy invariant — no frames may persist past Slokna); clears self._buffer.
         """
+        # Stop continuous capture task if running (v0.5.1 — Forge wires this in Wave 2).
+        # Until Forge implements stop_continuous_capture(), we cancel the task slot
+        # directly to satisfy the privacy invariant: no frames persist past close().
+        if self._continuous_task is not None and not self._continuous_task.done():
+            self._continuous_task.cancel()
+            try:
+                await self._continuous_task
+            except (asyncio.CancelledError, Exception) as exc:
+                self._logger.debug(
+                    "Sjón.close(): continuous task cancelled (expected): %s", exc
+                )
+            self._continuous_task = None
+
+        # Clear ring buffer — privacy invariant: buffered frames must not persist
+        # past ceremony end (Slokna). Ref: TASK_HERETIC_v0.5.1_PERIODIC_SIGHT §7.
+        self._buffer.clear()
+
         try:
             self._backend.close()
         except Exception as exc:

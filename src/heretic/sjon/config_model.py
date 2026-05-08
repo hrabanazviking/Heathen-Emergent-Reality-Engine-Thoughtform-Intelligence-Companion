@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Literal, Optional
 
 
 _LOG = logging.getLogger(__name__)
@@ -74,7 +74,41 @@ class SjonScreenConfig:
     monitor_index: int = 0
     """Zero-based index of the monitor to capture. 0 = primary monitor (default).
     Must be >= 0. Out-of-range values are handled gracefully at capture time by
-    clamping to the highest available monitor index with a warning."""
+    clamping to the highest available monitor index with a warning.
+
+    Monitor-index mapping asymmetry (v0.5.1):
+        In on-demand mode (continuous=False), monitor_index=0 maps to the primary
+        single screen (mss index 1).  In continuous mode (continuous=True),
+        monitor_index=0 maps to the all-monitors composite (mss index 0).
+        For monitor_index>=1, direct mss index mapping applies in both modes.
+    """
+
+    continuous: bool = False
+    """Opt-in periodic capture; v0.5.1+. When True, Sjón starts a background
+    asyncio.Task at TENGSL that captures every interval_ms milliseconds and
+    populates a ring buffer of depth buffer_depth. When False (default), Sjón
+    operates in on-demand mode: one frame per snapshot() call, no background task.
+
+    Requires interval_ms > 0. Sub-500ms intervals emit a warning at config
+    construction time because they stress the host system under continuous load.
+    """
+
+    attach_policy: Literal["latest", "all_buffered", "none"] = "latest"
+    """Per-turn frame-attach policy for continuous mode; v0.5.1+.
+    Governs which buffered frames are attached to a user message when continuous=True.
+
+    Values:
+        "latest"       — attach the single most-recent frame from the ring buffer
+                         (default; mirrors v0.5 on-demand behaviour: one frame per turn).
+        "all_buffered" — attach every frame currently in the ring buffer (up to
+                         buffer_depth frames); higher token cost, richer temporal context.
+        "none"         — do not attach any frames from the buffer; continuous capture
+                         runs but frames are not injected into agent turns.
+
+    Ignored when continuous=False (on-demand mode uses snapshot() directly).
+    Valid values: "latest" | "all_buffered" | "none". Any other value raises
+    SjonConfigError at config construction time.
+    """
 
     min_interval_ms: int = 1000
     """Minimum milliseconds between any two captures (throttle guard). No capture
@@ -120,6 +154,19 @@ class SjonScreenConfig:
                 "SjonScreenConfig: save_frames is True. Captured screen frames WILL be "
                 "written to disk. Ensure this is intentional — the privacy invariant "
                 "requires opt-in. Ref: LAYER_INTERFACES.md §L3 Error model."
+            )
+        if self.continuous and self.interval_ms < 500:
+            _LOG.warning(
+                "SjonScreenConfig: continuous=True with interval_ms=%d. "
+                "Sub-500ms capture intervals stress the host system under sustained load. "
+                "Consider increasing interval_ms to 500 or higher.",
+                self.interval_ms,
+            )
+        _valid_attach_policies = ("latest", "all_buffered", "none")
+        if self.attach_policy not in _valid_attach_policies:
+            raise ValueError(
+                f"SjonScreenConfig.attach_policy must be one of "
+                f"{_valid_attach_policies!r}, got {self.attach_policy!r}"
             )
 
 

@@ -199,6 +199,16 @@ class SjonActivityState(str, Enum):
     The frontend uses this to animate the Sjón-glow blue accent in LayerStatusPanel.
 
     Wire value: the string value of each member (lowercase — e.g. "idle").
+
+    IPC design choice (v0.5.1 — Option A, chosen by Rúnhild Svartdóttir):
+        Extend this enum with continuous lifecycle states rather than adding a
+        separate SjonBuffer event class. Rationale: the frontend already tracks
+        SjonActivityState for colour/animation; operators can observe "Sjón is
+        running continuously" vs "Sjón is idle" purely through state transitions
+        on the existing sjon.activity wire event. Fewer event types = simpler
+        frontend store. Depth introspection (SjonBuffer with depth/oldest_age)
+        is deferred to v0.5.x if operators request it.
+        Ref: TASK_HERETIC_v0.5.1_PERIODIC_SIGHT §3 (state propagation row).
     """
     IDLE = "idle"
     """No capture in progress. Sjón is available and waiting for the next snapshot() call."""
@@ -208,6 +218,26 @@ class SjonActivityState(str, Enum):
     """FrameEncoder is converting raw bytes to PNG and base64."""
     FAILED = "failed"
     """The last capture or encode attempt failed. Sjón will retry on the next snapshot() call."""
+
+    # -- v0.5.1 continuous mode states ----------------------------------------
+
+    CONTINUOUS_RUNNING = "continuous_running"
+    """Continuous capture background task is active and looping at interval_ms.
+    Emitted by start_continuous_capture() once the asyncio.Task is successfully
+    launched. The ring buffer is being populated.
+    Frontend: Sjón-glow blue accent pulses faster; label shows "Sjón (continuous)"."""
+
+    CONTINUOUS_STOPPED = "continuous_stopped"
+    """Continuous capture background task has been stopped cleanly.
+    Emitted by stop_continuous_capture() after the task is cancelled and awaited.
+    Transitions to IDLE when the next on-demand snapshot() is ready.
+    Frontend: accent returns to resting pulse."""
+
+    BUFFER_FULL = "buffer_full"
+    """Ring buffer has reached buffer_depth capacity; oldest frame evicted on append.
+    Informational only — the buffer continues to operate normally (deque maxlen evicts
+    automatically). Emitted at most once per fill cycle to avoid event flooding.
+    Frontend: may display a subtle indicator that buffer is saturated (optional)."""
 
 
 class SjonActivity(BaseModel):

@@ -308,6 +308,58 @@ class TestMssBackendCapture:
 
 
 # ---------------------------------------------------------------------------
+# v0.5.1 placeholder tests — MssBackend.list_monitors
+# Forge implements the logic; these stubs mark the scaffold complete.
+# ---------------------------------------------------------------------------
+
+class TestMssBackendListMonitors:
+    """MssBackend.list_monitors() — v0.5.1. (Placeholders: Forge implements.)"""
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: list_monitors returns mss.monitors list"
+    )
+    def test_list_monitors_returns_list_of_dicts(self) -> None:
+        from heretic.sjon.capture import MssBackend
+        cfg = SjonScreenConfig()
+        log = logging.getLogger("test")
+        backend = MssBackend(cfg, log)
+        monitors = backend.list_monitors()
+        assert isinstance(monitors, list)
+        assert len(monitors) >= 1
+        for m in monitors:
+            assert "width" in m
+            assert "height" in m
+
+    @pytest.mark.skip(
+        reason=(
+            "v0.5.1 placeholder — Forge implements: list_monitors index 0 = composite virtual"
+        )
+    )
+    def test_list_monitors_index_0_is_composite(self) -> None:
+        from heretic.sjon.capture import MssBackend
+        cfg = SjonScreenConfig()
+        log = logging.getLogger("test")
+        backend = MssBackend(cfg, log)
+        monitors = backend.list_monitors()
+        # Index 0 is the virtual all-monitors composite — width >= any individual screen
+        assert monitors[0]["width"] >= max(m["width"] for m in monitors[1:] or [{"width": 0}])
+
+    @pytest.mark.skip(
+        reason=(
+            "v0.5.1 placeholder — Forge implements: list_monitors raises "
+            "BackendUnavailableError when mss not installed"
+        )
+    )
+    def test_list_monitors_raises_when_mss_not_installed(self) -> None:
+        from heretic.sjon.capture import MssBackend
+        cfg = SjonScreenConfig()
+        log = logging.getLogger("test")
+        backend = MssBackend(cfg, log)
+        with pytest.raises(BackendUnavailableError):
+            backend.list_monitors()
+
+
+# ---------------------------------------------------------------------------
 # MssBackend.close()
 # ---------------------------------------------------------------------------
 

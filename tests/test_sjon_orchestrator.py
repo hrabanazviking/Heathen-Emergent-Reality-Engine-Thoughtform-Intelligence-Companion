@@ -348,3 +348,93 @@ class TestSjonEventEmitter:
         sjon, _, _ = _make_sjon(event_emitter=None)
         result = await sjon.snapshot()
         assert len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# v0.5.1 placeholder tests — continuous task lifecycle + ring buffer
+# Forge implements the logic; these stubs mark the scaffold complete.
+# ---------------------------------------------------------------------------
+
+class TestSjonContinuousCapture:
+    """start_continuous_capture / stop_continuous_capture — v0.5.1. (Placeholders.)"""
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: task starts and emits CONTINUOUS_RUNNING"
+    )
+    @pytest.mark.asyncio
+    async def test_start_continuous_capture_launches_task(self) -> None:
+        sjon, _, _ = _make_sjon()
+        await sjon.start_continuous_capture()
+        assert sjon._continuous_task is not None
+        assert not sjon._continuous_task.done()
+        await sjon.stop_continuous_capture()
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: stop cancels task cleanly"
+    )
+    @pytest.mark.asyncio
+    async def test_stop_continuous_capture_cancels_task(self) -> None:
+        sjon, _, _ = _make_sjon()
+        await sjon.start_continuous_capture()
+        await sjon.stop_continuous_capture()
+        assert sjon._continuous_task is None
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: start is idempotent (no double-task)"
+    )
+    @pytest.mark.asyncio
+    async def test_start_continuous_capture_idempotent(self) -> None:
+        sjon, _, _ = _make_sjon()
+        await sjon.start_continuous_capture()
+        first_task = sjon._continuous_task
+        await sjon.start_continuous_capture()  # second call — must not spawn a new task
+        assert sjon._continuous_task is first_task
+        await sjon.stop_continuous_capture()
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: stop is idempotent (no-op if not running)"
+    )
+    @pytest.mark.asyncio
+    async def test_stop_continuous_capture_idempotent(self) -> None:
+        sjon, _, _ = _make_sjon()
+        await sjon.stop_continuous_capture()  # must not raise when no task running
+
+
+class TestSjonRingBuffer:
+    """recent_frames() and ring buffer semantics — v0.5.1. (Placeholders.)"""
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: recent_frames returns [] on empty buffer"
+    )
+    def test_recent_frames_empty_when_no_capture(self) -> None:
+        sjon, _, _ = _make_sjon()
+        assert sjon.recent_frames() == []
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: recent_frames(n) returns last n entries"
+    )
+    def test_recent_frames_returns_last_n(self) -> None:
+        sjon, _, _ = _make_sjon()
+        # Manually populate buffer to simulate continuous mode
+        sjon._buffer.extend(["url1", "url2", "url3"])
+        result = sjon.recent_frames(n=2)
+        assert result == ["url2", "url3"]
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: recent_frames(None) returns all"
+    )
+    def test_recent_frames_none_returns_all(self) -> None:
+        sjon, _, _ = _make_sjon()
+        sjon._buffer.extend(["url1", "url2", "url3"])
+        result = sjon.recent_frames()
+        assert result == ["url1", "url2", "url3"]
+
+    @pytest.mark.skip(
+        reason="v0.5.1 placeholder — Forge implements: buffer cleared on close (privacy invariant)"
+    )
+    @pytest.mark.asyncio
+    async def test_close_clears_buffer(self) -> None:
+        sjon, _, _ = _make_sjon()
+        sjon._buffer.extend(["url1", "url2"])
+        await sjon.close()
+        assert list(sjon._buffer) == []

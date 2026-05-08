@@ -1,6 +1,6 @@
 # HERETIC — IPC Protocol (L4 Vebond WebSocket Schema)
 
-**Last updated:** 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir: added §3.8 sjon.activity event; extended §8 naming bridge with sjon.activity row and §8.3 vision::frame internal note; added SjonActivityState shared value type to §2) | 2026-05-07 (revised: audit N-1 + N-3 remediation — Rúnhild Svartdóttir)
+**Last updated:** 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: extended §2 SjonState with three continuous-mode values; updated §3.8 with Option A rationale and new state frontend responses) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir: added §3.8 sjon.activity event; extended §8 naming bridge with sjon.activity row and §8.3 vision::frame internal note; added SjonActivityState shared value type to §2) | 2026-05-07 (revised: audit N-1 + N-3 remediation — Rúnhild Svartdóttir)
 **Scope:** The canonical typed schema for all WebSocket messages exchanged between
 the Python backend (L4 Vebond) and the React frontend (Eldahus). This file is the
 **single source of truth**. Both implementation files derive from it — any discrepancy
@@ -107,11 +107,17 @@ BifrostStatus:  "open" | "closed" | "opening" | "failed"
 TungaState:     "idle" | "synthesizing" | "speaking" | "failed"
 HlustState:     "idle" | "loading" | "listening" | "transcribing" | "failed"
 SjonState:      "idle" | "capturing" | "encoding" | "failed"
+              | "continuous_running" | "continuous_stopped" | "buffer_full"
   Emitted as the `state` field of sjon.activity events (§3.8).
-    idle      — no capture in progress; Sjón available and waiting
-    capturing — MssBackend.capture() executing in a thread pool executor
-    encoding  — FrameEncoder converting raw bytes to PNG and base64
-    failed    — last capture or encode attempt failed; recovers on next snapshot()
+    idle                — no capture in progress; Sjón available and waiting
+    capturing           — MssBackend.capture() executing in a thread pool executor
+    encoding            — FrameEncoder converting raw bytes to PNG and base64
+    failed              — last capture or encode attempt failed; recovers on next snapshot()
+    continuous_running  — (v0.5.1) background periodic capture task is active and
+                          looping at interval_ms; ring buffer is being populated
+    continuous_stopped  — (v0.5.1) background task stopped cleanly via stop_continuous_capture()
+    buffer_full         — (v0.5.1) ring buffer reached buffer_depth capacity; oldest
+                          frame evicted; emitted at most once per fill cycle
 ErrorLevel:     "warn" | "error"
 ```
 
@@ -263,14 +269,24 @@ mirroring the pattern of `tunga.activity` and `hlust.activity`.
 - `timestamp`: UTC ISO 8601 timestamp of the state transition.
 
 **Frontend response:**
-- "capturing" -> dim blue pulse begins (MssBackend executing)
-- "encoding" -> brief transition animation (Pillow encoding)
-- "idle" -> Sjón-glow blue accent returns to resting state
-- "failed" -> LayerStatusPanel Sjón row shows degraded indicator
+- "capturing"           -> dim blue pulse begins (MssBackend executing)
+- "encoding"            -> brief transition animation (Pillow encoding)
+- "idle"                -> Sjón-glow blue accent returns to resting state
+- "failed"              -> LayerStatusPanel Sjón row shows degraded indicator
+- "continuous_running"  -> (v0.5.1) faster pulse; layer label "Sjón (continuous)"
+- "continuous_stopped"  -> (v0.5.1) accent returns to resting pulse; label reverts
+- "buffer_full"         -> (v0.5.1) optional subtle saturation indicator (informational)
+
+**IPC design note (v0.5.1):** Continuous mode lifecycle uses Option A — extended
+SjonActivityState enum values on the existing `sjon.activity` event, not a separate
+`SjonBuffer` event. Rationale: operators observe "running / stopped" purely through
+state transitions; fewer event types keeps the frontend store simple. Buffer depth
+introspection (a hypothetical `SjonBuffer` event with `depth` / `oldest_age_seconds`)
+is deferred to v0.5.x if operators request it. See `TASK_HERETIC_v0.5.1_PERIODIC_SIGHT §3`.
 
 **Implementation references:**
-- Python model: `heretic.vebond.protocol.SjonActivity`
-- TypeScript mirror: `frontend/src/types/ipc.ts` (to be added by Forge — v0.5 Wave 2)
+- Python model: `heretic.vebond.protocol.SjonActivity` + `SjonActivityState`
+- TypeScript mirror: `frontend/src/types/ipc.ts` (Forge updates in Wave 2)
 
 ---
 
