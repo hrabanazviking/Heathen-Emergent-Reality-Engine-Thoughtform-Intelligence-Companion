@@ -45,6 +45,7 @@ Ref: C:/Users/volma/runa/Seidr-Smidja/src/seidr_smidja/brunhand/daemon/INTERFACE
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import uuid
@@ -77,7 +78,7 @@ class BrunhandHttpClient:
     per-request envelope generation, HTTP error mapping, and timeout enforcement.
 
     Lifecycle:
-        client = BrunhandHttpClient(config, logger)   # resolves token; raises AuthError if absent
+        client = BrunhandHttpClient(config, logger)   # resolves token; raises BrunhandAuthError if absent
         await client.open()                           # probes /health; raises on failure
         result = await client.screenshot()            # ... call methods ...
         await client.close()                          # release httpx client
@@ -101,27 +102,47 @@ class BrunhandHttpClient:
             logger: Optional logger instance. If None, uses module-level logger.
 
         Raises:
-            AuthError: if config.enabled is True and the env var named in
-                       config.token_env is unset or empty. The operator must
-                       set the env var before starting HERETIC.
+            BrunhandAuthError: if config.enabled is True and the env var named in
+                               config.token_env is unset or empty. The operator must
+                               set the env var before starting HERETIC.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.__init__ — Forge implements in Wave 2. "
-            "Steps: "
-            "1. self._config = config. "
-            "2. self._log = logger or logging.getLogger(__name__). "
-            "3. self._session_id = str(uuid.uuid4()). "
-            "4. token = os.environ.get(config.token_env, ''). "
-            "5. If config.enabled and not token: raise BrunhandAuthError("
-            "   f'Bearer token env var {config.token_env!r} is not set. '). "
-            "   Log as WARNING, never include the token value in log. "
-            "6. self._token = token (may be empty if not enabled; client is inert). "
-            "7. scheme = 'https' if config.require_https else 'http'. "
-            "8. self._base_url = f'{scheme}://{config.host}:{config.port}'. "
-            "9. self._http: httpx.AsyncClient | None = None  "
-            "   (built in open()). "
-            "SECURITY: never include self._token in __repr__, __str__, or any log call."
+        self._config = config
+        self._log = logger if logger is not None else logging.getLogger(__name__)
+        self._session_id: str = str(uuid.uuid4())
+        self._agent_id: str = config.host_name
+
+        # Resolve token from environment — NEVER include value in any log line
+        token = os.environ.get(config.token_env, "")
+        if config.enabled and not token:
+            raise BrunhandAuthError(
+                f"Bearer token environment variable {config.token_env!r} is not set "
+                f"or is empty. Set {config.token_env}=<your_token> in the environment "
+                f"before starting HERETIC with skilningr.smidja.enabled=true. "
+                f"See docs/architecture/LAYER_INTERFACES.md §L5 Skilningr for setup."
+            )
+        # Store the token value (may be empty string if disabled — client is inert)
+        self._token: str = token
+
+        # Build the base URL from config — never an absolute filesystem path
+        scheme = "https" if config.require_https else "http"
+        self._base_url: str = f"{scheme}://{config.host}:{config.port}"
+
+        # httpx.AsyncClient is built lazily in open() so tests can construct without opening
+        self._http: httpx.AsyncClient | None = None
+
+    def __repr__(self) -> str:
+        """Safe repr — NEVER includes the token value."""
+        return (
+            f"BrunhandHttpClient("
+            f"host={self._config.host!r}, "
+            f"port={self._config.port}, "
+            f"enabled={self._config.enabled}, "
+            f"session_id={self._session_id!r})"
         )
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
     async def open(self) -> None:
         """Open the httpx AsyncClient and probe /v1/brunhand/health.
@@ -134,19 +155,35 @@ class BrunhandHttpClient:
                 DNS failure, or non-200 response).
             BrunhandTimeoutError: if the health probe times out.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.open — Forge implements in Wave 2. "
-            "Steps: "
-            "1. Build httpx.AsyncClient with: "
-            "   headers={'Authorization': f'Bearer {self._token}'}, "
-            "   timeout=httpx.Timeout(self._config.request_timeout_seconds), "
-            "   base_url=self._base_url. "
-            "2. self._http = client. "
-            "3. response = await self.health(). "
-            "4. If response does not indicate status='ok': "
-            "   raise BrunhandUnreachableError with detail. "
-            "Catch httpx.ConnectError -> BrunhandUnreachableError. "
-            "Catch httpx.TimeoutException -> BrunhandTimeoutError."
+        # Build httpx.AsyncClient with Authorization header injected once —
+        # the header is set here and never logged.
+        self._http = httpx.AsyncClient(
+            base_url=self._base_url,
+            headers={"Authorization": f"Bearer {self._token}"},
+            timeout=httpx.Timeout(float(self._config.request_timeout_seconds)),
+        )
+        # Probe health endpoint — raises on failure so callers know immediately
+        try:
+            health = await self.health()
+        except BrunhandUnreachableError:
+            raise
+        except BrunhandTimeoutError:
+            raise
+        except Exception as exc:
+            raise BrunhandUnreachableError(
+                f"Health probe failed for Brúarhönd at {self._config.host}:{self._config.port}: {exc}"
+            ) from exc
+
+        status = health.get("status", "")
+        if status != "ok":
+            raise BrunhandUnreachableError(
+                f"Brúarhönd daemon at {self._config.host}:{self._config.port} "
+                f"returned health status {status!r} (expected 'ok')."
+            )
+        self._log.info(
+            "Brúarhönd daemon reachable at %s:%s",
+            self._config.host,
+            self._config.port,
         )
 
     async def close(self) -> None:
@@ -154,10 +191,17 @@ class BrunhandHttpClient:
 
         Idempotent — safe to call multiple times. Called from SmidjaSense.close().
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.close — Forge implements in Wave 2. "
-            "Body: if self._http: await self._http.aclose(); self._http = None."
-        )
+        if self._http is not None:
+            try:
+                await self._http.aclose()
+            except Exception as exc:
+                self._log.warning("Error while closing Brúarhönd httpx client: %s", exc)
+            finally:
+                self._http = None
+
+    # ------------------------------------------------------------------
+    # Utility endpoints
+    # ------------------------------------------------------------------
 
     async def health(self) -> dict:
         """GET /v1/brunhand/health — no auth required.
@@ -169,11 +213,23 @@ class BrunhandHttpClient:
             BrunhandUnreachableError: on connection failure.
             BrunhandTimeoutError: on timeout.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.health — Forge implements in Wave 2. "
-            "Body: response = await self._http.get('/v1/brunhand/health'); "
-            "response.raise_for_status(); return response.json()."
-        )
+        if self._http is None:
+            raise BrunhandUnreachableError(
+                "BrunhandHttpClient is not open — call open() first."
+            )
+        try:
+            response = await self._http.get("/v1/brunhand/health")
+            response.raise_for_status()
+            return response.json()
+        except httpx.ConnectError as exc:
+            raise BrunhandUnreachableError(
+                f"Cannot reach Brúarhönd daemon at {self._base_url}: {exc}"
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise BrunhandTimeoutError(
+                f"Brúarhönd health probe timed out after "
+                f"{self._config.request_timeout_seconds}s: {exc}"
+            ) from exc
 
     async def capabilities(self) -> dict:
         """GET /v1/brunhand/capabilities — Bearer auth required.
@@ -187,11 +243,29 @@ class BrunhandHttpClient:
             BrunhandUnreachableError: on connection failure.
             BrunhandTimeoutError: on timeout.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.capabilities — Forge implements in Wave 2. "
-            "Body: response = await self._http.get('/v1/brunhand/capabilities'); "
-            "_raise_for_auth(response); response.raise_for_status(); return response.json()."
-        )
+        if self._http is None:
+            raise BrunhandUnreachableError(
+                "BrunhandHttpClient is not open — call open() first."
+            )
+        try:
+            response = await self._http.get("/v1/brunhand/capabilities")
+            _raise_for_auth(response)
+            response.raise_for_status()
+            return response.json()
+        except (BrunhandAuthError, BrunhandSessionLockedError):
+            raise
+        except httpx.ConnectError as exc:
+            raise BrunhandUnreachableError(
+                f"Cannot reach Brúarhönd daemon: {exc}"
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise BrunhandTimeoutError(
+                f"Brúarhönd capabilities request timed out: {exc}"
+            ) from exc
+
+    # ------------------------------------------------------------------
+    # Tool endpoints (Priority 2 — per-endpoint typed methods)
+    # ------------------------------------------------------------------
 
     async def screenshot(self, region: dict | None = None) -> bytes:
         """POST /v1/brunhand/screenshot — capture PNG bytes.
@@ -216,16 +290,8 @@ class BrunhandHttpClient:
             BrunhandUnreachableError: on connection failure.
             BrunhandTimeoutError: on timeout.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.screenshot — Forge implements in Wave 2. "
-            "Steps: "
-            "1. body = self._build_envelope({'region': region}). "
-            "2. response = await self._http.post('/v1/brunhand/screenshot', json=body). "
-            "3. _raise_for_auth(response). "
-            "4. response.raise_for_status(). "
-            "5. payload = response.json()['payload']. "
-            "6. import base64; return base64.b64decode(payload['png_bytes_b64'])."
-        )
+        body = self._build_envelope({"region": region})
+        return await self._post_for_png("/v1/brunhand/screenshot", body)
 
     async def click(
         self,
@@ -250,15 +316,14 @@ class BrunhandHttpClient:
         Raises:
             BrunhandAuthError, BrunhandUnreachableError, BrunhandTimeoutError.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.click — Forge implements in Wave 2. "
-            "Body: body = self._build_envelope("
-            "{'x': x, 'y': y, 'button': button, 'clicks': clicks, "
-            "'modifiers': modifiers or []}); "
-            "response = await self._http.post('/v1/brunhand/click', json=body); "
-            "_raise_for_auth(response); response.raise_for_status(); "
-            "return response.json()['payload']."
-        )
+        body = self._build_envelope({
+            "x": x,
+            "y": y,
+            "button": button,
+            "clicks": clicks,
+            "modifiers": modifiers or [],
+        })
+        return await self._post_for_payload("/v1/brunhand/click", body)
 
     async def type_text(self, text: str, interval: float = 0.05) -> dict:
         """POST /v1/brunhand/type — type text into the focused field.
@@ -277,13 +342,8 @@ class BrunhandHttpClient:
         Raises:
             BrunhandAuthError, BrunhandUnreachableError, BrunhandTimeoutError.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.type_text — Forge implements in Wave 2. "
-            "Body: body = self._build_envelope({'text': text, 'interval': interval}); "
-            "response = await self._http.post('/v1/brunhand/type', json=body); "
-            "_raise_for_auth(response); response.raise_for_status(); "
-            "return response.json()['payload']."
-        )
+        body = self._build_envelope({"text": text, "interval": interval})
+        return await self._post_for_payload("/v1/brunhand/type", body)
 
     async def hotkey(self, keys: list[str]) -> dict:
         """POST /v1/brunhand/hotkey — press key combination.
@@ -297,13 +357,8 @@ class BrunhandHttpClient:
         Raises:
             BrunhandAuthError, BrunhandUnreachableError, BrunhandTimeoutError.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.hotkey — Forge implements in Wave 2. "
-            "Body: body = self._build_envelope({'keys': keys}); "
-            "response = await self._http.post('/v1/brunhand/hotkey', json=body); "
-            "_raise_for_auth(response); response.raise_for_status(); "
-            "return response.json()['payload']."
-        )
+        body = self._build_envelope({"keys": keys})
+        return await self._post_for_payload("/v1/brunhand/hotkey", body)
 
     async def vroid_open(
         self, project_path: str, wait_timeout_seconds: float = 60.0
@@ -324,16 +379,11 @@ class BrunhandHttpClient:
         Raises:
             BrunhandAuthError, BrunhandUnreachableError, BrunhandTimeoutError.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.vroid_open — Forge implements in Wave 2. "
-            "Body: body = self._build_envelope("
-            "{'project_path': project_path, "
-            "'wait_timeout_seconds': wait_timeout_seconds}); "
-            "response = await self._http.post("
-            "'/v1/brunhand/vroid/open_project', json=body); "
-            "_raise_for_auth(response); response.raise_for_status(); "
-            "return response.json()['payload']."
-        )
+        body = self._build_envelope({
+            "project_path": project_path,
+            "wait_timeout_seconds": wait_timeout_seconds,
+        })
+        return await self._post_for_payload("/v1/brunhand/vroid/open_project", body)
 
     async def vroid_export(
         self, output_path: str, overwrite: bool = True, wait_timeout_seconds: float = 120.0
@@ -355,20 +405,16 @@ class BrunhandHttpClient:
         Raises:
             BrunhandAuthError, BrunhandUnreachableError, BrunhandTimeoutError.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient.vroid_export — Forge implements in Wave 2. "
-            "Body: body = self._build_envelope("
-            "{'output_path': output_path, 'overwrite': overwrite, "
-            "'wait_timeout_seconds': wait_timeout_seconds}); "
-            "response = await self._http.post("
-            "'/v1/brunhand/vroid/export_vrm', json=body); "
-            "_raise_for_auth(response); response.raise_for_status(); "
-            "return response.json()['payload']."
-        )
+        body = self._build_envelope({
+            "output_path": output_path,
+            "overwrite": overwrite,
+            "wait_timeout_seconds": wait_timeout_seconds,
+        })
+        return await self._post_for_payload("/v1/brunhand/vroid/export_vrm", body)
 
-    # -----------------------------------------------------------------------
-    # Private helpers — Forge implements bodies
-    # -----------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
 
     def _build_envelope(self, primitive_params: dict[str, Any]) -> dict[str, Any]:
         """Build the shared request envelope required by all authenticated endpoints.
@@ -387,23 +433,116 @@ class BrunhandHttpClient:
         Returns:
             Full request body dict ready for json= kwarg in httpx POST.
         """
-        raise NotImplementedError(
-            "BrunhandHttpClient._build_envelope — Forge implements in Wave 2. "
-            "Body: return { "
-            "'request_id': str(uuid.uuid4()), "
-            "'session_id': self._session_id, "
-            "'agent_id': self._config.host_name, "
-            "**primitive_params "
-            "}."
-        )
+        return {
+            "request_id": str(uuid.uuid4()),
+            "session_id": self._session_id,
+            "agent_id": self._agent_id,
+            **primitive_params,
+        }
 
+    async def _post_for_payload(self, path: str, body: dict[str, Any]) -> dict:
+        """POST to an authenticated endpoint and return response['payload'].
+
+        Common implementation shared by click, type_text, hotkey, vroid_open,
+        vroid_export. Handles error mapping for all standard HTTP failure modes.
+
+        Args:
+            path: API path (e.g. '/v1/brunhand/click').
+            body: Full request body including envelope fields.
+
+        Returns:
+            Parsed response payload dict.
+
+        Raises:
+            BrunhandAuthError, BrunhandSessionLockedError,
+            BrunhandUnreachableError, BrunhandTimeoutError.
+        """
+        if self._http is None:
+            raise BrunhandUnreachableError(
+                "BrunhandHttpClient is not open — call open() first."
+            )
+        try:
+            response = await self._http.post(path, json=body)
+            _raise_for_auth(response)
+            _raise_for_server_error(response, path)
+            response.raise_for_status()
+            return response.json().get("payload", response.json())
+        except (BrunhandAuthError, BrunhandSessionLockedError):
+            raise
+        except (BrunhandUnreachableError, BrunhandTimeoutError):
+            raise
+        except httpx.ConnectError as exc:
+            raise BrunhandUnreachableError(
+                f"Cannot reach Brúarhönd daemon at {path}: {exc}"
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise BrunhandTimeoutError(
+                f"Brúarhönd request to {path} timed out after "
+                f"{self._config.request_timeout_seconds}s: {exc}"
+            ) from exc
+        except Exception as exc:
+            # Catch JSONDecodeError and any httpx edge-case as an opaque dispatch error
+            from heretic.skilningr.errors import ToolDispatchError
+            raise ToolDispatchError(
+                f"Malformed or unexpected response from Brúarhönd at {path}: {exc}"
+            ) from exc
+
+    async def _post_for_png(self, path: str, body: dict[str, Any]) -> bytes:
+        """POST to the screenshot endpoint and return decoded PNG bytes.
+
+        The daemon returns JSON with payload.png_bytes_b64 (base64-encoded PNG).
+        This method decodes it into raw bytes for the caller.
+
+        Args:
+            path: API path (/v1/brunhand/screenshot).
+            body: Full request body including envelope fields.
+
+        Returns:
+            Raw PNG bytes.
+
+        Raises:
+            BrunhandAuthError, BrunhandSessionLockedError,
+            BrunhandUnreachableError, BrunhandTimeoutError.
+        """
+        if self._http is None:
+            raise BrunhandUnreachableError(
+                "BrunhandHttpClient is not open — call open() first."
+            )
+        try:
+            response = await self._http.post(path, json=body)
+            _raise_for_auth(response)
+            _raise_for_server_error(response, path)
+            response.raise_for_status()
+            data = response.json()
+            # Daemon response shape: {"payload": {"png_bytes_b64": "<base64>"}}
+            png_b64: str = data["payload"]["png_bytes_b64"]
+            return base64.b64decode(png_b64)
+        except (BrunhandAuthError, BrunhandSessionLockedError):
+            raise
+        except (BrunhandUnreachableError, BrunhandTimeoutError):
+            raise
+        except httpx.ConnectError as exc:
+            raise BrunhandUnreachableError(
+                f"Cannot reach Brúarhönd daemon at {path}: {exc}"
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise BrunhandTimeoutError(
+                f"Brúarhönd screenshot request timed out after "
+                f"{self._config.request_timeout_seconds}s: {exc}"
+            ) from exc
+        except Exception as exc:
+            from heretic.skilningr.errors import ToolDispatchError
+            raise ToolDispatchError(
+                f"Malformed response from Brúarhönd screenshot: {exc}"
+            ) from exc
+
+
+# ------------------------------------------------------------------
+# Module-level helpers
+# ------------------------------------------------------------------
 
 def _raise_for_auth(response: "httpx.Response") -> None:
     """Raise BrunhandAuthError if the response is HTTP 401.
-
-    Forge calls this immediately after every authenticated endpoint response,
-    before calling response.raise_for_status(). This produces a typed error
-    rather than an httpx.HTTPStatusError for auth failures.
 
     Also raises BrunhandSessionLockedError for HTTP 423.
 
@@ -414,10 +553,38 @@ def _raise_for_auth(response: "httpx.Response") -> None:
         BrunhandAuthError: if status code is 401.
         BrunhandSessionLockedError: if status code is 423.
     """
-    raise NotImplementedError(
-        "_raise_for_auth — Forge implements in Wave 2. "
-        "Body: "
-        "if response.status_code == 401: raise BrunhandAuthError('Bearer token rejected'). "
-        "if response.status_code == 423: raise BrunhandSessionLockedError("
-        "'Daemon has an active session from another connection (HTTP 423)')."
-    )
+    if response.status_code == 401:
+        raise BrunhandAuthError(
+            "Bearer token rejected by Brúarhönd daemon (HTTP 401). "
+            "Verify the token in the environment variable configured in "
+            "SmidjaConfig.token_env matches the daemon's expected token. "
+            "Authorization header value: [REDACTED]"
+        )
+    if response.status_code == 423:
+        raise BrunhandSessionLockedError(
+            "Brúarhönd daemon has an active session from another connection (HTTP 423). "
+            "Only one concurrent session is permitted. Retry after the current session ends."
+        )
+
+
+def _raise_for_server_error(response: "httpx.Response", path: str) -> None:
+    """Raise ToolDispatchError for HTTP 5xx responses with excerpted body.
+
+    Args:
+        response: The httpx response object.
+        path: The endpoint path (for context in the error message).
+
+    Raises:
+        ToolDispatchError: if status code is 500-599.
+    """
+    if response.status_code >= 500:
+        from heretic.skilningr.errors import ToolDispatchError
+        # Excerpt body for diagnostics — never include auth tokens
+        try:
+            body_excerpt = response.text[:300]
+        except Exception:
+            body_excerpt = "<unreadable>"
+        raise ToolDispatchError(
+            f"Brúarhönd daemon returned server error HTTP {response.status_code} "
+            f"for {path}. Body excerpt: {body_excerpt}"
+        )
