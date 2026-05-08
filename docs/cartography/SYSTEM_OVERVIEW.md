@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -449,7 +449,7 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |  See DATA_FLOW.md §4.7 and §12 for full cartography of this path.
   v0.4  Summoning Circle L4 Vébond          Eldahús UI — Python WS backend + React/Vite frontend
         |
-        |  v0.4.0 — Eldahús Substrate (IN PROGRESS — this session)
+        |  v0.4.0 — Eldahús Substrate (SHIPPED — HEAD 9e9a5aa)
         |    Python `heretic serve`: FastAPI + WebSocket on ws://localhost:8642/ws
         |    React/Vite frontend in frontend/ directory; served via `npm run dev`
         |    Norse dark aesthetic per AESTHETIC.md (Eld/Sjón-glow/Mál-green/Hvíla-grey)
@@ -461,12 +461,18 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |    SSE text chunks fork to ChatHistory display alongside Tunga TTS (as projected in v0.2)
         |    See DATA_FLOW.md §4.8 (UI flow) and §13 (L4 Vébond component diagram)
         |
-        |  v0.4.1 — Tauri Shell Wrap (DEFERRED — separate session, requires Rust install)
-        |    src-tauri/ Rust+Tauri shell wrapping the React frontend
-        |    Tauri spawns Python heretic serve as sidecar process
-        |    Native window, Norse window chrome, .msi installer for Windows
-        |    Prerequisite: rustup or `winget install Rustlang.Rust.MSVC`
-        |    Frontend code does not change between v0.4.0 and v0.4.1
+        |  v0.4.1 — Tauri Shell Wrap (PRE-STAGED — HEAD d1bdb05)
+        |    src-tauri/ directory scaffolded: Cargo.toml, tauri.conf.json, main.rs,
+        |      sidecar.rs, error.rs, build.rs, placeholder icons, capabilities/default.json
+        |    Tauri spawns Python `heretic serve` as sidecar; probes /health before opening WebView
+        |    Graceful shutdown: SIGTERM / CTRL_BREAK_EVENT; force-kill after 5s; PID file recovery
+        |    Native window: dark, frameless, Norse chrome per AESTHETIC.md
+        |    Tauri commands: quit, focus_window, get_sidecar_port (minimal; WS is primary IPC)
+        |    Frontend code does NOT change between v0.4.0 and v0.4.1
+        |    NOT yet compiled: Rust toolchain not installed; first `cargo tauri build` pending
+        |    Prerequisite to compile: `winget install Rustlang.Rust.MSVC` (Windows) or rustup-init
+        |    See DATA_FLOW.md §4.9 (Tauri shell flow) and §14 (shell wrapper diagram)
+        |    PyInstaller bundling deferred to v0.4.1.x — v0.4.1 requires Python 3.10+ on PATH
   v0.5  First Sight      screen capture     L3 added (Sjón substrate + auga sense)
   v0.6  Hands at the Forge  Blender MCP     L5.5 (blender sense + Seidr-Smidja)
   v0.7  Files & Terminal    FS + terminal   L5.1 + L5.2 (filesystem + terminal senses)

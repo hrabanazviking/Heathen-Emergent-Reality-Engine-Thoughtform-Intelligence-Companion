@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1.
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -1478,6 +1478,8 @@ execution model.
 > backend, the React component tree, the WS seam between them, and which components subscribe
 > to which events. This diagram reflects the v0.4.0 substrate (browser mode); the Tauri native
 > wrapper (v0.4.1) adds only the outer shell — the component tree and WS protocol do not change.
+> For the outer Tauri shell wrapper diagram (Tauri main process + WebView + Python sidecar +
+> PID file + Tauri command surface), see §14.
 
 ```
   BACKEND SIDE (Python — src/heretic/vebond/)
@@ -1758,6 +1760,208 @@ execution model.
     ChatHistory is client-side memory and survives reconnects (held in Zustand store)
 ```
 
+---
+
+## 14. Tauri Shell Wrapper Diagram (v0.4.1 — pre-staged)
+
+> **Added 2026-05-07 v0.4.1 (Védis Eikleið).** Maps the outer shell that wraps the v0.4.0
+> Eldahús substrate in a native desktop window. Pre-staged: the Rust code is scaffolded but
+> not compiled; Rust toolchain is not yet installed. This diagram shows the process topology
+> the cabin takes once Rust arrives and `cargo tauri build` runs. The WS seam and the React
+> component tree inside the WebView are unchanged from §13 — the shell adds a new outer layer
+> without disturbing the interior. For the full Tauri startup/shutdown flow, see §4.9.
+
+```
+  ========================================================================
+  TAURI SHELL WRAPPER — v0.4.1 (pre-staged; compiles after Rust install)
+  ========================================================================
+
+  HOST OS (Windows / macOS / Linux)
+  |
+  +-- heretic.exe  (or heretic.app / heretic.AppImage — the Tauri-built binary)
+      |
+      +======================================================================+
+      |  TAURI MAIN PROCESS  (Rust — src-tauri/src/main.rs)                 |
+      |                                                                       |
+      |  WindowManager                                                        |
+      |  |  creates one WebView window at startup                            |
+      |  |  window config from tauri.conf.json:                              |
+      |  |    title: "H.E.R.E.T.I.C."                                       |
+      |  |    frameless: true   (Norse dark chrome; no system titlebar flash)|
+      |  |    theme: dark       (per AESTHETIC.md)                           |
+      |  |    single-instance: yes (plugin: single-instance)                 |
+      |  |  on RunEvent::ExitRequested --> SidecarManager.shutdown()         |
+      |  |  then exit Tauri process                                          |
+      |  |                                                                   |
+      |  SidecarManager  (src-tauri/src/sidecar.rs)                         |
+      |  |  on startup:                                                      |
+      |  |    spawn child process: python -m heretic serve --port 8642       |
+      |  |    write PID to PID file (see PID file location below)            |
+      |  |    probe GET http://localhost:8642/health with backoff:            |
+      |  |      attempt 1: 250ms delay                                       |
+      |  |      attempt 2: 500ms delay                                       |
+      |  |      attempt 3: 1s delay                                          |
+      |  |      attempt 4: 2s delay                                          |
+      |  |      attempt 5: 4s delay  (max total ~8s)                        |
+      |  |    if /health 200 within limit --> tell WindowManager to show     |
+      |  |    if timeout or spawn fail   --> show error window (see F-1)     |
+      |  |  on shutdown (called from WindowManager):                         |
+      |  |    send SIGTERM (Unix) or CTRL_BREAK_EVENT (Windows)              |
+      |  |    wait up to 5s for sidecar exit                                 |
+      |  |    if still running after 5s --> TerminateProcess (force-kill)    |
+      |  |    remove PID file                                                |
+      |  |  on next startup (stale-PID recovery):                            |
+      |  |    read PID file if present                                       |
+      |  |    if PID exists and process still alive --> kill it              |
+      |  |    then proceed with normal sidecar spawn                        |
+      |  |                                                                   |
+      |  EventLoop                                                           |
+      |  |  RunEvent::ExitRequested --> SidecarManager.shutdown()           |
+      |  |  RunEvent::WindowEvent(close) --> same path                      |
+      |  |                                                                   |
+      |  Tauri Command Surface  (minimal — only native-only concerns)        |
+      |  |  tauri::command  quit()              --> WindowManager close      |
+      |  |  tauri::command  focus_window()      --> WindowManager focus      |
+      |  |  tauri::command  get_sidecar_port()  --> returns u16 (e.g. 8642) |
+      |  |  (all other IPC is the existing WebSocket -- Tauri does not touch)|
+      |                                                                       |
+      +======================================================================+
+                 |                                      |
+                 | spawns                               | /health probe
+                 | (child process)                      | (HTTP GET once live)
+                 v                                      v
+      +==============================+       http://localhost:8642/health
+      |  PYTHON SIDECAR              |       --> {"status":"ok", ...}
+      |  (child of Tauri main)       |
+      |                              |
+      |  python -m heretic serve     |
+      |    --port 8642               |
+      |                              |
+      |  vebond/serve.py             |
+      |  |  FastAPI app              |
+      |  |  GET  /health  --> 200    |  <-- Tauri SidecarManager probes here
+      |  |  GET  /ws      --> WS     |  <-- WebView React app connects here
+      |  |                           |
+      |  EventBus                    |
+      |  |  (same as v0.4.0)        |
+      |  |  ceremony state events   |
+      |  |  agent token stream      |
+      |  |  Rödd activity signals   |
+      |  |  error events            |
+      |                              |
+      |  Bound to: 127.0.0.1:8642   |
+      |  (localhost only;            |
+      |   allow_remote_bind: false   |
+      |   unless overridden in       |
+      |   heretic.yaml)              |
+      +==============================+
+                 |
+                 | ws://localhost:8642/ws
+                 | (WebSocket — unchanged from v0.4.0)
+                 |
+                 v
+      +==============================+
+      |  WEBVIEW                     |
+      |  (embedded in Tauri window)  |
+      |                              |
+      |  React frontend              |
+      |  (same component tree        |
+      |   as §13 — unmodified)       |
+      |                              |
+      |  In dev:  http://localhost:1420  (Vite dev server, cargo tauri dev)
+      |  In prod: bundled React build embedded in binary                    |
+      |                              |
+      |  WsClient connects to:       |
+      |    ws://localhost:8642/ws    |
+      |    (same URL as v0.4.0)      |
+      |                              |
+      |  Tauri commands available    |
+      |  via @tauri-apps/api:        |
+      |    invoke("quit")            |
+      |    invoke("focus_window")    |
+      |    invoke("get_sidecar_port")|
+      |  (used sparingly — WS is     |
+      |   the primary data channel)  |
+      +==============================+
+
+
+  PID FILE LOCATIONS (platform-specific):
+  -----------------------------------------
+  Windows:   %APPDATA%\heretic\sidecar.pid
+             (Tauri $APPDATA placeholder resolves this at runtime)
+  macOS:     ~/Library/Application Support/heretic/sidecar.pid
+  Linux:     ~/.local/state/heretic/sidecar.pid
+             (XDG_STATE_HOME fallback if env var absent)
+
+  Written:   by SidecarManager immediately after successful sidecar spawn
+  Removed:   by SidecarManager after sidecar exits cleanly
+  Read:      by SidecarManager at next Tauri startup (stale-process recovery)
+  Contents:  plain text — the sidecar process ID (integer)
+
+
+  THE WS SEAM — UNCHANGED FROM v0.4.0:
+  ---------------------------------------
+  The WebSocket wire (ws://localhost:8642/ws) and the full event/command
+  protocol described in §4.8 and §13 are NOT altered by the Tauri wrapper.
+  Tauri is an outer shell. The WS seam remains the single data channel
+  between Python and React. Tauri commands are orthogonal and minimal.
+
+  Relation to §13 component diagram:
+  The React tree drawn in §13 is exactly what lives inside the WebView box above.
+  The Tauri shell adds the native window frame around it; nothing inside the
+  WebView changes between v0.4.0 and v0.4.1.
+
+
+  FAILURE MODES (pre-staged; will apply once Rust build runs):
+  -------------------------------------------------------------
+  F-1: Sidecar spawn fails
+       Cause: Python not found on PATH, or port 8642 already in use,
+              or sidecar exits immediately (import error, config error)
+       Tauri: does NOT open the React WebView
+       User sees: small native error dialog with actionable message
+                  e.g. "Python 3.10+ not found. Install Python and try again."
+                       "Port 8642 already in use. Close any prior heretic session."
+       Note: PyInstaller bundling (deferred to v0.4.1.x) removes the Python-on-PATH
+             requirement; until then, Python 3.10+ must be installed and reachable
+
+  F-2: /health probe times out
+       Cause: sidecar spawned but /health never returns 200 within ~8s
+              (e.g. uvicorn slow start, heretic.yaml parse error delaying serve)
+       Tauri: same as F-1 — error window, no WebView
+       Mitigation: sidecar stderr is forwarded to host stderr for diagnosis
+
+  F-3: Sidecar dies mid-session
+       Cause: Python crash, OOM kill, user kills process externally
+       Tauri: WebView is still open; React's existing WS reconnect-with-backoff runs
+              (backoff: 1s, 2s, 4s ... 30s per §4.8.4 Scenario B)
+       User sees: ConnectionIndicator turns red ("Disconnected -- reconnecting...")
+                  ChatInput and buttons disabled until reconnect succeeds
+                  If reconnect never succeeds: UI stays frozen at last state,
+                  ConnectionIndicator stays red, ChatInput stays disabled
+       Tauri does NOT auto-restart the sidecar mid-session (by design; restart is
+       explicit — user closes and reopens the app, triggering full Kynding again)
+
+  F-4: Tauri crash (Rust panic or OS force-kill)
+       Cause: unhandled Rust panic, OOM, OS kill signal
+       Result: Tauri process exits without clean SidecarManager.shutdown()
+               Sidecar Python process becomes orphaned (still bound to port 8642)
+       Mitigation: PID file was written at sidecar spawn; next Tauri startup reads
+                   it, finds the stale process, sends SIGTERM (or equivalent),
+                   waits briefly, then kills it before spawning a fresh sidecar
+       Note: port 8642 remains occupied until the orphan is killed;
+             this is why stale-PID recovery runs before any sidecar spawn
+
+  F-5: Python on PATH is wrong version (< 3.10) or unsupported
+       Cause: system Python is old; user has not installed Python 3.10+
+       Result: spawn may succeed but sidecar immediately exits with ImportError
+               or syntax error; /health probe times out --> F-2 path
+       User sees: error window with "install Python 3.10+ on PATH" guidance
+       Resolution: PyInstaller bundle in v0.4.1.x eliminates this failure mode
+                   by embedding the interpreter inside the binary
+```
+
+---
+
 --- (v0.4.0 — Summoning Circle Substrate)
 
 > **Added 2026-05-07 v0.4.0 (Védis Eikleið).** This section maps the face: how L4 Vébond
@@ -1768,6 +1972,7 @@ execution model.
 > **v0.4.0 scope:** Python `heretic serve` backend (FastAPI + WebSocket) + React/Vite frontend
 > served via `npm run dev`. Browser-rendered UI only. The Tauri native shell is deferred to
 > v0.4.1 (requires Rust; see TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md §2 architectural constraint).
+> For the Tauri shell flow that wraps this browser-served experience in a native window, see §4.9.
 >
 > **Aesthetic cross-reference:** The visual language for this flow is defined in
 > `docs/vision/AESTHETIC.md`. Color tokens used in the components below:
@@ -2077,5 +2282,206 @@ Total: **5 client command types.**
 | `vebond.show_agent_text_stream` | `true` | If false, `agent.token` events are not forwarded to WS; ChatHistory shows only completed turns |
 | `vebond.ceremony_button_confirm` | `true` | If true, ExtinguishButton shows a confirm step before sending `extinguish` command |
 | `vebond.show_frame_thumbnail` | `false` | If true, vision frames from Sjón are sent to UI (deferred; v0.5+ when Sjón ships) |
+
+---
+
+### 4.9 Tauri Shell Flow (v0.4.1 — pre-staged)
+
+> **Added 2026-05-07 v0.4.1 (Védis Eikleið).** This section maps the lifecycle of the Tauri
+> native shell that wraps the v0.4.0 substrate. The shell is pre-staged: code is scaffolded in
+> `src-tauri/` but not yet compiled (Rust toolchain not installed). The routes described here
+> apply once `cargo tauri build` runs and the user launches `heretic.exe` (or `.app` / `.AppImage`).
+>
+> The interior protocol — the WS seam, the React component tree, all seven server-push events,
+> all five client commands — is the same as §4.8. This section maps only the new outer layer:
+> from the OS launcher to the first WebSocket frame. For the structural diagram, see §14.
+>
+> **IPC note (from IPC_PROTOCOL.md §1):** The `/health` endpoint returns
+> `{"status":"ok","version":"<str>","lifecycle_state":"<str>"}`. The Tauri SidecarManager
+> inspects `status` only; `lifecycle_state` is informational. Tauri does not gate on ceremony
+> state — it only requires the server to be up.
+
+#### 4.9.1 Startup Sequence
+
+```
+  [User double-clicks heretic.exe (or OS launcher equivalent)]
+       |
+       v
+  [Tauri main process initializes]
+  (src-tauri/src/main.rs: tauri::Builder::default()...)
+       |
+       |  reads tauri.conf.json:
+       |    window geometry, theme (dark), frameless flag
+       |    sidecar binary reference (python -m heretic serve)
+       |    single-instance plugin config
+       |
+       v
+  [SidecarManager.startup() -- src-tauri/src/sidecar.rs]
+       |
+       |  (stale-PID check — runs before spawn)
+       |    read PID file at:
+       |      Windows: %APPDATA%\heretic\sidecar.pid
+       |      macOS:   ~/Library/Application Support/heretic/sidecar.pid
+       |      Linux:   ~/.local/state/heretic/sidecar.pid  (XDG_STATE_HOME or fallback)
+       |    if PID file exists and process is alive --> kill it (SIGTERM + 3s + force)
+       |    delete stale PID file
+       |
+       v
+  [Tauri spawns Python sidecar as child process]
+       |
+       |  command: python -m heretic serve --port 8642
+       |    (in dev: system Python; in prod v0.4.1.x: PyInstaller bundle -- deferred)
+       |  sidecar stderr forwarded to host stderr for diagnosis
+       |  if spawn returns OS error immediately (Python not found, permission denied):
+       |    --> F-1: Tauri shows error window; WebView never opens; exits
+       |
+       |  on successful spawn:
+       |    write sidecar PID to PID file
+       |
+       v
+  [SidecarManager probes GET http://localhost:8642/health with backoff]
+       |
+       |  attempt 1: wait 250ms, probe
+       |  attempt 2: wait 500ms, probe
+       |  attempt 3: wait 1s,    probe
+       |  attempt 4: wait 2s,    probe
+       |  attempt 5: wait 4s,    probe  (total elapsed: ~8s max)
+       |
+       |  each probe: HTTP GET http://localhost:8642/health
+       |    200 response with {"status":"ok",...}  --> proceed
+       |    connection refused / non-200            --> retry
+       |    all attempts exhausted                  --> F-2: timeout error window
+       |
+       v
+  [/health 200 received]
+       |
+       v
+  [WindowManager creates the WebView window]
+       |
+       |  dev mode:  points WebView at http://localhost:1420 (Vite dev server)
+       |  prod mode: loads bundled React build from binary (no external URL)
+       |  window config: frameless dark Norse chrome per AESTHETIC.md
+       |  window is visible to user here for the first time
+       |  (no flash: dark background fills before React hydrates)
+       |
+       v
+  [WebView loads React app -- frontend/src/main.tsx bootstraps <App>]
+       |
+       v
+  [WsClient constructor: opens ws://localhost:8642/ws]
+       |
+       v
+  [Ceremony state snapshot pushed by server -- same as §4.8.1]
+       |
+       v
+  [Bidirectional WS event/command stream open -- same as §4.8]
+```
+
+At this point the user sees Eldahús in the same Hvíld or Kynding state they would see in
+browser mode. The Tauri shell has dissolved into the background — the ceremony owns the stage.
+The window opens during Hvíld (READY state); the user must click "Light the Candle" (LightButton)
+to begin Kynding → READY → OPENING → Tengsl. Tauri does not automatically initiate the ceremony.
+
+#### 4.9.2 Steady-State
+
+During the ceremony (Tengsl or Samræður), the data channels are identical to §4.8:
+
+```
+  [User action in WebView]
+       |
+       v WS send (ClientCommand)
+  [Python sidecar: vebond/serve.py WebSocket endpoint]
+       |
+       v (event, agent call, layer dispatch, etc.)
+  [Python sidecar: vebond/serve.py EventBus]
+       |
+       v WS push (ServerEvent)
+  [WebView React: events.ts handlers --> store/ceremony.ts --> components re-render]
+```
+
+Tauri commands during steady-state are rare and orthogonal to the WS protocol:
+
+```
+  @tauri-apps/api invoke("quit")
+      --> WindowManager.close()
+      --> RunEvent::ExitRequested fires
+      --> SidecarManager.shutdown() (see §4.9.3)
+
+  @tauri-apps/api invoke("focus_window")
+      --> brings the HERETIC window to the foreground
+      --> used if a notification or system event causes the app to lose focus
+
+  @tauri-apps/api invoke("get_sidecar_port")
+      --> returns the configured sidecar port (u16, e.g. 8642)
+      --> for informational display or future dynamic-port support
+      --> not used for WS connection (WsClient uses compiled-in default or env var)
+```
+
+#### 4.9.3 Shutdown Sequence
+
+```
+  [User closes window — X button, Cmd+Q, Alt+F4 — OR clicks Extinguish then closes]
+       |
+       v
+  [If Extinguish was clicked first (optional but graceful):
+     WsClient sends ExtinguishCommand --> server initiates Slokna --> EXTINGUISHED
+     Ring dims per AESTHETIC.md Slokna animation
+     User then closes window]
+       |
+       v
+  [Tauri EventLoop receives RunEvent::ExitRequested]
+       |
+       v
+  [SidecarManager.shutdown()]
+       |
+       |  sends graceful termination signal to sidecar child process:
+       |    Unix:    SIGTERM
+       |    Windows: CTRL_BREAK_EVENT sent to the process group
+       |
+       |  waits up to 5s for sidecar to exit:
+       |    sidecar receives signal, flushes session log, closes uvicorn
+       |    exits cleanly --> SidecarManager receives exit status
+       |
+       |  if sidecar has NOT exited after 5s:
+       |    force-kill: TerminateProcess (Windows) / SIGKILL (Unix)
+       |    wait for process tree to clear
+       |
+       |  delete PID file (if sidecar exited cleanly or was force-killed)
+       |
+       v
+  [Tauri closes the WebView window]
+       |
+       v
+  [Tauri main process exits]
+       |
+       v
+  [System returns to Hvíld -- no processes remaining on port 8642]
+```
+
+#### 4.9.4 Failure Modes
+
+All five failure modes are mapped in §14's diagram with additional technical detail.
+Summary table:
+
+| Failure | When | Tauri response | User sees |
+|---|---|---|---|
+| F-1: Sidecar spawn fails | Startup | No WebView; error window | Actionable message (Python not found, port busy) |
+| F-2: /health probe timeout | Startup | No WebView; error window | "Sidecar did not start in time" with stderr hint |
+| F-3: Sidecar dies mid-session | During ceremony | WebView stays open | ConnectionIndicator red; WS reconnect backoff runs |
+| F-4: Tauri crash / force-kill | Any time | Tauri exits ungracefully | Next startup: stale-PID recovery kills orphaned sidecar |
+| F-5: Wrong Python version | Startup | Sidecar exits immediately; /health timeout | Same as F-2; message specifies "Python 3.10+ required" |
+
+**Relation to §4.8 (browser dev mode):** §4.8 describes the same WS protocol as it runs in a
+browser tab pointed at the Vite dev server. §4.9 wraps that exact experience in a Tauri window:
+the frontend does not change; the WebSocket URL does not change; only the outer container changes.
+In `cargo tauri dev` (development mode), Tauri opens a window pointed at `http://localhost:1420`
+while the developer runs `heretic serve` separately — the same hybrid flow as §4.8 but inside a
+native window. In production, Tauri both spawns the sidecar and serves the bundled React build.
+
+**PyInstaller deferral note (from TASK_HERETIC_v0.4.1_TAURI_WRAP.md §4):** Until v0.4.1.x ships
+PyInstaller bundling, the production installer requires Python 3.10+ on the user's PATH. F-1 and
+F-5 are the failure modes that expose this gap. They are documented; the user receives a clear
+install message. This is an accepted risk for v0.4.1. Once PyInstaller bundles the interpreter,
+F-5 is eliminated and F-1 is reduced to the port-busy case only.
 
 ---
