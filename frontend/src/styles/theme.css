@@ -1,0 +1,91 @@
+/*
+  HERETIC — CSS custom properties (theme tokens)
+
+  These variables mirror the Tailwind theme tokens in tailwind.config.js and
+  the canonical hex values from docs/vision/AESTHETIC.md exactly.
+
+  All hex values are copied verbatim from AESTHETIC.md — do not adjust them.
+  If AESTHETIC.md changes, update here AND tailwind.config.js in the same commit.
+
+  Usage:
+    - Tailwind utility classes (bg-void, text-text-primary, etc.) are preferred
+      in component JSX. Use these CSS variables only when Tailwind utilities are
+      insufficient (e.g. complex gradient stops, animation keyframe values,
+      or third-party component overrides).
+*/
+
+:root {
+  /* ------------------------------------------------------------------
+     Background layers — deepest to surface
+     ------------------------------------------------------------------ */
+  --color-void:      #0a0c10;   /* Void: near-black, cool blue-grey undertone */
+  --color-structure: #111418;   /* Structure: panels, sidebars */
+  --color-surface:   #1a1e25;   /* Surface: card backgrounds, input fields */
+  --color-raised:    #232830;   /* Raised: tooltips, dropdowns, modals */
+
+  /* ------------------------------------------------------------------
+     Text
+     ------------------------------------------------------------------ */
+  --color-text-primary:   #e8dfc8;  /* Off-white with warm gold tinge — parchment */
+  --color-text-secondary: #8a8070;  /* Muted warm grey — readable but receding */
+  --color-text-ghost:     #4a4540;  /* Ghost / inactive — barely perceptible */
+
+  /* ------------------------------------------------------------------
+     Accent colors — the bioluminescence
+     ------------------------------------------------------------------ */
+
+  /* Eld — fire / primary accent (amber-gold, candlelight) */
+  --color-eld:      #c8860a;
+  --color-eld-glow: #e8a020;
+
+  /* Sjon-glow — vision / perception accent (cool blue-silver, moonlight) */
+  --color-sjon:      #4080b0;
+  --color-sjon-glow: #60a8e0;
+
+  /* Mal-green — voice accent (deep teal-green, aurora thread) */
+  --color-mal:      #1a6050;
+  --color-mal-glow: #30a880;
+
+  /* Varud — warning / attention (burnt sienna, dying embers) */
+  --color-varud: #c04020;
+
+  /* Hvila-grey — dormant / resting state */
+  --color-hvila: #404850;
+
+  /* ------------------------------------------------------------------
+     Typography scale (mirrors AESTHETIC.md §Type Scale)
+     ------------------------------------------------------------------ */
+  --font-display:  "Cinzel", Georgia, serif;
+  --font-body:     "Inter", system-ui, sans-serif;
+  --font-code:     "JetBrains Mono", "Fira Code", monospace;
+
+  --text-display: 32px;   /* 28-36px range; midpoint */
+  --text-h1:      22px;
+  --text-h2:      17px;
+  --text-body:    14px;
+  --text-small:   12px;
+  --text-code:    13px;
+
+  --leading-body: 1.6;
+  --tracking-small: 0.04em;
+  --tracking-display: 0.03em;
+
+  /* ------------------------------------------------------------------
+     Motion timing (mirrors AESTHETIC.md §Timing Reference)
+     Never use linear easing for organic/living elements.
+     ------------------------------------------------------------------ */
+  --timing-micro:      150ms;   /* hover state, toggle */
+  --timing-transition: 300ms;   /* scene change, state shift */
+  --timing-ceremonial-short: 1800ms;  /* connection bloom */
+  --timing-ceremonial-long:  4000ms;  /* ring breath cycle */
+
+  --ease-organic: cubic-bezier(0.45, 0.05, 0.55, 0.95);  /* sinusoidal approximation */
+
+  /* ------------------------------------------------------------------
+     Layout
+     ------------------------------------------------------------------ */
+  --ring-diameter: 320px;      /* Summoning Circle ring, default size */
+  --ring-stroke:   3px;
+  --panel-width:   320px;      /* Side panels (layer status, chat) */
+  --bottom-bar-h:  64px;
+}

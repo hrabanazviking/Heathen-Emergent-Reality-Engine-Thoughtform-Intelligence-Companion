@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>H.E.R.E.T.I.C. — Summoning Circle</title>
+
+    <!--
+      H.E.R.E.T.I.C. — Host Environment for Realtime Embodiment, Tooling & Interactive Control
+      L4 Vebond / Eldahus — The Summoning Circle
+
+      Dark mode is the identity. See docs/vision/AESTHETIC.md.
+    -->
+
+    <!-- Favicon placeholder — replace with Norse sigil SVG in v0.4.x -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!--
+      Google Fonts — Norse aesthetic typography stack (AESTHETIC.md §Typography):
+        Cinzel        — Display / headings: ceremonial, monumental, Roman-influenced
+        Inter         — Body text: disappears behind the content
+        JetBrains Mono — Code / monospace: precise, craft-like
+
+      All three are loaded in a single request for performance.
+      Weights loaded: Cinzel (400, 700), Inter (400, 500, 600), JetBrains Mono (400, 700).
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body class="bg-void text-text-primary font-inter antialiased">
+    <!--
+      Single root mount point. React mounts the full ceremony UI here.
+      The body carries bg-void (the deepest background, #0a0c10) and the
+      primary text color as base defaults — every child component inherits these.
+    -->
+    <div id="root"></div>
+
+    <!-- React entry point — Vite resolves this as a module import -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

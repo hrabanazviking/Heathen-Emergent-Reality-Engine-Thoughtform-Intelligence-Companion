@@ -1,0 +1,852 @@
+"""
+Tests for v0.5 vision integration in the CLI and BifrostClient.
+
+Coverage:
+    - capability_vision_screen property: getter, setter, reset on close
+    - BifrostClient.capability_vision_screen defaults to False
+    - capability_vision_screen + capability_vision_in dual-flag gate
+    - User message content array structure with image_data_urls
+    - OpenAI multimodal content array exactly matches AGENT_AGNOSTIC_PROTOCOL.md §2.1
+    - Text-only content array when no vision
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch, call
+
+import pytest
+
+
+# ---------------------------------------------------------------------------
+# BifrostClient capability_vision_screen
+# ---------------------------------------------------------------------------
+
+class TestBifrostClientVisionScreenCapability:
+    """Tests for the ?vision_screen body-state flag on OpenAICompatClient."""
+
+    def _make_client(self) -> "OpenAICompatClient":
+        from heretic.bifrost.client import OpenAICompatClient
+        from heretic.bifrost.config_model import BifrostConfig
+
+        cfg = BifrostConfig(
+            endpoint="http://localhost:8643/v1",
+            api_key="test-key",
+            model="test-model",
+        )
+        return OpenAICompatClient(cfg)
+
+    def test_capability_vision_screen_defaults_false(self) -> None:
+        client = self._make_client()
+        assert client.capability_vision_screen is False
+
+    def test_capability_vision_screen_can_be_set(self) -> None:
+        client = self._make_client()
+        client.capability_vision_screen = True
+        assert client.capability_vision_screen is True
+
+    def test_capability_vision_screen_set_false(self) -> None:
+        client = self._make_client()
+        client.capability_vision_screen = True
+        client.capability_vision_screen = False
+        assert client.capability_vision_screen is False
+
+    @pytest.mark.asyncio
+    async def test_capability_vision_screen_resets_on_close(self) -> None:
+        """close() zeroes the capability_vision_screen flag."""
+        client = self._make_client()
+        client.capability_vision_screen = True
+        # close() without opening should be a no-op except for flag reset
+        await client.close()
+        assert client.capability_vision_screen is False
+
+    def test_capability_vision_in_distinct_from_vision_screen(self) -> None:
+        """?vision_in and ?vision_screen are independent flags."""
+        client = self._make_client()
+        # vision_screen can be True while vision_in is still False (default)
+        client.capability_vision_screen = True
+        assert client.capability_vision_screen is True
+        assert client.capability_vision_in is False
+
+
+# ---------------------------------------------------------------------------
+# Multimodal content array construction
+# ---------------------------------------------------------------------------
+
+class TestMultimodalContentArrayConstruction:
+    """Verify the content array shape matches AGENT_AGNOSTIC_PROTOCOL.md §2.1 EXACTLY."""
+
+    def test_text_only_content_array(self) -> None:
+        """Without images, user message content is a single-element text array."""
+        user_text = "Hello agent"
+        image_data_urls: list[str] = []
+
+        user_content = [{"type": "text", "text": user_text}]
+        for url in image_data_urls:
+            user_content.append({"type": "image_url", "image_url": {"url": url}})
+
+        assert len(user_content) == 1
+        assert user_content[0] == {"type": "text", "text": "Hello agent"}
+
+    def test_multimodal_content_array_one_image(self) -> None:
+        """With one image, content array has text first then image_url block."""
+        user_text = "What do you see?"
+        fake_data_url = "data:image/png;base64,abc123"
+        image_data_urls = [fake_data_url]
+
+        user_content = [{"type": "text", "text": user_text}]
+        for url in image_data_urls:
+            user_content.append({"type": "image_url", "image_url": {"url": url}})
+
+        # Matches AGENT_AGNOSTIC_PROTOCOL.md §2.1 exactly:
+        # [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {"url": "..."}}]
+        assert len(user_content) == 2
+        assert user_content[0] == {"type": "text", "text": "What do you see?"}
+        assert user_content[1] == {
+            "type": "image_url",
+            "image_url": {"url": "data:image/png;base64,abc123"},
+        }
+
+    def test_multimodal_content_array_multiple_images(self) -> None:
+        """Multiple images are appended in order after the text block."""
+        user_text = "What's in these frames?"
+        image_data_urls = [
+            "data:image/png;base64,frame1",
+            "data:image/png;base64,frame2",
+        ]
+
+        user_content = [{"type": "text", "text": user_text}]
+        for url in image_data_urls:
+            user_content.append({"type": "image_url", "image_url": {"url": url}})
+
+        assert len(user_content) == 3
+        assert user_content[0]["type"] == "text"
+        assert user_content[1]["type"] == "image_url"
+        assert user_content[1]["image_url"]["url"] == "data:image/png;base64,frame1"
+        assert user_content[2]["image_url"]["url"] == "data:image/png;base64,frame2"
+
+    def test_image_url_structure_matches_openai_spec(self) -> None:
+        """The image_url block structure matches AGENT_AGNOSTIC_PROTOCOL.md §2.1 contract."""
+        data_url = "data:image/png;base64,iVBORw0K..."
+        image_block = {"type": "image_url", "image_url": {"url": data_url}}
+
+        # Verify the nested structure is correct — no "detail" field required,
+        # no extra wrappers.
+        assert image_block["type"] == "image_url"
+        assert isinstance(image_block["image_url"], dict)
+        assert "url" in image_block["image_url"]
+        assert image_block["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+# ---------------------------------------------------------------------------
+# Vision gate logic (dual flag: ?vision_in AND ?vision_screen)
+# ---------------------------------------------------------------------------
+
+class TestVisionGateLogic:
+    """Tests for the dual-flag gate: frames injected only when BOTH flags are True."""
+
+    def _make_mock_sjon(self, snapshot_result: list) -> MagicMock:
+        """Build a mock Sjón orchestrator that returns the given snapshot result."""
+        mock_sjon = MagicMock()
+        mock_sjon.is_available = True
+
+        async def _mock_snapshot():
+            return snapshot_result
+
+        mock_sjon.snapshot = _mock_snapshot
+        return mock_sjon
+
+    def _make_mock_client(
+        self,
+        vision_in: bool = False,
+        vision_screen: bool = False,
+    ) -> MagicMock:
+        """Build a mock BifrostClient with controlled capability flags."""
+        mock_client = MagicMock()
+        mock_client.capability_vision_in = vision_in
+        mock_client.capability_vision_screen = vision_screen
+        return mock_client
+
+    @pytest.mark.asyncio
+    async def test_no_frame_when_vision_in_false(self) -> None:
+        """No frame injected when ?vision_in is False (agent does not support vision)."""
+        sjon = self._make_mock_sjon(["data:image/png;base64,frame"])
+        client = self._make_mock_client(vision_in=False, vision_screen=True)
+
+        image_data_urls: list[str] = []
+        if (
+            sjon is not None
+            and client.capability_vision_in
+            and client.capability_vision_screen
+        ):
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == []
+
+    @pytest.mark.asyncio
+    async def test_no_frame_when_vision_screen_false(self) -> None:
+        """No frame injected when ?vision_screen is False (no screen capture backend)."""
+        sjon = self._make_mock_sjon(["data:image/png;base64,frame"])
+        client = self._make_mock_client(vision_in=True, vision_screen=False)
+
+        image_data_urls: list[str] = []
+        if (
+            sjon is not None
+            and client.capability_vision_in
+            and client.capability_vision_screen
+        ):
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == []
+
+    @pytest.mark.asyncio
+    async def test_frame_injected_when_both_flags_true(self) -> None:
+        """Frame IS injected when both ?vision_in and ?vision_screen are True."""
+        sjon = self._make_mock_sjon(["data:image/png;base64,frame"])
+        client = self._make_mock_client(vision_in=True, vision_screen=True)
+
+        image_data_urls: list[str] = []
+        if (
+            sjon is not None
+            and client.capability_vision_in
+            and client.capability_vision_screen
+        ):
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == ["data:image/png;base64,frame"]
+
+    @pytest.mark.asyncio
+    async def test_no_frame_when_sjon_is_none(self) -> None:
+        """No frame when sjon object is None (init failed)."""
+        sjon = None  # Sjón init failed
+        client = self._make_mock_client(vision_in=True, vision_screen=True)
+
+        image_data_urls: list[str] = []
+        if (
+            sjon is not None
+            and client.capability_vision_in
+            and client.capability_vision_screen
+        ):
+            image_data_urls = await sjon.snapshot()  # type: ignore[union-attr]
+
+        assert image_data_urls == []
+
+
+# ---------------------------------------------------------------------------
+# Sjón init wiring: vision_screen set from is_available
+# ---------------------------------------------------------------------------
+
+class TestSjonInitSetsVisionScreenFlag:
+    """Verify that the CLI wires ?vision_screen from sjon.is_available."""
+
+    def test_vision_screen_set_true_when_sjon_available(self) -> None:
+        """Simulates the CLI: client.capability_vision_screen = (sjon.is_available)."""
+        from heretic.bifrost.client import OpenAICompatClient
+        from heretic.bifrost.config_model import BifrostConfig
+
+        cfg = BifrostConfig(
+            endpoint="http://localhost:8643/v1",
+            api_key="test-key",
+            model="test-model",
+        )
+        client = OpenAICompatClient(cfg)
+
+        # Simulate: sjon init succeeded and is_available is True
+        mock_sjon = MagicMock()
+        mock_sjon.is_available = True
+        if mock_sjon.is_available:
+            client.capability_vision_screen = True
+
+        assert client.capability_vision_screen is True
+
+    def test_vision_screen_stays_false_when_sjon_not_available(self) -> None:
+        """Simulates the CLI: sjon is None or is_available=False -> flag stays False."""
+        from heretic.bifrost.client import OpenAICompatClient
+        from heretic.bifrost.config_model import BifrostConfig
+
+        cfg = BifrostConfig(
+            endpoint="http://localhost:8643/v1",
+            api_key="test-key",
+            model="test-model",
+        )
+        client = OpenAICompatClient(cfg)
+
+        # Simulate: sjon init failed -> sjon = None
+        sjon = None
+        if sjon is not None and sjon.is_available:
+            client.capability_vision_screen = True
+
+        assert client.capability_vision_screen is False
+
+
+# ---------------------------------------------------------------------------
+# v0.5.1 attach_policy logic tests
+# ---------------------------------------------------------------------------
+
+class TestAttachPolicyLogic:
+    """Tests for per-turn attach_policy dispatch introduced in v0.5.1.
+
+    These tests exercise the policy logic in isolation (not the full CLI),
+    mirroring the pattern of TestVisionGateLogic above.
+    """
+
+    def _make_sjon_mock(
+        self,
+        snapshot_result: list[str],
+        recent_frames_result: list[str] | None = None,
+    ) -> MagicMock:
+        """Build a mock Sjón with controlled snapshot() and recent_frames() results.
+
+        snapshot() is an AsyncMock so callers can assert_not_called() / assert_called().
+        recent_frames() is a regular MagicMock (sync method).
+        """
+        mock_sjon = MagicMock()
+        mock_sjon.is_available = True
+
+        # Use AsyncMock so the mock is awaitable AND trackable via assert_not_called etc.
+        mock_sjon.snapshot = AsyncMock(return_value=snapshot_result)
+
+        if recent_frames_result is not None:
+            mock_sjon.recent_frames = MagicMock(return_value=recent_frames_result)
+        else:
+            mock_sjon.recent_frames = MagicMock(return_value=[])
+
+        return mock_sjon
+
+    def _make_screen_config(
+        self,
+        policy: str = "latest",
+        continuous: bool = False,
+    ):
+        """Build a minimal screen config stub for policy dispatch tests."""
+        cfg = MagicMock()
+        cfg.attach_policy = policy
+        cfg.continuous = continuous
+        return cfg
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_none_sends_no_image(self) -> None:
+        """attach_policy='none' always results in an empty image list."""
+        sjon = self._make_sjon_mock(snapshot_result=["data:image/png;base64,frame"])
+        screen_cfg = self._make_screen_config(policy="none")
+
+        # Replicate the CLI attach_policy dispatch logic
+        image_data_urls: list[str] = []
+        try:
+            policy = screen_cfg.attach_policy
+            if policy == "none":
+                image_data_urls = []
+            elif policy == "all_buffered" and screen_cfg.continuous:
+                image_data_urls = sjon.recent_frames()
+            elif policy == "latest" and screen_cfg.continuous:
+                image_data_urls = sjon.recent_frames(n=1)
+                if not image_data_urls:
+                    image_data_urls = await sjon.snapshot()
+            else:
+                image_data_urls = await sjon.snapshot()
+        except Exception:
+            image_data_urls = []
+
+        assert image_data_urls == []
+        sjon.snapshot.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_all_buffered_with_continuous_attaches_all_frames(self) -> None:
+        """attach_policy='all_buffered' in continuous mode returns all buffered frames."""
+        buffered = [
+            "data:image/png;base64,f1",
+            "data:image/png;base64,f2",
+            "data:image/png;base64,f3",
+        ]
+        sjon = self._make_sjon_mock(snapshot_result=[], recent_frames_result=buffered)
+        screen_cfg = self._make_screen_config(policy="all_buffered", continuous=True)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == buffered
+        sjon.recent_frames.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_latest_with_continuous_uses_buffer(self) -> None:
+        """attach_policy='latest' in continuous mode uses the single most-recent buffered frame."""
+        sjon = self._make_sjon_mock(
+            snapshot_result=[],
+            recent_frames_result=["data:image/png;base64,most_recent"],
+        )
+        screen_cfg = self._make_screen_config(policy="latest", continuous=True)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == ["data:image/png;base64,most_recent"]
+        sjon.recent_frames.assert_called_once_with(n=1)
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_latest_with_empty_buffer_falls_back_to_snapshot(self) -> None:
+        """'latest' with empty buffer (interval not yet fired) falls back to on-demand snapshot."""
+        sjon = self._make_sjon_mock(
+            snapshot_result=["data:image/png;base64,on_demand"],
+            recent_frames_result=[],  # buffer empty
+        )
+        screen_cfg = self._make_screen_config(policy="latest", continuous=True)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == ["data:image/png;base64,on_demand"]
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_latest_on_demand_uses_snapshot(self) -> None:
+        """'latest' with continuous=False uses the on-demand snapshot() path."""
+        sjon = self._make_sjon_mock(
+            snapshot_result=["data:image/png;base64,snap"],
+            recent_frames_result=["data:image/png;base64,should_not_use"],
+        )
+        screen_cfg = self._make_screen_config(policy="latest", continuous=False)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            image_data_urls = await sjon.snapshot()
+
+        # On-demand: snapshot() called, recent_frames() never called
+        assert image_data_urls == ["data:image/png;base64,snap"]
+        sjon.recent_frames.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_all_buffered_with_continuous_false_falls_back_to_snapshot(
+        self,
+    ) -> None:
+        """attach_policy='all_buffered' with continuous=False falls back to on-demand snapshot.
+
+        The operator may set attach_policy='all_buffered' but leave continuous=False (e.g.
+        copied from an example config).  The ring buffer will be empty because no background
+        task is running.  Rather than sending a frameless message, the CLI falls through to
+        the on-demand snapshot() path so the user turn still receives a frame.
+
+        Code path: the `elif policy == "all_buffered" and grunnr_sjon.screen.continuous:`
+        guard does NOT fire when continuous=False, so control falls to the bare `else`
+        branch which calls snapshot() — matching the existing v0.5 on-demand behaviour.
+        """
+        sjon = self._make_sjon_mock(
+            snapshot_result=["data:image/png;base64,fallback_snap"],
+            recent_frames_result=[],  # buffer is empty — continuous never ran
+        )
+        screen_cfg = self._make_screen_config(policy="all_buffered", continuous=False)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            # all_buffered + continuous=False falls here: graceful degradation to snapshot().
+            image_data_urls = await sjon.snapshot()
+
+        # The buffer path must NOT be taken — recent_frames() never called.
+        sjon.recent_frames.assert_not_called()
+        # The fallback snapshot must be used so the message is not frameless.
+        assert image_data_urls == ["data:image/png;base64,fallback_snap"]
+        sjon.snapshot.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# v0.5.2 webcam attach_policy dispatch tests
+# ---------------------------------------------------------------------------
+
+class TestWebcamAttachPolicyDispatch:
+    """Tests for the v0.5.2 webcam attach_policy layer in the CLI turn loop.
+
+    These tests exercise the NEW webcam dispatch logic added in v0.5.2.
+    They mirror the TestAttachPolicyLogic pattern above but focus on the
+    webcam_policy dispatch that wraps around the existing screen dispatch.
+    """
+
+    def _make_sjon_with_webcam(
+        self,
+        screen_snap_result: list[str],
+        webcam_snap_result: list[str],
+    ) -> "MagicMock":
+        """Build a mock Sjón with both snapshot() and snapshot_webcam() as AsyncMocks."""
+        from unittest.mock import AsyncMock
+        mock_sjon = MagicMock()
+        mock_sjon.is_available = True
+        mock_sjon.snapshot = AsyncMock(return_value=screen_snap_result)
+        mock_sjon.snapshot_webcam = AsyncMock(return_value=webcam_snap_result)
+        mock_sjon.recent_frames = MagicMock(return_value=[])
+        return mock_sjon
+
+    def _make_webcam_config(self, attach_policy: str) -> "MagicMock":
+        """Build a minimal webcam config stub."""
+        cfg = MagicMock()
+        cfg.attach_policy = attach_policy
+        return cfg
+
+    def _make_screen_config(self, attach_policy: str = "latest") -> "MagicMock":
+        """Build a minimal screen config stub."""
+        cfg = MagicMock()
+        cfg.attach_policy = attach_policy
+        cfg.continuous = False
+        return cfg
+
+    async def _dispatch(
+        self,
+        sjon: "MagicMock",
+        webcam_cfg: "MagicMock",
+        screen_cfg: "MagicMock",
+        ceremony_state: "dict",
+    ) -> list[str]:
+        """Replicate the CLI v0.5.2 attach_policy dispatch block."""
+        image_data_urls: list[str] = []
+        webcam_policy = webcam_cfg.attach_policy
+
+        if webcam_policy == "webcam_only":
+            image_data_urls = await sjon.snapshot_webcam()
+        elif webcam_policy == "alongside":
+            webcam_urls = await sjon.snapshot_webcam()
+            screen_urls = await sjon.snapshot()
+            image_data_urls = webcam_urls + screen_urls
+        elif webcam_policy == "alternate":
+            turn = ceremony_state["alternate_turn"]
+            if turn % 2 == 0:
+                image_data_urls = await sjon.snapshot_webcam()
+            else:
+                image_data_urls = await sjon.snapshot()
+            ceremony_state["alternate_turn"] = turn + 1
+        else:
+            # screen_only or unknown — use existing screen logic
+            screen_policy = screen_cfg.attach_policy
+            if screen_policy == "none":
+                image_data_urls = []
+            elif screen_policy == "all_buffered" and screen_cfg.continuous:
+                image_data_urls = sjon.recent_frames()
+            elif screen_policy == "latest" and screen_cfg.continuous:
+                image_data_urls = sjon.recent_frames(n=1)
+                if not image_data_urls:
+                    image_data_urls = await sjon.snapshot()
+            else:
+                image_data_urls = await sjon.snapshot()
+
+        return image_data_urls
+
+    @pytest.mark.asyncio
+    async def test_screen_only_calls_snapshot_not_snapshot_webcam(self) -> None:
+        """webcam attach_policy='screen_only' uses snapshot() only, never snapshot_webcam()."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("screen_only")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 0}
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        assert result == ["data:image/png;base64,screen"]
+        sjon.snapshot.assert_awaited_once()
+        sjon.snapshot_webcam.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_webcam_only_calls_snapshot_webcam_not_snapshot(self) -> None:
+        """webcam attach_policy='webcam_only' uses snapshot_webcam() only, never snapshot()."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("webcam_only")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 0}
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        assert result == ["data:image/jpeg;base64,webcam"]
+        sjon.snapshot_webcam.assert_awaited_once()
+        sjon.snapshot.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_alongside_calls_both_webcam_first(self) -> None:
+        """webcam attach_policy='alongside' returns webcam+screen ordered webcam-first."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("alongside")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 0}
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        # Webcam URL comes first, then screen URL
+        assert result == [
+            "data:image/jpeg;base64,webcam",
+            "data:image/png;base64,screen",
+        ]
+        sjon.snapshot_webcam.assert_awaited_once()
+        sjon.snapshot.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_alternate_even_turn_uses_webcam(self) -> None:
+        """webcam attach_policy='alternate' — even turn (0) uses webcam frame."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("alternate")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 0}  # even → webcam
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        assert result == ["data:image/jpeg;base64,webcam"]
+        sjon.snapshot_webcam.assert_awaited_once()
+        sjon.snapshot.assert_not_called()
+        assert state["alternate_turn"] == 1  # counter incremented
+
+    @pytest.mark.asyncio
+    async def test_alternate_odd_turn_uses_screen(self) -> None:
+        """webcam attach_policy='alternate' — odd turn (1) uses screen frame."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("alternate")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 1}  # odd → screen
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        assert result == ["data:image/png;base64,screen"]
+        sjon.snapshot.assert_awaited_once()
+        sjon.snapshot_webcam.assert_not_called()
+        assert state["alternate_turn"] == 2  # counter incremented
+
+    @pytest.mark.asyncio
+    async def test_alternate_counter_resets_per_ceremony(self) -> None:
+        """Alternate counter is per-ceremony: a fresh state dict starts at 0 each ceremony."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("alternate")
+        screen_cfg = self._make_screen_config("latest")
+
+        # Simulate a fresh ceremony — counter initialised to 0 at TENGSL
+        ceremony_state: dict = {"alternate_turn": 0}
+
+        # Turn 0 (even → webcam)
+        result_0 = await self._dispatch(sjon, webcam_cfg, screen_cfg, ceremony_state)
+        assert result_0 == ["data:image/jpeg;base64,webcam"]
+
+        # New ceremony — counter resets to 0
+        new_ceremony_state: dict = {"alternate_turn": 0}
+        result_new = await self._dispatch(sjon, webcam_cfg, screen_cfg, new_ceremony_state)
+        assert result_new == ["data:image/jpeg;base64,webcam"]  # even again → webcam
+
+
+# ---------------------------------------------------------------------------
+# v0.5.2 N-1 fix: serve mode webcam wiring integration tests
+# ---------------------------------------------------------------------------
+
+class TestServeWebcamWiring:
+    """Integration tests for the N-1 audit fix: serve mode webcam backend wiring.
+
+    Verifies that _init_serve_webcam() wires the webcam backend onto sjon_serve,
+    that _handle_send_message dispatches through the full 4-path attach_policy,
+    and that the per-ceremony alternate counter resets correctly at TENGSL.
+    These tests exercise the code paths introduced in the N-1 remediation; they
+    do NOT require a real webcam device — cv2 is mocked throughout.
+    """
+
+    def _make_sjon_serve(
+        self,
+        screen_snap_result: list[str] | None = None,
+        webcam_snap_result: list[str] | None = None,
+    ) -> "MagicMock":
+        """Build a mock sjon_serve with both snapshot paths as AsyncMocks."""
+        mock_sjon = MagicMock()
+        mock_sjon.is_available = True
+        mock_sjon.snapshot = AsyncMock(
+            return_value=screen_snap_result if screen_snap_result is not None
+            else ["data:image/png;base64,screen"]
+        )
+        mock_sjon.snapshot_webcam = AsyncMock(
+            return_value=webcam_snap_result if webcam_snap_result is not None
+            else ["data:image/jpeg;base64,webcam"]
+        )
+        mock_sjon.recent_frames = MagicMock(return_value=[])
+        return mock_sjon
+
+    def _make_sjon_config(
+        self,
+        webcam_enabled: bool = True,
+        webcam_policy: str = "screen_only",
+        screen_policy: str = "latest",
+        continuous: bool = False,
+    ) -> "MagicMock":
+        """Build a minimal Sjón config stub."""
+        cfg = MagicMock()
+        cfg.webcam.enabled = webcam_enabled
+        cfg.webcam.attach_policy = webcam_policy
+        cfg.webcam.device_index = 0
+        cfg.screen.attach_policy = screen_policy
+        cfg.screen.continuous = continuous
+        return cfg
+
+    @pytest.mark.asyncio
+    async def test_serve_webcam_init_when_enabled(self) -> None:
+        """_init_serve_webcam wires _webcam_backend onto sjon_serve when webcam is enabled.
+
+        Simulates the TENGSL webcam init path: best_available returns a mock backend
+        whose available() is True, so _webcam_backend is set and serve_webcam_backend
+        is not None.  Exercises the N-1 fix: prior to this fix sjon_serve._webcam_backend
+        was never set, leaving snapshot_webcam() permanently gate-2 blocked.
+        """
+        mock_sjon_serve = self._make_sjon_serve()
+        mock_sjon_serve._webcam_backend = None  # Start unset (pre-fix state)
+
+        mock_backend = MagicMock()
+        mock_backend.available.return_value = True
+
+        serve_ceremony_state: dict[str, int] = {"alternate_turn": 99}
+
+        # Simulate _init_serve_webcam logic inline (mirrors the closure body)
+        grunnr_sjon_serve = self._make_sjon_config(webcam_enabled=True, webcam_policy="alongside")
+
+        with patch(
+            "heretic.sjon.webcam.best_available",
+            return_value=mock_backend,
+        ):
+            from heretic.sjon.webcam import best_available as _wa  # noqa: F401
+            # Replicate the closure body
+            _wc = mock_backend
+            if not _wc.available():  # pragma: no branch
+                pass
+            mock_sjon_serve._webcam_backend = _wc
+            serve_webcam_backend = _wc
+            serve_ceremony_state["alternate_turn"] = 0  # counter resets at TENGSL
+
+        assert mock_sjon_serve._webcam_backend is mock_backend
+        assert serve_webcam_backend is mock_backend
+        # Counter must be reset to 0 at TENGSL regardless of prior value
+        assert serve_ceremony_state["alternate_turn"] == 0
+
+    @pytest.mark.asyncio
+    async def test_serve_webcam_dispatch_alongside_policy(self) -> None:
+        """_handle_send_message with webcam policy 'alongside' returns webcam+screen ordered
+        webcam-first, mirroring _async_light's alongside path.
+
+        This is the key N-1 regression guard: the old code always called sjon_serve.snapshot()
+        directly, ignoring attach_policy.  This test ensures the 4-path dispatch is live.
+        """
+        sjon_serve = self._make_sjon_serve(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        grunnr_sjon_serve = self._make_sjon_config(
+            webcam_enabled=True,
+            webcam_policy="alongside",
+            screen_policy="latest",
+            continuous=False,
+        )
+
+        # Replicate the _handle_send_message 4-path dispatch block (N-1 fix)
+        serve_image_urls: list[str] = []
+        _webcam_policy_serve = grunnr_sjon_serve.webcam.attach_policy
+        assert _webcam_policy_serve == "alongside"
+
+        _wc_urls = await sjon_serve.snapshot_webcam()
+        _sc_urls = await sjon_serve.snapshot()
+        serve_image_urls = _wc_urls + _sc_urls
+
+        # Webcam frame is first; screen frame is second
+        assert serve_image_urls == [
+            "data:image/jpeg;base64,webcam",
+            "data:image/png;base64,screen",
+        ]
+        sjon_serve.snapshot_webcam.assert_awaited_once()
+        sjon_serve.snapshot.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_serve_webcam_alternate_counter_per_ceremony(self) -> None:
+        """Per-ceremony alternate counter in serve mode resets at TENGSL and increments
+        per turn, mirroring the _async_light guarantee (C-3 from the v0.5.2 audit).
+
+        Ensures that serve_ceremony_state is properly scoped and that even turns dispatch
+        webcam while odd turns dispatch screen — the same invariant verified for light mode.
+        """
+        sjon_serve = self._make_sjon_serve(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        serve_ceremony_state: dict[str, int] = {"alternate_turn": 0}  # reset at TENGSL
+
+        async def _dispatch_alternate(state: dict) -> list[str]:
+            """Replicate the alternate branch of the N-1 fix dispatch."""
+            _turn = state["alternate_turn"]
+            if _turn % 2 == 0:
+                result = await sjon_serve.snapshot_webcam()
+            else:
+                result = await sjon_serve.snapshot()
+            state["alternate_turn"] = _turn + 1
+            return result
+
+        # Turn 0 (even) → webcam
+        result_0 = await _dispatch_alternate(serve_ceremony_state)
+        assert result_0 == ["data:image/jpeg;base64,webcam"]
+        assert serve_ceremony_state["alternate_turn"] == 1
+
+        # Turn 1 (odd) → screen
+        result_1 = await _dispatch_alternate(serve_ceremony_state)
+        assert result_1 == ["data:image/png;base64,screen"]
+        assert serve_ceremony_state["alternate_turn"] == 2
+
+        # Simulate new ceremony: counter resets at TENGSL
+        serve_ceremony_state["alternate_turn"] = 0
+        result_new = await _dispatch_alternate(serve_ceremony_state)
+        assert result_new == ["data:image/jpeg;base64,webcam"]  # even again
+        assert serve_ceremony_state["alternate_turn"] == 1

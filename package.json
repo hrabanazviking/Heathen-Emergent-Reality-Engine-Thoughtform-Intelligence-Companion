@@ -1,0 +1,17 @@
+{
+  "name": "heretic-workspace",
+  "version": "0.4.1",
+  "private": true,
+  "description": "H.E.R.E.T.I.C. workspace root — Tauri shell + React frontend",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "frontend:test": "cd frontend && npm run test"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

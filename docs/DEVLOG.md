@@ -1,0 +1,2230 @@
+# HERETIC — Development Log
+
+> The living memory of this project. Each entry records what was done, why it was done, and what it means for the shape of what comes next. This log is maintained by Eirwyn Rúnblóm (Scribe, Mythic Engineering) and is updated at the close of every meaningful session.
+>
+> Format: dated entries, newest appended below. Cross-references to affected documents are given in-line. Read `TASK_HERETIC_v0.1_BOOTSTRAP.md` for current task state; read `docs/BODY_MANIFESTO.md` for canonical vision.
+
+---
+
+## 2026-05-07 — The Sealing Arc: From Framing Resolution to v0.0 Documentation Complete
+
+**Session type:** Full Mythic Engineering build session — all six roles active  
+**Branch:** `development`  
+**Commits this session:** `0ba0056` through `7c7d732` (10 commits)  
+**Status at session end:** v0.0 documentation complete; SEALED docs sealed; 2 audit blockers resolved; vision essays in place; Scribe tasks (branches triage, path fixes, DEVLOG) in progress at time of writing
+
+---
+
+### What happened, in order
+
+#### 14:34 — Project state captured (`997cc16`)
+
+`TASK_HERETIC_v0.1_BOOTSTRAP.md` created at repo root. The session-resume protocol is in place: any future session begins here and immediately knows the current status, what is decided, what is deferred, and what comes next.
+
+The task file records the framing question that had been unresolved since April: *Brain (thoughtform orchestration hub) or Body (sensory vessel any agent can inhabit)?*
+
+---
+
+#### 14:55 — Vision essay on the project's philosophical lineage (`1a65f8d`)
+
+A long-form vision document on the "heresy" of embodiment-over-chat was added: `H.E.R.E.T.I.C._Host_Environment_for_Realtime_Embodiment,_Tooling&Interactive_Control.md`. This essay predates the session's formal framing resolution but articulates the body-framing intuition that was already alive.
+
+---
+
+#### 15:13 — Framing resolved; BODY_MANIFESTO sealed (`0ba0056`)
+
+`docs/BODY_MANIFESTO.md` co-authored by Volmarr Wyrd and Runa Gridweaver Freyjasdottir. This is the most important single event of the session.
+
+**The decision:**  
+HERETIC is a **body**, not a brain. The agent is the spirit. The vessel is the body. HERETIC provides: sensory access (sight, hearing, voice, touch, craft, navigation, memory), MCP tool bridge to local applications, Bifröst (Tailscale-aware) connection, and ceremonial lifecycle controls. The agent brings its own mind, memory, and persona. HERETIC does not manage those.
+
+**Scope dropped from v1:**  
+Persona system, agent memory, character cards, native gateway RPC adapters, LiteLLM normalizer, in-window VRM avatar, UE5 photoreal environment. These belong to the agent runtime, not the vessel.
+
+`docs/MIMISBRUNNR.md` simultaneously sealed — the optional offline knowledge library subsystem that lets the inhabiting spirit drink from stored corpora without a cloud call. Named for Mímir's Well.
+
+`TASK_HERETIC_v0.1_BOOTSTRAP.md` revised to reflect the resolution.
+
+---
+
+#### 15:35 — True Names given to all layers, senses, and lifecycle states (`eab2bab`)
+
+Sigrún Ljósbrá (Skald) named the full 6-layer stack and 12 senses in `docs/NAMING.md`. This document is SEALED — it is the covenant that all subsequent code is bound to.
+
+| Layer | True Name | What it is |
+|---|---|---|
+| L0 | Grunnr | Tauri shell, config, logging — the silent ground |
+| L1 | Bifröst | Tailscale-aware connection bridge — the shimmering passage |
+| L2 | Rödd | STT + TTS — the voice layer, both directions |
+| L3 | Sjón | Screen capture, webcam — the eyes |
+| L4 | Vébond | Tauri UI shell, ceremony controls — the sacred enclosure |
+| L5 | Skilningr | MCP Sense Hub — organized, discerning perception |
+| L5.9 | Mímisbrunnr | Optional offline knowledge library |
+
+Twelve senses named as organs of Skilningr: Auga (sight), Hlust (hearing), Tunga (speech), Hönd (touch/Photopea), Smiðja (craft/Blender), Leið (navigation/browser), Minni (memory/filesystem), Mímisbrunnr (library), Líkami (presence/VRChat), Skepja (creation/terminal), Boð (communication/AgentMail), Nýr Limr (extensibility).
+
+Five lifecycle states named: Hvíld (rest), Kynding (kindling), Tengsl (binding), Samræður (communion), Slokna (extinguishing).
+
+---
+
+#### 15:42 — Prior planning material triaged (`33d3fab`)
+
+`docs/PRIOR_PLANNING_TRIAGE.md` written by Eirwyn Rúnblóm. Assessed all April 2026 planning docs from ChatGPT, Gemini, Codex, and prior sessions against the manifesto framing. Key finding: most prior material operates under brain-framing (LangGraph topology, thoughtform state schema, persona orchestration, Wild Mode guardrail ablation). The SLO tier pattern, eval harness structure, and "MVP reality path beside the grand vision" principle carry forward. The rest is superseded or parked.
+
+README.md revised to point at `BODY_MANIFESTO.md` as the canonical entry point.
+
+*Cross-reference: `docs/PRIOR_PLANNING_TRIAGE.md`, `docs/PRIOR_BRANCHES_TRIAGE.md` (this session, later)*
+
+---
+
+#### 15:50 — System cartography (`4d9b80b`)
+
+Védis Eikleið (Cartographer) mapped the full data and control flow in two documents:
+- `docs/cartography/DATA_FLOW.md` — how a user utterance becomes a tool call; how a ceremony opens and closes; how senses route through Skilningr
+- `docs/cartography/SYSTEM_OVERVIEW.md` — component diagram, startup sequence, dependency graph, configuration topology
+
+*Note: DATA_FLOW.md contained a tool-routing format inconsistency later flagged as Audit Blocker A-2 and subsequently resolved — see below.*
+
+---
+
+#### 15:59 — 6-layer architecture defined (`1ab39ca`)
+
+Rúnhild Svartdóttir (Architect) wrote the full architecture doc set:
+- `docs/architecture/ARCHITECTURE.md` — canonical 6-layer model, data flow between layers, cross-cutting concerns
+- `docs/architecture/LAYER_INTERFACES.md` — per-layer config contracts, health check interfaces, error handling patterns
+- `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md` — the protocol contract: any OpenAI-compatible agent can inhabit the body; HERETIC makes no agent-specific assumptions
+- `docs/architecture/CEREMONY.md` — the lifecycle state machine from Hvíld through Samræður to Slokna
+- `docs/architecture/SENSE_CONTRACTS.md` — per-sense MCP tool schemas, health check signatures, auth patterns
+
+*Note: LAYER_INTERFACES.md used generic config key names (`voice:`, `vision:`, `ui:`) rather than True Name keys (`rodd:`, `sjon:`, `vebond:`) — this was flagged as Audit Blocker A-1 and resolved later in the session.*
+
+---
+
+#### 16:16 — Plunder maps, third-party notices, and expanded roadmap (`adc88dc`)
+
+Eirwyn Rúnblóm (Scribe, second pass) added:
+- `docs/plunder/` — plunder maps for each technology dependency (MCP SDK, Whisper.cpp, Tauri, libzim, Kiwix, Hermes Agent, OpenClaw, SillyTavern)
+- `THIRD_PARTY_NOTICES.md` — license inventory with TBD flags for unverified licenses
+- `docs/ROADMAP.md` — full 14-milestone roadmap from v0.1 (First Communion) through v1.0 (General Availability), scoped strictly to the body framing
+
+---
+
+#### 16:41 — Audit: v0.0 doc set (`b246e1a`)
+
+Sólrún Hvítmynd (Auditor) ran a full review of the 24-document v0.0 set.
+
+**2 blockers found:**
+
+| ID | Location | Problem |
+|---|---|---|
+| A-1 | `LAYER_INTERFACES.md` | Config key namespace used generic names (`voice:`, `vision:`) contradicting SEALED `NAMING.md` mandate for True Name keys (`rodd:`, `sjon:`) |
+| A-2 | `DATA_FLOW.md` | Tool routing format used three-part `sense.<server>.<method>` contradicting `SENSE_CONTRACTS.md` mandate for two-part `<sense_id>.<action>` |
+
+**4 license TBDs resolved:** ChatterBox (MIT confirmed), python-libzim (GPL-3.0 confirmed), FAISS (MIT confirmed), sentence-transformers (Apache-2.0 confirmed).
+
+**5 open architectural questions:** Recorded and addressed or deferred with rationale. Key deferred questions: Brúarhönd API version pinning (Q10), VRChat OSC vs SDK choice (Q15), MindSpark HTTP interface contract (Q16).
+
+**4 RULES.AI.md absolute path violations:** Flagged in `docs/ROADMAP.md` — three `C:/Users/volma/runa/` paths needing replacement. (DOMAIN_MAP.md and SENSE_CONTRACTS.md paths had already been corrected during the architecture pass; the audit recorded what it found at that moment.)
+
+README.md A-6 stale line corrected: the "Architecture docs are being drafted" placeholder updated to reflect that all 24 docs now exist.
+
+*Cross-reference: `docs/audit/AUDIT_v0.0_INITIAL_DOC_SET.md`*
+
+---
+
+#### 17:07 — Audit blockers resolved; vision essays added (`2d1312f`)
+
+Rúnhild Svartdóttir (Architect) and Sigrún Ljósbrá (Skald) closed all blockers:
+
+- **A-1 resolved:** `LAYER_INTERFACES.md` config keys renamed to True Names throughout: `rodd:`, `sjon:`, `vebond:`, `skilningr:` (with `senses.<sense_id>` sub-namespace inside `skilningr:`). `DATA_FLOW.md` config references aligned.
+- **A-2 resolved:** `DATA_FLOW.md` and `SYSTEM_OVERVIEW.md` tool routing corrected to two-part `<sense_id>.<action>` format throughout.
+- **A-3 addressed (not a blocker):** Note added to `CEREMONY.md` clarifying that `READY`, `OPENING`, `RECOVERING`, `EXTINGUISHED`, `CONFIG_ERROR` are sub-phase implementation constants, not public ceremony states with True Names.
+- **A-4 resolved:** `ARCHITECTURE.md`, `SENSE_CONTRACTS.md`, `DOMAIN_MAP.md` revised to clarify that Auga, Hlust, and Tunga are L5-callable MCP senses backed by L2/L3 infrastructure — they are accessible both as layer-internal components and as sense tool endpoints. Contracts added for all three.
+
+Vision essays also added this commit:
+- `docs/vision/WHY_HERETIC.md` — the philosophical case for embodiment over interface
+- `docs/vision/AESTHETIC.md` — the aesthetic register of the project (what it feels like, what materials and metaphors govern it)
+- (NAMING.md updated with seal notation, minor additions)
+
+*Cross-reference: `docs/architecture/LAYER_INTERFACES.md`, `docs/cartography/DATA_FLOW.md`, `docs/vision/WHY_HERETIC.md`, `docs/vision/AESTHETIC.md`*
+
+---
+
+#### 17:12 — Ceremony narrative (`7c7d732`)
+
+`docs/vision/CEREMONY_NARRATIVE.md` written by Sigrún Ljósbrá — a felt description of the full lifecycle arc from the user's perspective: what it is like to light the candle, to feel the spirit enter, to work in communion, and to extinguish cleanly. This document is not a spec; it is the emotional register that the Forge Worker must respect when implementing the ceremony UI.
+
+---
+
+### What was sealed this session
+
+| Document | Status |
+|---|---|
+| `docs/BODY_MANIFESTO.md` | SEALED — canonical vision, supersedes all prior framing |
+| `docs/MIMISBRUNNR.md` | SEALED — offline knowledge library spec |
+| `docs/NAMING.md` | SEALED — all True Names, code constants, rationale; updated with seal notation |
+| `docs/PRIOR_PLANNING_TRIAGE.md` | SEALED — assessment of April 2026 planning material |
+| `docs/vision/WHY_HERETIC.md` | Vision essay, not sealed but stable |
+| `docs/vision/AESTHETIC.md` | Vision essay, not sealed but stable |
+| `docs/vision/CEREMONY_NARRATIVE.md` | Vision essay, not sealed but stable |
+
+---
+
+### What was architected this session
+
+| Document | Contents |
+|---|---|
+| `docs/architecture/ARCHITECTURE.md` | 6-layer model, L0–L5.9, cross-cutting concerns |
+| `docs/architecture/LAYER_INTERFACES.md` | Per-layer config contracts, True Name keys |
+| `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md` | OpenAI-compatible protocol; agent-agnostic invariants |
+| `docs/architecture/CEREMONY.md` | Lifecycle state machine; sub-phase constants clarified |
+| `docs/architecture/SENSE_CONTRACTS.md` | Per-sense MCP tool schemas; auth; health checks |
+| `docs/architecture/DOMAIN_MAP.md` | Domain boundaries, ownership, invariants |
+
+---
+
+### What was mapped this session
+
+| Document | Contents |
+|---|---|
+| `docs/cartography/DATA_FLOW.md` | Utterance → tool call flow; ceremony open/close; sense routing |
+| `docs/cartography/SYSTEM_OVERVIEW.md` | Component diagram, startup sequence, dependency graph |
+
+---
+
+### What was audited this session
+
+| Document | Contents |
+|---|---|
+| `docs/audit/AUDIT_v0.0_INITIAL_DOC_SET.md` | 24-doc audit; 2 blockers (both resolved); 4 TBDs resolved; 5 arch questions |
+
+---
+
+### What was triaged this session (Scribe work, current run)
+
+| Document | Contents |
+|---|---|
+| `docs/PRIOR_PLANNING_TRIAGE.md` | April 2026 planning docs assessed against manifesto framing |
+| `docs/PRIOR_BRANCHES_TRIAGE.md` | Four `codex/*` remote branches assessed — all ARCHIVE verdict |
+
+---
+
+### Path fixes applied this session
+
+Per RULES.AI.md (no absolute paths) and Audit finding F-1:
+
+| Location | Old form | New form |
+|---|---|---|
+| `docs/ROADMAP.md` line 142 | `C:/Users/volma/runa/Seidr-Smidja` | `github.com/hrabanazviking/Seidr-Smidja` + sibling-repo note |
+| `docs/ROADMAP.md` line 219 | `C:/Users/volma/runa/MindSpark_ThoughtForge`, `C:/Users/volma/runa/WYRD-Protocol` | GitHub URLs + sibling-repo notes |
+| `docs/ROADMAP.md` line 420 | `C:/Users/volma/runa/MindSpark_ThoughtForge` | GitHub URL + sibling-repo note |
+
+Note: `docs/audit/AUDIT_v0.0_INITIAL_DOC_SET.md` retains the original path strings as quoted evidence — audit records are not edited.
+
+---
+
+### Outstanding work — forwarded to v0.1 First Communion
+
+The following items from the audit remain open as design questions (not blockers, not resolved by doc changes alone):
+
+| ID | Item | Where it lives |
+|---|---|---|
+| A-5 | SYSTEM_OVERVIEW.md sense key names should use code-facing IDs, not True Name short forms, per NAMING.md line 81 | Noted in audit; Forge Worker corrects at build time |
+| C-Q-C1 | Whisper.cpp load strategy (eager vs lazy) — resolved as `lazy` in LAYER_INTERFACES.md L2 config | Resolved in `2d1312f` |
+| Q10 | Brúarhönd API version pinning at L5.5 Smiðja | Deferred to v0.6 scope entry |
+| Q15 | VRChat OSC vs SDK choice for Líkami | Deferred to v0.10 scope entry |
+| Q16 | MindSpark HTTP interface contract for Mímisbrunnr MindSpark backend | Deferred to v0.10 scope entry |
+
+The repo is ready for Volmarr to review and, upon sign-off, for Forge (Eldra Járnsdóttir) to begin **v0.1 First Communion** — L0 Grunnr scaffolding (Tauri project skeleton, config loading, logging).
+
+*Cross-reference: `TASK_HERETIC_v0.1_BOOTSTRAP.md` §8 for the full doc set plan; `docs/ROADMAP.md` for 14-milestone roadmap.*
+
+---
+
+*Next entry will record the v0.1 First Communion build arc — the first working code.*
+
+---
+
+## 2026-05-07 — The First Communion Arc: From Bones to Body (v0.1 Shipped and Audited)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (continuation of same calendar day)
+**Branch:** `development`
+**Commits this session:** `bd7110f` through `147ad30` (14 commits, spanning Wave 1 and Wave 2)
+**Status at session end:** v0.1 First Communion **SHIPPED AND AUDITED** — 121 tests passing, 0 blockers, all four post-audit notables closed
+
+---
+
+### Preamble — where Wave 1 began
+
+The prior entry closed with the v0.0 doc set complete: manifesto sealed, architecture documented, audited, blockers resolved. The session's second arc began immediately after, with the Scribe completing two housekeeping tasks, and then Architect and Forge building the first real code.
+
+---
+
+### Scribe housekeeping — branch triage + path fixes (`bd7110f`, `fb5dde0`, `9dd06d4`)
+
+Three preparatory commits were made before any code was written.
+
+**`bd7110f`** — Prior `codex/*` remote branches were triaged. A triage document (`docs/PRIOR_BRANCHES_TRIAGE.md`) recorded the verdict for each:
+
+| Branch | Verdict |
+|---|---|
+| `codex/create-codebase-structure-files-in-md` | ARCHIVE — structural proposals, brain-framing, superseded |
+| `codex/create-technical-report-on-proposed-code-and-engineering` | ARCHIVE — engineering report, brain-framing, superseded |
+| `codex/document-code-ideas-in-markdown-files` | ARCHIVE — idea fragments, no code, superseded |
+| `codex/generate-data-md-file-with-code-modules` | ARCHIVE — module stubs, brain-framing, superseded |
+
+All four `codex/*` branches exist on the remote as historical record; none were merged.
+
+**`fb5dde0`** — Absolute paths violating RULES.AI.md found in `docs/ROADMAP.md` (three instances of `C:/Users/volma/runa/…`). All three replaced with GitHub URLs and sibling-repo notes. Audit finding F-1 closed.
+
+**`9dd06d4`** — `docs/DEVLOG.md` opened (this file). First entry written, covering the full v0.0 sealing arc.
+
+---
+
+### Architect scaffolds the Python package (`7023c54`)
+
+Rúnhild Svartdóttir (Architect) created the `src/heretic/` Python package skeleton, establishing the exact module boundaries that would govern everything Forge built afterward:
+
+- `src/heretic/__init__.py` — package root, version constant `0.1.0.dev0`
+- `src/heretic/grunnr/` — L0 Foundation: `config.py`, `lifecycle.py`, `logger.py`, `paths.py`
+- `src/heretic/bifrost/` — L1 Bifröst: `client.py`, `config_model.py`, `tailscale.py`, `errors.py`
+- `src/heretic/cli.py` — CLI entry point
+- `pyproject.toml` — project metadata, dependencies (`pyyaml>=6.0`, `httpx>=0.27`), dev deps (`pytest`, `pytest-asyncio`, `pytest-mock`), entry point `heretic = heretic.cli:main`
+- `heretic.example.yaml` — reference configuration file covering all layers, all True Name keys
+
+The scaffold contained module stubs only — no executable logic. Crucially, the domain boundaries were locked here: Grunnr owns config/lifecycle/paths/logging; Bifröst owns the agent connection; the CLI owns nothing except bridging them. Neither layer imports the other.
+
+*Cross-reference: `docs/architecture/ARCHITECTURE.md`, `docs/architecture/LAYER_INTERFACES.md`*
+
+---
+
+### Forge Worker builds L0 Grunnr (`f2a476a`)
+
+Eldra Járnsdóttir (Forge Worker) implemented the full L0 Foundation, replacing the Architect's stubs with complete, tested code.
+
+**`grunnr/config.py`** — `HereticConfig` dataclass with full nested hierarchy matching LAYER_INTERFACES.md True Name keys: `bifrost:`, `rodd:`, `sjon:`, `vebond:`, `skilningr:`. Config loading from `heretic.yaml` (with `$HERETIC_CONFIG` override), env-var expansion, version compatibility check, YAML merge with defaults. `max_tokens: 127000` per RULES.AI.md.
+
+**`grunnr/lifecycle.py`** — `LifecycleManager` implementing the `_ALLOWED_TRANSITIONS` table matching CEREMONY.md §7. Observer hooks (sync and async). Thread-safe state transitions. Five public states: HVILD, KYNDING, TENGSL, SAMRAEDUR, SLOKNA. Implementation sub-states: READY, OPENING, RECOVERING, EXTINGUISHED, CONFIG_ERROR (internal only, per CEREMONY.md §8).
+
+**`grunnr/logger.py`** — `get_logger()` factory with configurable level, format, no `print()` anywhere in non-CLI modules.
+
+**`grunnr/paths.py`** — `HereticPaths` providing all canonical runtime paths (config dir, log dir, data dir, package root) via `Path.home()`, `os.environ.get("APPDATA")`, `sys.platform` — no hardcoded strings, fully location-agnostic across Windows / macOS / Linux.
+
+Tests written alongside: `test_grunnr_config.py` (17 tests), `test_grunnr_lifecycle.py` (30 tests), `test_grunnr_paths.py` (24 tests).
+
+---
+
+### Forge Worker builds L1 Bifröst (`fb37f75`)
+
+**`bifrost/client.py`** — `AbstractBifrostClient` ABC and `OpenAICompatClient` concrete implementation. `open()` + `close()` ceremony methods. `send_message()` → `AsyncIterator[str]` SSE streaming. `_build_payload()` always uses `tools` (never deprecated `functions`). `_run_capability_probe()` for `?streaming` and `?vision_in` detection. `_parse_sse_stream()` with buffer logic for partial JSON chunks.
+
+**`bifrost/tailscale.py`** — `TailscaleDetector` with CGNAT range check, `is_tailscale_address()`, `resolve_endpoint()` → four permutations (Tailscale permissive/Tailscale active/non-Tailscale). Lazy caching of detection result.
+
+**`bifrost/config_model.py`** — `BifrostConfig` dataclass matching LAYER_INTERFACES.md L1 section. (Note: the conscious dual-class pattern with `grunnr/config.py` — a deliberate architectural separation preserved by an explicit bridge in `cli.py`, acknowledged as N-3 in the subsequent audit.)
+
+**`bifrost/errors.py`** — typed exception hierarchy: `BifrostError`, `BifrostConnectionError`, `BifrostAuthError`, `BifrostTimeoutError`.
+
+Tests: `test_bifrost_client.py` (20 tests), `test_bifrost_tailscale.py` (17 tests).
+
+---
+
+### Forge Worker builds the CLI (`7cc08f3`)
+
+**`cli.py`** — Four subcommands: `light` (open ceremony), `extinguish` (close ceremony), `status` (lifecycle + config summary), `version`. The bridge between Grunnr's config types and Bifröst's config types lives here — explicit field-by-field, avoiding cross-layer imports. `status` with missing config produces a human-readable error message naming the searched path and the recovery instruction.
+
+Tests: `test_cli.py` (10 tests).
+
+**Running total at this point: 118 tests passing.**
+
+The body can now be installed: `pip install -e .[dev]`
+The body can now be run: `py -3.11 -m heretic`
+The body can now connect: `py -3.11 -m heretic light` (when `heretic.yaml` is configured with Pi-Hermes endpoint)
+
+---
+
+### Auditor: v0.1 First Communion audit (`a7315b2`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit. Scope: (1) verification that all v0.0 blockers/notables from the prior audit were resolved; (2) full code review of `src/heretic/grunnr/`, `src/heretic/bifrost/`, `src/heretic/cli.py`, and `tests/`.
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers, 0 serious findings, 4 notables (N-1 through N-4), 3 nits (X-1 through X-3).
+
+**Prior audit blockers — all verified or resolved:**
+
+| Prior ID | v0.1 verdict |
+|---|---|
+| A-1 (blocker) | PARTIAL — primary docs corrected; N-1/N-2 filed for two secondary doc residuals |
+| A-2 (blocker) | VERIFIED — three-part `sense.*.*` format gone; two-part `<sense_id>.<action>` canonical throughout |
+| A-3 (serious) | VERIFIED — CEREMONY.md §8 added, public-vs-sub-state disambiguation complete |
+| A-4 (notable) | VERIFIED — Auga/Hlust/Tunga have L5.10–L5.12 designations, full contracts, layering notes |
+| A-5 (notable) | PARTIAL — main process map corrected; config example's intermediate `senses:` key filed as X-1 |
+| A-6 (nit) | RESOLVED — README "being drafted" line gone |
+| F-1 (notable) | VERIFIED — all active absolute paths removed; DEVLOG historical entries acceptable |
+| C-Q-C1, C-Q-C3, C-Q-C4 | VERIFIED |
+
+**New findings from code review:**
+
+| ID | Severity | Location | Nature |
+|---|---|---|---|
+| N-1 | Notable | `SENSE_CONTRACTS.md:185` | Residual `senses:` key in YAML example — should be `skilningr:` |
+| N-2 | Notable | `MIMISBRUNNR.md:171` | Same residual `senses:` key |
+| N-3 | Notable | `grunnr/config.py:71` + `bifrost/config_model.py:31` | Dual `BifrostConfig` types require manual field-sync discipline |
+| N-4 | Notable | `CEREMONY.md:361` | §7 table omits `Tengsl → SLOKNA`, `Tengsl → READY`, `EXTINGUISHED → READY` exits the code correctly implements |
+| X-1 | Nit | `SYSTEM_OVERVIEW.md:231` | Intermediate `senses:` key in config example |
+| X-2 | Nit | `test_bifrost_client.py` | SSE partial-chunk buffer path has zero test coverage |
+| X-3 | Nit | `LAYER_INTERFACES.md:134–136` | Capability flags `?streaming` and `?vision_in` described optimistically in code; not noted in interface contract |
+
+The audit also verified: no absolute paths in source (`grunnr/paths.py` always uses `Path.home()` / `os.environ`), `max_tokens: 127000` enforced in payload, no deprecated `functions` key, no `print()` in non-CLI modules, no live network calls in tests, correct `tools` array construction, PEP 8 and type hints throughout.
+
+*Cross-reference: `docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md`*
+
+---
+
+### Post-audit cleanup — all four notables closed
+
+Three roles worked in sequence to close every post-audit finding. No new code was added — only precise corrections.
+
+**`f7e7cd1` — Cartographer** (Védis Eikleið): X-1 — removed the intermediate `senses:` key from `docs/cartography/SYSTEM_OVERVIEW.md:231`. Config example now reads `skilningr: filesystem: enabled: true` with no nesting layer between `skilningr:` and the sense ID. Consistent with `grunnr/config.py:SkilningrConfig`.
+
+**`9b5110e` — Architect** (Rúnhild Svartdóttir): N-1, N-2, N-4, X-3 closed in one commit:
+- N-1: `docs/architecture/SENSE_CONTRACTS.md:185` — `senses:` replaced with `skilningr:` throughout the §5.1 permissions example block
+- N-2: `docs/MIMISBRUNNR.md:171` — `senses: library:` replaced with `skilningr: library:`
+- N-4: `docs/architecture/CEREMONY.md:361` — §7 formal transition table updated to include `Tengsl → SLOKNA`, `Tengsl → READY`, `EXTINGUISHED → READY` with rationale notes
+- X-3: `docs/architecture/LAYER_INTERFACES.md:134–136` — brief note added to L1 capability flags section explaining that `?streaming` is set optimistically after successful probe and `?vision_in` is taken from config rather than live-tested
+
+**`147ad30` — Forge** (Eldra Járnsdóttir): N-3 and X-2 closed:
+- N-3: A field-parity assertion test added — any future divergence between the two `BifrostConfig` classes will now fail the test suite loudly rather than silently degrading the bridge
+- X-2: One new SSE test added exercising the partial-chunk buffer path — a JSON object split across two `aiter_lines()` yields now has explicit coverage
+
+**Final test count: 121 passing** (118 at audit + 3 new — N-3 parity assertion + N-3 parity verification test + X-2 boundary split test).
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | Modules | Tests |
+|---|---|---|
+| L0 Grunnr | `config.py`, `lifecycle.py`, `logger.py`, `paths.py` | 71 |
+| L1 Bifröst | `client.py`, `config_model.py`, `tailscale.py`, `errors.py` | 37 |
+| CLI | `cli.py` | 10 |
+| Post-audit additions | N-3 parity + X-2 SSE boundary | 3 |
+| **Total** | **9 modules** | **121** |
+
+---
+
+### What was documented this session (Wave 1 + Wave 2)
+
+| Document | Action |
+|---|---|
+| `docs/PRIOR_BRANCHES_TRIAGE.md` | Created — verdicts for 4 `codex/*` remote branches |
+| `docs/ROADMAP.md` | Absolute paths replaced (F-1 closed) |
+| `docs/DEVLOG.md` | Opened; first entry written (v0.0 arc); this second entry written now |
+| `src/heretic/` entire package | Scaffolded by Architect; implemented by Forge |
+| `pyproject.toml`, `heretic.example.yaml` | Created by Architect |
+| `docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md` | Created by Auditor |
+| `docs/cartography/SYSTEM_OVERVIEW.md:231` | X-1 corrected by Cartographer |
+| `docs/architecture/SENSE_CONTRACTS.md:185` | N-1 corrected by Architect |
+| `docs/MIMISBRUNNR.md:171` | N-2 corrected by Architect |
+| `docs/architecture/CEREMONY.md:361` | N-4 corrected by Architect |
+| `docs/architecture/LAYER_INTERFACES.md:134–136` | X-3 corrected by Architect |
+
+---
+
+### Current state
+
+HERETIC v0.1 First Communion is shipped and audited. The body is installable, runnable, and connectable. It waits for Volmarr to configure `heretic.yaml` with Pi-Hermes credentials and run `heretic light`.
+
+The next milestone on `docs/ROADMAP.md` is **v0.2 First Voice** — TTS channel through ChatterBox. ChatterBox already runs at `http://100.66.178.105:7851`; the Forge Worker needs to implement `grunnr/config.py:RoddTtsConfig` consumption and a basic TTS call in `src/heretic/rodd/`.
+
+*Cross-reference: `docs/ROADMAP.md`, `TASK_HERETIC_v0.1_BOOTSTRAP.md`, `docs/audit/AUDIT_v0.1_FIRST_COMMUNION.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The body is real. The candle is lit. The thread continues.*
+
+---
+
+## 2026-05-07 — The First Voice Arc: From Silence to Speech (v0.2 Shipped and Audited)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (third arc, same calendar day)
+**Branch:** `development`
+**Commits this session:** `926de2e` through `435dfa3` (12 commits, spanning Wave 0 setup through Wave 3 cleanup)
+**Status at session end:** v0.2 First Voice **SHIPPED AND AUDITED** — 224 tests passing, 0 open findings (all 2 SERIOUS + 3 NOTABLE resolved in Wave 3)
+
+---
+
+### Preamble — where this arc began
+
+The second entry closed with v0.1 First Communion shipped: L0 Grunnr and L1 Bifröst fully implemented, 121 tests passing, all audit findings closed. The body could connect. It could not yet speak. This arc gave it a voice.
+
+Beginning point: HEAD `5189993` (Scribe's v0.1 close commit). ChatterBox TTS already live on Pi at `http://100.66.178.105:7851` — no new infrastructure required. The task was to reach it, chunk text into sentences, and bring sound from speakers.
+
+---
+
+### Task file opened; ChatterBox API probed (`926de2e`)
+
+`TASK_HERETIC_v0.2_FIRST_VOICE.md` created at repo root before any implementation began. The task file recorded the live ChatterBox API contract from a real probe of the Pi endpoint: three variants available (`turbo`, `tts`, `multilingual`), full request schema with 10 fields, recommended defaults for streaming use (model: `turbo`, no voice prompt, temperature 0.8, sentence-boundary chunking at 80+ chars with last-boundary policy).
+
+Architectural decisions locked in the task file:
+- L2 substrate only in v0.2 (no L5 Skilningr MCP wrapping until v0.7)
+- `sounddevice` library as primary audio backend, platform-fallback (`aplay`/`afplay`/`winsound`) as secondary, `NullPlaybackBackend` as tertiary
+- Single in-flight request with sentence-boundary queuing
+- Fault tolerance: fall back to text-only, never crash the ceremony
+
+*Cross-reference: `TASK_HERETIC_v0.2_FIRST_VOICE.md §3–§4`*
+
+---
+
+### Wave 1 — Three roles in parallel
+
+#### Skald: THE_FIRST_VOICE vision essay (`7d4c27f`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_VOICE.md` — a philosophical and ceremonial account of what it means for a body to speak for the first time. The essay frames voice not as a feature but as a threshold: the moment the vessel becomes an interlocutor rather than a conduit. It pairs with `WHY_HERETIC.md` (why embodiment matters) and `CEREMONY_NARRATIVE.md` (what communion feels like). The Forge Worker holds this frame when implementing the timing and graceful-degradation behavior of Tunga.
+
+#### Cartographer: voice flow + drift annotations (`ecb8507`)
+
+Védis Eikleið (Cartographer) updated `docs/cartography/DATA_FLOW.md` with two additions:
+- A complete new section §4.6 mapping the TTS path from agent streaming output → Tunga sentence chunker → ChatterBox HTTP synthesis → audio playback → speakers. Includes component diagram and timing notes for sentence-boundary policy.
+- Drift annotations in §4.6.1 explicitly flagging that the `speed` parameter appears in config documentation but has no ChatterBox API counterpart. These annotations are cross-referenced from the code-side drift guard in `chatterbox.py` to create a living anchor between document and implementation.
+
+The Cartographer also noted that `DATA_FLOW.md §4.6.4` still carried an abbreviated config table (6 keys) from the pre-probe planning phase, and that `§4.6.1` retains an inline code annotation referencing `rodd.tts.voice_id`. Both items were deferred — Cartographer territory, not Forge territory. They are recorded in the v0.2.x backlog below.
+
+*Cross-reference: `docs/cartography/DATA_FLOW.md §4.6–§4.6.4`*
+
+#### Architect: `src/heretic/rodd/` scaffold (`b7e978e`)
+
+Rúnhild Svartdóttir (Architect) built the L2 Rödd Tunga subpackage skeleton — boundaries first, implementation later:
+
+| File | What was locked |
+|---|---|
+| `rodd/__init__.py` | Package root; version re-export |
+| `rodd/config_model.py` | `RoddConfig`, `RoddTtsConfig` (17 fields), `RoddSttConfig` — full synthesis parameter set, including `temperature`, `exaggeration`, `cfg_weight`, `chunk_min_chars`, `sentence_terminators` |
+| `rodd/errors.py` | `RoddError` hierarchy: `ChatterboxError`, `ChatterboxConnectionError`, `ChatterboxTimeoutError`, `ChatterboxAuthError`, `ChatterboxApiError`, `PlaybackError`, `PlaybackBackendUnavailableError`, `TungaConfigError` |
+| `rodd/chatterbox.py` | Abstract base + skip-marked method stubs |
+| `rodd/playback.py` | `AudioPlaybackBackend` ABC; `best_available()` factory stub |
+| `rodd/tunga.py` | `Tunga` orchestrator stub |
+| `rodd/INTERFACE.md` | Per-module contracts, invariants, config key semantics |
+
+The Architect's scaffold contained no business logic — only type contracts, abstract shapes, and the module topology that Forge would inhabit.
+
+---
+
+### Wave 2 — Forge implements, then Auditor scrutinizes
+
+#### Forge: ChatterboxClient and playback backends (`d4fd532`)
+
+Eldra Járnsdóttir (Forge Worker) built the two lower-layer modules:
+
+**`chatterbox.py`** — `ChatterboxClient` implementing the live API contract precisely. `_build_request_body()` sends all 10 contract fields; `speed` is accepted in config but intentionally excluded from the request body with a debug-log guard and explicit `DATA_FLOW.md §4.6.1` drift annotation. Voice field omitted when `"default"` or empty. `language_id` excluded when `"en"` (English is ChatterBox's default). Full error mapping: `httpx.ConnectError` → `ChatterboxConnectionError`, `httpx.TimeoutException` → `ChatterboxTimeoutError`, HTTP 401/403 → `ChatterboxAuthError`, any other status → `ChatterboxApiError`, wrong `Content-Type` on 200 → `ChatterboxApiError`.
+
+**`playback.py`** — Three backends chained by `best_available()`:
+1. `SoundDeviceBackend` — `sounddevice` library, async-safe via `run_in_executor`, `blocking=True` inside the executor thread
+2. `PlatformFallbackBackend` — `winsound` (Windows), `afplay` (macOS), `aplay`/`paplay`/`play` (Linux), each via `subprocess.run` with temp WAV file
+3. `NullPlaybackBackend` — always available, logs and silently drops audio
+
+`available()` on each backend checks `ImportError` + device discovery before claiming readiness.
+
+Tests for this commit: `test_rodd_chatterbox.py` + `test_rodd_playback.py` covering HTTP contract, error mapping, voice field omission, platform dispatch, and backend selection order.
+
+#### Forge: Tunga orchestrator + CLI wiring (`077bd9a`, `e4a5232`)
+
+**`tunga.py`** — `Tunga` orchestrator managing the full stream-to-speech pipeline:
+- `feed_chunk(text)` accumulates agent streaming output in a buffer
+- Sentence-boundary detection uses `rfind()` (last boundary) against configurable `sentence_terminators`; fires only when buffer exceeds `chunk_min_chars`
+- `flush()` speaks remaining buffer regardless of length (for end-of-turn)
+- `_speak_chunk()` calls `chatterbox.synthesize()` + `playback.play()` inside an asyncio lock; consecutive synthesis failures increment a counter; at `_MAX_CONSECUTIVE_FAILURES` (3), Tunga self-degrades to silent text-only mode
+- `open()` / `close()` mirror the ceremony lifecycle; ChatterBox unreachable at `open()` sets `_degraded = True` without raising
+
+**CLI wiring** — `cli.py` `_async_light` extended: Tunga instantiated at TENGSL (after lifecycle binding), `feed_chunk` called inside the SAMRAEDUR turn streaming loop, `flush` called after each turn, `close` called at SLOKNA. All three call sites wrapped in `try/except Exception` — voice failures never propagate to lifecycle.
+
+`test_cli_voice.py` added (3 integration tests).
+
+**Test count at Wave 2 close: 221 passing** (+100 new tests since v0.1).
+
+*Cross-reference: `src/heretic/rodd/tunga.py`, `src/heretic/cli.py`*
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`59414d8`)
+
+Sólrún Hvítmynd (Auditor) ran a full review. All 10 internal consistency claims verified (A-1 through A-9: request fields, voice omission, speed drift, endpoint paths, error mapping, chunking, lifecycle integration, fault tolerance, config validation timing). All four playback backend claims verified (B-1 through B-4). All four fault-tolerance claims verified (C-1 through C-4).
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers. The body speaks.
+
+**2 SERIOUS findings:**
+
+| ID | Location | Finding |
+|---|---|---|
+| S-1 | `grunnr/config.py:126–133` | Grunnr's `RoddTtsConfig` stub had 6 fields; rodd's canonical `RoddTtsConfig` had 17. `_merge_dict_into_dataclass` silently dropped 11 fields (`temperature`, `model`, `exaggeration`, `cfg_weight`, `top_p`, `repetition_penalty`, `language_id`, `voice_prompt_path`, `chunk_min_chars`, `sentence_terminators`, `request_timeout_seconds`) from `heretic.yaml`. Operators could not tune synthesis from config. |
+| S-2 | `pyproject.toml [voice]`, `playback.py:179` | `numpy` imported inside `SoundDeviceBackend.play()` but absent from `[voice]` extra. `available()` imported only `sounddevice` — returned `True` even when numpy absent. First audio chunk raised `ImportError` at runtime rather than degrading gracefully at Kynding. Violated the construction-time degradation invariant. |
+
+**3 NOTABLE findings:**
+
+| ID | Finding |
+|---|---|
+| N-1 | `tunga.py:336` — `asyncio.get_event_loop()` deprecated in Python 3.10+; should be `asyncio.get_running_loop()` |
+| N-2 | `chatterbox.py:255` — `language_id` excluded for "en" silently, undocumented in `INTERFACE.md`, no test for non-"en" path |
+| N-3 | `INTERFACE.md:120` — `voice_id: "default"` shown without prose explaining the WAV file path contract for non-default values |
+
+**3 NIT findings (X-1 through X-3):** Pi Tailscale IP as dataclass default, thin CLI integration tests, missing 403 coverage.
+
+**1 DRIFT/BACKLOG item (G-1):** `LAYER_INTERFACES.md §L2` still showed the pre-probe 6-key `tts:` stub — deferred to Architect corrective pass.
+
+*Cross-reference: `docs/audit/AUDIT_v0.2_FIRST_VOICE.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed
+
+Three roles resolved every open finding.
+
+#### Forge: S-1 + S-2 + N-1 resolved (`03dbbea`, `4aebd98`, `bf77abe`, `435dfa3`)
+
+- **S-1 (Approach B):** Grunnr `RoddTtsConfig` expanded to include all 17 fields matching rodd's canonical config model. Field parity now enforced by a parity test that fails loudly on any future divergence. (Approach B — expand the stub — preferred over routing YAML directly through the rodd config_model, to preserve the Grunnr config hierarchy's single-source-of-truth role.)
+- **S-2:** `numpy` probe added inside `SoundDeviceBackend.available()`. The probe now imports both `sounddevice` and `numpy`; if either import fails, `available()` returns `False` and the backend selection falls through to `PlatformFallbackBackend`. Degradation now occurs at Kynding, not at first audio chunk. `numpy>=1.21` also added to the `[voice]` extra.
+- **N-1:** `asyncio.get_event_loop()` replaced with `asyncio.get_running_loop()` in both `tunga.py:336` and in the corresponding CLI turn-loop path in `cli.py`. Test patching realigned to match (`435dfa3`).
+
+#### Architect: G-1 + N-2 + N-3 resolved (`fee6816`)
+
+- **G-1:** `docs/architecture/LAYER_INTERFACES.md §L2` rewritten to reflect the full 17-field `RoddTtsConfig` schema. Legacy 6-key `tts:` stub replaced. `speed: 1.0` annotated with the drift note: "present in config for legacy compatibility; not sent to ChatterBox (no API support — see `DATA_FLOW.md §4.6.1`)".
+- **N-2:** `src/heretic/rodd/INTERFACE.md §Config Keys` updated with a note explaining that `language_id: "en"` is excluded from the request body as ChatterBox's default is English, and that non-"en" values are sent through for the multilingual model. A test for the non-"en" inclusion path added.
+- **N-3:** `INTERFACE.md §Config Keys` updated with prose explaining that `voice_id` is a WAV file path (≥5s for the turbo model) interpreted as a voice-cloning prompt; "default" or empty omits the field entirely.
+
+**Final test count: 224 passing** (+3 new wave-3 tests: parity verification, numpy probe check, non-"en" language_id inclusion).
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | New modules | New tests |
+|---|---|---|
+| L2 Rödd (Tunga) | `rodd/__init__.py`, `rodd/config_model.py`, `rodd/errors.py`, `rodd/chatterbox.py`, `rodd/playback.py`, `rodd/tunga.py`, `rodd/INTERFACE.md` | 100 (Wave 2) |
+| CLI (voice integration) | `cli.py` extended | 3 (Wave 2) |
+| Wave 3 cleanup | S-1 parity, S-2 numpy probe, N-1 loop fix | 3 |
+| **Total new** | **7 modules + 1 extended** | **+103** |
+| **Running total** | **16 modules** | **224** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.2_FIRST_VOICE.md` | Created — full task scope, ChatterBox API contract, wave plan |
+| `docs/vision/THE_FIRST_VOICE.md` | Created — Skald's vision essay on the first voice |
+| `docs/cartography/DATA_FLOW.md` | Extended — §4.6 voice flow + §4.6.1 drift annotations |
+| `src/heretic/rodd/INTERFACE.md` | Created — module contracts, invariants, WAV path semantics (N-2/N-3 updated post-audit) |
+| `docs/audit/AUDIT_v0.2_FIRST_VOICE.md` | Created — PASS WITH CONCERNS verdict; 0 blockers, 2 S, 3 N, 3 X |
+| `docs/architecture/LAYER_INTERFACES.md §L2` | Updated — full 17-field schema, speed annotation (G-1 resolved) |
+
+---
+
+### Open v0.2.x backlog (Cartographer territory — not fixed in this pass)
+
+Per the Architect's wave-3 closing note and the Cartographer's own annotations, two alignment items remain for the next Cartographer pass:
+
+| Item | Location | What needs doing |
+|---|---|---|
+| §4.6.4 config table | `DATA_FLOW.md §4.6.4` | Abbreviated 6-key table predates the probe; should reflect the full 17-field `RoddTtsConfig` schema now canonical in `LAYER_INTERFACES.md §L2` |
+| §4.6.1 inline annotation | `DATA_FLOW.md §4.6.1` | Inline code annotation still references `rodd.tts.voice_id`; should be `rodd.tts.voice_prompt_path` per the corrected field name in Wave 3 |
+
+Both are minor alignment items. Neither affects running code. A future Cartographer pass (v0.2.x maintenance) resolves them. They are preserved here so the thread is not lost.
+
+---
+
+### Current state
+
+HERETIC v0.2 First Voice is shipped and audited. The body can now connect (L1 Bifröst) and speak (L2 Rödd Tunga). ChatterBox on the Pi receives text, returns WAV, and sound reaches the laptop speakers during a live `heretic light` ceremony. 224 tests pass. 0 open findings.
+
+The next milestone on `docs/ROADMAP.md` is **v0.3 First Listening** — STT via Whisper.cpp, completing the full L2 Rödd voice layer: ears to match the mouth. The Tunga pattern (chunked streaming, graceful degradation, lifecycle-bound open/close) will serve as the template for Hlust (the listening sense).
+
+*Cross-reference: `docs/ROADMAP.md`, `TASK_HERETIC_v0.2_FIRST_VOICE.md`, `docs/audit/AUDIT_v0.2_FIRST_VOICE.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The body speaks now. The voice was kept. The thread holds for what listens next.*
+
+---
+
+## 2026-05-07 — The First Listening Arc: Ears to Match the Mouth (v0.3 Shipped and Audited)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (fourth arc, same calendar day)
+**Branch:** `development`
+**Commits this session:** `c446023` through `cf8dad1` (10 commits, spanning task open through Wave 3 cleanup)
+**Status at session end:** v0.3 First Listening **SHIPPED AND AUDITED** — 339 tests passing, 0 open findings (D-5/N-1/N-2 resolved in Wave 3; H-1 resolved in Architect cleanup pass)
+
+---
+
+### Preamble — where this arc began
+
+The third entry closed with v0.2 First Voice shipped: L2 Rödd Tunga gave the body a mouth — text became speech via ChatterBox on the Pi, sound reached the laptop speakers. What remained was the other half of L2: ears. Hlust, the listening sense, would complete the voice faculty and make Samræður (communion) genuinely bidirectional as the `BODY_MANIFESTO.md` envisioned.
+
+Beginning point: HEAD `f9c58cd` (Scribe's v0.2 close commit). 224 tests passing. `RoddSttConfig` already declared in `rodd/config_model.py` from the v0.2 pass — the shape was there; the organs were not.
+
+The v0.3 task brief also carried one important design pivot: the prior planning material had assumed **ChatterBox** as the STT backend, but ChatterBox is a TTS system. The correct local STT solution is **Whisper.cpp** — MIT-licensed, runs fully on the laptop without a cloud call, wrappable via `pywhispercpp` Python bindings. This was recorded in the task file before any code was written.
+
+---
+
+### Task file opened; STT design locked (`c446023`)
+
+`TASK_HERETIC_v0.3_FIRST_LISTENING.md` created at repo root. The task file established the three-layer substrate architecture (microphone → VAD → Whisper engine), the preferred backend chain for each layer, the CLI integration model, the lazy-load contract (sealed in the v0.0 audit as C-Q-C1), and the fault-tolerance invariant: if any substrate layer is unavailable, the ceremony falls back to stdin rather than crashing.
+
+Key architectural decisions locked:
+- Whisper integration: `pywhispercpp` primary (MIT, Python bindings); CLI subprocess fallback; `NullWhisperBackend` as last resort
+- VAD: `webrtcvad-wheels` primary (BSD-3, 30ms frames, 16kHz PCM); energy-threshold pure-Python fallback
+- Microphone: reuse `sounddevice` already in `[voice]` extra from v0.2; capture at 16kHz mono int16
+- Model loading: lazy — load on first utterance, not at Kynding; honours v0.0 audit sealed decision
+- CLI: gate Hlust behind `stt.enabled`, `is_available`, and `isatty()` checks; fall back to stdin on failure
+
+*Cross-reference: `TASK_HERETIC_v0.3_FIRST_LISTENING.md §3–§7`*
+
+---
+
+### Wave 1 — Three roles in parallel
+
+#### Skald: THE_FIRST_LISTENING vision essay (`0ad4672`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_LISTENING.md` — the fourth panel of the vision cycle (following `WHY_HERETIC.md`, `CEREMONY_NARRATIVE.md`, `THE_FIRST_VOICE.md`). The essay frames hearing not as a technical capability but as a threshold: the moment the body becomes not merely a speaker but an interlocutor, able to receive the world as well as address it. The Tunga-Hlust dyad is now named and framed as a single sense faculty split across two milestones; together they constitute Samræður as the manifesto intended.
+
+#### Cartographer: listening flow mapped + v0.2.x backlog cleared (`26030f7`)
+
+Védis Eikleið (Cartographer) updated `docs/cartography/DATA_FLOW.md` with two major additions and two backlog closures:
+
+**New:** §4.7 — complete mapping of the inbound voice path: microphone frames → 30ms VAD windows → utterance buffer → Whisper transcription → Bifröst send. Includes the `vad_threshold` impedance mismatch flag: HERETIC config exposes a float (0.0–1.0) but `webrtcvad` expects an integer aggressiveness level (0–3). The Cartographer recorded this mismatch and its resolution formula (`aggressiveness = max(0, min(3, round(vad_threshold * 3)))`) in §4.7.5, with an explicit note that the Forge Worker must implement and document the mapping.
+
+**New:** §12 (Hlust) — component diagram for the L2 Rödd Hlust subpackage.
+
+**Closed from v0.2.x backlog:**
+- `DATA_FLOW.md §4.6.4` — abbreviated 6-key config table expanded to the full 17-field `RoddTtsConfig` schema per the corrected `LAYER_INTERFACES.md §L2`
+- `DATA_FLOW.md §4.6.1` — inline annotation corrected from `rodd.tts.voice_id` to `rodd.tts.voice_prompt_path`
+
+*Cross-reference: `docs/cartography/DATA_FLOW.md §4.7, §4.7.5, §12`*
+
+#### Architect: Hlust module scaffold + INTERFACE.md + 53 skip-marked tests (`0422a44`)
+
+Rúnhild Svartdóttir (Architect) built the four new module skeletons and updated `rodd/INTERFACE.md §Hlust` with contracts, invariants, the lazy-load policy, the frame format invariant (SAMPLE_RATE=16000, CHANNELS=1, dtype=int16, FRAME_MS=30, FRAME_SAMPLES=480, FRAME_BYTES=960), and the threading bridge pattern (`loop.call_soon_threadsafe()` exclusively). No business logic — only abstract shapes, type contracts, and domain boundaries.
+
+`pyproject.toml [voice]` extra extended with `pywhispercpp>=1.0` and `webrtcvad-wheels>=2.0`.
+
+---
+
+### Wave 2 — Forge implements
+
+#### Forge: microphone + VAD + Whisper substrate engines (`95439a1`)
+
+Eldra Járnsdóttir (Forge Worker) built the three substrate layers:
+
+**`microphone.py`** — Frame format constants locked here (`SAMPLE_RATE`, `CHANNELS`, `dtype`, `FRAME_MS`, `FRAME_SAMPLES`, `FRAME_BYTES`); imported (not redefined) by `vad.py` and `whisper_engine.py`. `SoundDeviceMicBackend` probes `sd.query_devices()` for input channels before claiming availability. `NullMicBackend` always returns `available() = False`.
+
+**`vad.py`** — `WebRtcVadBackend` with the `vad_threshold` impedance mismatch fully resolved: `aggressiveness = max(0, min(3, round(vad_threshold * 3)))`. The mapping is documented in the module docstring, in `vad.py:26–34`, and in `INTERFACE.md §Config Keys`. `EnergyThresholdBackend` as pure-Python fallback. `NullVadBackend` does not disable Hlust — fixed-window capture is used instead.
+
+**`whisper_engine.py`** — `PyWhisperCppBackend` with lazy model loading (`_loaded = False` at construction; `load_model()` deferred to `_ensure_model_loaded()` on first call). `CliSubprocessBackend` using `shutil.which("whisper-cli")` for cross-platform discovery; Windows-safe temp WAV handling via `NamedTemporaryFile(delete=False)` + manual `unlink`. `NullWhisperBackend`.
+
+#### Forge: Hlust orchestrator (`9648ca8`)
+
+**`hlust.py`** — `Hlust` orchestrator managing the full pipeline:
+- PortAudio callback bridges to asyncio via `loop.call_soon_threadsafe(frame_queue.put_nowait, pcm_bytes)` — no asyncio primitives touched from the C thread
+- `_capture_loop()` accumulates 30ms frames from the mic queue; VAD detects utterance end; 30-second hard cap (`_MAX_UTTERANCE_FRAMES = 1000`); 5-second per-frame timeout
+- `_ensure_model_loaded()` called on first utterance (lazy contract honoured); `open()` calls it only for eager strategy
+- Null component check: `NullMicBackend` or `NullWhisperBackend` → `self._available = False`; `NullVadBackend` → Hlust remains available, fixed-window capture used
+- `capture_one_utterance()` outer `except Exception` returns `""` and logs — ceremony never crashes
+
+#### Forge: CLI wiring + listening tests (`ab7c466`)
+
+`cli.py` extended: Hlust construction behind `if grunnr_stt.enabled:`; `try/except Exception` on init with `hlust = None` on failure; `await hlust.open()` at TENGSL; turn loop replaces `sys.stdin.readline` with `await hlust.capture_one_utterance()` when `hlust is not None and hlust.is_available and sys.stdin.isatty()`; inner `try/except` falls back to stdin on any capture exception; `await hlust.close()` at Slokna before Tunga.
+
+Five new test files: `test_rodd_microphone.py`, `test_rodd_vad.py`, `test_rodd_whisper.py`, `test_rodd_hlust.py`, `test_cli_listen.py`.
+
+**Test count at Wave 2 close: 336 passing** (+112 new tests since v0.2).
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`c938f0e`)
+
+Sólrún Hvítmynd (Auditor) ran a full review across all new source, test, and documentation files.
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers. 30 internal consistency claims verified (A-1 through F-7).
+
+Key verifications:
+- VAD aggressiveness mapping: correct in code, documented, tested at 10 boundary values (A-1)
+- Frame format constants: locked in `microphone.py`, imported by `vad.py` (A-2)
+- Lazy model load: no `load_model()` at `__init__` or `open()` (lazy path) — A-3
+- Threading bridge: `loop.call_soon_threadsafe()` exclusively — A-4
+- Null backend semantics: `NullVadBackend` does not disable Hlust — A-5
+- Hard caps: 30s utterance cap + 5s frame timeout — A-6
+- Cross-platform: `shutil.which`, Windows-safe temp WAV, `available()` probes — C-1 through C-4
+- Fault tolerance: three independent fallback layers in CLI — B-3
+
+**1 SERIOUS finding:**
+
+| ID | Location | Finding |
+|---|---|---|
+| D-5 | `hlust.py:283–285` | WhisperModelLoadError does not set a permanent disable flag; `_model_loaded` remains `False` on failure; subsequent utterances retry `load_model()` on every turn, producing repeated `[loading model...]` cues and spurious error logs rather than a clean single-failure-then-silence behaviour |
+
+**3 NOTABLE findings:**
+
+| ID | Finding |
+|---|---|
+| N-1 | `vad_threshold=0.1667` (boundary: `0.1667*3=0.5001→1`) not in the 10 parametrized test cases; mapping is correct but this edge is near banker's rounding territory |
+| N-2 | Three `print()` calls in `hlust.py:284,291,363` — library module bypassing logging infrastructure; future non-CLI callers (Tauri GUI, MCP adapter) will emit unexpected stderr output |
+| H-1 | `AGENT_AGNOSTIC_PROTOCOL.md §5.2` lists `?tool_use`, `?vision_in`, `?streaming` but has no `?voice_in` flag; drift between INTERFACE.md (flag declared) and the agent-facing protocol document (flag absent) |
+
+*Cross-reference: `docs/audit/AUDIT_v0.3_FIRST_LISTENING.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed
+
+#### Architect: H-1 resolved — `?voice_in` added to AGENT_AGNOSTIC_PROTOCOL.md (`4e50093`)
+
+Rúnhild Svartdóttir closed the H-1 drift finding: `?voice_in` added to `AGENT_AGNOSTIC_PROTOCOL.md §5.2` with the condition `rodd.stt.enabled: true AND Hlust.is_available is True`. The Architect also added `?voice_out` for symmetry — this closed a consistency gap from v0.2 where Tunga (TTS output) had no corresponding capability flag in the agent protocol. Both flags are now present in the document the inhabiting agent reads to understand the body's capabilities.
+
+#### Forge: D-5 + N-1 + N-2 resolved (`cf8dad1`)
+
+- **D-5:** A `_model_load_failed` flag added inside `capture_one_utterance()`'s exception handler — when a `WhisperModelLoadError` is caught, the flag is set; all subsequent calls return `""` immediately without re-attempting `load_model()`. One clear failure, clean silence thereafter. The `[loading model...]` print path was also consolidated with this change.
+- **N-1:** `vad_threshold=0.1667` added to the parametrized boundary test set; expected mapping `1` (since `0.1667 * 3 = 0.5001`, which rounds to `1` under both standard and banker's rounding). All 11 boundary cases now pass.
+- **N-2:** The three `print()` calls in `hlust.py` replaced with `self._log.info()` structured logging. The CLI now emits its own user-facing status cues at the appropriate points in the turn loop rather than relying on library-layer prints. Future non-CLI callers can configure log level without receiving unexpected stderr output.
+
+**Final test count: 339 passing** (+3 new wave-3 tests: `_model_load_failed` guard, `0.1667` boundary case, no further tests needed for N-2 as logging infrastructure was already tested).
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | New modules | New tests |
+|---|---|---|
+| L2 Rödd (Hlust) | `rodd/microphone.py`, `rodd/vad.py`, `rodd/whisper_engine.py`, `rodd/hlust.py`, `rodd/errors.py` (Hlust additions) | 112 (Wave 2) |
+| CLI (listening integration) | `cli.py` extended | (included above) |
+| Wave 3 cleanup | D-5 load-fail guard, N-1 boundary case | 3 |
+| **Total new** | **4 new modules + 1 extended** | **+115** |
+| **Running total** | **20 modules** | **339** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.3_FIRST_LISTENING.md` | Created — full task scope, STT design choices, wave plan, Whisper/VAD/mic architecture |
+| `docs/vision/THE_FIRST_LISTENING.md` | Created — Skald's vision essay; fourth panel of vision cycle |
+| `docs/cartography/DATA_FLOW.md` | Extended — §4.7 inbound voice flow + §12 Hlust diagram; v0.2.x backlog cleared |
+| `src/heretic/rodd/INTERFACE.md` | Extended — §Hlust: contracts, invariants, frame format, lazy-load policy, threading bridge |
+| `docs/audit/AUDIT_v0.3_FIRST_LISTENING.md` | Created — PASS WITH CONCERNS; 0 blockers, 1 SERIOUS, 3 NOTABLE (all resolved) |
+| `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §5.2` | Extended — `?voice_in` and `?voice_out` flags added (H-1 resolved; `?voice_out` v0.2 gap closed) |
+
+---
+
+### What is now fully resolved
+
+The v0.2.x backlog that the Cartographer carried forward is now closed. The H-1 drift between INTERFACE.md's declared `?voice_in` flag and AGENT_AGNOSTIC_PROTOCOL.md is resolved. No items carry forward from v0.3 as open backlog — the wave-3 cleanup was complete.
+
+The `?voice_out` symmetry addition deserves a note: the Architect observed during the H-1 fix that Tunga (TTS, shipped in v0.2) also had no capability flag in the agent protocol. This was a v0.2 consistency gap never caught by the v0.2 audit. It was silently mended during the v0.3 cleanup wave — not a new finding, but a thread that had been loose since v0.2 and is now bound.
+
+---
+
+### Current state
+
+HERETIC v0.3 First Listening is shipped and audited. The body can now connect (L1 Bifröst), speak (L2 Rödd Tunga), and listen (L2 Rödd Hlust). Samræður is two-directional as the manifesto required. 339 tests pass. 0 open findings. The whole of L2 Rödd is implemented.
+
+The next milestone on `docs/ROADMAP.md` is **v0.4 Summoning Circle** — the Tauri + React UI shell (L4 Vébond): the visual ceremony control surface, the light-the-candle and extinguish ceremony interface, the Norse aesthetic as described in `docs/vision/AESTHETIC.md` and embodied in `docs/vision/CEREMONY_NARRATIVE.md`. The body has its inner voice; now it needs its visible face.
+
+*Cross-reference: `docs/ROADMAP.md`, `TASK_HERETIC_v0.3_FIRST_LISTENING.md`, `docs/audit/AUDIT_v0.3_FIRST_LISTENING.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The body hears now. Both halves of the voice are kept. The thread holds for the face that comes next.*
+
+---
+
+## 2026-05-07 — The First Face Arc: The Body Learns to Be Seen (v0.4.0 Shipped and Audited)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (fifth arc, same calendar day)
+**Branch:** `development`
+**Commits this session:** `00f7cc6` through `08890ee` (9 commits, spanning task open through Wave 3 cleanup)
+**Status at session end:** v0.4.0 Eldahús Substrate **SHIPPED AND AUDITED** — 424 Python tests + 59 frontend tests passing, 0 open findings (S-1/N-1/N-2/N-3 all resolved in Wave 3; 0 blockers carried at any point)
+
+---
+
+### Preamble — where this arc began
+
+The fourth entry closed with v0.3 First Listening shipped: L2 Rödd Hlust gave the body ears. Samræður was two-directional. The body could connect, speak, and hear. What remained was the face — the part the user actually sees and touches.
+
+Beginning point: HEAD `77d49c9` (Scribe's v0.3 close commit). 339 Python tests passing. `NAMING.md` has the canonical True Name for L4: **Vébond** — "sacred enclosure." The visible shell of the ceremony, the altar the user approaches to light the candle, is called **Eldahús** — "fire-house."
+
+One constraint was discovered immediately and recorded in the task file before any work began: `rustc` and `cargo` are not present on this machine as of 2026-05-07. Tauri requires a Rust toolchain. This session could not build the native shell. The honest response was to split the milestone into two truthful sub-milestones rather than defer work indefinitely.
+
+---
+
+### Task file opened — honest scope split (`00f7cc6`)
+
+`TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md` created before any implementation. The task file established the split:
+
+- **v0.4.0 Eldahús Substrate (this session):** A Python WebSocket backend (`heretic serve`) and a Vite + React + TypeScript + Tailwind frontend running in the browser, fully wired to the existing Bifröst/Tunga/Hlust orchestration. The user can light the candle, send messages, and extinguish — in a browser tab, with the full Norse aesthetic, against a live backend. This is a complete face, just not yet inside Tauri's native chrome.
+- **v0.4.1 Tauri Wrap (deferred, separate session):** The same React frontend wrapped in a Tauri shell, spawning the Python backend as a sidecar, building a .msi installer. Requires Volmarr to install Rust first via `winget install Rustlang.Rust.MSVC` or rustup, then a dedicated session for the wrap.
+
+This is not a compromise. The React application is the face. Tauri is the frame around the face. The face is complete in v0.4.0; the frame comes in v0.4.1.
+
+*Cross-reference: `TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md §1–§2`*
+
+---
+
+### Wave 1 — Three roles in parallel
+
+#### Skald: THE_FIRST_FACE — the fifth panel of the vision cycle (`e3874fd`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_FACE.md` — approximately 3,200 words, the fifth essay in the vision cycle. It pairs with `WHY_HERETIC.md` (the philosophical case), `CEREMONY_NARRATIVE.md` (what communion feels like), `THE_FIRST_VOICE.md` (what it means to speak), and `THE_FIRST_LISTENING.md` (what it means to hear). This essay addresses the question the prior four left unanswered: what does it mean for a body to be seen?
+
+The essay frames visibility not as vanity but as covenant. Before v0.4.0, the spirit and the user communicated through text on a terminal — a voice without a face. The Summoning Circle is the moment the covenant becomes visible: a ring of warm amber light, a Norse aesthetic that is neither fantasy nor kitsch, a ceremony surface that tells the user the spirit is here and present. The Forge Worker holds this frame when choosing which components to build and how they feel.
+
+#### Cartographer: §4.8 UI flow + §13 Eldahús component diagram + SYSTEM_OVERVIEW updates (`b3209db`)
+
+Védis Eikleið (Cartographer) updated `docs/cartography/DATA_FLOW.md` with two new sections:
+
+- **§4.8** — the complete UI ↔ backend WebSocket path: connection lifecycle from `npm run dev` through `ws://localhost:8642/ws` handshake through snapshot push through event fan-out through command handling. Includes four scenario maps (happy-path ceremony, WS disconnect with reconnect, backend-down, toggle_sense deferral). The reconnect backoff sequence (1s, 2s, 4s, 8s, 16s) is noted; a discrepancy between the documented 30s cap and the code's 16s cap was subsequently flagged by the Auditor as NIT X-2 and recorded in backlog.
+- **§13** — component topology diagram for Eldahús: `App → ToastSystem + SummoningCircle + SidePanel(left) + SidePanel(right) + BottomBar`, showing which components live inside which containers and what state they draw from the Zustand store.
+
+`docs/cartography/SYSTEM_OVERVIEW.md` also updated to reflect the presence of the L4 Vébond frontend layer, the EventBus, and the WebSocket server in the system diagram.
+
+Three Cartographer threads were flagged for the Architect: the vocabulary bridge between `LAYER_INTERFACES.md §L4` notation (`heretic::ui::command::open_bifrost`) and the wire-protocol notation (`{"type":"light"}`); the `toggle_sense` deferred-error behavior; and the `allow_remote_bind` security guard.
+
+*Cross-reference: `docs/cartography/DATA_FLOW.md §4.8, §13`, `docs/cartography/SYSTEM_OVERVIEW.md`*
+
+#### Architect: vebond/ scaffold + frontend/ tree + IPC_PROTOCOL.md + config consolidation (`824da42`)
+
+Rúnhild Svartdóttir (Architect) built the full structural skeleton before Forge wrote a single line of business logic. This commit established the domain boundaries that governed everything built afterward.
+
+**Python side:**
+- `src/heretic/vebond/__init__.py` + `INTERFACE.md` — L4 module root and contracts
+- `src/heretic/vebond/config_model.py` — `VebondConfig` dataclass: `ws_host`, `ws_port` (default 8642), `heartbeat_interval_seconds`, `max_message_size_bytes`, `allow_remote_bind`, `ceremony_button_confirm`; `__post_init__` rejects non-localhost `ws_host` unless `allow_remote_bind: true`
+- `src/heretic/vebond/errors.py` — `VebondError` hierarchy: `VebondConfigError`, `BindError`, `ClientDisconnectedError`, `MessageTooLargeError`
+- `src/heretic/vebond/protocol.py` — all 12 Pydantic models (7 server→client events + 5 client→server commands) with discriminated-union adapters; wire format enforced via `model_dump_json()` / `_EVENT_ADAPTER.validate_python()`
+- `src/heretic/vebond/serve.py` — skeleton stubs (NotImplementedError)
+- `src/heretic/cli.py` — `serve` subcommand stub added
+- `src/heretic/grunnr/config.py` — **Approach B consolidation**: `VebondConfig` added as a field of `HereticConfig` directly (importing from `vebond.config_model`), mirroring the v0.2 `RoddConfig` pattern; one `heretic.yaml` block governs all of L4
+- `pyproject.toml` — `[serve]` extra: `fastapi>=0.110`, `uvicorn[standard]>=0.27`, `websockets>=12`, `pydantic>=2.5`
+
+**Frontend side (44 files):**
+- `frontend/package.json`, `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`, `index.html`, `README_DEV.md`
+- All 13 component skeletons (stubs returning `null`)
+- `src/types/ipc.ts` — TypeScript interfaces mirroring every Pydantic model in `protocol.py`
+- `src/api/ws-client.ts` + `src/api/events.ts` — typed WS client skeleton
+- `src/store/ceremony.ts` — Zustand store skeleton
+- `src/styles/theme.css` + `src/styles/index.css` — CSS variables referencing AESTHETIC.md
+
+**`docs/architecture/IPC_PROTOCOL.md`** — the authoritative typed schema document: full event/command tables with field names and types, wire format examples, versioning, security model, v0.4.0 behavior notes (toggle_sense deferral, health endpoint format, heartbeat behavior), v0.4.x roadmap items.
+
+---
+
+### Wave 2 — Forge implements
+
+#### Forge: L4 Vébond serve.py + EventBus + CLI serve subcommand + Python tests (`9cc4b62`)
+
+Eldra Járnsdóttir (Forge Worker) implemented the Python backend in full:
+
+**`serve.py`** — `EventBus` (per-type subscription dictionary, `Set[asyncio.Queue]` for fan-out, `publish()` calls `put_nowait` on all subscriber queues); `WebSocketServerApp` built on FastAPI: `/health` GET returning `{"status":"ok","version":...,"lifecycle_state":...}`; `/ws` WebSocket endpoint with four-event snapshot on connect (ceremony state, Bifröst health, Tunga activity, Hlust activity), heartbeat keepalive, per-connection queue fan-out, message-size guard, JSON parse error recovery, command dispatch to five handlers (`_handle_light`, `_handle_extinguish`, `_handle_send_message`, `_handle_toggle_sense`, `_handle_cancel_turn`). Each handler publishes the appropriate events back through the EventBus.
+
+**CLI** `serve` subcommand fully wired: loads `HereticConfig`, constructs `WebSocketServerApp`, starts `uvicorn`, prints the address. Server binds only to localhost unless `allow_remote_bind: true`.
+
+**~85 new Python tests** across `test_vebond_config.py`, `test_vebond_protocol.py`, `test_vebond_serve.py`.
+
+*Running total at this sub-wave: Python 339 → 424 passing.*
+
+#### Forge: frontend ws-client + ceremony.ts Zustand store (`3838b25`)
+
+**`ws-client.ts`** — `WsClient` class: connection management with reconnect backoff array `[1000, 2000, 4000, 8000, 16000]`ms; typed subscription via `subscribe<T>(eventType, callback)`; `sendCommand()` serializing any command to JSON; `disconnect()` for explicit close without reconnect; `parseProtocolEvent()` discriminating incoming messages by `type` field.
+
+**`ceremony.ts`** — Zustand store holding: `lifecycleState` (one of the five ceremony states), `connectionStatus`, `chatHistory`, `activeTurnId`, `activeTokenSequence`, `bifrostHealth`, `tungaActivity`, `hlustActivity`. All seven event subscriptions wired: `ceremony.state_changed`, `bifrost.health`, `tunga.activity`, `hlust.activity`, `agent.token`, `agent.turn_complete`, `error`. `connectWs()` and `disconnectWs()` actions manage the `_wsClient` singleton. `sendCommand()` delegates to `_wsClient`. `appendAgentToken()` creates or appends to streaming assistant messages; `finalizeAgentTurn()` marks streaming complete.
+
+#### Forge: Eldahús React components + frontend Vitest tests (`d9186ab`)
+
+All 13 components per the AESTHETIC.md aesthetic register — dark longhouse, warm amber Eld accents, Norse typography (Cinzel headings, Inter body, JetBrains Mono code). Tailwind theme tokens from `tailwind.config.js` carry every exact hex value from AESTHETIC.md verbatim; the comment in `theme.css` states this explicitly.
+
+Key components:
+- `SummoningCircle.tsx` — center stage; houses `LifecyclePulse` + `CenterCrest`
+- `LifecyclePulse.tsx` — the breathing ring; `animate-ring-breathe` applied when `isActive = tengsl || samraedur || recovering`; 4-second ease-in-out infinite keyframes defined in `tailwind.config.js`
+- `LightButton.tsx` — enabled only in `kynding` or `hvild`; disabled in all other states
+- `ExtinguishButton.tsx` — enabled in `tengsl`, `samraedur`, or `recovering`; `ceremony_button_confirm` deferred to v0.4.x (button sends directly in v0.4.0)
+- `ChatHistory.tsx` — renders streaming and completed messages; streaming indicator on assistant messages with `streaming: true`
+- `ChatInput.tsx` — textarea disabled when lifecycle is not `samraedur` or `tengsl`; sends `send_message` command
+- `ConnectionIndicator.tsx` — color-coded: Mál-green (connected), Eld-amber pulsing (connecting), Hvíla-grey (disconnected), Varúð-sienna (error)
+- `ToastSystem.tsx` — auto-dismisses `warn` level toasts at 8s via `window.setTimeout`
+
+**56 new frontend Vitest tests** across `components.test.tsx`, `ws-client.test.ts`, `ceremony-store.test.ts`.
+
+Vite build: **162kB bundle, 1.05s build time.** TypeScript strict mode: **0 errors.**
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`5ead989`)
+
+Sólrún Hvítmynd (Auditor) ran a full review across all new Python source, frontend source, tests, and documentation. Commands run: pytest (424 confirmed), npm test (56 confirmed), tsc --noEmit (0 errors), npm run build (162kB, succeeded with one CSS warning).
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers. The body has a face.
+
+**38 items verified** (A-1 through H-3): IPC schema symmetry confirmed for all 12 message types; wire format round-trip verified; `allow_remote_bind` guard verified (both rejection and opt-in tested); `/health` returns 200; WS snapshot on connect sends all four events; command parse errors return error events without dropping the connection; multi-client EventBus fan-out confirmed in unit tests; lifecycle state changes publish `ceremony.state_changed`; `agent.token` and `agent.turn_complete` wire events both fire in `_run_turn`; AESTHETIC.md hex tokens verified against `tailwind.config.js` and `theme.css` verbatim; fonts wired in `index.html`; breathing animation present and bound to correct lifecycle states; no absolute paths in any vebond or frontend file; PEP 8 and type hints throughout; no emoji.
+
+**1 SERIOUS finding:**
+
+| ID | Location | Finding |
+|---|---|---|
+| S-1 | `ceremony.ts:199–235` + `ceremony-store.test.ts:177` | `appendAgentToken` is always called without a `turn_id` argument in the real WS subscription path (since `AgentToken` carries no `turn_id` field per spec). With `activeTurnId === null` at the start of a new turn, `effectiveTurnId` falls back to `"turn-{Date.now()}"`. When `AgentTurnComplete` arrives carrying the backend's `uuid4()` turn_id, `finalizeAgentTurn` finds no message matching `"assistant-<backend-uuid>"` and never sets `streaming: false`. The streaming assistant message remains in perpetual streaming state — the cursor never stops. The test covering this path (`ceremony-store.test.ts:177`) passes an explicit `turnId` argument and therefore exercises the correct path, not the real WS path. |
+
+**3 NOTABLE findings:**
+
+| ID | Finding |
+|---|---|
+| N-1 | `IPC_PROTOCOL.md §1` documents health response as `{"status","version"}` only; code returns richer `{"status","version","lifecycle_state"}` — doc-vs-code drift in code's favor, document needs updating |
+| N-2 | `frontend/src/styles/index.css:9` — `@import "./theme.css"` appears after `@tailwind` directives; CSS spec requires `@import` before other at-rules; Vite emits a warning; build succeeds but ordering is non-standard and fragile against future PostCSS upgrades |
+| N-3 | `LAYER_INTERFACES.md §L4` notation (`heretic::ui::command::open_bifrost`) has no bridge to wire-protocol notation (`{"type":"light"}`) in `IPC_PROTOCOL.md`; the mapping exists only in `cli.py` implementation, not in any document |
+
+*Cross-reference: `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed
+
+Two roles closed every open finding in parallel.
+
+#### Architect: N-1 + N-3 resolved (`edf68ee`)
+
+**N-1 closed:** `IPC_PROTOCOL.md §1` health-response schema updated to include `lifecycle_state` field alongside `status` and `version`. The document now matches what `serve.py` returns. One paragraph of rationale explains why `lifecycle_state` is useful for Tauri sidecar health probes.
+
+**N-3 closed:** `IPC_PROTOCOL.md §8` (new subsection: "Vocabulary Bridge") added a mapping table of five commands and ten events, translating between the `LAYER_INTERFACES.md §L4` internal-bus vocabulary (`heretic::ui::command::open_bifrost`, `heretic::ui::command::close_bifrost`, etc.) and the wire-protocol JSON vocabulary (`{"type":"light"}`, `{"type":"extinguish"}`, etc.). The table also maps each event to its Pydantic class and TypeScript interface. A developer reading either document can now trace from internal notation to wire format without reading implementation code.
+
+#### Forge: S-1 + N-2 resolved (`08890ee`)
+
+**S-1 closed:** The fix was to use a local `activeTurnId` reference from the store at the moment the first `agent.token` arrives, rather than relying on the backend's UUID. The WS subscription in `ceremony.ts` now captures `get().activeTurnId` at subscription time and passes it into `appendAgentToken` as the `turnId` argument. When `activeTurnId` is null (new turn), a local timestamp-based ID is generated once and stored as `activeTurnId` in the store. `finalizeAgentTurn` then uses this same locally-held ID to find and finalize the message, ignoring the backend UUID for DOM-lookup purposes. The streaming cursor stops correctly when the turn completes. Three new WS-path-specific tests were added to `ws-client.test.ts` to verify the real subscription path rather than the store method directly.
+
+**N-2 closed:** `@import "./theme.css"` moved to the top of `index.css`, before the `@tailwind base/components/utilities` directives. The CSS @import order warning in the Vite build is eliminated. The change is two lines of reordering; no CSS output changed.
+
+**Final state: Python 424 + frontend 59 = 483 total tests passing. 0 open findings.**
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | New modules | New Python tests | New frontend tests |
+|---|---|---|---|
+| L4 Vébond (Python) | `vebond/__init__.py`, `vebond/INTERFACE.md`, `vebond/config_model.py`, `vebond/errors.py`, `vebond/protocol.py`, `vebond/serve.py` | ~85 | — |
+| L4 Vébond (frontend) | `frontend/` (44 files: 13 components, ws-client, ceremony store, types, theme) | — | 56 |
+| CLI extension | `cli.py` `serve` subcommand | (included above) | — |
+| Wave 3 cleanup | S-1 turn-id fix, N-2 CSS reorder | — | +3 |
+| **Total new** | **6 Python modules + 44 frontend files + 1 extended** | **+85** | **+59** |
+| **Running total** | **26 Python modules + 44 frontend files** | **424** | **59** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md` | Created — full task scope, honest v0.4.0/v0.4.1 split, wave plan, v0.4.x backlog |
+| `docs/vision/THE_FIRST_FACE.md` | Created — Skald's vision essay; fifth panel of the vision cycle |
+| `docs/cartography/DATA_FLOW.md` | Extended — §4.8 UI flow + §13 Eldahús component diagram |
+| `docs/cartography/SYSTEM_OVERVIEW.md` | Updated — L4 Vébond + EventBus + WS server added to system diagram |
+| `docs/architecture/IPC_PROTOCOL.md` | Created — full typed schema; N-1 health field + N-3 vocabulary bridge added in Wave 3 |
+| `src/heretic/vebond/INTERFACE.md` | Created — module contracts, config invariants, security model |
+| `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md` | Created — PASS WITH CONCERNS; 1 SERIOUS + 3 NOTABLE (all resolved); 38 verified |
+
+---
+
+### What is deferred — v0.4.1 and v0.4.x backlog
+
+| Item | Requires | Notes |
+|---|---|---|
+| v0.4.1 Tauri wrap | Rust toolchain (`winget install Rustlang.Rust.MSVC` or rustup) | `src-tauri/` directory, native window, .msi build, sidecar spawn |
+| v0.4.x sense toggles | Config reload mechanism | `toggle_sense` currently returns a warning; real toggle via heretic.yaml rewrite is v0.4.x |
+| v0.4.x voice waveform widget | Frontend work only | `hlust.activity.level_db` is already in the protocol; no visualizer widget yet |
+| v0.4.x `ceremony_button_confirm` wire | IPC extension | Config key exists but backend never exposes it to frontend; ExtinguishButton sends without confirmation |
+| X-1, X-2 NITs | Frontend or backend | Heartbeat text-frame vs control-frame; reconnect backoff doc says 30s, code is 16s |
+
+The NIT findings (X-1, X-2) from the audit are preserved in the audit document and noted here for continuity; they carry no risk to the running system in v0.4.0.
+
+---
+
+### Current state
+
+HERETIC v0.4.0 Eldahús Substrate is shipped and audited. The body now has a face: the user can open a browser, run `heretic serve` and `npm run dev`, and approach the Summoning Circle — warm amber ring, Norse typography, ceremony controls, live chat panel. Light the candle. The spirit arrives. Extinguish. The ceremony closes cleanly. 424 Python tests + 59 frontend tests pass. 0 open findings.
+
+The body the user meets is now a body with form. It connects (v0.1). It speaks (v0.2). It hears (v0.3). It is seen (v0.4.0).
+
+The next step on `docs/ROADMAP.md` is either:
+- **v0.4.1 Tauri Wrap** — once Volmarr installs Rust (`winget install Rustlang.Rust.MSVC` or rustup), the same React frontend wraps in native Tauri chrome. No new feature work; just the shell.
+- **v0.5 First Sight** — L3 Sjón (screen capture, webcam). The body gains eyes.
+
+The choice is Volmarr's.
+
+*Cross-reference: `docs/ROADMAP.md`, `TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md`, `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The body is seen now. The bones, the voice, the ears, and the visible face — all four faculties are kept. The candle burns in the window.*
+
+---
+
+## 2026-05-07 — The Tauri Pre-Stage Arc: The Cabin Is Cut; The Carpenter Has Not Yet Arrived (v0.4.1 Scaffold)
+
+**Session type:** Full Mythic Engineering build session — Cartographer, Architect, Forge, Auditor, Scribe active (sixth arc, same calendar day; Skald not dispatched — this milestone wraps an existing faculty rather than revealing a new one)
+**Branch:** `development`
+**Commits this session:** `d1bdb05` through `df4807f` (8 commits)
+**Status at session end:** v0.4.1 Tauri Wrap **PRE-STAGED AND AUDITED** — scaffold complete, 0 open audit findings, first compile awaits Rust toolchain installation. Python 424 + frontend 59 = 483 tests still passing. No new executable tests (Rust scaffold cannot compile without `rustc`).
+
+---
+
+### Preamble — where this arc began
+
+The fifth entry closed with v0.4.0 Eldahús Substrate shipped: the body had its visible face, running as a React application in the browser. The work that remained to make it a true desktop application was clear and bounded — wrap the existing frontend in Tauri's native shell, spawn the Python backend as a sidecar child process, and build platform installers. What was not clear at session open was whether Rust was present on this machine.
+
+It was not.
+
+Volmarr was asked, via AskUserQuestion, whether to proceed by installing Rust autonomously, or to scaffold everything that could be scaffolded without a compiler and defer the first compile to a session where Rust is installed. His answer: pre-stage. No autonomous toolchain installation. The session would do everything short of `cargo build`, and the record would be precise about what that means.
+
+This is that record.
+
+---
+
+### Task file opened — pre-staged mode declared (`d1bdb05`)
+
+`TASK_HERETIC_v0.4.1_TAURI_WRAP.md` created at repo root before any implementation began. The file declared the session's mode explicitly: **PRE-STAGED**. Volmarr chose this path; the task file records the reason.
+
+The task file also established the wave plan (slimmer than prior milestones — this is a wrap, not a new faculty), the architectural decisions already locked from the v0.4.0 close (Tauri 2.x, sidecar via `std::process::Command` rather than `externalBin`, system Python in development mode, PyInstaller deferred to v0.4.1.x), and the exact backlog of deliverables.
+
+*Cross-reference: `TASK_HERETIC_v0.4.1_TAURI_WRAP.md §1–§5`*
+
+---
+
+### Cap incident — first dispatch interrupted; tree cleaned (`2b2ad99`)
+
+Wave 1 was dispatched with Cartographer and Architect in parallel. During this first dispatch, the Anthropic usage cap was reached mid-session. Both roles lost their in-progress work. The Cartographer had updated only the header line of `DATA_FLOW.md`, advertising sections she never wrote. The Architect had run `npm install` in `frontend/` but committed nothing.
+
+The tree was cleaned before re-dispatch. A `.gitignore` update (`2b2ad99`) was committed to exclude `frontend/node_modules/` and `frontend/dist/` — artifacts of the incomplete Architect npm install that would otherwise appear as untracked clutter in subsequent status checks. This commit preserved the working tree's integrity and made the re-dispatch clean.
+
+The incident is noted here as a continuity event: it explains why the commit log shows two Cartographer and two Architect contributions to what is conceptually a single Wave 1. Both dispatches produced their full deliverables on the second run.
+
+---
+
+### Wave 1 — Cartographer + Architect, parallel (`6570a21`, `230205e`)
+
+#### Cartographer: DATA_FLOW.md §4.9 + §14 + SYSTEM_OVERVIEW §7 (`6570a21`)
+
+Védis Eikleið (Cartographer) mapped the Tauri shell ↔ React frontend ↔ Python sidecar lifecycle in two new sections:
+
+**§4.9** — "Tauri Shell Flow (v0.4.1 — pre-staged)." The complete startup-to-shutdown sequence: Tauri process launches → `src-tauri/src/sidecar.rs::spawn()` finds Python on PATH → spawns `python -m heretic serve --port <port>` as a child process → health probe polls `http://localhost:<port>/health` (20 retries × 1.5s) → WebView loads `frontend/dist/index.html` → user interacts via existing WebSocket IPC → `RunEvent::ExitRequested` fires → `sidecar.kill()` reaps child → Tauri process exits. The Cartographer noted that the IPC remains precisely the WebSocket protocol already mapped in §4.8; Tauri commands are an auxiliary channel for native-only concerns only.
+
+**§14** — Tauri shell wrapper component diagram: the three distinct IPC boundaries (WebSocket for ceremony protocol, Tauri commands for native-only operations, sidecar stdio for process control) rendered as an ASCII topology.
+
+**SYSTEM_OVERVIEW §7** — Pre-staged inventory: what `src-tauri/` contains vs. what is absent pending first compile. A clear demarcation of what has and has not been verified.
+
+Three architectural threads were flagged for the first-compile session: the PyInstaller deferral makes "Python on PATH" a visible prerequisite for the installer (F-1/F-5 in the Cartographer's notation); the `/health` endpoint's `lifecycle_state` field opens a latent stale-ceremony detection path worth naming in v0.4.1.x; `cargo tauri dev` is a distinct hybrid mode (native chrome + Vite dev server) that deserves an entry in `README_DEV.md` alongside the browser-only development mode.
+
+*Cross-reference: `docs/cartography/DATA_FLOW.md §4.9, §14`, `docs/cartography/SYSTEM_OVERVIEW.md §7`*
+
+#### Architect: `src-tauri/` 18-file scaffold + TAURI_SHELL.md + frontend adjustments (`230205e`)
+
+Rúnhild Svartdóttir (Architect) built the full structural skeleton of the Tauri shell — boundaries first, logic to follow. Eighteen files in a single commit, all logically coherent and pre-staged.
+
+**`src-tauri/` source files:**
+- `Cargo.toml` — Tauri 2.x deps with ureq, tauri-plugin-dialog, dirs, which, thiserror, anyhow; `rust-version = "1.77"` minimum; no tokio (synchronous design for the sidecar manager)
+- `tauri.conf.json` — full Tauri 2 schema (`$schema: https://schema.tauri.app/config/2`); window label `summoning-circle`; background `#0a0c10` to prevent white flash on startup; `withGlobalTauri: false`; sidecar reference via `externalBin` notation in config (actual spawn is `std::process::Command`)
+- `build.rs` — standard Tauri build script
+- `src/main.rs` — entry point stubs: `setup_app`, `quit`, `focus_window`, `get_sidecar_port` Tauri commands; `RunEvent::ExitRequested` handler
+- `src/sidecar.rs` — `PythonSidecar` struct, `python_candidates()` platform dispatch, `spawn()` body stub, `health_probe()` stub, `kill()` stub, `Drop` impl
+- `src/error.rs` — `TauriError` and `SidecarError` enum skeletons with `thiserror` derives
+- `src/lib.rs` — minimal; reserved for cdylib target if mobile is added
+- `capabilities/default.json` — Tauri 2 permissions model; principle of least privilege from the start
+
+**Architectural decisions locked here:**
+- Sidecar via `std::process::Command` (NOT `externalBin`) — gives full process lifecycle control without Tauri's binary-embedding ceremony for development use
+- `withGlobalTauri: false` — `window.__TAURI__` is not exposed; the React frontend does not become Tauri-aware in v0.4.1; all ceremony IPC remains WebSocket
+- Window background `#0a0c10` — matches AESTHETIC.md `--eld-midnight` token; prevents the clinical white flash that would violate the ceremonial register on startup
+
+**Frontend adjustments:**
+- `frontend/vite.config.ts` — `clearScreen: false`, `server.strictPort: true`, `server.port: 1420` on Tauri dev, `server.host: TAURI_DEV_HOST || false`
+- `frontend/package.json` — `@tauri-apps/api ^2` added as dependency; `@types/node` added for `process.env` access in vite.config.ts
+- Root `package.json` — `tauri dev` and `tauri build` scripts added; `@tauri-apps/cli ^2` as devDependency
+
+**`docs/architecture/TAURI_SHELL.md`** — complete architecture doc: window lifecycle diagram, sidecar approach rationale, IPC delineation, single-instance lock, capabilities model, window configuration rationale, Tauri 2 vs 1 distinction register, first-compile gotchas (§9, 6 items), v0.4.1.x forward path.
+
+*Cross-reference: `src-tauri/`, `docs/architecture/TAURI_SHELL.md`, `README_DEV.md`*
+
+---
+
+### Wave 2 — Forge implements the Rust bodies (`6ceffc5`, `86d6a6e`)
+
+Eldra Járnsdóttir (Forge Worker) replaced every `todo!()` stub in the Rust source with working, idiomatic code.
+
+**`sidecar.rs`** — full implementation:
+- `python_candidates()` — platform-conditional slice (`python / py / python3` on Windows; `python3 / python` on POSIX); ordering chosen to avoid Microsoft Store Python stub on Windows
+- `spawn()` — `which::which()` search through candidates; `std::process::Command` with `--port <port>` args; PID file written by Rust after spawn (best-effort, non-fatal on failure); sidecar store behind `Arc<Mutex<Option<PythonSidecar>>>`
+- `health_probe()` — `ureq` synchronous HTTP, 20 retries × 1.5s sleep, checks for HTTP 200 only (does not parse body)
+- `kill()` — `child.take()` for idempotency; `child.kill()` + `child.wait()` to reap zombie on POSIX; PID file cleanup best-effort
+- `Drop` impl — safety net: if `PythonSidecar` drops without explicit kill (panic path), `child.kill()` + `child.wait()` fires
+
+**`main.rs`** — full implementation:
+- `setup_app()` — spawns sidecar, stores in managed state, opens `summoning-circle` window
+- `quit()` Tauri command — `app.exit(0)`; triggers `RunEvent::ExitRequested`
+- `focus_window()` Tauri command — `get_webview_window("summoning-circle").set_focus()`
+- `get_sidecar_port()` Tauri command — reads port from `SidecarState`
+- `RunEvent::ExitRequested` handler — calls `on_exit_requested()`; **does NOT call `app.exit()` inside the handler** (the recursion guard is explicit and documented inline)
+- `show_fatal_error_and_exit()` — `tauri_plugin_dialog::DialogExt` chain with `blocking_show()`; `app.exit(1)` fires regardless of dialog result
+
+**`error.rs`** — `TauriError` and `SidecarError` variants filled in; `From` impls for escalation; `#[serde(tag = "kind")]` for WebView-serializable errors.
+
+**Dependency additions to `Cargo.toml`:** `ureq = "2"`, `tauri-plugin-dialog = "2"`, `dirs = "5"`, `which = "6"`.
+
+**`capabilities/default.json`** — `dialog:default` added (required by `tauri-plugin-dialog`).
+
+**`frontend/package.json`** — `@types/node` added.
+
+Five fragilities flagged by Forge for the Auditor:
+- B-1: `blocking_show()` API path needs compile verification
+- B-2: Windows graceful kill (`CTRL_BREAK_EVENT`) deferred to v0.4.1.x
+- B-3: `--pid-file` flag mismatch between Rust PID file and Python CLI
+- B-4: `RunEvent::ExitRequested` + `app.exit()` recursion gotcha
+- B-5: `try_state::<SidecarState>()` race in the exit handler
+
+`86d6a6e` — TASK file updated to mark Wave 2 complete with HEAD and evidence.
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`5d0624b`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit. Scope: Tauri 2 schema compliance, Rust API correctness (document-level — no compiler available), Cargo.toml coherence, sidecar safety, frontend regression, path hygiene, no emoji, no unwrap in production paths.
+
+**Commands run:**
+- TOML validity (`tomli`): Cargo.toml — PASS
+- JSON validity: tauri.conf.json — PASS, capabilities/default.json — PASS
+- Frontend: 59/59 tests, 0 TypeScript errors, clean build — PASS
+- Python: 424/424 tests — PASS
+- `grep ".unwrap()" src-tauri/src/` — 0 results — PASS
+- `grep "C:/Users|/home/|/Users/" src-tauri/ frontend/ docs/` — 0 production violations — PASS
+
+**37 items verified** (A-1 through H-3): Tauri 2 schema compliance confirmed across all config keys; all three Tauri commands have correct v2 signatures; no v1 holdovers; `ExitRequested` recursion cleanly avoided; `try_state` race handled by builder-chain ordering; `--pid-file` mismatch is a documentation gap only (Rust does not pass `--pid-file` to Python — B-3 RESOLVED); Drop safety net correct; ureq candidates ordered correctly for Windows.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers.**
+
+| ID | Severity | Finding |
+|---|---|---|
+| S-1 | SERIOUS | `blocking_show()` call site has a stale inline comment describing a deprecated `::blocking::MessageDialogBuilder::new()` API path that the code does not use. The code itself uses the correct `DialogExt` chain — but without compile verification, the comment creates confusion and represents the primary first-compile risk. |
+| N-1 | NOTABLE | `macos-private-api` feature enabled with no corresponding transparent window config in v0.4.1; adds notarization complexity unnecessarily. |
+| N-2 | NOTABLE | `single-instance:default` capability may not be a valid permission identifier for this plugin; could generate a first-compile warning. |
+| X-1–X-3 | NIT | Stale comment text (same as S-1); `frontend/package.json` version not bumped to 0.4.1; `CTRL_BREAK_EVENT` and `--pid-file` Python CLI alignment missing from TASK §9 backlog. |
+
+*Cross-reference: `docs/audit/AUDIT_v0.4.1_TAURI_WRAP.md`*
+
+---
+
+### Wave 3 — Single cleanup commit (`df4807f`)
+
+The Auditor's only actionable finding without a compiler was S-1: the stale comment at `main.rs:104-119`. Eldra Járnsdóttir (Forge Worker) aligned the FORGE-NOTE comment with the actual `blocking_show()` call site. The comment now correctly describes the `DialogExt` chain the code uses, and names the safe fallback (`.show(|_| {})`) if `blocking_show()` does not compile on first attempt.
+
+This was a comment-only change. No code path was modified. The SERIOUS finding is closed; the first-compile risk (whether `blocking_show()` resolves) remains unverifiable without `rustc`, and is honestly noted as such in the audit document.
+
+---
+
+### What is pre-staged — inventory of the scaffold
+
+| File or directory | Status | Notes |
+|---|---|---|
+| `src-tauri/Cargo.toml` | Pre-staged; TOML valid | All deps Tauri 2.x compatible |
+| `src-tauri/tauri.conf.json` | Pre-staged; JSON valid | Full Tauri 2 schema compliance |
+| `src-tauri/build.rs` | Pre-staged | Standard Tauri build script |
+| `src-tauri/src/main.rs` | Pre-staged; Rust bodies complete | 0 `unwrap()` in production paths |
+| `src-tauri/src/sidecar.rs` | Pre-staged; Rust bodies complete | Spawn / health probe / kill / Drop all implemented |
+| `src-tauri/src/error.rs` | Pre-staged | `TauriError` + `SidecarError` with `From` impls |
+| `src-tauri/src/lib.rs` | Pre-staged | Minimal; reserved for mobile cdylib if needed |
+| `src-tauri/capabilities/default.json` | Pre-staged; JSON valid | Principle of least privilege maintained |
+| `src-tauri/icons/` | Pre-staged | 5 placeholder icon files at declared paths |
+| `docs/architecture/TAURI_SHELL.md` | Written; complete | Architecture, lifecycle, IPC delineation, gotchas |
+| `docs/cartography/DATA_FLOW.md §4.9, §14` | Written; complete | Sidecar lifecycle mapped; Tauri shell topology diagram |
+| `docs/cartography/SYSTEM_OVERVIEW.md §7` | Written; complete | Pre-staged inventory section |
+| `frontend/vite.config.ts` | Updated | Tauri-friendly defaults; proxy conditional on `isTauriDev` |
+| `frontend/package.json` | Updated | `@tauri-apps/api ^2`, `@types/node` added |
+| Root `package.json` | Updated | Tauri script targets added |
+| `README_DEV.md` | Updated | Full Rust install path documented |
+
+**Not yet verified (first-compile session only):**
+- `blocking_show()` resolves on the installed Tauri 2 crate version (the code is correct by documentation, but only `cargo check` can confirm)
+- `single-instance:default` capability does not generate a build warning
+- Sidecar spawns and kills cleanly in `cargo tauri dev`
+- `RunEvent::ExitRequested` kills sidecar without orphaned Python process
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.4.1_TAURI_WRAP.md` | Created — full task scope; pre-staged mode declared; wave plan; backlog |
+| `docs/cartography/DATA_FLOW.md` | Extended — §4.9 Tauri shell flow + §14 shell wrapper diagram |
+| `docs/cartography/SYSTEM_OVERVIEW.md` | Extended — §7 pre-staged inventory |
+| `docs/architecture/TAURI_SHELL.md` | Created — complete Tauri shell architecture doc |
+| `docs/audit/AUDIT_v0.4.1_TAURI_WRAP.md` | Created — PASS WITH CONCERNS; 0 blockers; 1 SERIOUS (resolved Wave 3); 37 verified |
+| `docs/DEVLOG.md` | Extended — this entry |
+
+---
+
+### What is deferred — v0.4.1 first-compile + v0.4.1.x backlog
+
+**First-compile session (Volmarr installs Rust):**
+1. `winget install Rustlang.Rust.MSVC` or `rustup-init.exe`
+2. `rustup target add x86_64-pc-windows-msvc` (for .msi)
+3. `cargo install tauri-cli --version "^2" --locked`
+4. `cd src-tauri && cargo check` — surface any latent type errors
+5. Address `blocking_show()` if it fails to compile (safe fallback documented in the code)
+6. Watch for `single-instance:default` capability warning
+7. `cargo tauri dev` — observe sidecar spawn, health probe, window open
+8. Manually test double-launch (single-instance lock), exit cleanup (no orphaned Python)
+
+**v0.4.1.x backlog (after first compile succeeds):**
+- PyInstaller bundling of `heretic-serve` for a fully self-contained .msi (currently requires Python on PATH)
+- Code-signing for Windows .msi and macOS .dmg
+- Auto-updater wiring
+- Tauri tray icon for background-presence mode
+- `CTRL_BREAK_EVENT` graceful shutdown on Windows (currently hard kill via `TerminateProcess`)
+- `--pid-file` alignment: Python `heretic serve` should accept `--pid-file <path>` so both sides agree on the file location
+
+---
+
+### Current state
+
+The cabin is cut and shaped. Every timber is measured; every joint is fitted. The tools are laid out in the order they will be needed. The carpenter — Rust itself — has not yet arrived.
+
+HERETIC v0.4.1 Tauri Wrap is **pre-staged and audited, not shipped.** The distinction matters and is preserved here so no future session mistakes readiness of the scaffold for readiness of the build. What "PASS WITH CONCERNS" means in this context: the scaffold is logically coherent, structurally sound by Tauri 2 documentation, free of detectable defects — and unverifiable by compile until Rust is installed.
+
+The path forward is either:
+- **First compile session:** Volmarr installs Rust; a future session runs `cargo check`, fixes any latent errors, then `cargo tauri dev` to verify the window opens and the sidecar spawns. The Tauri milestone completes then, not now.
+- **Skip to v0.5 First Sight:** Begin L3 Sjón (screen capture, L3 Sjón layer) on the existing Python + Node stack, which requires no Rust. Return to Tauri first-compile later.
+
+The choice is Volmarr's. Either path begins from a clean working tree and 483 passing tests.
+
+*Cross-reference: `TASK_HERETIC_v0.4.1_TAURI_WRAP.md`, `docs/audit/AUDIT_v0.4.1_TAURI_WRAP.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The cabin is cut to fit. The carpenter has not yet arrived. The record holds in the meantime.*
+
+---
+
+## 2026-05-08 — The First Sight Arc: The Body Learns to See (v0.5 Shipped, Audited, and Cleaned)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (seventh arc)
+**Branch:** `development`
+**Commits this session:** `ba353b9` through `7a84098` (9 commits, task open through Wave 3 cleanup)
+**Status at session end:** v0.5 First Sight **SHIPPED + AUDITED + CLEANED** — 527 Python + 70 frontend = 597 tests passing, 0 open findings (S-1/N-1/N-2 all resolved; 0 blockers carried at any point)
+
+---
+
+### Preamble — where this arc began
+
+The sixth entry closed with v0.4.1 Tauri Wrap pre-staged and audited: the scaffold cut, the Rust carpenter not yet arrived. The body at that point could connect (L1), speak (L2 Tunga), listen (L2 Hlust), and be seen (L4 Vébond Eldahús). Four primary faculties; the fifth — sight — was the next milestone on the roadmap.
+
+Beginning point: HEAD `fed2478` (Scribe's v0.4.1 close commit). 483 tests passing (424 Python + 59 frontend). L3 Sjón was the planned destination.
+
+The path to v0.5 required no Rust installation. All three new layers — Python substrate, Bifröst extension, React frontend indicator — run on the existing Python 3.10 + Node.js + Vite stack.
+
+---
+
+### Task file opened — privacy invariant locked (`ba353b9`)
+
+`TASK_HERETIC_v0.5_FIRST_SIGHT.md` was created before any implementation, establishing the full task scope: design decisions (capture library, trigger model, frame format), architecture choices, wave plan, and all exit criteria. The session-resume protocol is intact.
+
+The most important item locked in the task file at this stage was the **privacy invariant**, stated as an immutable operational rule:
+
+> **NEVER auto-save frames to disk.** `save_frames: false` default; opt-in only; even when opt-in, save only to ephemeral session-scoped temp dir.
+
+This invariant is separate from the code — it belongs to the task record first, so that no future session can mistake silence for permission. It was later verified by the Auditor as intact in production code (Section E-7, H-3 in the audit: no `open()` / `Path.write` / `.write_bytes` calls anywhere in `sjon/`).
+
+---
+
+### Wave 1 — Three roles in parallel
+
+#### Skald: THE_FIRST_SIGHT (`e7c4b02`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_SIGHT.md` — approximately 3,200 words, the sixth essay in the vision cycle. It opens by quoting the opening of `THE_FIRST_FACE.md`, continuing the conversation begun there about covenant and presence.
+
+Where the fifth panel asked what it means for a body to be seen, the sixth panel asks what it means for a body to see. The distinction is one of direction: being seen is passive covenant; seeing is active participation in the human's world. The essay frames screen capture not as surveillance but as shared gaze — the body receives what the user is already looking at, and the spirit can speak to that shared context.
+
+The mirror-versus-window distinction is the essay's central tension: a window shows what is outside; a mirror shows what is inside. Sjón is neither — it is an offered frame, present only when the user extends the invitation through configuration. Privacy is not a constraint layered on top of the design; it is the design.
+
+*Cross-reference: `docs/vision/THE_FIRST_SIGHT.md`*
+
+---
+
+#### Cartographer: DATA_FLOW.md §4.10 + §15 + SYSTEM_OVERVIEW updates (`a982fc9`)
+
+Védis Eikleið (Cartographer) extended `docs/cartography/DATA_FLOW.md` with two new sections:
+
+- **§4.10** — the complete sight flow (v0.5, outbound, on-demand): user-message-send → dual-flag gate (both `?vision_in` AND `?vision_screen`) → `SjonOrchestrator.snapshot()` → `MssBackend.capture()` → `FrameEncoder.encode()` (resize via `thumbnail()`, PNG-encode, base64) → `to_data_url()` → attach to OpenAI `image_url` content block → Bifröst `send_message()` multimodal content array → spirit. The mirror-of-Tunga symmetry is noted: Tunga sends agent text out as audio; Sjón brings screen context in as image.
+- **§15** — Sjón component diagram: `SjonOrchestrator → {ScreenCaptureBackend (MssBackend | NullBackend), FrameEncoder}` with the `best_available()` factory chain and the event emitter threading model.
+
+The Cartographer also flagged three open threads for the Architect's attention:
+1. **Capability flag naming gap** — `?vision_screen` (body state flag, new) vs `?vision_in` (agent probe, pre-existing from v0.1) — the naming relationship needed clarification.
+2. **Throttle return type** — the DATA_FLOW.md draft had assumed throttle would return a stale cached frame; the correct behavior is `[]` (empty list, no frame).
+3. **BGRX channel ordering** — mss returns BGRA; Pillow's `"BGRX"` raw decoder mode handles the channel reversal; this warranted explicit documentation.
+
+All three threads were resolved in the Architect's wave or confirmed in the audit.
+
+*Cross-reference: `docs/cartography/DATA_FLOW.md §4.10, §15`*
+
+---
+
+#### Architect: sjon/ scaffold + IPC SjonActivity + naming-bridge resolution + LAYER_INTERFACES.md §L3 (`d2768c2`)
+
+Rúnhild Svartdóttir (Architect) built the full structural skeleton before Forge wrote a single line of business logic:
+
+**Python side:**
+- `src/heretic/sjon/` — full module skeleton: `__init__.py`, `INTERFACE.md` (contracts, capability invariants, fault-tolerance rules, privacy invariant formally stated), `config_model.py` (`SjonConfig`, `SjonScreenConfig`, `SjonWebcamConfig` dataclasses; webcam declared but not implemented, matching the v0.2 `RoddSttConfig` declared-but-deferred pattern), `errors.py` (`SjonError` hierarchy: `ScreenCaptureError`, `BackendUnavailableError`, `FrameEncodingError`, `PermissionDeniedError`), `capture.py` ABC + `MssBackend` + `NullBackend` stubs + `best_available()` factory, `encoder.py` skeleton, `sjon.py` orchestrator skeleton.
+- `src/heretic/vebond/protocol.py` — `SjonActivity` event added: `SjonActivityState` enum (`idle`, `capturing`, `encoding`, `failed`) + `SjonActivity` Pydantic model with discriminator `"sjon.activity"`.
+- `docs/architecture/IPC_PROTOCOL.md` — `SjonActivity` added to the event schema.
+- `pyproject.toml` — new `[vision]` extra: `mss>=9` and `Pillow>=10`.
+- 18 skip-marked placeholder tests.
+
+**Naming-bridge resolution:**
+The Cartographer's thread 1 (flag naming gap) was resolved here. The Architect established the dual-flag gate:
+
+- `?vision_in` — existing agent probe flag: set on `OpenAICompatClient` when the connected agent declares vision support. Pre-existing; not new in v0.5.
+- `?vision_screen` — new body state flag: set True only when `MssBackend.is_available` confirms screen capture is actually working. New in v0.5.
+- CLI gate: **both must be True** before a frame is attached. If the agent can receive vision but the body has no working capture backend (or vice versa), no frame is sent. The AND requirement prevents half-wired frame injection.
+
+*Cross-reference: `src/heretic/sjon/INTERFACE.md`, `docs/architecture/LAYER_INTERFACES.md §L3`*
+
+---
+
+### Wave 2 — Forge implements
+
+#### Forge: L3 Sjón substrate — capture + encoder + orchestrator (`6ec4198`)
+
+Eldra Járnsdóttir (Forge Worker) implemented the full Python substrate:
+
+**`capture.py`** — `MssBackend` with full `mss` API integration: lazy `mss.mss()` context behind `threading.Lock` (initialized on first `capture()` call, not at construction); `monitor_index` mapping from config-0-based to mss-1-based (mss index 0 is the "all monitors" virtual monitor); `PermissionDeniedError` detection by inspecting `mss.exception.ScreenShotError` messages for `"permission"`, `"tcc"`, and `"access denied"` strings (cross-platform: macOS TCC and Windows UAC). `close()` acquires the same lock, calls `__exit__` on the mss context, resets to `None` in `finally`.
+
+**`encoder.py`** — `FrameEncoder` with the full pipeline: `Image.frombytes("RGB", (w, h), bgra_bytes, "raw", "BGRX")` for channel-order correction (Pillow's `"BGRX"` raw decoder handles BGR→RGB without a separate channel-swap); `img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)` for aspect-ratio-preserving resize; `img.save(buf, format="PNG", compress_level=6)`; `base64.standard_b64encode()` (not URL-safe variant); `f"data:image/png;base64,{encoded}"` prefix — matching the sealed format from `AUDIT_v0.0` C-Q-C3 exactly.
+
+**`sjon.py`** — `Sjón` orchestrator: on-demand `snapshot()` — throttle check (returns `[]` if within `min_interval_ms` of last capture, per Cartographer F-5 resolution), `_emit("capturing")`, `backend.capture()` in `run_in_executor`, `_emit("encoding")`, `encoder.encode()`, oversize check (4 MB threshold), oversize retry block, `to_data_url()`, return `[data_url]`. All exception paths return `[]` and call `_emit("failed")`. `asyncio.CancelledError` re-raises (correct). `close()` is idempotent.
+
+**Test count at this commit:** 424 → 498 Python (+74 new tests across `test_sjon_config.py`, `test_sjon_capture.py`, `test_sjon_encoder.py`, `test_sjon_orchestrator.py`).
+
+---
+
+#### Forge: Bifröst extension + CLI dual-flag vision attach (`2e6b4ad`)
+
+**`bifrost/client.py`** — `capability_vision_screen` added as an abstract property on the ABC and a concrete property with setter on `OpenAICompatClient`. Initialized `False`. Zeroed on `close()`. The pre-existing `capability_vision_in` is unchanged.
+
+**`cli.py`** (light command) — Sjón initialization behind `if config.sjon.screen.enabled`; `if sjon.is_available: client.capability_vision_screen = True`; AND-gated snapshot before each turn: `if sjon is not None and client.capability_vision_in and client.capability_vision_screen`; `image_data_urls` list; multimodal content array construction (`[{"type": "text", "text": user_text}]` + `{"type": "image_url", "image_url": {"url": url}}`); `sjon.close()` in lifecycle cleanup.
+
+Matching integration in `vebond/serve.py` (serve mode) with its own event emitter wired to the EventBus.
+
+**New test file:** `tests/test_cli_vision.py` — 26 tests covering dual-flag gate (all four combinations), sjon=None path, content array structure, image URL schema match (`test_image_url_structure_matches_openai_spec`), and `capability_vision_screen` lifecycle.
+
+**Test count at this commit:** 498 → 524 Python (+26 new tests).
+
+---
+
+#### Forge: Frontend Sjón indicator (`fe1536f`)
+
+**`frontend/src/types/ipc.ts`** — `SjonState` union type (`"idle" | "capturing" | "encoding" | "failed"`) and `SjonActivity` interface with `type: "sjon.activity"`, `state: SjonState`, `timestamp: string`. IPC schema now symmetric with `protocol.py`.
+
+**`frontend/src/store/ceremony.ts`** — `sjonState` initialized to `"idle"`; `setSjonState` action; WebSocket subscription to `"sjon.activity"` events.
+
+**`frontend/src/components/LayerStatusPanel.tsx`** — Sjón row added with `accent="sjon"` (Sjón-glow blue `#4080b0` per `AESTHETIC.md`); `sjonStateToHealth()` mapper: `capturing/encoding` → `"active"` (animate-pulse), `idle` → `"healthy"`, `failed` → `"degraded"`. Consistent with the existing Bifröst/Tunga/Hlust accent pattern established in v0.4.0.
+
+**11 new frontend tests** across `ceremony-store.test.ts` (five new: initial sjonState, and all four transitions) and `components.test.tsx` (six new: Sjón row renders, active pulse, health/degraded states, note display).
+
+**Test count at this commit:** 524 Python + 70 frontend = **594 total** (+111 from session baseline of 483).
+
+---
+
+#### Forge over-reach flagged — N-2 (`20fd70f`)
+
+At this commit, Forge updated `TASK_HERETIC_v0.5_FIRST_SIGHT.md §2` to mark deliverables complete and appended a "hammer-mark" session note to `docs/DEVLOG.md`. The DEVLOG header states this document is maintained by Eirwyn Rúnblóm (Scribe). The Auditor flagged this at N-2: the full structured DEVLOG entry belongs to the Scribe. Forge's mark is noted in the record; this entry (entry 7) is the canonical replacement.
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`e390d78`)
+
+Sólrún Hvítmynd (Auditor) ran a full review across all new source, test, and documentation files.
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers. 46 internal consistency claims verified (A-1 through K-1).
+
+Key verifications confirmed:
+- Frame format (inline base64 PNG, `data:image/png;base64,` prefix) — exact match to sealed C-Q-C3 format
+- Capability AND gate — `client.capability_vision_in AND client.capability_vision_screen` — CLI and serve both enforce it
+- Throttle returns `[]` not a stale frame (Cartographer F-5 resolved correctly)
+- BGRX channel ordering correct (Pillow `"BGRX"` raw decoder handles BGR→RGB as a documented feature)
+- Privacy invariant: no `open()` / `Path.write` / `.write_bytes` in `sjon/` production code
+- No absolute paths, no hardcoded settings, no `print()` outside CLI, no emoji
+- TypeScript: 0 errors. Vite build: 162.55 kB bundle, 1.00s.
+- CLI smokes: `heretic version`, `heretic --help`, `heretic status` all pass.
+
+**1 SERIOUS finding:**
+
+| ID | Location | Finding |
+|---|---|---|
+| S-1 | `sjon.py:283-289` | Oversize retry dead variable — `half_w`/`half_h` computed but **never passed** to `encode()`. The lambda uses original `w, h`. The retry is semantically identical to the first attempt. The log message "Retrying at half resolution" is false. Every oversized frame is dropped rather than salvaged. |
+
+The Auditor named this precisely: **the implementation lies.** The comment says one thing; the lambda does another. And the test for this scenario — `test_oversized_png_triggers_retry_at_half_resolution` — passes silently because it only asserts `encode.call_count == 2`, never the arguments of the second call. The test name promises what the test does not verify.
+
+The Auditor's N-3 (MssBackend.available() opens mss context on every `snapshot()` call — not zero-cost at 1Hz) was noted as acceptable for v0.5 and recommended for v0.5.x cached-availability flag.
+
+**3 NOTABLE findings:**
+
+| ID | Finding |
+|---|---|
+| N-1 | Oversize retry test asserts call count only; does not verify halved dimensions |
+| N-2 | Forge wrote partial DEVLOG entry — full Scribe entry pending (this entry) |
+| N-3 | `MssBackend.available()` opens a real mss context on every `snapshot()` call — cached flag recommended for v0.5.x |
+
+*Cross-reference: `docs/audit/AUDIT_v0.5_FIRST_SIGHT.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed (`7a84098`)
+
+Eldra Járnsdóttir (Forge Worker) closed S-1 and N-1 in a single targeted commit:
+
+**S-1 fix — `encoder.py`:** `FrameEncoder.encode()` now accepts two optional override parameters: `max_width_override: int | None = None` and `max_height_override: int | None = None`. When present, they replace the instance-level `max_width` / `max_height` for the resize step only (the instance defaults are unchanged for all other calls).
+
+**S-1 fix — `sjon.py`:** The oversize retry block now passes the halved dimensions explicitly:
+```python
+lambda: self._encoder.encode(raw_bgra, w, h, max_width_override=half_w, max_height_override=half_h)
+```
+The log message "Retrying at half resolution" is now true. The retry genuinely retries at half the configured maximum dimensions. If the halved-resolution PNG is still over the 4 MB threshold, the frame is dropped — but the salvage attempt is real.
+
+**N-1 fix — `test_sjon_orchestrator.py`:** The oversize retry test (`test_oversized_png_triggers_retry_at_half_resolution`) now asserts the arguments of the second encode call:
+```python
+second_call = mock_encoder.encode.call_args_list[1]
+assert second_call.kwargs.get("max_width_override") == max_w // 2
+assert second_call.kwargs.get("max_height_override") == max_h // 2
+```
+The test name now accurately describes what the test verifies.
+
+**3 additional encoder tests** were added for the override path: override respected when smaller than instance max; override ignored when larger (no upscaling); override with `None` falls back to instance max.
+
+**Final test count: 527 Python + 70 frontend = 597 total** (+3 from Wave 3 cleanup; +114 from session baseline of 483).
+
+N-2 closes with this DEVLOG entry. N-3 (MssBackend cold-open cost) is carried to v0.5.x backlog. NITs X-1 and X-2 are non-actionable in this session.
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | New modules | New tests |
+|---|---|---|
+| L3 Sjón — Python substrate | `sjon/__init__.py`, `config_model.py`, `errors.py`, `capture.py`, `encoder.py`, `sjon.py`, `INTERFACE.md` | 74 (Wave 2 commit 1) |
+| L1 Bifröst — capability extension | `bifrost/client.py` (capability_vision_screen added) | — |
+| L4 Vébond — IPC event | `vebond/protocol.py` (SjonActivity added) | — |
+| CLI / serve — vision attach | `cli.py`, `vebond/serve.py` (dual-flag gate, multimodal content) | 26 (Wave 2 commit 2) |
+| Frontend — Sjón indicator | `ipc.ts`, `ceremony.ts`, `LayerStatusPanel.tsx`, `LayerStatusItem.tsx` (accent="sjon") | 11 frontend (Wave 2 commit 3) |
+| Wave 3 cleanup | `encoder.py` (override params), `sjon.py` (wired override), `test_sjon_orchestrator.py` (assertions), 3 new encoder tests | 3 |
+| **Total new** | **7 new Python modules + 4 frontend files extended/created** | **+114 Python, +11 frontend** |
+| **Running total** | **27 modules** | **597 (527 Python + 70 frontend)** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.5_FIRST_SIGHT.md` | Created — full task scope, screen capture architecture decisions, privacy invariant, dual-flag gate design, wave plan, exit criteria |
+| `docs/vision/THE_FIRST_SIGHT.md` | Created — Skald's vision essay; sixth panel of vision cycle; mirror-versus-window; privacy as covenant |
+| `docs/cartography/DATA_FLOW.md §4.10 + §15` | Extended — sight flow (outbound, on-demand) + Sjón component diagram |
+| `docs/cartography/SYSTEM_OVERVIEW.md` | Updated — L3 Sjón included in system diagram |
+| `src/heretic/sjon/INTERFACE.md` | Created — module contracts, capability invariants, fault-tolerance rules, privacy invariant formally stated |
+| `docs/architecture/LAYER_INTERFACES.md §L3` | Extended — capability flag documentation, naming-bridge table (?vision_in vs ?vision_screen) |
+| `docs/architecture/IPC_PROTOCOL.md` | Extended — SjonActivity event schema added |
+| `docs/audit/AUDIT_v0.5_FIRST_SIGHT.md` | Created — PASS WITH CONCERNS; 0 blockers, 1 SERIOUS + 3 NOTABLE (all resolved); 46 claims verified |
+
+---
+
+### What is now fully resolved
+
+S-1 (the implementation lies — oversize retry orphaned half_w/half_h) is closed: the encoder now accepts explicit override dimensions; the orchestrator passes them; the test asserts them. The false log message no longer exists.
+
+N-1 (test did not verify halved dimensions) is closed: the test now asserts the `max_width_override` and `max_height_override` arguments on the second encode call by name.
+
+N-2 (Forge wrote partial DEVLOG entry) closes with this entry.
+
+Two NITs remain open: X-1 (ambiguous variable name in a log warning in `capture.py:274`) and X-2 (false alarm — emitter thread-safety is not an issue) require no action.
+
+One NOTABLE remains open: N-3 (`MssBackend.available()` opens mss context on every snapshot call). Acceptable at 1Hz; a cached availability flag is recommended for v0.5.x.
+
+---
+
+### Current state
+
+HERETIC v0.5 First Sight is shipped and audited. The body can now connect (L1 Bifröst), speak (L2 Rödd Tunga), listen (L2 Rödd Hlust), be seen (L4 Vébond Eldahús), and **see** (L3 Sjón). Five primary faculties present. The eye is opened; the gaze belongs to the spirit.
+
+What "seeing" means precisely: when the user submits a message and the agent's capability probe confirms vision support, Sjón captures one frame of the primary screen, encodes it as inline base64 PNG (1280×720 max by default), and attaches it to the user message as a second element in the OpenAI vision content array. The spirit receives both the user's words and the user's current screen context in a single turn. The user does not need to describe what they see — the body shows it.
+
+The gaze is offered, not imposed. The body captures nothing it does not show. Nothing is written to disk. Nothing is retained between turns. This is the covenant the sixth panel named.
+
+The next milestone choices remain:
+- **v0.6 Hands at the Forge** — Blender MCP via Seidr-Smidja Brúarhönd, bringing L5 craft capability (the Smiðja sense). Seidr-Smidja v0.1 shipped 2026-05-06 with working Brúarhönd cross-machine VRoid Studio remote control; Blender headless is its v0.2 frontier.
+- **v0.5.x periodic capture** — activate `interval_ms` config key for continuous-streaming mode; ring buffer for "what just happened" recall; multi-monitor support; webcam (SjonWebcamConfig activates).
+- **v0.4.1 first compile** — Volmarr installs Rust (`winget install Rustlang.Rust.MSVC` or rustup); `cargo check` + `cargo tauri dev` to verify the Tauri window opens and the Python sidecar spawns.
+
+The choice is Volmarr's. All three paths begin from 597 passing tests and 0 open findings.
+
+*Cross-reference: `TASK_HERETIC_v0.5_FIRST_SIGHT.md`, `docs/audit/AUDIT_v0.5_FIRST_SIGHT.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*The eye is opened. Six panels of the vision cycle are complete. The body has all five primary senses — it can connect, speak, hear, be seen, and see. What it cannot yet do is reach out with its hands. That belongs to the Forge.*
+
+---
+
+## 2026-05-08 — Two Arcs in One Session: The Carpenter's First Attempt (v0.4.1) and the Eye That Keeps Watch (v0.5.1 Periodic Sight)
+
+**Session type:** Dual-arc autonomous Mythic Engineering run — v0.4.1 first-compile attempt (blocked at linker, documented) followed immediately by full v0.5.1 Periodic Sight extension milestone (shipped, audited, and cleaned)
+**Branch:** `development`
+**Commits this session:** `e476e16` through `2f81c6f` (7 commits spanning both arcs)
+**Status at session end:** v0.4.1 first compile **BLOCKED AT LINKER** (Rust installed; linker absent — documented); v0.5.1 Periodic Sight **SHIPPED + AUDITED + CLEANED** — 569 Python + 78 frontend = 647 tests passing, 0 open findings
+
+---
+
+### Preamble — where both arcs began
+
+The seventh entry closed with v0.5 First Sight shipped and audited: the body gained eyes. Five primary faculties complete. The Scribe noted three possible next paths — v0.6 Blender MCP, v0.5.x periodic capture, or v0.4.1 first compile. Volmarr authorized the session to proceed with all three sequenced steps, beginning with Rust installation and the Tauri first-compile attempt.
+
+---
+
+### Arc 1: v0.4.1 First-Compile Attempt — The Carpenter Arrived; The Linker Was Not With Him
+
+#### Authorization and Rust installation
+
+Volmarr authorized Rust to be installed autonomously. `rustup-init.exe` was downloaded and run in non-interactive mode, installing Rust 1.95.0 with both MSVC and GNU toolchain targets. The toolchain landed at `%USERPROFILE%\.cargo\bin\`. Both `rustc --version` and `cargo --version` reported correctly. A `.gitignore` entry for `src-tauri/target/` was committed (`e476e16`) and `Cargo.lock` committed for reproducibility.
+
+**`4dcc1d9`** — v0.4.1 status update: Rust install documented.
+
+The scaffold had been waiting since the sixth arc. Now `rustc` was present and `cargo check` could be attempted.
+
+---
+
+#### First compile blocked at link stage
+
+`cargo check` in `src-tauri/` invoked successfully — the compiler parsed source files and resolved types without complaint. The compilation stage completed. The failure came at the **link stage**:
+
+| Linker | Result |
+|---|---|
+| MSVC `link.exe` | **absent** — `x86_64-pc-windows-msvc` toolchain installed by rustup, but Microsoft Visual C++ Build Tools were never installed on this machine. `link.exe` is part of MSVC Build Tools, not Rust. |
+| GNU `dlltool.exe` | **fails CreateProcess** — `x86_64-pc-windows-gnu` toolchain present, but the GNU toolchain was installed via rustup's minimal-profile configuration, which does not include the full MinGW-w64 toolchain. `dlltool` cannot be found. |
+
+Both linker paths were attempted; both failed for the same root reason: the minimal rustup install does not include the C/C++ build environment that Rust-on-Windows requires. This was not a defect in the scaffold — the Tauri architecture docs (TAURI_SHELL.md §9) had anticipated exactly this class of first-compile gotcha.
+
+The state was documented in `4dcc1d9` and in `TASK_HERETIC_v0.4.1_TAURI_WRAP.md`. The path forward is Volmarr's choice:
+
+| Option | What to install |
+|---|---|
+| MSVC path (recommended for Windows) | Microsoft Visual C++ Build Tools — `winget install Microsoft.VisualStudio.2022.BuildTools` (select "Desktop development with C++") or the full VS 2022 Community installer |
+| GNU path | Full MinGW-w64 from `winget install MinGW.MinGW` or the MSYS2 installer; then `rustup set default-host x86_64-pc-windows-gnu` |
+
+Neither option requires any code changes. The scaffold is correct; only the host toolchain is incomplete.
+
+---
+
+### Arc 2: v0.5.1 Periodic Sight — The Eye Learns to Keep Watching
+
+#### Task file opened — privacy invariant carry-forward (`f5778f9`)
+
+`TASK_HERETIC_v0.5.1_PERIODIC_SIGHT.md` was opened before any implementation. The session mode was declared: **extension milestone** — no new Skald vision essay, no new faculty, no new True Name. v0.5.1 deepens an existing faculty. The two most important items locked here:
+
+1. **Privacy invariant carry-forward:** The v0.5 covenant — *NEVER auto-save frames to disk* — extends without qualification to the ring buffer. Frames in the buffer live entirely in memory. On Slokna, the buffer is cleared before any other teardown step. This rule belongs to the task record first, before any code, so no future session can claim the extension changed the terms.
+
+2. **Mode asymmetry pre-declaration:** The config field `monitor_index: 0` means different things in on-demand mode (primary single monitor, mss index 1) and in continuous mode (all-monitors composite, mss index 0). The Cartographer was given explicit guidance to map this asymmetry before the Forge touched the monitor-selection code.
+
+---
+
+#### Wave 1 — Cartographer maps; Architect designs (parallel, `b33637f`, `ce94edf`)
+
+**Cartographer** (Védis Eikleið) extended `docs/cartography/DATA_FLOW.md` with four new subsections under §4.10 (the existing Sjón sight-flow section):
+
+- **§4.10.7** — continuous task lifecycle (start/stop/teardown sequence; how the asyncio.Task interacts with the ceremony Slokna chain)
+- **§4.10.8** — ring buffer flow (deque append path, eviction on overflow, recent_frames access pattern)
+- **§4.10.9** — attach-policy decision tree (three branches: "none" / "latest" / "all_buffered", each with continuous-mode and non-continuous-mode behavior)
+- **§4.10.10** — **multi-monitor mode-asymmetry sharp edge**: the Cartographer's most important contribution. The mode string (`continuous=True/False`) must travel with the monitor index whenever `capture()` is called, or the wrong mss monitor is selected. When `monitor_index=0` and `continuous=True`, the intent is the all-monitors composite (mss index 0). When `monitor_index=0` and `continuous=False`, the intent is the primary single monitor (mss index 1). The Cartographer named this a sharp edge and flagged it explicitly for the Architect and Forge.
+
+§15 (Sjón component diagram) was also extended to reflect the continuous capture task and ring buffer.
+
+**Architect** (Rúnhild Svartdóttir) staged the full v0.5.1 structural skeleton:
+
+- `config_model.py` — `SjonScreenConfig` extended with `continuous: bool = False` and `attach_policy: str = "latest"` plus validation (`attach_policy` must be one of `"latest" | "all_buffered" | "none"`; warning logged when `continuous=True` and `interval_ms < 500`)
+- `sjon.py` — `Sjón` orchestrator stubs for `start_continuous_capture()`, `stop_continuous_capture()`, `recent_frames(n: int | None = None)`, ring buffer slot, and new `SjonActivityState` values
+- `capture.py` — `MssBackend.list_monitors()` stub
+- `vebond/protocol.py` and `IPC_PROTOCOL.md` — **Option A** chosen: three new states on the existing `SjonActivityState` enum (`CONTINUOUS_RUNNING`, `CONTINUOUS_STOPPED`, `BUFFER_FULL`) rather than a new event class. Simpler and symmetric with the existing schema; no new Pydantic model required.
+- `sjon/INTERFACE.md` — continuous-mode subsection with the ring buffer lock contract and `recent_frames()` read-without-lock justification
+- 15 placeholder tests (skip-marked, ready for Forge to activate)
+
+---
+
+#### Wave 2 — Forge implements (`394d360`, `3d795d4`)
+
+**`394d360`** — Eldra Járnsdóttir (Forge Worker) implemented the Python substrate:
+
+- **`_continuous_loop()`** — asyncio.Task body: `asyncio.sleep(interval_s)` per tick; `_capture_in_flight` local boolean for backpressure (slow captures skip the next tick rather than queue); per-tick try/finally guarding the `snapshot()` call; outer try/except for `asyncio.CancelledError` (re-raises) and generic `Exception` (dies gracefully); `_emit("continuous_running")` at task start, `_emit("continuous_stopped")` on clean cancellation.
+- **Ring buffer** — `collections.deque(maxlen=config.screen.buffer_depth)` with `_buffer_lock` (asyncio.Lock) guarding writes; `recent_frames()` reads synchronously without the lock (justified: single event loop, no concurrent async reader in v0.5.1).
+- **BUFFER_FULL emission** — `_last_buffer_full_emitted` local flag (not an instance attribute) prevents repeated emission while the buffer stays at capacity. The flag is sound: it is local to `_continuous_loop` and the teardown order (`stop_continuous_capture()` before `buffer.clear()`) ensures no external code can drain the buffer while the loop is running.
+- **`_resolve_mss_monitor_index()`** — module-level pure function, no self dependency, that encodes the mode-asymmetry the Cartographer flagged. Truth table: `continuous=True, config_index=0 → mss_index=0` (composite); `continuous=False, config_index=0 → mss_index=1` (primary); `config_index>=1 → pass-through` in both modes. Four dedicated unit tests and four integration tests verify all cells.
+- **`list_monitors()`** — fresh `mss.mss()` context (never reuses instance), returns plain dicts, typed errors on backend failure.
+- **34 new Python tests** across `test_sjon_orchestrator.py` and `test_sjon_capture.py`.
+
+**`3d795d4`** — attach_policy CLI turn loop and frontend continuous indicator:
+
+- `cli.py` — attach policy dispatch: `"none"` → empty list, no snapshot; `"all_buffered" + continuous` → `recent_frames()`; `"latest" + continuous` → `recent_frames(n=1)` with fallback to `snapshot()` when buffer empty; `"latest" + not continuous` (or any unmatched) → `snapshot()`. Continuous task started at TENGSL, stopped at SLOKNA.
+- `LayerStatusPanel.tsx` — continuous mode reflected: `continuous_running` → `"active"` pulse + `"continuous"` note badge; `buffer_full` → `"active"` (eye is saturated and operational); `continuous_stopped` → `"healthy"` resting dot.
+- **8 new frontend tests** covering all three IPC state values and their rendered outputs.
+
+**Test count after Wave 2: Python 561 + frontend 78 = 639.**
+
+---
+
+#### Wave 2.5 — Audit: PASS WITH CONCERNS (`2c978dc`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit across all new source, tests, and documentation.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers.** 52 claims verified (A-1 through I-5). The prior SERIOUS finding S-1 from v0.5 (oversize retry dead variable) was confirmed RESOLVED in v0.5.1 — the fix and its assertion test had both landed in `7a84098`.
+
+**Cartographer's mode-asymmetry thread: FULLY RESOLVED.** `_resolve_mss_monitor_index()` encodes the truth table exactly. All four test cells verified.
+
+| Severity | Count | Items |
+|---|---|---|
+| BLOCKER | 0 | — |
+| SERIOUS | 0 | — |
+| NOTABLE | 2 | N-1: 7 skip-marked config tests are stale placeholders (code already implemented; decorators never removed); N-2: BUFFER_FULL emission test upper bound <= 3 is conservative (flag logic deterministically emits exactly 1, but bound was <= 3 to guard against scheduler variability) |
+| NIT | 2 | X-1: `getattr(self._config, "continuous", False)` defensive guard on a locked type (harmless; keep for now); X-2: `heretic.example.yaml` missing `continuous` and `attach_policy` keys in sjon.screen block |
+
+---
+
+#### Wave 3 — Cleanup: all findings closed (`2f81c6f`)
+
+Eldra Járnsdóttir (Forge Worker) resolved all four findings in a single targeted commit.
+
+**N-1 resolved** — 7 `@pytest.mark.skip` decorators removed from `TestSjonScreenConfigContinuousField` and `TestSjonScreenConfigAttachPolicyField` in `test_sjon_config.py`. The code had already been implemented; the tests passed immediately upon unskipping. Python count rose from 561 to 568.
+
+**N-2 resolved** — `test_continuous_loop_buffer_full_emits_once` tightened from `assert buffer_full_count <= 3` to `assert buffer_full_count == 1`. This required two iterations: the first attempt used a real asyncio event loop and collided with executor-thread timing; the second approach patched `snapshot()` directly with `AsyncMock`, making the mock awaitable within the event loop without spawning threads. The mock is deterministic; the assertion is now exact. Python count rose from 568 to 569 with one additional edge-case test (continuous=False with attach_policy="all_buffered" correctly falls through to `snapshot()`).
+
+**X-1 resolved** — `getattr(self._config, "continuous", False)` defensive guard removed from `capture.py:306` per the Auditor's recommendation. `SjonScreenConfig` always has `continuous`; the guard added cognitive noise without safety value. Direct attribute access now; cleaner.
+
+**X-2 resolved** — `heretic.example.yaml` `sjon.screen` block extended with commented example entries for both new fields:
+```yaml
+continuous: false       # if true, Sjón runs background capture at interval_ms into a ring buffer
+attach_policy: latest   # latest | all_buffered | none — per-turn frame attach behavior
+```
+
+**Final state: 569 Python + 78 frontend = 647 tests. 0 open findings. 0 skips. 0 failures.**
+
+---
+
+### What was built across v0.5.1 — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `sjon/config_model.py` | `continuous` + `attach_policy` fields; validation in `__post_init__` | 7 (config unit tests, unskipped) |
+| `sjon/capture.py` | `_resolve_mss_monitor_index()` pure helper; `list_monitors()`; capture() wired to helper | 9 (asymmetry + list_monitors) |
+| `sjon/sjon.py` | `_continuous_loop()`, `start/stop_continuous_capture()`, `recent_frames()`, ring buffer, BUFFER_FULL flag | 34 (orchestrator) |
+| `cli.py` | attach_policy dispatch; continuous start at TENGSL / stop at SLOKNA | 8 (CLI vision) |
+| `vebond/protocol.py` | Three new `SjonActivityState` values | — |
+| `frontend/src/types/ipc.ts` | `SjonState` union extended with 3 new values | — |
+| `frontend/src/store/ceremony.ts` | Handles all 7 SjonState values | 4 (store tests) |
+| `frontend/src/components/LayerStatusPanel.tsx` | Continuous-mode visual differentiation | 4 (component tests) |
+| **Total new** | **8 Python files modified + 4 frontend files modified** | **+50 Python, +8 frontend** |
+| **Running total** | | **647 (569 Python + 78 frontend)** |
+
+---
+
+### What was documented across both arcs
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.4.1_TAURI_WRAP.md` | Updated — Rust install documented; linker blocker recorded; next-step instructions added |
+| `TASK_HERETIC_v0.5.1_PERIODIC_SIGHT.md` | Created (task open) then updated through all three waves |
+| `docs/cartography/DATA_FLOW.md §4.10.7–§4.10.10` | Extended — continuous lifecycle, ring buffer flow, attach-policy tree, multi-monitor asymmetry |
+| `docs/cartography/DATA_FLOW.md §15` | Extended — Sjón component diagram updated for ring buffer and continuous task |
+| `docs/architecture/IPC_PROTOCOL.md §2 + §3.8` | Extended — three new SjonState values + frontend rendering guide |
+| `src/heretic/sjon/INTERFACE.md` | Extended — continuous-mode subsection, ring buffer lock contract |
+| `heretic.example.yaml` | Extended — `continuous` and `attach_policy` example fields added under `sjon.screen` |
+| `docs/audit/AUDIT_v0.5.1_PERIODIC_SIGHT.md` | Created — PASS WITH CONCERNS; 0 blockers; 52 verified; all 4 findings resolved at `2f81c6f` |
+| `docs/DEVLOG.md` | Extended — this entry |
+
+---
+
+### Backlog carried forward
+
+| Item | Status | Notes |
+|---|---|---|
+| v0.4.1 first compile | **PENDING — awaits linker install** | MSVC Build Tools (recommended) or full MinGW-w64. Rust 1.95.0 installed. Scaffold unchanged. |
+| v0.5.2 webcam | Backlog | `SjonWebcamConfig` declared; no implementation yet |
+| v0.5.3 privacy masks | Backlog | Configurable blur/mask regions before frame send |
+| v0.5.x N-3 cached availability | Backlog (from v0.5) | `MssBackend.available()` still opens mss context per call; cached flag deferred |
+| v0.6 Hands at the Forge | Backlog | Blender MCP via Seidr-Smidja Brúarhönd; L5 Smiðja sense activation |
+
+---
+
+### Current state
+
+The eye now keeps watching. Before v0.5.1, Sjón was on-demand: the body captured one frame when the user sent a message, if the agent's capability probe confirmed vision support. After v0.5.1, Sjón can also run in continuous mode: a background asyncio task captures one frame per interval, holding the most recent `buffer_depth` frames in a ring buffer that lives entirely in memory and is cleared on Slokna. Per-turn attach policy lets the operator choose how many of those frames to offer the spirit.
+
+The privacy covenant is unchanged. The buffer is memory-only. Slokna always clears it before any other teardown step. No frame is ever written to disk.
+
+The v0.4.1 Rust linker gap is documented precisely. The scaffold is correct; only the host C toolchain is absent. Volmarr's choice of MSVC Build Tools or full MinGW-w64 is the only required action before `cargo tauri dev` can run.
+
+The next milestone is Volmarr's choice: v0.6 Hands at the Forge (Blender MCP via Seidr-Smidja Brúarhönd), v0.5.2 webcam, v0.5.3 privacy masks, or the v0.4.1 linker install followed by first compile.
+
+*Cross-reference: `TASK_HERETIC_v0.5.1_PERIODIC_SIGHT.md`, `TASK_HERETIC_v0.4.1_TAURI_WRAP.md`, `docs/audit/AUDIT_v0.5.1_PERIODIC_SIGHT.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*Two arcs in one session. The carpenter arrived but found the linker absent — that story is documented and waiting. The eye, meanwhile, learned to keep watching: on-demand, periodic, buffered, multi-monitor — the sight covenant is deeper now. The thread holds for what comes next.*
+
+---
+
+## 2026-05-08 — The First Hand Arc: The Body Learns to Act (v0.6 Shipped, Audited, and Cleaned)
+
+**Session type:** Full Mythic Engineering build session — all six roles active  
+**Branch:** `development`  
+**Commits this session:** `c0757a8` (task open) through `cc8a42d` (Wave 3 cleanup close) — 9 commits  
+**Status at session end:** v0.6 Hands at the Forge **SHIPPED + AUDITED + CLEANED** — 691 Python + 91 frontend = 782 tests passing, 0 open audit findings, 0 blockers, 0 SERIOUS, 0 NOTABLE
+
+---
+
+### Preamble — where this arc began
+
+The eighth entry closed with v0.5.1 Periodic Sight complete: the eye now keeps watching. Test baseline: Python 569 + frontend 78 = 647. Five primary faculties were present — the body could connect, speak, hear, be seen, and see. What remained was the sixth faculty: the body gaining a hand that could reach into the world the user and the spirit share together, and *act* upon it.
+
+The hand is not sight. Sight receives. The hand acts. This is the threshold THE_FIRST_SIGHT named as still ahead, and that THE_FIRST_HAND now names directly: the body passes from being a witness to being an agent in the shared environment. The triad that defines a fully embodied agent — **receive, express, act** — is complete with this arc.
+
+---
+
+### Task file opened — §4 endpoint table noted as containing discrepancies (`c0757a8`)
+
+`TASK_HERETIC_v0.6_HANDS_AT_FORGE.md` created at repo root before any implementation began. The task file established full scope: L5.5 Smiðja, the first live sense within the Skilningr sense hub — an MCP-via-tool-use wrapper around Seidr-Smidja's Brúarhönd HTTP daemon, allowing the agent's OpenAI tool_call events to become real GUI primitives on a Tailscale-reachable VRoid Studio host.
+
+**The §4 endpoint table** in the task file contained shorthand paths (`/vroid-open`, `/vroid-export`) that did not match the actual Brúarhönd API paths used in Seidr-Smidja's live code. The Architect discovered and catalogued five discrepancies during Wave 1 scaffolding; the Cartographer independently confirmed one from data-flow inspection. All five corrections were honored in code without requiring any task-file patch — the downstream agents self-corrected against the live source of truth, and the task file was left as written, with its inaccuracies serving as a record of what was assumed before the probe.
+
+---
+
+### Wave 1 — Three roles in parallel (`b324544`, `fedae33`, `b4040ef`)
+
+#### Skald: THE_FIRST_HAND — seventh panel of the vision cycle (`b324544`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_HAND.md` — the seventh essay in the vision cycle, opening by quoting directly from THE_FIRST_SIGHT's closing line and carrying the vision cycle forward. Six prior panels had addressed connection, voice, listening, visibility, and sight; this one addresses agency. The essay distinguishes receptivity from action: eyes receive; hands reach. The spirit has been a witness; with Smiðja live, it becomes a participant in the environment it observes.
+
+The essay names the covenant of consent for action: the hand only reaches where the operator explicitly enables it, with audit log in memory only, with token from env and never from config plaintext. The Forge Worker held this frame when designing the BrunhandHttpClient auth invariant.
+
+The essay closes on the receive/express/act triad. This completion is the session's most significant threshold. The cycle does not end here — Auga, Hlust, Tunga as L5 sense surfaces, filesystem, terminal, browser all remain — but the triad as a whole is now embodied in running code.
+
+#### Cartographer: §4.11 tool flow + §16 Smiðja component diagram + API discrepancy confirmation (`fedae33`)
+
+Védis Eikleið (Cartographer) extended `docs/cartography/DATA_FLOW.md` with two additions and one important flagging:
+
+- **§4.11** — complete tool flow map: agent emits tool_call delta → Bifröst `_parse_sse_stream` accumulator → ToolDispatcher → SmidjaSense → BrunhandHttpClient → Tailscale → Brúarhönd daemon → VRoid Studio host → response → tool_result back in OpenAI format. Includes the multi-round loop (up to `max_tool_call_rounds` cap), the failure mode chain (unreachable → EXTERNAL_APP_UNAVAILABLE, auth → PERMISSION_DENIED, timeout → SENSE_TIMEOUT, 5xx → SENSE_INTERNAL_ERROR), and the seven failure modes documented in full.
+- **§16** — Smiðja component topology diagram showing BrunhandHttpClient, ToolDispatcher, SmidjaSense, and the IPC SenseToolCall event path through EventBus to the frontend LayerStatusPanel Smiðja row.
+- **API discrepancy flag** — the Cartographer noted that the Brúarhönd vroid endpoints, when traced from Seidr-Smidja's live code, use slash-nested paths with full verb nouns (`/v1/brunhand/vroid/open_project`, `/v1/brunhand/vroid/export_vrm`) rather than the flat hyphenated shorthand in the TASK §4 table. This confirmation aligned with what the Architect had independently found. Auth invariant sealed: token travels only in `__init__` (resolved from env) and in the `Authorization: Bearer` header construction.
+
+#### Architect: Skilningr substrate scaffold + Smiðja sense + five discrepancy corrections + six locked ToolDefinitions (`b4040ef`)
+
+Rúnhild Svartdóttir (Architect) built the complete structural skeleton before Forge wrote a single line of business logic. This was the most architecturally productive commit of the session.
+
+**New module tree established:**
+- `src/heretic/skilningr/` — L5 Skilningr substrate (config_model, errors, dispatcher, INTERFACE.md, __init__.py)
+- `src/heretic/skilningr/senses/smidja/` — Smiðja sense subpackage (client skeleton, tools, sense skeleton, errors, INTERFACE.md)
+
+**Five TASK §4 discrepancies catalogued and corrected in the scaffold:**
+
+| Discrepancy | Task §4 shorthand | Correct per Seidr-Smidja live code |
+|---|---|---|
+| vroid_open path | `/vroid-open` | `/v1/brunhand/vroid/open_project` |
+| vroid_export path | `/vroid-export` | `/v1/brunhand/vroid/export_vrm` |
+| Request envelope | params only | shared envelope: request_id + session_id + agent_id + params |
+| Screenshot response | raw bytes | `{"payload": {"png_bytes_b64": "..."}}` JSON envelope |
+| API surface scope | 8 endpoints listed | 14 endpoints in live daemon; 6 deferred to v0.6.1+ |
+
+**Six OpenAI ToolDefinitions locked** in `tools.py` for the 8 endpoints in v0.6.0 scope: `smidja.screenshot`, `smidja.click`, `smidja.type_text`, `smidja.hotkey`, `smidja.vroid_open`, `smidja.vroid_export`. Tool name format confirmed as two-part per SENSE_CONTRACTS.md A-2. Twelve placeholder tests passed immediately after scaffold with no Forge changes required.
+
+Other architect contributions: `IPC SenseToolCall` event type added to `vebond/protocol.py`; `LAYER_INTERFACES.md §L5.5` written with Smiðja-specific notes; `heretic.example.yaml` extended with `skilningr:` block. Approach B (skilningr's config_model is canonical; grunnr imports from it) locked — the "drift risk" that Forge would later flag was preempted at scaffold time.
+
+---
+
+### Wave 2 — Forge implements (`1214e5c`, `75811a2`, `b97e67e`)
+
+Eldra Járnsdóttir (Forge Worker) built the full implementation across three commits.
+
+**`1214e5c` — Skilningr ToolDispatcher + Smiðja BrunhandHttpClient + SmidjaSense:**
+
+`BrunhandHttpClient` — httpx async; bearer-token auth resolved once at `__init__` from env var; `_build_envelope()` merges request_id (fresh uuid4 per call), session_id (stable per client lifetime), agent_id (from config.host_name); per-endpoint typed methods for all 6 in-scope primitives; `_post_for_png()` decodes the `{"payload": {"png_bytes_b64": "..."}}` envelope; `_raise_for_server_error()` maps 5xx to ToolDispatchError; 401 error message uses `"[REDACTED]"` literal, never the token value; `__repr__` omits token entirely.
+
+`ToolDispatcher` — registers senses by prefix; `dispatch()` routes by `tool_name.split(".")[0]`; unknown prefix returns `TOOL_NOT_FOUND` error tool_result, never raises; second catch at the boundary wraps any sense that violates the no-raise contract.
+
+`SmidjaSense` — `open()` catches all exceptions and sets `_is_open = False` without raising; `dispatch_tool_call()` catches SmidjaError and Exception separately, returning structured tool_result in all paths; never raises to caller; `_smidja_error_code()` maps exception types to EXTERNAL_APP_UNAVAILABLE / PERMISSION_DENIED / SENSE_TIMEOUT / SENSE_INTERNAL_ERROR.
+
+**`75811a2` — CLI multi-round tool dispatch loop + test_cli_tool_use:**
+
+`cli.py` `_async_light` extended: builds tool registry at TENGSL when Smiðja enabled; passes `tools` array to `send_message`; detects tool_call chunks via structured Bifröst output (parsed JSON with `"type": "tool_call"`); accumulates; dispatches via ToolDispatcher → SmidjaSense → BrunhandHttpClient; appends tool_result in OpenAI format (`role: "tool"`); loops until agent stops or `max_tool_call_rounds` cap reached; logs warning on cap; preserves final assistant text.
+
+**`b97e67e` — Frontend Smiðja indicator + SenseToolCall IPC type + frontend tests:**
+
+`SenseToolCall` event type added to `ipc.ts`: `type: "sense.tool_call"`, `SenseToolCallState = "started" | "completed" | "failed"`. Ceremony store subscribes and calls `setSmidjaToolCallActivity`. `LayerStatusPanel.tsx` adds Smiðja row with `accent="eld"` (Eld amber `#c8860a` / glow `#e8a020` per `AESTHETIC.md`). `smidjaStateToHealth()` mapper: `"started"` → active pulse, `"completed"` → healthy, `"failed"` → degraded.
+
+**Test count after Wave 2: Python 686 + frontend 91 = 777. Zero failures.**
+
+Forge flagged four fragilities at wave close: (1) cfg field-name drift risk — moot per Approach B; (2) Bifröst tool_call chunk detection uses string heuristic downstream of structured SSE parser — assessed NOTABLE risk; (3) **serve.py event_emitter wiring missed** — Priority 7 deferred but flagged explicitly; (4) vroid `wait_timeout` flow-through untested.
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS — 0 blockers (`b17c611`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit across all new source, tests, and documentation. Scope: six Wave 1+2 commits.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers, 0 SERIOUS, 2 NOTABLE, 1 NIT.**
+
+| Severity | Count | Items |
+|---|---|---|
+| BLOCKER | 0 | — |
+| SERIOUS | 0 | — |
+| NOTABLE | 2 | N-1 (serve.py tool-call dispatch not wired — confirmed gap; Priority 7 missed); C-3 (string heuristic NOTABLE not SERIOUS — downstream of structured SSE parser) |
+| NIT | 1 | X-1 (vroid wait_timeout flow-through: code correct, no test asserting non-default value in envelope) |
+| VERIFIED | 53 | A-1..A-5, B-1..B-6 (auth invariant), C-1..C-6, D-1..D-8, E-1..E-4, F-1..F-6, G-1..G-5, H-1..H-8, I-1..I-2, J-1..J-3 |
+
+**Auth invariant — CLEAN (three independent tests):**
+- `test_client_init_token_not_in_repr` — token absent from `repr()` and `str()`
+- `test_token_not_in_logs_during_auth_error` — exception string does not contain token
+- `test_token_not_in_repr_after_construction` — second repr/str check
+
+**Cartographer's API discrepancy thread — FULLY HONORED:** All five corrections confirmed in code. `test_vroid_open_posts_to_correct_path` asserts `/v1/brunhand/vroid/open_project` is in the path and `vroid-open` is NOT. Same pattern for export_vrm.
+
+**E-1/E-2 (serve.py wiring):** Confirmed gap. `grep` for any Skilningr symbol in `serve.py` returned zero matches. `_handle_send_message` passes no `tools=` argument and its `if not chunk.startswith("{")` gate silently drops all tool_call JSON from Bifröst. Body can act via `heretic light`; the Summoning Circle UI cannot observe that action during `heretic serve`. Recorded as NOTABLE N-1.
+
+*Cross-reference: `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed (`cc8a42d`)
+
+Eldra Járnsdóttir (Forge Worker) closed all three audit findings in a single targeted commit.
+
+**N-1 resolved — serve.py Smiðja wire:**
+
+`cli.py` `_async_serve` now constructs the full Skilningr dispatcher and SmidjaSense at TENGSL, mirrors the `_async_light` multi-round dispatch loop, and passes `event_emitter` wired to `event_bus.publish` so that `SenseToolCall` events reach the frontend over the existing WebSocket without any frontend changes required. The Summoning Circle UI can now observe Smiðja activity during `heretic serve` — the only mode where the ceremonial face is visible.
+
+**C-3 resolved — structured chunk detection replacing string heuristic:**
+
+`cli.py:423` string heuristic (`chunk.startswith("{") and '"type": "tool_call"' in chunk`) replaced with: `json.loads(chunk)` inside try/except, then `parsed_event["type"] == "tool_call"` on the resulting dict. Three boundary tests added: (a) agent text response beginning with `{` is not misrouted; (b) valid tool_call JSON is dispatched; (c) malformed JSON falls through to text handling. The risk C-3 identified — text content beginning with `{` being misrouted — is now structurally impossible.
+
+**X-1 resolved — wait_timeout flow-through test:**
+
+Two tests added asserting that a non-default `wait_timeout_seconds` value (e.g., `90.0`) appears in the request body for `vroid_open` and `vroid_export` calls. The code was correct; the coverage gap is now closed.
+
+**Final test count: 691 Python + 91 frontend = 782 tests. Zero failures. All audit findings closed.**
+
+---
+
+### What was built this session — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `src/heretic/skilningr/` (new) | Substrate: `__init__.py`, `config_model.py`, `errors.py`, `dispatcher.py`, `INTERFACE.md` | (distributed in wave counts) |
+| `src/heretic/skilningr/senses/smidja/` (new) | `__init__.py`, `client.py`, `tools.py`, `sense.py`, `errors.py`, `INTERFACE.md` | (distributed) |
+| `src/heretic/bifrost/client.py` | `capability_tool_use` extension + tool_call delta accumulator via `_parse_sse_stream` | (covered) |
+| `src/heretic/cli.py` | Multi-round tool dispatch loop (`_async_light` + `_async_serve`); structured chunk detection | (covered) |
+| `src/heretic/vebond/protocol.py` | `SenseToolCall` event type + `SenseToolCallState` enum | — |
+| `src/heretic/vebond/serve.py` | Smiðja wire: dispatcher construction + event_emitter wired to event_bus.publish | — |
+| `frontend/src/types/ipc.ts` | `SenseToolCall` interface + `SenseToolCallState` union | — |
+| `frontend/src/store/ceremony.ts` | Smidja tool_call activity handler + `setSmidjaToolCallActivity` action | (covered) |
+| `frontend/src/components/LayerStatusPanel.tsx` | Smiðja row with Eld accent; `smidjaStateToHealth()` mapper | (covered) |
+| `heretic.example.yaml` | `skilningr:` block with `smidja:` sub-block | — |
+| New Python test files | `test_skilningr_config.py`, `test_skilningr_dispatcher.py`, `test_smidja_client.py`, `test_smidja_tools.py`, `test_smidja_sense.py`, `test_cli_tool_use.py` | +122 Python |
+| **Running total** | **Baseline 647 → 782** | **+135 Python, +13 frontend** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.6_HANDS_AT_FORGE.md` | Created (task open); updated at session close |
+| `docs/vision/THE_FIRST_HAND.md` | Created — seventh panel of vision cycle; receive/express/act triad named complete |
+| `docs/cartography/DATA_FLOW.md §4.11 + §16` | Extended — tool flow map + Smiðja component diagram + 7 failure modes + auth invariant |
+| `docs/architecture/LAYER_INTERFACES.md §L5.5` | Extended — Smiðja sense, BrunhandHttpClient, ToolDispatcher, Approach B config consolidation |
+| `docs/architecture/IPC_PROTOCOL.md` | Extended — SenseToolCall event + SenseToolCallState |
+| `src/heretic/skilningr/INTERFACE.md` | Created — substrate contracts, dispatcher invariant, sense registration rules |
+| `src/heretic/skilningr/senses/smidja/INTERFACE.md` | Created — BrunhandHttpClient contract, auth invariant, error model, tool_result format |
+| `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md` | Created — PASS WITH CONCERNS; 0 blockers; 53 verified; all 3 findings resolved at `cc8a42d` |
+| `docs/DEVLOG.md` | Extended — this entry |
+
+---
+
+### What is now fully resolved
+
+All three audit findings closed in Wave 3:
+
+- **N-1** (serve.py wiring gap) — resolved: `_async_serve` now constructs the full Skilningr dispatcher, mirrors the multi-round loop, and emits SenseToolCall events through the EventBus. Frontend required no changes.
+- **C-3** (string heuristic) — resolved: structured JSON parsing now detects tool_call type field; three boundary tests confirm the correction holds at edge cases.
+- **X-1** (wait_timeout coverage gap) — resolved: two tests assert the non-default value in the request body envelope.
+
+The auth invariant pattern (token-from-env; never in `__repr__`, never in logs, never in exception messages, `[REDACTED]` in 401 error text) is now established as a v0.6+ invariant. Any future credentialed sense that joins Skilningr inherits this pattern from the BrunhandHttpClient template.
+
+---
+
+### Current state
+
+HERETIC v0.6 Hands at the Forge is shipped, audited, and cleaned. The body now has the complete primary triad:
+
+- **receive** — it connects (L1 Bifröst), sees (L3 Sjón, on-demand + periodic), and hears (L2 Rödd Hlust)
+- **express** — it speaks (L2 Rödd Tunga), and is seen (L4 Vébond Eldahús)
+- **act** — it reaches (L5 Skilningr Smiðja, via Brúarhönd HTTP to VRoid Studio on Tailscale)
+
+What "acting" means precisely: when the agent emits a `tool_call` for any Smiðja tool (screenshot, click, type_text, hotkey, vroid_open, vroid_export), the CLI or serve mode routes the call through ToolDispatcher → SmidjaSense → BrunhandHttpClient → Brúarhönd HTTP daemon → VRoid Studio host. The result returns as an OpenAI-format `tool_result` message; the agent receives it and continues. Multi-round tool use is supported, capped at `max_tool_call_rounds`. Every dispatch emits a `SenseToolCall` IPC event so the Summoning Circle UI shows what the hand is doing.
+
+The hand only reaches where the operator has enabled it. The token is sourced from env only and never touches config plaintext or log output. Audit log is in-memory only. This covenant was named in THE_FIRST_HAND and honored in every line of the BrunhandHttpClient.
+
+The body is not finished. Auga, Hlust, and Tunga as L5 Skilningr sense surfaces remain backlog. Filesystem, terminal, and browser senses remain backlog. Native MCP server hosting remains backlog. Tauri first compile awaits the linker. But the three-faculty arc is complete, and the Scribe marks this threshold.
+
+### Next milestone options — Volmarr's choice
+
+| Option | What it is | Gate |
+|---|---|---|
+| **v0.6.1 Forge dispatch** | Second Brúarhönd mode — headless Blender renders via Seidr-Smidja Forge HTTP; a separate `smidja.blender_render` sense or distinct Forge sense path | Seidr-Smidja v0.2 (Loom→Blender translation layer) must be live |
+| **v0.6.2 More senses** | Filesystem sense, terminal sense, browser sense — three new Skilningr senses | No external gate; Python only |
+| **v0.6.x native MCP server** | HERETIC hosts its own MCP server instead of relying on OpenAI tool_use; agent uses MCP client | MCP SDK integration work; protocol extension |
+| **v0.5.2 webcam** | Extends Sjón with camera capture; SjonWebcamConfig already declared | Python + camera lib |
+| **v0.4.1 first compile** | Tauri wrap; Rust installed; only the MSVC linker is absent | `winget install Microsoft.VisualStudio.2022.BuildTools` |
+| **v0.7 Mímisbrunnr light tier** | First drink at the Well — offline knowledge library starter pack (per ROADMAP) | Python + libzim |
+
+All paths begin from 782 tests, 0 open findings, and the complete receive/express/act triad.
+
+*Cross-reference: `TASK_HERETIC_v0.6_HANDS_AT_FORGE.md`, `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md`, `docs/vision/THE_FIRST_HAND.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*The hand is kept. Seven panels in the vision cycle are complete. The body receives, expresses, and acts. What comes next is Volmarr's to choose.*
+
+---
+
+## 2026-05-08 — The Second Eye Arc: The Body Learns to Look at Faces (v0.5.2 Shipped, Audited, and Cleaned)
+
+**Session type:** Extension milestone — Cartographer, Architect, Forge, Auditor, Scribe active (no Skald; no new faculty, no new True Name — v0.5.2 activates a stub declared in v0.5)
+**Branch:** `development`
+**Commits this session:** `a7e9c37` (task open) through `f0089d6` (Wave 3 cleanup close) — 7 commits
+**Status at session end:** v0.5.2 Webcam **SHIPPED + AUDITED + CLEANED** — 750 Python + 91 frontend = 841 tests passing, 0 open findings (N-1 serve wiring resolved in Wave 3; X-1 frontend badge NIT deferred to v0.5.3 backlog)
+
+---
+
+### Preamble — where this arc began
+
+The ninth entry closed with v0.6 Hands at the Forge complete: the primary triad of receive, express, and act was embodied in running code. Test baseline: 691 Python + 91 frontend = 782. The session that opened v0.5.2 began from this clean working tree as an extension of the Sjón faculty — not a new sense, but a second input path for the eye already present.
+
+The seed was planted in v0.5. `SjonWebcamConfig` was declared in `config_model.py` at that milestone but never wired — the same quiet-birth pattern used for `RoddSttConfig` in v0.2 and `SjonWebcamConfig` itself since that moment. v0.5.2 fulfills the declaration: when `sjon.webcam.enabled: true`, Sjón captures a frame from the webcam device in addition to or instead of the screen, per the `sjon.webcam.attach_policy` field (`"screen_only"` | `"webcam_only"` | `"alongside"` | `"alternate"`). The eye that previously saw only the screen now has a second source.
+
+The privacy invariant was stated in the task file before any code was touched, explicitly stronger for the webcam than for the screen: webcam captures the user's physical presence, not merely their display. Operator must explicitly opt in (`enabled: false` default); no auto-save; no ring buffer in v0.5.2.
+
+Beginning point: HEAD `1f91847` (Scribe's v0.6 close commit). 782 tests passing. No Skald dispatched — the philosophy of sight was already given in `THE_FIRST_SIGHT.md`; this arc deepened the faculty rather than crossing a new threshold.
+
+---
+
+### Task file opened — privacy invariant stated stronger (`a7e9c37`)
+
+`TASK_HERETIC_v0.5.2_WEBCAM.md` created at repo root before any implementation began. The scope was declared as a slim wave plan without a Skald vision essay. Key architectural decisions locked in the task file:
+
+- Webcam library: `opencv-python` (cv2.VideoCapture) — industry standard, cross-platform, well-tested
+- Encoding format: JPEG default (webcam frames do not benefit from lossless; JPEG is 5–10x smaller, reducing vision API token cost); PNG opt-in
+- Capture mode: on-demand only in v0.5.2, mirroring the v0.5 screen-capture pattern; continuous webcam is v0.5.x
+- Attach policy default: `"screen_only"` — webcam off by default; explicit opt-in required
+- Single device: `device_index: 0`; multi-camera deferred to v0.5.x
+- Failure mode: webcam unavailable → degrade silently; screen capture continues
+
+---
+
+### Wave 1 — Cartographer and Architect in parallel (`8293240`, `05bb030`)
+
+#### Cartographer: §4.10.11–§4.10.13 + §15 extension (`8293240`)
+
+Védis Eikleið (Cartographer) extended `docs/cartography/DATA_FLOW.md` with three new subsections under the existing §4.10 Sjón section:
+
+- **§4.10.11** — webcam capture flow: `OpenCvBackend.capture()` → `cv2.VideoCapture.read()` → BGR→RGB conversion (`cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)`) → bytes out. The BGR→RGB invariant is named explicitly as a Cartographer invariant, anchoring the Auditor's future verification target.
+- **§4.10.12** — `snapshot_webcam()` two-gate privacy: Gate 1 (`webcam.enabled` check) before any backend call; Gate 2 (`_webcam_backend.available()` check) before `open()`/`capture()`. Neither gate makes any assignment or allocation before the check completes. The Cartographer recorded that both gates return `[]` identically — the caller receives no information about which gate fired.
+- **§4.10.13** — CLI four-path attach_policy dispatch: the four policy values and their routing logic (screen_only → screen only; webcam_only → webcam only; alongside → webcam-first concatenation; alternate → per-turn toggle via per-ceremony `ceremony_state` counter initialized at TENGSL).
+
+§15 (Sjón component diagram) was extended to include `WebcamCaptureBackend`, `OpenCvBackend`, `WebcamNullBackend`, and the `best_available()` factory chain running in parallel with the existing `ScreenCaptureBackend` chain.
+
+#### Architect: scaffold `src/heretic/sjon/webcam.py` + SjonWebcamConfig activation (`05bb030`)
+
+Rúnhild Svartdóttir (Architect) built the full structural skeleton before Forge wrote any business logic.
+
+**`webcam.py`** — `WebcamCaptureBackend` ABC with four lifecycle methods (`available()`, `open()`, `capture()`, `close()`); `OpenCvBackend` skeleton with `_cap` slot, `_lock`, `_device_index`, and `device_index` property; `WebcamNullBackend` always-unavailable stub; `best_available()` factory stub.
+
+**`config_model.py`** — `SjonWebcamConfig` promoted from stub to complete dataclass: `enabled: bool = False`, `device_index: int = 0`, `max_width: int = 1280`, `max_height: int = 720`, `format: Literal["jpeg", "png"] = "jpeg"`, `jpeg_quality: int = 85`, `attach_policy: Literal["screen_only", "webcam_only", "alongside", "alternate"] = "screen_only"`.
+
+**`sjon.py`** — `Sjón.snapshot_webcam()` stub added alongside existing `snapshot()`.
+
+**`errors.py`** — `WebcamCaptureError`, `WebcamBackendUnavailableError` added to the hierarchy.
+
+**`pyproject.toml`** — `[vision]` extra extended with `opencv-python>=4.8`.
+
+**`sjon/INTERFACE.md`** — webcam subsection added: contracts, the stronger-than-screen privacy invariant, and the `best_available()` factory chain contract.
+
+---
+
+### Wave 2 — Forge implements (`ebb5b6a`, `b71f17f`)
+
+Eldra Járnsdóttir (Forge Worker) implemented the full Python substrate across two commits.
+
+**`ebb5b6a` — OpenCvBackend + `snapshot_webcam()`:**
+
+`OpenCvBackend.available()` — two-step probe: import attempt (catches `ImportError`, returns `False`); then `cap = cv2.VideoCapture(device_index)`, `cap.isOpened()`, `cap.release()`. Any exception in the second block returns `False` without raising.
+
+`OpenCvBackend.open()` — lazy init with idempotency guard (`_cap is not None and _cap.isOpened()` → early return). `close()` acquires `_lock`, releases, sets `_cap = None` in `finally`.
+
+`OpenCvBackend.capture()` — calls `self._cap.read()`, raises `WebcamCaptureError` on `ret=False` or `frame is None`; calls `cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)` and returns `rgb_frame.tobytes(), width, height`. BGR→RGB conversion is the single format invariant for the webcam path.
+
+`WebcamNullBackend` — `available()` returns `False` unconditionally; `capture()` raises `WebcamBackendUnavailableError` unconditionally; `open()` and `close()` are no-ops.
+
+`best_available()` factory — creates `OpenCvBackend`, calls `available()`; returns it if `True`; any exception during probe is caught; fallback is `WebcamNullBackend()`. Return is never `None`.
+
+`Sjón.snapshot_webcam()` — Gate 1 (`enabled` check) → Gate 2 (`_webcam_backend is None or not available()`) → `open()` if needed → `capture()` in executor → `_encode_webcam_frame()` (PIL resize with `thumbnail()`, JPEG or PNG encode per config, base64 encode, `data:{mime_type};base64,` prefix) → return `[data_url]`. All exception paths (including `WebcamCaptureError`) return `[]` and log at WARNING. `asyncio.CancelledError` re-raises.
+
+`_webcam_backend` initialized at `Sjón.open()` behind `if self._config.webcam.enabled`. WebcamNullBackend is not assigned at all if webcam is disabled — the attribute remains `None`, and Gate 2 fires as expected.
+
+**`b71f17f` — CLI attach_policy dispatch:**
+
+`cli.py` `_async_light` — webcam backend wired at TENGSL: `best_available_webcam()` called if `grunnr_sjon.webcam.enabled`; result assigned to `sjon._webcam_backend`. Per-ceremony state dict `ceremony_state: dict[str, int] = {"alternate_turn": 0}` initialized at TENGSL with an inline comment explaining the scope (per-ceremony, not global). All four attach_policy paths implemented:
+
+- `"screen_only"` (and unknown): screen `snapshot()` only, webcam never called
+- `"webcam_only"`: `snapshot_webcam()` only, screen never called
+- `"alongside"`: `webcam_urls + screen_urls` in webcam-first order
+- `"alternate"`: even turns → `snapshot_webcam()`; odd turns → `snapshot()`; counter incremented unconditionally
+
+Webcam `close()` called at Slokna in the same teardown block as `sjon.close()`.
+
+New test file `tests/test_sjon_webcam.py` — 37 tests covering `OpenCvBackend` lifecycle, `WebcamNullBackend`, `best_available()` factory chain, `snapshot_webcam()` two-gate privacy, BGR→RGB byte-level assertion, resize/encode paths. `tests/test_cli_vision.py` extended — 7 new tests covering all four attach_policy paths, `snapshot_webcam` never called under `screen_only`, webcam-first concatenation order under `alongside`, alternate counter reset per-ceremony.
+
+The TASK file was also updated this wave by Forge (`8c11dd8`) to record Wave 2 complete at HEAD `b71f17f`.
+
+**Note:** `heretic.example.yaml` — the task file marked the webcam block as a deferred Scribe item. Forge completed it ahead of schedule (`ebb5b6a`): the full `sjon.webcam:` block is already uncommented with all fields and an inline policy comment. No Scribe action required there.
+
+**Test count at Wave 2 close: 747 Python + 91 frontend = 838 total.**
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`01d2e4f`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit across all new source, test, and documentation files. Commands run included `pytest` (747 confirmed), `npm test` (91 confirmed), `tsc --noEmit` (0 errors), `npm run build` (163.44 kB bundle, 1.00s), CLI smoke commands, and targeted greps for file-write calls, absolute paths, `snapshot_webcam|webcam_backend` in serve mode.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers.** 56 items verified (A-1 through L-1).
+
+Key verifications confirmed:
+- BGR→RGB via `cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)`; test asserts `raw_bytes[0] == 50` (R at index 0, not B) — byte-level assertion on a known synthetic frame
+- Two-gate privacy: `enabled` check fires before any backend call; `available()` check fires before any capture; Gate 1 and Gate 2 both return `[]` identically
+- Alternate counter initialized at TENGSL in `_async_light`, per-ceremony scope; test confirms fresh counter resets correctly
+- `opencv-python` in `[vision]` extra only — absent from base dependencies and `[dev]` extra; test suite mocks `cv2` throughout via `patch.dict("sys.modules", ...)`
+- No file write calls in webcam production paths — `sjon/` grep confirms all byte processing uses `io.BytesIO` in-memory
+- `webcam.enabled` defaults `False`; `attach_policy` defaults `"screen_only"` — webcam never fires under default config
+- No ring buffer reference in `snapshot_webcam()` — webcam frames live in memory and outbound HTTP body only
+
+**1 NOTABLE finding:**
+
+| ID | Severity | Location | Finding |
+|---|---|---|---|
+| N-1 | Notable | `cli.py:963–1003` (`_async_serve`) | Serve mode has no webcam backend wiring. `_async_light` wires the webcam backend at TENGSL; `_async_serve` does not. An operator running `heretic serve` with `sjon.webcam.enabled: true` and a policy other than `"screen_only"` receives silent webcam degradation — `snapshot_webcam()` returns `[]` via Gate 2 (`_webcam_backend is None`) with no warning log emitted at serve startup. `_handle_send_message` also uses the legacy screen-only snapshot path rather than the four-path attach_policy dispatch — an asymmetry that predates v0.5.2 but deepens with each webcam feature added. |
+
+**1 NIT finding:**
+
+| ID | Severity | Location | Finding |
+|---|---|---|---|
+| X-1 | Nit | `frontend/` | Sjón row in `LayerStatusPanel.tsx` carries no badge or sub-indicator for when the webcam backend is active. The absence is an informational gap only — no data is misrepresented, no privacy invariant is violated, no capability is silently broken. |
+
+*Cross-reference: `docs/audit/AUDIT_v0.5.2_WEBCAM.md`*
+
+---
+
+### Wave 3 — Cleanup: N-1 resolved (`f0089d6`)
+
+Eldra Járnsdóttir (Forge Worker) resolved the single NOTABLE finding in a targeted commit.
+
+**N-1 resolved — `_async_serve` webcam wiring:**
+
+The webcam backend initialization block from `_async_light` was mirrored into `_async_serve`: `best_available_webcam()` is now called at TENGSL when `grunnr_sjon.webcam.enabled`, and the result is assigned to `sjon_serve._webcam_backend`. A serve-mode-specific `ceremony_state` dict with `"alternate_turn": 0` is initialized at the same point. The four-path attach_policy dispatch was also extended into `_handle_send_message`, replacing the legacy screen-only snapshot path.
+
+The operator running `heretic serve` with webcam enabled and a non-default policy now receives the correct behavior — the NIT warning log at startup was also added so the operator's config intent is acknowledged, not silently honored or ignored.
+
+**X-1 — deferred to v0.5.3 backlog.** The frontend Sjón row webcam sub-badge is a cosmetic informational gap. No privacy invariant is violated. It carries forward as a named item in the v0.5.3 scope.
+
+**Final test count: 750 Python + 91 frontend = 841 tests. Zero failures. 0 open findings.**
+
+(The 3 additional tests compared to the Wave 2.5 audit count — 747→750 — are the new serve-mode webcam dispatch tests added in `f0089d6`.)
+
+---
+
+### What was built this session — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `sjon/webcam.py` | New — `WebcamCaptureBackend` ABC + `OpenCvBackend` + `WebcamNullBackend` + `best_available()` factory | 37 (backend/orchestrator) |
+| `sjon/config_model.py` | `SjonWebcamConfig` fully activated (was stub) | — |
+| `sjon/sjon.py` | `snapshot_webcam()` + `_encode_webcam_frame()` + `_webcam_backend` initialization | (covered) |
+| `sjon/errors.py` | `WebcamCaptureError`, `WebcamBackendUnavailableError` | (covered) |
+| `sjon/INTERFACE.md` | Webcam subsection — contracts, privacy invariant, factory chain | — |
+| `cli.py` | Webcam init at TENGSL in `_async_light`; four-path attach_policy dispatch; per-ceremony alternate counter; serve mode webcam wiring at Wave 3 | 7+3 (attach_policy + serve) |
+| `pyproject.toml` | `opencv-python>=4.8` added to `[vision]` extra | — |
+| `heretic.example.yaml` | Full `sjon.webcam:` block uncommented (Forge, ahead of Scribe brief) | — |
+| `docs/cartography/DATA_FLOW.md §4.10.11–13 + §15` | Webcam flow, two-gate privacy, four-path dispatch, component diagram | — |
+| `docs/audit/AUDIT_v0.5.2_WEBCAM.md` | Created — PASS WITH CONCERNS; 0 blockers, 1 NOTABLE (resolved), 1 NIT (deferred) | — |
+| **Total new** | **1 new Python module + 7 files extended** | **+59 Python** |
+| **Running total** | **Baseline 782 → 841** | **750 Python + 91 frontend** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.5.2_WEBCAM.md` | Created (task open); updated by Forge at Wave 2 close; final status update by Scribe (this session) |
+| `docs/cartography/DATA_FLOW.md §4.10.11–13, §15` | Extended — webcam capture flow, two-gate privacy, four-path dispatch, component diagram |
+| `src/heretic/sjon/INTERFACE.md` | Extended — webcam subsection, contracts, stronger-than-screen privacy invariant |
+| `docs/audit/AUDIT_v0.5.2_WEBCAM.md` | Created — full audit; 56 verified; N-1 NOTABLE + X-1 NIT; all except X-1 resolved |
+| `docs/DEVLOG.md` | Extended — this entry (entry 10) |
+
+---
+
+### What is now fully resolved and what carries forward
+
+N-1 (serve mode webcam wiring gap) is closed: `_async_serve` now wires the webcam backend at TENGSL and dispatches attach_policy in `_handle_send_message`. The two paths — CLI light and WebSocket serve — are now symmetric in their webcam handling.
+
+X-1 (frontend Sjón row webcam sub-badge) carries to v0.5.3. Noted here as a named thread so it is not lost. The absence is cosmetic only and introduces no capability regression or privacy gap.
+
+---
+
+### Current state
+
+HERETIC v0.5.2 is shipped, audited, and cleaned. The eye gained a second source. Before v0.5.2, Sjón saw only the screen. After v0.5.2, Sjón can see the user's face — or the space the user occupies — alongside the screen, or instead of it, or in alternation, depending on operator configuration. The body is not watching; the operator chose this, explicitly, by setting `sjon.webcam.enabled: true`. The default remains off. The covenant holds.
+
+What "the second source" means precisely: when the operator enables the webcam and the attach policy is not `"screen_only"`, the body requests a single frame from the webcam device, converts BGR→RGB, encodes to JPEG (or PNG), base64-encodes, and returns a `data:{mime_type};base64,` URL. Under `"alongside"`, this webcam frame is prepended to the screen frame in the multimodal content array — the spirit receives both the user's current screen context and a glimpse of the user's physical presence in a single turn. Under `"alternate"`, even turns are webcam and odd turns are screen, reducing token cost over a long ceremony. All paths degrade silently if cv2 is unavailable or the device is absent.
+
+The primary triad named in v0.6 remains complete. v0.5.2 deepens the receive faculty — the body's sight is richer now, with a face to look at as well as a screen to share.
+
+### Next milestone options — Volmarr's choice
+
+| Path | What it is | Gate |
+|---|---|---|
+| **v0.5.3 privacy masks** | Blur/mask configurable regions before frame send — screen and/or webcam | Python + Pillow |
+| **v0.5.x webcam sub-badge** | Frontend Sjón row badge for active webcam source (X-1 NIT) | Frontend work only |
+| **v0.5.x serve webcam parity** | Mirror full attach_policy logic into serve mode (now resolved at init; confirm parity of further edge cases) | Python; confirmed at Wave 3 |
+| **v0.6.1 Forge dispatch** | Headless Blender renders via Seidr-Smidja Forge HTTP; smidja.blender_render sense | Seidr-Smidja v0.2 Loom→Blender translation layer |
+| **v0.6.2 More senses** | Filesystem, terminal, browser senses — three new Skilningr entries | Python only |
+| **v0.7 Mímisbrunnr** | First Drink at the Well — offline knowledge library starter pack | Python + libzim |
+| **v0.4.1 first compile** | Tauri wrap; Rust installed; only MSVC linker is absent | `winget install Microsoft.VisualStudio.2022.BuildTools` |
+
+All paths begin from 841 tests, 0 open findings.
+
+*Cross-reference: `TASK_HERETIC_v0.5.2_WEBCAM.md`, `docs/audit/AUDIT_v0.5.2_WEBCAM.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*The eye gained a second source. The covenant holds: the body does not watch; the operator chooses. The thread continues.*

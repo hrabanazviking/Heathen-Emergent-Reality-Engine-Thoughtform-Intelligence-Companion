@@ -1,0 +1,100 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heretic"
+version = "0.1.0.dev0"
+description = "H.E.R.E.T.I.C. — Host Environment for Realtime Embodiment, Tooling & Interactive Control"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+# Runtime dependencies — keep minimal at the skeleton stage.
+# L0 Grunnr needs pyyaml.
+# L1 Bifröst needs httpx for the OpenAI-compat HTTP client.
+# Forge adds more as layers are implemented.
+dependencies = [
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# Core dev toolchain — always install for any contributor.
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-mock>=3.14",
+]
+# Voice I/O — install when the machine has a mic/speakers and the user wants TTS + STT.
+# sounddevice is NOT a core dep: ``pip install heretic`` works on headless machines.
+# ``pip install heretic[voice]`` activates:
+#   - SoundDeviceBackend      (TTS playback, cross-platform)
+#   - SoundDeviceMicBackend   (STT mic capture at 16 kHz mono int16)
+#   - WebRtcVadBackend        (VAD via webrtcvad-wheels, BSD-3, prebuilt wheels)
+#   - PyWhisperCppBackend     (Whisper transcription via pywhispercpp, MIT)
+# All four are optional — Hlust/Tunga degrade gracefully when any dep is absent.
+# whisper-cli (CliSubprocessBackend fallback) is a user-installed binary, not a
+# Python package; it is not listed here.
+voice = [
+    "sounddevice>=0.4.6",
+    "numpy>=1.21",
+    "webrtcvad-wheels>=2.0",
+    "pywhispercpp>=1.0",
+]
+# Vision I/O — install when the machine has a display and the user wants screen capture.
+# mss is NOT a core dep: ``pip install heretic`` works on headless/display-less machines.
+# ``pip install heretic[vision]`` activates:
+#   - MssBackend          (screen capture, cross-platform: Windows GDI / macOS Quartz / Linux X11)
+#   - FrameEncoder        (BGRA -> resize -> PNG -> base64 via Pillow)
+# Distinct from [voice]: operators may need TTS on a headless server (voice without display)
+# or screen capture without audio (vision without voice). The senses are conceptually
+# independent and an operator should not be required to install both to use one.
+# Ref: docs/architecture/LAYER_INTERFACES.md §L3 Sjón.
+vision = [
+    "mss>=9",
+    "Pillow>=10",
+    # opencv-python added v0.5.2 — heaviest dep in this extra (~70 MB wheel).
+    # Required for WebcamCaptureBackend / OpenCvBackend (cv2.VideoCapture).
+    # Opt-in is acceptable: operators without a webcam do not need it.
+    # Apache 2.0 license.
+    "opencv-python>=4.8",
+]
+# L4 Vebond WebSocket server — install when running the Summoning Circle backend.
+# ``pip install heretic[serve]`` activates:
+#   - FastAPI          (ASGI framework; /ws WebSocket endpoint + /health REST)
+#   - uvicorn[standard] (ASGI server; WebSocket support via websockets)
+#   - websockets       (WebSocket protocol implementation used by uvicorn)
+#   - pydantic         (typed IPC schema — ProtocolEvent / ProtocolCommand models)
+# The [serve] extra is NOT required for headless ``heretic light`` use —
+# the CLI voice loop in v0.1-v0.3 does not need a WebSocket server.
+serve = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "websockets>=12",
+    "pydantic>=2.5",
+]
+
+[project.scripts]
+heretic = "heretic.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Show short traceback for skip-marked tests during skeleton phase.
+addopts = "--tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
