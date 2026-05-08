@@ -1,6 +1,6 @@
 # HERETIC — Layer Interfaces
 
-**Last updated:** 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir: resolved naming gap in §L3 Sjón — `?vision_screen` (internal-bus) vs `?vision_in` (agent-protocol probe). Both flags now documented with authoritative cross-references. §L3 config block updated to match SjonScreenConfig canonical fields: `width`/`height` renamed to `max_width`/`max_height`; added `monitor_index`, `min_interval_ms`.) | 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1; X-3 corrective pass: capability probe conservatism for `?streaming` and `?vision_in` documented in §L1 Bifröst) | 2026-05-07 drift corrective pass — Rúnhild Svartdóttir, resolving G-1 (LAYER_INTERFACES.md §L2 tts block stale), N-2 (language_id semantics), N-3 (voice WAV path semantics). §L2 Rödd config block expanded from 6-field pre-probe stub to full 17-field schema matching `src/heretic/rodd/config_model.py RoddTtsConfig`; `speed` annotated removed; `voice_id` WAV-path semantics documented; `language_id` multilingual scope documented. See also `src/heretic/rodd/INTERFACE.md` (same corrective pass).
+**Last updated:** 2026-05-08 (v0.6 scaffold — Rúnhild Svartdóttir: added §L5.5 Smiðja subsection — first concrete sense; tool transport = OpenAI tool_use; bearer-token-via-env-var auth invariant documented; `?tool_use` capability gating noted; discrepancies vs TASK §4 endpoint table documented in §L5.5) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir: resolved naming gap in §L3 Sjón — `?vision_screen` (internal-bus) vs `?vision_in` (agent-protocol probe). Both flags now documented with authoritative cross-references. §L3 config block updated to match SjonScreenConfig canonical fields: `width`/`height` renamed to `max_width`/`max_height`; added `monitor_index`, `min_interval_ms`.) | 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1; X-3 corrective pass: capability probe conservatism for `?streaming` and `?vision_in` documented in §L1 Bifröst) | 2026-05-07 drift corrective pass — Rúnhild Svartdóttir, resolving G-1 (LAYER_INTERFACES.md §L2 tts block stale), N-2 (language_id semantics), N-3 (voice WAV path semantics). §L2 Rödd config block expanded from 6-field pre-probe stub to full 17-field schema matching `src/heretic/rodd/config_model.py RoddTtsConfig`; `speed` annotated removed; `voice_id` WAV-path semantics documented; `language_id` multilingual scope documented. See also `src/heretic/rodd/INTERFACE.md` (same corrective pass).
 **Scope:** Per-layer and per-sense contracts: inputs, outputs, owns, never-controls, error model, config keys, event types, capability flags, and SLO tier.
 **Authority:** Derives from `ARCHITECTURE.md` and `DOMAIN_MAP.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -480,6 +480,75 @@ Aggregate of all enabled senses' capability flags. Reported to agent as the merg
 
 ### SLO tier
 **Warm** for interactive tool calls (tool call dispatch < 100 ms). **Cold** for library search and indexing. Skilningr itself adds negligible overhead — most time is in the sense subprocess.
+
+---
+
+## L5.5 — Smiðja (Brúarhönd Remote Control Sense) [v0.6]
+
+**True Name:** Smiðja — the forge; the body's first hand.
+**sense_id:** `smidja`
+**Owned by:** `src/heretic/skilningr/senses/smidja/`
+**Full contract:** `src/heretic/skilningr/senses/smidja/INTERFACE.md`
+
+### Role
+Smiðja wraps Seidr-Smidja's Horfunarþjónn (Brúarhönd daemon) HTTP API. It is the first
+sense implemented in Skilningr and the template for all subsequent senses. Unlike future
+senses that may use MCP stdio subprocesses, Smiðja uses a direct HTTP connection via
+`BrunhandHttpClient` (httpx async). The tool surface is exposed to the agent via OpenAI
+tool_use format — not native MCP server hosting (that is v0.6.x scope).
+
+### Tool transport: OpenAI tool_use (not MCP stdio)
+
+This is an architectural decision locked at v0.6.0. Rationale: L1 Bifröst already handles
+the OpenAI tool_use protocol from v0.1; the agent endpoint (Hermes) supports tool_use natively.
+MCP server hosting as a transport is deferred to v0.6.x (requires agent MCP client support).
+
+The `?tool_use` capability flag (in `AGENT_AGNOSTIC_PROTOCOL.md`) gates all tool injection:
+if the agent probe returns `?tool_use = false`, Smiðja tools are silently excluded from
+the messages `tools` array at TENGSL.
+
+### Bearer-token-via-env-var auth invariant
+
+`SmidjaConfig.token_env` stores an environment variable NAME only.
+`BrunhandHttpClient.__init__` reads `os.environ[config.token_env]` once.
+The token never appears in config files, log lines, or error messages.
+This matches Brúarhönd's own auth model (constant-time comparison via `hmac.compare_digest`).
+
+### Tools exposed (v0.6.0)
+
+| Tool name | Maps to endpoint | Purpose |
+|---|---|---|
+| `smidja.screenshot` | `POST /v1/brunhand/screenshot` | Capture screen as PNG (base64 data URL in result) |
+| `smidja.click` | `POST /v1/brunhand/click` | Mouse click at coordinates |
+| `smidja.type_text` | `POST /v1/brunhand/type` | Type text into focused field |
+| `smidja.hotkey` | `POST /v1/brunhand/hotkey` | Press key combination |
+| `smidja.vroid_open` | `POST /v1/brunhand/vroid/open_project` | Open .vroid project in VRoid Studio |
+| `smidja.vroid_export` | `POST /v1/brunhand/vroid/export_vrm` | Export .vrm from VRoid Studio |
+
+### Config keys
+```yaml
+skilningr:
+  smidja:
+    enabled: false                    # opt-in; default false = no remote control capability
+    host: 127.0.0.1                   # Tailscale IP/hostname or localhost
+    port: 8848                        # Brúarhönd daemon default port
+    token_env: BRUNHAND_TOKEN_HERETIC # env var NAME — NEVER inline token
+    request_timeout_seconds: 30
+    require_https: true               # set false for same-machine localhost dev
+    host_name: default                # logical label; appears in logs and audit
+```
+
+### Capability flags
+- `?smidja` — smidja.enabled=true AND daemon health probe succeeded at TENGSL
+
+### IPC events emitted
+- `sense.tool_call` (state=started/completed/failed) — per tool call milestone;
+  consumed by L4 Vébond LayerStatusPanel Smiðja row.
+  Ref: `IPC_PROTOCOL.md §3.9`
+
+### SLO tier
+**Cold** — tool calls involve an HTTP round-trip to the Brúarhönd daemon (Tailscale or localhost);
+< 30 s p95. Capture primitives (screenshot, click) are fast; VRoid export may take 8–120 s.
 
 ---
 

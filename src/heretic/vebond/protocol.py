@@ -38,6 +38,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Annotated, Literal, Optional, Union
 
+# v0.6 additions — SenseToolCall requires these; Union extended in ProtocolEvent below
+
 try:
     from pydantic import BaseModel, Field
 except ImportError as _pydantic_missing:
@@ -293,6 +295,89 @@ class ErrorEvent(BaseModel):
 
 
 # ------------------------------------------------------------------
+# v0.6 — sense.tool_call event (Rúnhild Svartdóttir, 2026-05-08)
+# ------------------------------------------------------------------
+
+class SenseToolCallState(str, Enum):
+    """State values for the sense.tool_call activity event.
+
+    Emitted at the start, completion, and failure of every tool call dispatched
+    through L5 Skilningr. The frontend uses this to show tool activity in the
+    LayerStatusPanel Smiðja row.
+
+    Wire value: the string value of each member (lowercase, e.g. "started").
+
+    IPC design choice (v0.6 — mirrors SjonActivityState pattern from v0.5):
+        A single event type with a state discriminator is preferred over separate
+        start/complete/failed event types. Rationale: consistent with existing
+        activity event pattern (tunga.activity, hlust.activity, sjon.activity);
+        simpler frontend store; the state field carries all needed info.
+
+    Ref: docs/architecture/IPC_PROTOCOL.md §3.x (sense.tool_call docs added 2026-05-08)
+         TASK_HERETIC_v0.6_HANDS_AT_FORGE.md §3 (vebond protocol decision)
+    """
+
+    STARTED = "started"
+    """Tool call has been received by the dispatcher and routing has begun.
+    Emitted before the HTTP request to Brúarhönd is issued.
+    Frontend: begin tool activity animation in Smiðja row of LayerStatusPanel."""
+
+    COMPLETED = "completed"
+    """Tool call executed successfully and a tool_result has been returned to the agent.
+    Emitted after the sense returns a successful payload.
+    Frontend: show brief success flash; update last-tool-call display; stop animation."""
+
+    FAILED = "failed"
+    """Tool call failed at dispatch, HTTP, or sense level. The error has been
+    returned to the agent as a structured error tool_result (ceremony continues).
+    Frontend: show brief error flash on Smiðja row; stop animation."""
+
+
+class SenseToolCall(BaseModel):
+    """Emitted at each milestone of a tool call dispatched through L5 Skilningr.
+
+    The frontend uses this to animate the Smiðja row in the LayerStatusPanel,
+    showing the operator which tools the agent is invoking in real time.
+
+    Direction: S->C (server to client)
+    Emitted by: L5 Skilningr ToolDispatcher (via SmidjaSense.dispatch_tool_call
+                and ToolDispatcher.dispatch) at STARTED, COMPLETED, and FAILED.
+    Frequency: once per tool call milestone; not during idle periods.
+
+    Ref: docs/architecture/IPC_PROTOCOL.md §3.x sense.tool_call
+         docs/architecture/LAYER_INTERFACES.md §L5 Skilningr
+    """
+
+    type: Literal["sense.tool_call"] = "sense.tool_call"
+
+    state: SenseToolCallState
+    """Current tool call milestone state."""
+
+    sense: str
+    """The sense_id prefix of the dispatched tool. Example: 'smidja'.
+    Matches the prefix used in tool names and in ToolDispatcher registration."""
+
+    tool_name: str
+    """Fully-qualified tool name. Example: 'smidja.screenshot'.
+    The exact name the agent used in the tool_call."""
+
+    call_id: str
+    """The tool_call_id from the agent's tool_call. Echoed in the tool_result.
+    Allows the frontend to correlate start/complete/failed events for the same call."""
+
+    timestamp: datetime
+    """UTC datetime of this milestone. Set at emission time."""
+
+    duration_ms: Optional[int] = None
+    """Wall-clock duration of the tool call execution in milliseconds.
+    Set on COMPLETED and FAILED states. None on STARTED."""
+
+    error: Optional[str] = None
+    """Human-readable error description. Set on FAILED state only. None otherwise.
+    Never contains the bearer token or any secret value."""
+
+
+# ------------------------------------------------------------------
 # ProtocolEvent: the discriminated union of all server->client events.
 # The 'type' field is the discriminator.
 # ------------------------------------------------------------------
@@ -307,6 +392,7 @@ ProtocolEvent = Annotated[
         AgentToken,
         AgentTurnComplete,
         ErrorEvent,
+        SenseToolCall,
     ],
     Field(discriminator="type"),
 ]

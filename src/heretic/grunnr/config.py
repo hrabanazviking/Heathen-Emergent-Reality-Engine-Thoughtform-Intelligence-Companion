@@ -172,44 +172,29 @@ from heretic.vebond.config_model import VebondConfig  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# L5 Skilningr sub-config (skeleton — individual sense configs are stubs)
+# L5 Skilningr sub-config — canonical definition imported from the skilningr package.
+#
+# The authoritative field definitions live in heretic.skilningr.config_model so
+# that the Skilningr layer is self-contained. This follows Approach B, mirroring
+# the rodd, sjon, and vebond consolidation patterns.
+#
+# v0.6 update (Rúnhild Svartdóttir, 2026-05-08): SkilningrConfig now carries a
+# concrete SmidjaConfig field (replacing the prior SkilningrSenseConfig stubs for
+# the smidja entry). SmidjaConfig owns all Brúarhönd connection parameters. The
+# other sense slots remain as generic dict stubs until their own config_model
+# submodules are created in future milestones.
+#
+# heretic.skilningr.config_model has no imports from heretic.grunnr, so this
+# import direction is safe and introduces no circular dependency.
+#
+# Any existing code that did `from heretic.grunnr.config import SkilningrConfig`
+# continues to work unchanged — SkilningrConfig and SmidjaConfig are still
+# exported from this module via the imports below.
 # ---------------------------------------------------------------------------
-
-@dataclass
-class SkilningrSenseConfig:
-    """Common fields shared by every sense subprocess entry.
-
-    Individual senses add their own fields; this is the base. Forge expands each sense
-    config in L5 scope (v0.5+). For v0.1 only the enabled flag is load-bearing.
-    """
-    enabled: bool = False
-    restart_policy: dict[str, Any] = field(
-        default_factory=lambda: {
-            "max_retries": 3,
-            "backoff_seconds": [2, 5, 15],
-        }
-    )
-    shutdown_grace_seconds: int = 5
-    health_interval_seconds: int = 15
-
-
-@dataclass
-class SkilningrConfig:
-    """L5 Skilningr — MCP Sense Hub settings.
-
-    Each sense uses its code-facing identifier (not its True Name) as the key,
-    per NAMING.md §5: 'The code-facing identifier is always the True Name
-    transliterated without diacritics, lowercased.'
-    """
-    filesystem: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
-    terminal: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
-    browser: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
-    photopea: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
-    blender: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
-    vrchat: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
-    agentmail: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
-    custom: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
-    library: SkilningrSenseConfig = field(default_factory=SkilningrSenseConfig)
+from heretic.skilningr.config_model import (  # noqa: E402
+    SkilningrConfig,
+    SmidjaConfig,
+)
 
 
 # ---------------------------------------------------------------------------

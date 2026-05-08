@@ -179,7 +179,14 @@ skilningr:
     # to sjon.config_model canonical fields — SjonScreenConfig uses max_width/max_height).
     assert cfg.sjon.screen.max_width == 640
     assert cfg.vebond.theme == "dark_norse"
-    assert cfg.skilningr.filesystem.enabled is True
+    # v0.6: skilningr.filesystem is a dict stub (concrete config for smidja is SmidjaConfig).
+    # Future senses replace their stubs with typed dataclasses in their own milestones.
+    # dict stubs use key access; SmidjaConfig uses attribute access.
+    fs = cfg.skilningr.filesystem
+    if isinstance(fs, dict):
+        assert fs.get("enabled") is True
+    else:
+        assert fs.enabled is True
 
 
 # ---------------------------------------------------------------------------

@@ -189,17 +189,24 @@ skilningr:
     shutdown_grace_seconds: 5
     health_interval_seconds: 15
 
-  # L5.5 Smiðja — Blender / Seidr-Smidja (forge)
-  blender:
-    enabled: false
-    brunhand_endpoint: "http://localhost:8765"
-    auth_token: "${SEIDR_BRUNHAND_TOKEN}"
-    timeout_seconds: 60
-    restart_policy:
-      max_retries: 3
-      backoff_seconds: [2, 5, 15]
-    shutdown_grace_seconds: 5
-    health_interval_seconds: 15
+  # L5.5 Smiðja — Brúarhönd remote-control sense (v0.6)
+  # The body's first hand: lets the agent control VRoid Studio on a local or
+  # Tailscale-reachable host via Seidr-Smidja's Horfunarþjónn daemon.
+  #
+  # Auth invariant: token_env holds the ENV VAR NAME — NEVER the token value.
+  # Set BRUNHAND_TOKEN_HERETIC=<your_token> in your shell before starting HERETIC.
+  # The token is resolved from the environment at BrunhandHttpClient init time.
+  #
+  # Ref: src/heretic/skilningr/senses/smidja/INTERFACE.md
+  #      src/seidr_smidja/brunhand/daemon/INTERFACE.md (Seidr-Smidja repo)
+  smidja:
+    enabled: false                    # opt-in: set true to expose Brúarhönd tools to the agent
+    host: 127.0.0.1                   # Tailscale IP/MagicDNS or localhost; NEVER an absolute path
+    port: 8848                        # default Brúarhönd daemon port
+    token_env: BRUNHAND_TOKEN_HERETIC # env var NAME holding bearer token; never inline plaintext
+    request_timeout_seconds: 30       # per-request timeout; increase to 120 for vroid_export
+    require_https: true               # set false for same-machine dev (127.0.0.1 only)
+    host_name: default                # logical label for this host (used in logs and audit events)
 
   # L5.6 Líkami — VRChat (social body)
   vrchat:

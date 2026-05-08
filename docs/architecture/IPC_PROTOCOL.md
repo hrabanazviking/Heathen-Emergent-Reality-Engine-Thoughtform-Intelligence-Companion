@@ -1,6 +1,6 @@
 # HERETIC — IPC Protocol (L4 Vebond WebSocket Schema)
 
-**Last updated:** 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: extended §2 SjonState with three continuous-mode values; updated §3.8 with Option A rationale and new state frontend responses) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir: added §3.8 sjon.activity event; extended §8 naming bridge with sjon.activity row and §8.3 vision::frame internal note; added SjonActivityState shared value type to §2) | 2026-05-07 (revised: audit N-1 + N-3 remediation — Rúnhild Svartdóttir)
+**Last updated:** 2026-05-08 (v0.6 scaffold — Rúnhild Svartdóttir: added §3.9 sense.tool_call event; added SenseToolCallState to §2 shared value types; added §8.x naming bridge row for sense.tool_call internal bus path) | 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: extended §2 SjonState with three continuous-mode values; updated §3.8 with Option A rationale and new state frontend responses) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir: added §3.8 sjon.activity event; extended §8 naming bridge with sjon.activity row and §8.3 vision::frame internal note; added SjonActivityState shared value type to §2) | 2026-05-07 (revised: audit N-1 + N-3 remediation — Rúnhild Svartdóttir)
 **Scope:** The canonical typed schema for all WebSocket messages exchanged between
 the Python backend (L4 Vebond) and the React frontend (Eldahus). This file is the
 **single source of truth**. Both implementation files derive from it — any discrepancy
@@ -119,6 +119,11 @@ SjonState:      "idle" | "capturing" | "encoding" | "failed"
     buffer_full         — (v0.5.1) ring buffer reached buffer_depth capacity; oldest
                           frame evicted; emitted at most once per fill cycle
 ErrorLevel:     "warn" | "error"
+
+SenseToolCallState: "started" | "completed" | "failed"    (v0.6 — sense.tool_call events §3.9)
+  started   — tool call received by dispatcher; HTTP request to daemon about to be issued
+  completed — tool executed successfully; tool_result returned to agent
+  failed    — tool call failed; error tool_result returned to agent; ceremony continues
 ```
 
 ---
@@ -287,6 +292,69 @@ is deferred to v0.5.x if operators request it. See `TASK_HERETIC_v0.5.1_PERIODIC
 **Implementation references:**
 - Python model: `heretic.vebond.protocol.SjonActivity` + `SjonActivityState`
 - TypeScript mirror: `frontend/src/types/ipc.ts` (Forge updates in Wave 2)
+
+---
+
+### 3.9 `sense.tool_call` (v0.6)
+
+Emitted at each milestone of a tool call dispatched through L5 Skilningr.
+The frontend uses this to animate the Smiðja row in the LayerStatusPanel,
+showing the operator which tools the agent is invoking in real time.
+
+**Direction:** S->C
+**Emitted by:** L5 Skilningr — `SmidjaSense.dispatch_tool_call()` and `ToolDispatcher.dispatch()` via EventBus
+**Frequency:** Three events per tool call: STARTED, then either COMPLETED or FAILED
+
+```json
+{
+  "type": "sense.tool_call",
+  "state": "<SenseToolCallState>",
+  "sense": "smidja",
+  "tool_name": "smidja.screenshot",
+  "call_id": "<tool_call_id from agent>",
+  "timestamp": "<ISO 8601 UTC>",
+  "duration_ms": <integer or null>,
+  "error": "<string or null>"
+}
+```
+
+**Field notes:**
+- `state`: One of `SenseToolCallState` values: `"started"` | `"completed"` | `"failed"`
+- `sense`: The sense_id prefix (e.g. `"smidja"`). Matches ToolDispatcher registration prefix.
+- `tool_name`: Fully-qualified tool name (e.g. `"smidja.screenshot"`).
+- `call_id`: The `id` from the agent's OpenAI tool_call. Allows frontend to correlate events.
+- `timestamp`: UTC datetime of this milestone (server clock).
+- `duration_ms`: Wall-clock ms from STARTED to COMPLETED/FAILED. Null on STARTED.
+- `error`: Human-readable description on FAILED only. Never contains the bearer token.
+
+**`SenseToolCallState` values:**
+```
+SenseToolCallState: "started" | "completed" | "failed"
+
+  started    — tool call received by dispatcher; HTTP request to daemon about to be issued.
+               Frontend: begin tool activity animation in Smiðja row (Eld-amber accent).
+  completed  — tool executed successfully; tool_result returned to agent.
+               Frontend: show brief success flash; update last-tool label; stop animation.
+  failed     — tool call failed at dispatch, HTTP, or sense level; error tool_result returned.
+               Frontend: brief error flash on Smiðja row; stop animation.
+```
+
+**Frontend response:**
+- Render Smiðja row in LayerStatusPanel with Eld-amber accent (per AESTHETIC.md — "active hand" semantics).
+- On STARTED: begin pulsing animation; display `tool_name`.
+- On COMPLETED: flash success; show last call label; return to idle accent.
+- On FAILED: flash error accent; show error string if present; return to idle.
+- Display `duration_ms` as a latency label when non-null.
+
+**IPC design note (v0.6):** This event type uses the same state-enum-on-single-event-type
+pattern as `tunga.activity`, `hlust.activity`, and `sjon.activity`. Rationale: consistent
+with existing activity event pattern; simpler frontend store; three states (started/completed/failed)
+carry all needed info. A separate `SenseToolCallComplete` event type would be redundant.
+
+**Implementation references:**
+- Python model: `heretic.vebond.protocol.SenseToolCall` + `SenseToolCallState` (added v0.6)
+- TypeScript mirror: `frontend/src/types/ipc.ts` (Forge Wave 2)
+- Emitting code: `SmidjaSense.dispatch_tool_call()` in `src/heretic/skilningr/senses/smidja/sense.py`
 
 ---
 
@@ -687,6 +755,7 @@ generated by the frontend user action, with no internal-bus equivalent.
 | `sense_hub::sense_healthy(sense_id)` / `sense_hub::sense_degraded(sense_id)` | — internal only, not exposed as a discrete wire event in v0.4.0 | — | — |
 | `vision::frame(base64_png, timestamp, source)` (Sjón capture output) | — internal only; frame is not exposed as a raw wire event. The frame bytes are injected directly into the Bifröst message payload as `image_url` content (see AGENT_AGNOSTIC_PROTOCOL.md §2.1 and §8 item 7). The `sjon.activity` wire event (§3.8) communicates capture *state* only — not the frame itself. | — | §3.8 |
 | Sjón capture state transitions (internal SjonActivityState enum) | `sjon.activity` | S->C | §3.8 |
+| Tool call dispatch milestones (L5 Skilningr SenseToolCallState) | `sense.tool_call` | S->C | §3.9 |
 
 Notes on internal-only events:
 - `heretic::ui::state_update`: LAYER_INTERFACES.md describes this as the authoritative
