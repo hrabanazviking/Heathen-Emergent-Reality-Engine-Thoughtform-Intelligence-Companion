@@ -18,7 +18,7 @@ The canonical contract for L5.5 lives in `docs/architecture/LAYER_INTERFACES.md 
 
 ## 2. Current status — 2026-05-08
 
-**Phase:** v0.5.1 SHIPPED + AUDITED + CLEANED. Test baseline: Python 569 + frontend 78 = 647.
+**Phase:** v0.6 SHIPPED + AUDITED + CLEANED 2026-05-08. HEAD post-Wave-3-cleanup: `cc8a42d`. Tests: 691 Python + 91 frontend = 782.
 
 ### Done in v0.1+v0.2+v0.3+v0.4+v0.5+v0.5.1 (recap)
 - v0.1: L0 Grunnr + L1 Bifröst + CLI
@@ -32,32 +32,32 @@ The canonical contract for L5.5 lives in `docs/architecture/LAYER_INTERFACES.md 
 Five primary faculties live; the body sees and is seen.
 
 ### v0.6 deliverables (this milestone — scope: v0.6.0 Brúarhönd integration only)
-- ⏳ `src/heretic/skilningr/` — L5 Skilningr substrate (the sense hub layer; v0.6.0 hosts only Smiðja but designed to host more senses later)
-  - `__init__.py` exports
-  - `INTERFACE.md` module contract
-  - `config_model.py` — SkilningrConfig + SkilningrSenseConfig dataclasses
-  - `errors.py` — SkilningrError, SenseUnavailableError, ToolDispatchError
-  - `dispatcher.py` — ToolDispatcher: routes incoming tool_call (OpenAI format) to registered sense; returns tool_result
-  - `senses/smidja/` — first sense subpackage
-    - `__init__.py`
-    - `INTERFACE.md` 
-    - `client.py` — BrunhandHttpClient (httpx-based wrapper of Seidr-Smidja's Brúarhönd HTTP API at `/v1/brunhand/*`)
-    - `tools.py` — ToolDefinition list (OpenAI tools schema for screenshot, click, type, hotkey, vroid_open, vroid_export)
-    - `sense.py` — SmidjaSense orchestrator
-    - `errors.py` — SmidjaError + child types
-- ⏳ Bifröst client extension — `send_message()` accepts the existing `tools` array (already wired), new path: when streaming response yields tool_call deltas, accumulate them and emit a typed event for the CLI to dispatch
-- ⏳ CLI integration — at TENGSL, build the tool registry from enabled senses; pass `tools` to send_message; on tool_call, dispatch via ToolDispatcher → Smiðja → Brúarhönd HTTP; feed result back as `tool_result` user-role message; loop until agent terminates with normal stop
-- ⏳ vebond/protocol.py — new event `sense.tool_call` (state, sense, tool_name, call_id) so the UI shows what tools the agent is invoking
-- ⏳ Frontend — LayerStatusPanel adds Smiðja row (Eld-amber accent for "active hand" semantics? Or new color from AESTHETIC.md) showing tool_call activity
-- ⏳ heretic.example.yaml — new `skilningr:` block with `smidja:` sub-block (endpoint, token_env, enabled, host_name)
-- ⏳ Tests — 35+ new Python tests (mocked Brúarhönd HTTP, dispatcher routing, tool-call accumulation, capability gating) + 3+ frontend tests; total target 607+ Python + 81+ frontend = 688+
-- ⏳ docs/vision/THE_FIRST_HAND.md — Skald essay (seventh panel of vision cycle)
-- ⏳ docs/cartography/DATA_FLOW.md §4.11 — tool flow diagram
+- ~~⏳ `src/heretic/skilningr/` — L5 Skilningr substrate~~ **Done 2026-05-08 — `b4040ef` (scaffold) + `1214e5c` (implementation)**
+  - ~~`__init__.py` exports~~
+  - ~~`INTERFACE.md` module contract~~
+  - ~~`config_model.py` — SkilningrConfig + SkilningrSenseConfig dataclasses~~
+  - ~~`errors.py` — SkilningrError, SenseUnavailableError, ToolDispatchError~~
+  - ~~`dispatcher.py` — ToolDispatcher~~
+  - ~~`senses/smidja/` — first sense subpackage~~ **Done 2026-05-08 — `b4040ef` (scaffold) + `1214e5c` (implementation)**
+    - ~~`__init__.py`~~
+    - ~~`INTERFACE.md`~~
+    - ~~`client.py` — BrunhandHttpClient~~ (5 TASK §4 path discrepancies corrected per Architect probe)
+    - ~~`tools.py` — 6 ToolDefinitions~~ (locked at scaffold; 12 tests pass immediately)
+    - ~~`sense.py` — SmidjaSense orchestrator~~
+    - ~~`errors.py` — SmidjaError + child types~~
+- ~~⏳ Bifröst client extension~~ **Done 2026-05-08 — `75811a2`** (structured JSON detection replacing string heuristic per Wave 3 C-3 fix — `cc8a42d`)
+- ~~⏳ CLI integration — multi-round tool dispatch loop~~ **Done 2026-05-08 — `75811a2` + serve.py wire `cc8a42d`**
+- ~~⏳ vebond/protocol.py — `sense.tool_call` event~~ **Done 2026-05-08 — `b4040ef`**
+- ~~⏳ Frontend — LayerStatusPanel Smiðja row (Eld-amber accent)~~ **Done 2026-05-08 — `b97e67e`**
+- ~~⏳ heretic.example.yaml — `skilningr:` block~~ **Done 2026-05-08 — `b4040ef`**
+- ~~⏳ Tests — 35+ Python + 3+ frontend~~ **Done 2026-05-08 — +122 Python, +13 frontend. Total 782.**
+- ~~⏳ docs/vision/THE_FIRST_HAND.md~~ **Done 2026-05-08 — `b324544`**
+- ~~⏳ docs/cartography/DATA_FLOW.md §4.11~~ **Done 2026-05-08 — `fedae33`** (§4.11 + §16 + 7 failure modes)
 
 ### v0.6.x backlog (forward — NOT v0.6.0 scope)
-- v0.6.1: Forge headless Blender path (the second Seidr-Smidja half); separate sense `smidja.blender_render` or distinct sense
+- v0.6.1: Forge dispatch — headless Blender renders via Seidr-Smidja's Forge HTTP path (Mode B in Brúarhönd's three modes)
 - v0.6.2: more senses (filesystem, terminal, browser)
-- v0.6.x: native MCP server hosting (instead of OpenAI tool-use); when agent supports MCP client
+- v0.6.x: native MCP server hosting (instead of OpenAI tool_use); when agent has MCP client
 
 ### Constraints carried
 - All settings via heretic.yaml
@@ -125,40 +125,22 @@ The Architect should probe the live daemon (if running) OR cross-reference Seidr
 
 ---
 
-## 6. Mythic Engineering wave plan
+## 6. Mythic Engineering wave plan — COMPLETE
 
-Standard pattern (similar to v0.5; full six roles since this is a NEW faculty).
+### Wave 1 — COMPLETE (`b324544`, `fedae33`, `b4040ef`)
+- **Cartographer** (Védis Eikleið) — `b4040ef` — §4.11 tool flow + §16 component diagram + 7 failure modes + auth invariant confirmation + API discrepancy flag (5 corrected)
+- **Skald** (Sigrún Ljósbrá) — `b324544` — THE_FIRST_HAND seventh vision panel; receive/express/act triad named complete
+- **Architect** (Rúnhild Svartdóttir) — `b4040ef` — full skilningr/ + senses/smidja/ scaffold; 5 TASK §4 discrepancies catalogued + corrected; 6 ToolDefinitions locked; Approach B config consolidation; SenseToolCall IPC event; LAYER_INTERFACES.md §L5.5; heretic.example.yaml skilningr block
 
-### Wave 1 — parallel (no inter-dependencies)
-- **Cartographer** (Védis Eikleið) — `docs/cartography/DATA_FLOW.md §4.11 "Tool flow (v0.6 — outbound, on agent demand)"` showing: agent emits tool_call delta → Bifröst accumulator → ToolDispatcher → SmidjaSense → BrunhandHttpClient → Tailscale → Brúarhönd daemon → VRoid Studio host → response → tool_result back to agent. Add §16 Smiðja component diagram. Document the multi-round loop and the cap.
-- **Skald** (Sigrún Ljósbrá) — `docs/vision/THE_FIRST_HAND.md` — seventh panel (after WHY_HERETIC, CEREMONY_NARRATIVE, THE_FIRST_VOICE, THE_FIRST_LISTENING, THE_FIRST_FACE, THE_FIRST_SIGHT). What it means for the body to act, not only perceive. Agency vs receptivity. The hand that reaches into the world the user shares with the spirit. The covenant of consent for action (configured opt-in, audit log). 2500-3500 words.
-- **Architect** (Rúnhild Svartdóttir) — scaffold:
-  - `src/heretic/skilningr/` — L5 Skilningr substrate (dispatcher, registry, errors, INTERFACE.md, config_model)
-  - `src/heretic/skilningr/senses/smidja/` — Smiðja sense (BrunhandHttpClient skeleton, ToolDefinition list, sense.py orchestrator skeleton, errors.py)
-  - Update grunnr/config.py with SkilningrConfig consolidation (Approach B)
-  - Update vebond/protocol.py with `sense.tool_call` event
-  - Update IPC_PROTOCOL.md with new event + naming bridge entries
-  - Update LAYER_INTERFACES.md §L5 with Smiðja-specific notes (the first sense within Skilningr)
-  - heretic.example.yaml — new `skilningr:` block
-  - Skip-marked placeholder tests (~20)
-  - Confirm clean import; 569 Python tests still passing
+### Wave 2 — COMPLETE (`1214e5c`, `75811a2`, `b97e67e`)
+- **Forge** (Eldra Járnsdóttir) — BrunhandHttpClient + ToolDispatcher + SmidjaSense + CLI multi-round loop + frontend Smiðja row (Eld accent)
+- **Auditor** (Sólrún Hvítmynd) — `b17c611` — PASS WITH CONCERNS: 0 blockers, 0 SERIOUS, 2 NOTABLE (N-1 serve.py; C-3 string heuristic), 1 NIT (X-1 wait_timeout). Auth invariant CLEAN. All 5 API discrepancies honored.
 
-### Wave 2 — sequential
-- **Forge** (Eldra Járnsdóttir) — implement:
-  - BrunhandHttpClient (httpx async; bearer-token auth; per-endpoint typed methods; error mapping; timeouts from config)
-  - ToolDefinition list — exactly 6 OpenAI-format tool schemas matching Brúarhönd primitives
-  - SmidjaSense (open/close, dispatch tool_call to client method, encode result)
-  - ToolDispatcher (route by tool-name prefix; aggregate tool_calls across deltas; emit `sense.tool_call` events)
-  - Bifröst extension — detect tool_call deltas in stream; accumulate; emit per complete call; loop until agent stops or max_tool_call_rounds reached
-  - CLI integration — register tools at TENGSL when enabled; pass tools list to send_message; route tool_calls; loop multi-round
-  - Frontend LayerStatusPanel Smiðja row
-  - Real Python tests (mocked Brúarhönd HTTP via respx OR httpx mock; mocked dispatcher; tool-call streaming) + frontend Vitest
-- **Auditor** (Sólrún Hvítmynd) — `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md`. Verify: tool schema matches OpenAI spec; tool_call routing correct; multi-round capped at max_tool_call_rounds; auth header set; bearer token sourced from env (not config plain text); failure modes (Brúarhönd down, auth fail, timeout, malformed response) all return tool_result with error JSON, never crash turn; capability gating; cross-platform; INTERFACE.md matches code.
+### Wave 3 — COMPLETE (`cc8a42d`)
+- **Forge** (Eldra Járnsdóttir) — N-1 (serve.py Smiðja wire + event_bus.publish), C-3 (structured JSON parsing + 3 boundary tests), X-1 (2 wait_timeout envelope tests). 691 Python + 91 frontend = 782. 0 findings.
 
-### Wave 3 — cleanup (only if Auditor finds notables)
-
-### Close-out
-- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 9 + update this TASK file + memory refresh.
+### Close-out — COMPLETE (this commit)
+- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 9 + this TASK update + memory refresh.
 
 ---
 
@@ -222,24 +204,40 @@ tests/
 ## 9. Backlog carried + forward
 
 ### Pending from earlier milestones
-- v0.4.1 first compile (awaits operator linker install)
+- v0.4.1 first compile (awaits operator linker install — MSVC Build Tools or full MinGW-w64)
 - v0.5.x: webcam (v0.5.2), privacy masks (v0.5.3)
+- v0.5.x N-3: MssBackend cached availability (deferred from v0.5 audit)
 
-### v0.6.x backlog (forward)
-- v0.6.1: Forge dispatch — headless Blender renders via Seidr-Smidja's Forge HTTP path (Mode B in Brúarhönd's three modes)
-- v0.6.2: filesystem sense, terminal sense, browser sense (per L5 sense hub design)
-- v0.6.x: native MCP server hosting (instead of OpenAI tool_use); when agent has MCP client
+### v0.6.x backlog (forward — all carry)
+- v0.6.1: Forge dispatch — headless Blender renders via Seidr-Smidja's Forge HTTP path (Mode B in Brúarhönd's three modes); `smidja.blender_render` sense or distinct Forge sense path; gates on Seidr-Smidja v0.2 Loom→Blender translation layer
+- v0.6.2: filesystem sense, terminal sense, browser sense (per L5 sense hub design; Python only, no external gates)
+- v0.6.x: native MCP server hosting (instead of OpenAI tool_use); when agent has MCP client; protocol extension work required
 
 ---
 
-## 10. How to resume this task in a future session
+## 10. How to resume after v0.6 — forward orientation
 
-1. Read `docs/BODY_MANIFESTO.md` — sealed vision
-2. Read this file from top to bottom
-3. Read `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md` if it exists
-4. Run `git log --oneline -15` and `git status` in `C:/Users/volma/runa/HERETIC`
-5. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
-6. Continue from the first unchecked deliverable in §2
+**v0.6 is fully closed. This file is a completed record. The next task file will be the authoritative resume point.**
+
+Current state on `development`:
+- HEAD: `cc8a42d` (scribe close commit follows — see latest `git log`)
+- Python 691 + frontend 91 = 782 tests. 0 open findings. 0 failures.
+- Primary triad (receive/express/act) complete.
+
+**Choose one of the following next paths (Volmarr's decision):**
+
+| Path | Task to open | First step |
+|---|---|---|
+| v0.6.1 Forge dispatch (headless Blender) | Open `TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md` | Confirm Seidr-Smidja Loom→Blender translation layer is live; probe Forge HTTP endpoint |
+| v0.7 First Drink at the Well (Mímisbrunnr) | Open `TASK_HERETIC_v0.7_MIMISBRUNNR.md` | Light tier: libzim/kiwix integration + RAG overlay for offline knowledge |
+| v0.5.2 webcam | Open `TASK_HERETIC_v0.5.2_WEBCAM.md` | `SjonWebcamConfig` already declared; extend capture.py with cv2 or imageio backend |
+| v0.4.1 first compile | Open existing `TASK_HERETIC_v0.4.1_TAURI_WRAP.md` | `winget install Microsoft.VisualStudio.2022.BuildTools`; then `cargo check` in `src-tauri/` |
+
+Start any new session by:
+1. Reading `docs/BODY_MANIFESTO.md` — sealed vision
+2. Reading `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
+3. Running `git log --oneline -10` and `git status` in `C:/Users/volma/runa/HERETIC`
+4. Opening the appropriate TASK file for the chosen path
 
 ---
 

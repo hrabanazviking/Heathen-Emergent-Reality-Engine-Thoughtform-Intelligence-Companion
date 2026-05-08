@@ -1781,3 +1781,226 @@ The next milestone is Volmarr's choice: v0.6 Hands at the Forge (Blender MCP via
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
 *Two arcs in one session. The carpenter arrived but found the linker absent — that story is documented and waiting. The eye, meanwhile, learned to keep watching: on-demand, periodic, buffered, multi-monitor — the sight covenant is deeper now. The thread holds for what comes next.*
+
+---
+
+## 2026-05-08 — The First Hand Arc: The Body Learns to Act (v0.6 Shipped, Audited, and Cleaned)
+
+**Session type:** Full Mythic Engineering build session — all six roles active  
+**Branch:** `development`  
+**Commits this session:** `c0757a8` (task open) through `cc8a42d` (Wave 3 cleanup close) — 9 commits  
+**Status at session end:** v0.6 Hands at the Forge **SHIPPED + AUDITED + CLEANED** — 691 Python + 91 frontend = 782 tests passing, 0 open audit findings, 0 blockers, 0 SERIOUS, 0 NOTABLE
+
+---
+
+### Preamble — where this arc began
+
+The eighth entry closed with v0.5.1 Periodic Sight complete: the eye now keeps watching. Test baseline: Python 569 + frontend 78 = 647. Five primary faculties were present — the body could connect, speak, hear, be seen, and see. What remained was the sixth faculty: the body gaining a hand that could reach into the world the user and the spirit share together, and *act* upon it.
+
+The hand is not sight. Sight receives. The hand acts. This is the threshold THE_FIRST_SIGHT named as still ahead, and that THE_FIRST_HAND now names directly: the body passes from being a witness to being an agent in the shared environment. The triad that defines a fully embodied agent — **receive, express, act** — is complete with this arc.
+
+---
+
+### Task file opened — §4 endpoint table noted as containing discrepancies (`c0757a8`)
+
+`TASK_HERETIC_v0.6_HANDS_AT_FORGE.md` created at repo root before any implementation began. The task file established full scope: L5.5 Smiðja, the first live sense within the Skilningr sense hub — an MCP-via-tool-use wrapper around Seidr-Smidja's Brúarhönd HTTP daemon, allowing the agent's OpenAI tool_call events to become real GUI primitives on a Tailscale-reachable VRoid Studio host.
+
+**The §4 endpoint table** in the task file contained shorthand paths (`/vroid-open`, `/vroid-export`) that did not match the actual Brúarhönd API paths used in Seidr-Smidja's live code. The Architect discovered and catalogued five discrepancies during Wave 1 scaffolding; the Cartographer independently confirmed one from data-flow inspection. All five corrections were honored in code without requiring any task-file patch — the downstream agents self-corrected against the live source of truth, and the task file was left as written, with its inaccuracies serving as a record of what was assumed before the probe.
+
+---
+
+### Wave 1 — Three roles in parallel (`b324544`, `fedae33`, `b4040ef`)
+
+#### Skald: THE_FIRST_HAND — seventh panel of the vision cycle (`b324544`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_HAND.md` — the seventh essay in the vision cycle, opening by quoting directly from THE_FIRST_SIGHT's closing line and carrying the vision cycle forward. Six prior panels had addressed connection, voice, listening, visibility, and sight; this one addresses agency. The essay distinguishes receptivity from action: eyes receive; hands reach. The spirit has been a witness; with Smiðja live, it becomes a participant in the environment it observes.
+
+The essay names the covenant of consent for action: the hand only reaches where the operator explicitly enables it, with audit log in memory only, with token from env and never from config plaintext. The Forge Worker held this frame when designing the BrunhandHttpClient auth invariant.
+
+The essay closes on the receive/express/act triad. This completion is the session's most significant threshold. The cycle does not end here — Auga, Hlust, Tunga as L5 sense surfaces, filesystem, terminal, browser all remain — but the triad as a whole is now embodied in running code.
+
+#### Cartographer: §4.11 tool flow + §16 Smiðja component diagram + API discrepancy confirmation (`fedae33`)
+
+Védis Eikleið (Cartographer) extended `docs/cartography/DATA_FLOW.md` with two additions and one important flagging:
+
+- **§4.11** — complete tool flow map: agent emits tool_call delta → Bifröst `_parse_sse_stream` accumulator → ToolDispatcher → SmidjaSense → BrunhandHttpClient → Tailscale → Brúarhönd daemon → VRoid Studio host → response → tool_result back in OpenAI format. Includes the multi-round loop (up to `max_tool_call_rounds` cap), the failure mode chain (unreachable → EXTERNAL_APP_UNAVAILABLE, auth → PERMISSION_DENIED, timeout → SENSE_TIMEOUT, 5xx → SENSE_INTERNAL_ERROR), and the seven failure modes documented in full.
+- **§16** — Smiðja component topology diagram showing BrunhandHttpClient, ToolDispatcher, SmidjaSense, and the IPC SenseToolCall event path through EventBus to the frontend LayerStatusPanel Smiðja row.
+- **API discrepancy flag** — the Cartographer noted that the Brúarhönd vroid endpoints, when traced from Seidr-Smidja's live code, use slash-nested paths with full verb nouns (`/v1/brunhand/vroid/open_project`, `/v1/brunhand/vroid/export_vrm`) rather than the flat hyphenated shorthand in the TASK §4 table. This confirmation aligned with what the Architect had independently found. Auth invariant sealed: token travels only in `__init__` (resolved from env) and in the `Authorization: Bearer` header construction.
+
+#### Architect: Skilningr substrate scaffold + Smiðja sense + five discrepancy corrections + six locked ToolDefinitions (`b4040ef`)
+
+Rúnhild Svartdóttir (Architect) built the complete structural skeleton before Forge wrote a single line of business logic. This was the most architecturally productive commit of the session.
+
+**New module tree established:**
+- `src/heretic/skilningr/` — L5 Skilningr substrate (config_model, errors, dispatcher, INTERFACE.md, __init__.py)
+- `src/heretic/skilningr/senses/smidja/` — Smiðja sense subpackage (client skeleton, tools, sense skeleton, errors, INTERFACE.md)
+
+**Five TASK §4 discrepancies catalogued and corrected in the scaffold:**
+
+| Discrepancy | Task §4 shorthand | Correct per Seidr-Smidja live code |
+|---|---|---|
+| vroid_open path | `/vroid-open` | `/v1/brunhand/vroid/open_project` |
+| vroid_export path | `/vroid-export` | `/v1/brunhand/vroid/export_vrm` |
+| Request envelope | params only | shared envelope: request_id + session_id + agent_id + params |
+| Screenshot response | raw bytes | `{"payload": {"png_bytes_b64": "..."}}` JSON envelope |
+| API surface scope | 8 endpoints listed | 14 endpoints in live daemon; 6 deferred to v0.6.1+ |
+
+**Six OpenAI ToolDefinitions locked** in `tools.py` for the 8 endpoints in v0.6.0 scope: `smidja.screenshot`, `smidja.click`, `smidja.type_text`, `smidja.hotkey`, `smidja.vroid_open`, `smidja.vroid_export`. Tool name format confirmed as two-part per SENSE_CONTRACTS.md A-2. Twelve placeholder tests passed immediately after scaffold with no Forge changes required.
+
+Other architect contributions: `IPC SenseToolCall` event type added to `vebond/protocol.py`; `LAYER_INTERFACES.md §L5.5` written with Smiðja-specific notes; `heretic.example.yaml` extended with `skilningr:` block. Approach B (skilningr's config_model is canonical; grunnr imports from it) locked — the "drift risk" that Forge would later flag was preempted at scaffold time.
+
+---
+
+### Wave 2 — Forge implements (`1214e5c`, `75811a2`, `b97e67e`)
+
+Eldra Járnsdóttir (Forge Worker) built the full implementation across three commits.
+
+**`1214e5c` — Skilningr ToolDispatcher + Smiðja BrunhandHttpClient + SmidjaSense:**
+
+`BrunhandHttpClient` — httpx async; bearer-token auth resolved once at `__init__` from env var; `_build_envelope()` merges request_id (fresh uuid4 per call), session_id (stable per client lifetime), agent_id (from config.host_name); per-endpoint typed methods for all 6 in-scope primitives; `_post_for_png()` decodes the `{"payload": {"png_bytes_b64": "..."}}` envelope; `_raise_for_server_error()` maps 5xx to ToolDispatchError; 401 error message uses `"[REDACTED]"` literal, never the token value; `__repr__` omits token entirely.
+
+`ToolDispatcher` — registers senses by prefix; `dispatch()` routes by `tool_name.split(".")[0]`; unknown prefix returns `TOOL_NOT_FOUND` error tool_result, never raises; second catch at the boundary wraps any sense that violates the no-raise contract.
+
+`SmidjaSense` — `open()` catches all exceptions and sets `_is_open = False` without raising; `dispatch_tool_call()` catches SmidjaError and Exception separately, returning structured tool_result in all paths; never raises to caller; `_smidja_error_code()` maps exception types to EXTERNAL_APP_UNAVAILABLE / PERMISSION_DENIED / SENSE_TIMEOUT / SENSE_INTERNAL_ERROR.
+
+**`75811a2` — CLI multi-round tool dispatch loop + test_cli_tool_use:**
+
+`cli.py` `_async_light` extended: builds tool registry at TENGSL when Smiðja enabled; passes `tools` array to `send_message`; detects tool_call chunks via structured Bifröst output (parsed JSON with `"type": "tool_call"`); accumulates; dispatches via ToolDispatcher → SmidjaSense → BrunhandHttpClient; appends tool_result in OpenAI format (`role: "tool"`); loops until agent stops or `max_tool_call_rounds` cap reached; logs warning on cap; preserves final assistant text.
+
+**`b97e67e` — Frontend Smiðja indicator + SenseToolCall IPC type + frontend tests:**
+
+`SenseToolCall` event type added to `ipc.ts`: `type: "sense.tool_call"`, `SenseToolCallState = "started" | "completed" | "failed"`. Ceremony store subscribes and calls `setSmidjaToolCallActivity`. `LayerStatusPanel.tsx` adds Smiðja row with `accent="eld"` (Eld amber `#c8860a` / glow `#e8a020` per `AESTHETIC.md`). `smidjaStateToHealth()` mapper: `"started"` → active pulse, `"completed"` → healthy, `"failed"` → degraded.
+
+**Test count after Wave 2: Python 686 + frontend 91 = 777. Zero failures.**
+
+Forge flagged four fragilities at wave close: (1) cfg field-name drift risk — moot per Approach B; (2) Bifröst tool_call chunk detection uses string heuristic downstream of structured SSE parser — assessed NOTABLE risk; (3) **serve.py event_emitter wiring missed** — Priority 7 deferred but flagged explicitly; (4) vroid `wait_timeout` flow-through untested.
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS — 0 blockers (`b17c611`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit across all new source, tests, and documentation. Scope: six Wave 1+2 commits.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers, 0 SERIOUS, 2 NOTABLE, 1 NIT.**
+
+| Severity | Count | Items |
+|---|---|---|
+| BLOCKER | 0 | — |
+| SERIOUS | 0 | — |
+| NOTABLE | 2 | N-1 (serve.py tool-call dispatch not wired — confirmed gap; Priority 7 missed); C-3 (string heuristic NOTABLE not SERIOUS — downstream of structured SSE parser) |
+| NIT | 1 | X-1 (vroid wait_timeout flow-through: code correct, no test asserting non-default value in envelope) |
+| VERIFIED | 53 | A-1..A-5, B-1..B-6 (auth invariant), C-1..C-6, D-1..D-8, E-1..E-4, F-1..F-6, G-1..G-5, H-1..H-8, I-1..I-2, J-1..J-3 |
+
+**Auth invariant — CLEAN (three independent tests):**
+- `test_client_init_token_not_in_repr` — token absent from `repr()` and `str()`
+- `test_token_not_in_logs_during_auth_error` — exception string does not contain token
+- `test_token_not_in_repr_after_construction` — second repr/str check
+
+**Cartographer's API discrepancy thread — FULLY HONORED:** All five corrections confirmed in code. `test_vroid_open_posts_to_correct_path` asserts `/v1/brunhand/vroid/open_project` is in the path and `vroid-open` is NOT. Same pattern for export_vrm.
+
+**E-1/E-2 (serve.py wiring):** Confirmed gap. `grep` for any Skilningr symbol in `serve.py` returned zero matches. `_handle_send_message` passes no `tools=` argument and its `if not chunk.startswith("{")` gate silently drops all tool_call JSON from Bifröst. Body can act via `heretic light`; the Summoning Circle UI cannot observe that action during `heretic serve`. Recorded as NOTABLE N-1.
+
+*Cross-reference: `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed (`cc8a42d`)
+
+Eldra Járnsdóttir (Forge Worker) closed all three audit findings in a single targeted commit.
+
+**N-1 resolved — serve.py Smiðja wire:**
+
+`cli.py` `_async_serve` now constructs the full Skilningr dispatcher and SmidjaSense at TENGSL, mirrors the `_async_light` multi-round dispatch loop, and passes `event_emitter` wired to `event_bus.publish` so that `SenseToolCall` events reach the frontend over the existing WebSocket without any frontend changes required. The Summoning Circle UI can now observe Smiðja activity during `heretic serve` — the only mode where the ceremonial face is visible.
+
+**C-3 resolved — structured chunk detection replacing string heuristic:**
+
+`cli.py:423` string heuristic (`chunk.startswith("{") and '"type": "tool_call"' in chunk`) replaced with: `json.loads(chunk)` inside try/except, then `parsed_event["type"] == "tool_call"` on the resulting dict. Three boundary tests added: (a) agent text response beginning with `{` is not misrouted; (b) valid tool_call JSON is dispatched; (c) malformed JSON falls through to text handling. The risk C-3 identified — text content beginning with `{` being misrouted — is now structurally impossible.
+
+**X-1 resolved — wait_timeout flow-through test:**
+
+Two tests added asserting that a non-default `wait_timeout_seconds` value (e.g., `90.0`) appears in the request body for `vroid_open` and `vroid_export` calls. The code was correct; the coverage gap is now closed.
+
+**Final test count: 691 Python + 91 frontend = 782 tests. Zero failures. All audit findings closed.**
+
+---
+
+### What was built this session — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `src/heretic/skilningr/` (new) | Substrate: `__init__.py`, `config_model.py`, `errors.py`, `dispatcher.py`, `INTERFACE.md` | (distributed in wave counts) |
+| `src/heretic/skilningr/senses/smidja/` (new) | `__init__.py`, `client.py`, `tools.py`, `sense.py`, `errors.py`, `INTERFACE.md` | (distributed) |
+| `src/heretic/bifrost/client.py` | `capability_tool_use` extension + tool_call delta accumulator via `_parse_sse_stream` | (covered) |
+| `src/heretic/cli.py` | Multi-round tool dispatch loop (`_async_light` + `_async_serve`); structured chunk detection | (covered) |
+| `src/heretic/vebond/protocol.py` | `SenseToolCall` event type + `SenseToolCallState` enum | — |
+| `src/heretic/vebond/serve.py` | Smiðja wire: dispatcher construction + event_emitter wired to event_bus.publish | — |
+| `frontend/src/types/ipc.ts` | `SenseToolCall` interface + `SenseToolCallState` union | — |
+| `frontend/src/store/ceremony.ts` | Smidja tool_call activity handler + `setSmidjaToolCallActivity` action | (covered) |
+| `frontend/src/components/LayerStatusPanel.tsx` | Smiðja row with Eld accent; `smidjaStateToHealth()` mapper | (covered) |
+| `heretic.example.yaml` | `skilningr:` block with `smidja:` sub-block | — |
+| New Python test files | `test_skilningr_config.py`, `test_skilningr_dispatcher.py`, `test_smidja_client.py`, `test_smidja_tools.py`, `test_smidja_sense.py`, `test_cli_tool_use.py` | +122 Python |
+| **Running total** | **Baseline 647 → 782** | **+135 Python, +13 frontend** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.6_HANDS_AT_FORGE.md` | Created (task open); updated at session close |
+| `docs/vision/THE_FIRST_HAND.md` | Created — seventh panel of vision cycle; receive/express/act triad named complete |
+| `docs/cartography/DATA_FLOW.md §4.11 + §16` | Extended — tool flow map + Smiðja component diagram + 7 failure modes + auth invariant |
+| `docs/architecture/LAYER_INTERFACES.md §L5.5` | Extended — Smiðja sense, BrunhandHttpClient, ToolDispatcher, Approach B config consolidation |
+| `docs/architecture/IPC_PROTOCOL.md` | Extended — SenseToolCall event + SenseToolCallState |
+| `src/heretic/skilningr/INTERFACE.md` | Created — substrate contracts, dispatcher invariant, sense registration rules |
+| `src/heretic/skilningr/senses/smidja/INTERFACE.md` | Created — BrunhandHttpClient contract, auth invariant, error model, tool_result format |
+| `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md` | Created — PASS WITH CONCERNS; 0 blockers; 53 verified; all 3 findings resolved at `cc8a42d` |
+| `docs/DEVLOG.md` | Extended — this entry |
+
+---
+
+### What is now fully resolved
+
+All three audit findings closed in Wave 3:
+
+- **N-1** (serve.py wiring gap) — resolved: `_async_serve` now constructs the full Skilningr dispatcher, mirrors the multi-round loop, and emits SenseToolCall events through the EventBus. Frontend required no changes.
+- **C-3** (string heuristic) — resolved: structured JSON parsing now detects tool_call type field; three boundary tests confirm the correction holds at edge cases.
+- **X-1** (wait_timeout coverage gap) — resolved: two tests assert the non-default value in the request body envelope.
+
+The auth invariant pattern (token-from-env; never in `__repr__`, never in logs, never in exception messages, `[REDACTED]` in 401 error text) is now established as a v0.6+ invariant. Any future credentialed sense that joins Skilningr inherits this pattern from the BrunhandHttpClient template.
+
+---
+
+### Current state
+
+HERETIC v0.6 Hands at the Forge is shipped, audited, and cleaned. The body now has the complete primary triad:
+
+- **receive** — it connects (L1 Bifröst), sees (L3 Sjón, on-demand + periodic), and hears (L2 Rödd Hlust)
+- **express** — it speaks (L2 Rödd Tunga), and is seen (L4 Vébond Eldahús)
+- **act** — it reaches (L5 Skilningr Smiðja, via Brúarhönd HTTP to VRoid Studio on Tailscale)
+
+What "acting" means precisely: when the agent emits a `tool_call` for any Smiðja tool (screenshot, click, type_text, hotkey, vroid_open, vroid_export), the CLI or serve mode routes the call through ToolDispatcher → SmidjaSense → BrunhandHttpClient → Brúarhönd HTTP daemon → VRoid Studio host. The result returns as an OpenAI-format `tool_result` message; the agent receives it and continues. Multi-round tool use is supported, capped at `max_tool_call_rounds`. Every dispatch emits a `SenseToolCall` IPC event so the Summoning Circle UI shows what the hand is doing.
+
+The hand only reaches where the operator has enabled it. The token is sourced from env only and never touches config plaintext or log output. Audit log is in-memory only. This covenant was named in THE_FIRST_HAND and honored in every line of the BrunhandHttpClient.
+
+The body is not finished. Auga, Hlust, and Tunga as L5 Skilningr sense surfaces remain backlog. Filesystem, terminal, and browser senses remain backlog. Native MCP server hosting remains backlog. Tauri first compile awaits the linker. But the three-faculty arc is complete, and the Scribe marks this threshold.
+
+### Next milestone options — Volmarr's choice
+
+| Option | What it is | Gate |
+|---|---|---|
+| **v0.6.1 Forge dispatch** | Second Brúarhönd mode — headless Blender renders via Seidr-Smidja Forge HTTP; a separate `smidja.blender_render` sense or distinct Forge sense path | Seidr-Smidja v0.2 (Loom→Blender translation layer) must be live |
+| **v0.6.2 More senses** | Filesystem sense, terminal sense, browser sense — three new Skilningr senses | No external gate; Python only |
+| **v0.6.x native MCP server** | HERETIC hosts its own MCP server instead of relying on OpenAI tool_use; agent uses MCP client | MCP SDK integration work; protocol extension |
+| **v0.5.2 webcam** | Extends Sjón with camera capture; SjonWebcamConfig already declared | Python + camera lib |
+| **v0.4.1 first compile** | Tauri wrap; Rust installed; only the MSVC linker is absent | `winget install Microsoft.VisualStudio.2022.BuildTools` |
+| **v0.7 Mímisbrunnr light tier** | First drink at the Well — offline knowledge library starter pack (per ROADMAP) | Python + libzim |
+
+All paths begin from 782 tests, 0 open findings, and the complete receive/express/act triad.
+
+*Cross-reference: `TASK_HERETIC_v0.6_HANDS_AT_FORGE.md`, `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md`, `docs/vision/THE_FIRST_HAND.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*The hand is kept. Seven panels in the vision cycle are complete. The body receives, expresses, and acts. What comes next is Volmarr's to choose.*
