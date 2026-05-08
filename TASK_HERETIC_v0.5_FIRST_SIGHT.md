@@ -22,7 +22,7 @@ Per the audit C-Q-A1 / C-Q-C3 resolutions sealed in v0.0:
 
 ## 2. Current status — 2026-05-08
 
-**Phase:** v0.5 SHIPPED at `fe1536f`. Tests: 524 Python + 70 frontend = 594 total. All deliverables complete and pushed to `development`.
+**Phase:** v0.5 SHIPPED + AUDITED + CLEANED 2026-05-08; HEAD post-`7a84098`; 527 Python + 70 frontend = 597 tests. All findings closed. Scribe close complete.
 
 ### Done in v0.1+v0.2+v0.3+v0.4.0+v0.4.1 (recap, do not redo)
 - v0.1: L0 Grunnr + L1 Bifröst + CLI shell — 121 tests
@@ -40,15 +40,17 @@ Per the audit C-Q-A1 / C-Q-C3 resolutions sealed in v0.0:
   - `config_model.py` — SjonConfig, SjonScreenConfig, SjonWebcamConfig dataclasses (webcam declared, NOT implemented in v0.5; matches v0.2's RoddSttConfig declared-but-deferred pattern)
   - `errors.py` — SjonError, ScreenCaptureError, BackendUnavailableError, FrameEncodingError, PermissionDeniedError
   - `capture.py` — ScreenCaptureBackend ABC + MssBackend (cross-platform via `mss` library, MIT) + NullBackend; `best_available()` factory chain
-  - `encoder.py` — frame → PNG bytes → base64 data URL; resize/crop helpers
-  - `sjon.py` — Sjón orchestrator: capture-on-demand for v0.5, ring buffer (configured depth, default 5), throttling (no captures faster than `interval_ms` per config)
+  - `encoder.py` — frame → PNG bytes → base64 data URL; resize/crop helpers; **max_width_override + max_height_override params added in Wave 3 (S-1 fix)**
+  - `sjon.py` — Sjón orchestrator: capture-on-demand for v0.5, ring buffer (configured depth, default 5), throttling (no captures faster than `interval_ms` per config); **oversize retry now passes halved dims via encoder override (S-1 fix, Wave 3)**
 - DONE Bifröst integration — `capability_vision_screen` body-state flag on OpenAICompatClient; content array per §2.1
 - DONE CLI integration — dual-flag gate (vision_in AND vision_screen), multimodal content array in turn loop, Sjón init/close
 - DONE vebond/protocol.py — SjonActivity event (idle/capturing/encoding/failed) + event_emitter wired in serve mode
 - DONE Frontend — Sjón row in LayerStatusPanel, LayerStatusItem "active" state with animate-pulse, sjonState in ceremony store
-- DONE Tests — 74 new Python tests + 11 new frontend tests; total 524 Python + 70 frontend = 594 overall
-- DEFERRED docs/vision/THE_FIRST_SIGHT.md — Skald essay (Scribe/Skald work, not Forge)
-- DEFERRED docs/cartography/DATA_FLOW.md §4.10 — Cartographer work, not Forge
+- DONE Tests — 100 new Python tests + 11 new frontend tests (Wave 2: 74+26; Wave 3: +3); total 527 Python + 70 frontend = 597 overall
+- DONE docs/vision/THE_FIRST_SIGHT.md — Skald essay, sixth panel of vision cycle (`e7c4b02`)
+- DONE docs/cartography/DATA_FLOW.md §4.10 + §15 — Cartographer sight flow + Sjón component diagram (`a982fc9`)
+- DONE docs/audit/AUDIT_v0.5_FIRST_SIGHT.md — Auditor PASS WITH CONCERNS; 0 blockers; S-1 + N-1 + N-2 all resolved (`e390d78` audit; `7a84098` S-1+N-1 fix)
+- DONE DEVLOG entry 7 — Scribe canonical session record (this close, Eirwyn Rúnblóm)
 
 ### Constraints carried from v0.1+v0.2+v0.3+v0.4
 - All settings via `heretic.yaml` (no hardcoding)
@@ -148,35 +150,24 @@ The Auditor (Sólrún) at v0.0 sealed the format; the Architect locks the trigge
 
 Standard pattern.
 
-### Wave 1 — parallel (no inter-dependencies)
-- **Cartographer** (Védis Eikleið) — `docs/cartography/DATA_FLOW.md §4.10 "Sight flow (v0.5 — outbound, on-demand)"` showing user-message-send → SjonOrchestrator.snapshot() → MssBackend.capture() → encode (resize + PNG + base64) → attach to OpenAI image_url content → Bifröst send_message → spirit. Add §15 Sjón component diagram. Note the mirror-of-Tunga symmetry (Tunga: agent text → audio out; Sjón: screen capture → image in).
-- **Skald** (Sigrún Ljósbrá) — `docs/vision/THE_FIRST_SIGHT.md` — sixth panel of the vision cycle (after WHY_HERETIC, CEREMONY_NARRATIVE, THE_FIRST_VOICE, THE_FIRST_LISTENING, THE_FIRST_FACE). What it means for the body to see what the user sees. Privacy as covenant. The mirror-versus-window distinction. ~2500-3500 words.
-- **Architect** (Rúnhild Svartdóttir) — scaffold:
-  - `src/heretic/sjon/` skeleton (INTERFACE.md, config_model.py, errors.py, capture.py ABC + MssBackend + NullBackend, encoder.py skeleton, sjon.py orchestrator)
-  - Update grunnr/config.py with SjonConfig consolidation (Approach B import from sjon.config_model)
-  - Update pyproject.toml — add `mss>=9` and `Pillow>=10` to either `[voice]` or new `[vision]` extra (your call)
-  - Update vebond/protocol.py — add `SjonActivity` event with state field
-  - Update IPC_PROTOCOL.md schema for the new event
-  - Skip-marked placeholder tests
-  - Confirm clean import + 424+ Python tests still passing
+### Wave 1 — parallel (no inter-dependencies) — COMPLETE
+- **Skald** (Sigrún Ljósbrá) — `docs/vision/THE_FIRST_SIGHT.md` — sixth panel of vision cycle. COMPLETE at `e7c4b02`.
+- **Cartographer** (Védis Eikleið) — `docs/cartography/DATA_FLOW.md §4.10 + §15`. COMPLETE at `a982fc9`.
+- **Architect** (Rúnhild Svartdóttir) — `src/heretic/sjon/` scaffold + IPC SjonActivity + naming-bridge resolution + LAYER_INTERFACES.md §L3 cleanup. COMPLETE at `d2768c2`.
 
-### Wave 2 — sequential
-- **Forge** (Eldra Járnsdóttir) — implement:
-  - `MssBackend` with full mss API integration (capture, lifecycle, multi-monitor handling)
-  - `encoder.py` resize/crop/PNG-encode/base64 helpers
-  - `Sjón` orchestrator with throttle + on-demand snapshot
-  - Bifröst client extension: optional `image_data_urls` arg threaded through to OpenAI multimodal message format
-  - CLI `light` integration: snapshot before send when conditions met
-  - vebond/serve.py: emit SjonActivity events on capture lifecycle
-  - Frontend: LayerStatusPanel shows Sjón row with Sjón-glow blue accent (matching aesthetic.md L3 token); subscribe to sjon.activity in ceremony store
-  - Real Python tests (mocked mss, mocked Pillow encoding) + frontend Vitest tests
-- **Auditor** (Sólrún Hvítmynd) — `docs/audit/AUDIT_v0.5_FIRST_SIGHT.md`. Verify: mss + Pillow integration; frame format (inline base64 PNG matches OpenAI vision content schema); capability gating (no frame sent if `?vision_in` not set); throttle works; privacy invariant (save_frames default false); fault tolerance (mss unavailable, permission denied, encode fail all degrade gracefully); cross-platform; tests cover happy + each failure path; no absolute paths; no hardcoded settings.
+### Wave 2 — sequential — COMPLETE
+- **Forge** (Eldra Járnsdóttir):
+  - L3 Sjón substrate (capture + encoder + orchestrator + 74 tests). COMPLETE at `6ec4198`.
+  - Bifröst capability_vision_screen + CLI dual-flag vision attach + test_cli_vision.py (26 tests). COMPLETE at `2e6b4ad`.
+  - Frontend Sjón indicator (types + store + panel + 11 tests). COMPLETE at `fe1536f`.
+  - TASK file closure + partial DEVLOG mark (Forge over-reach per N-2). Committed at `20fd70f`.
+- **Auditor** (Sólrún Hvítmynd) — `docs/audit/AUDIT_v0.5_FIRST_SIGHT.md`. PASS WITH CONCERNS. 0 blockers. S-1 (serious) + 3 NOTABLE. COMPLETE at `e390d78`.
 
-### Wave 3 — cleanup (only if Auditor finds notables)
-Per-finding dispatch.
+### Wave 3 — cleanup — COMPLETE
+- **Forge** (Eldra Járnsdóttir) — S-1 fix (encoder override params + sjon.py wires them) + N-1 fix (test asserts halved dims) + 3 new encoder tests. COMPLETE at `7a84098`. Final: 527 Python + 70 frontend = 597 tests. 0 open findings.
 
-### Close-out
-- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 7 + update this TASK file + memory refresh.
+### Close-out — COMPLETE
+- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 7 + TASK file update + memory refresh. COMPLETE 2026-05-08.
 
 ---
 
@@ -250,16 +241,41 @@ These remain backlog. v0.5 does not address them.
 
 ---
 
-## 13. How to resume this task in a future session
+## 13. How to resume from this point — forward orientation
 
+v0.5 is COMPLETE. This task file is sealed. The next session opens a new task file.
+
+**State at close:** HEAD `7a84098`. Branch `development`. 527 Python + 70 frontend = 597 tests. 0 open findings. Five primary faculties: connect (L1), speak (L2 Tunga), listen (L2 Hlust), be seen (L4), see (L3). Only "tools" and L5 sense hub remain to reach v1.0.
+
+**Forward path — Volmarr's choice:**
+
+**Option A — v0.6 Hands at the Forge (Blender MCP)**
+- Brings L5 Skilningr's Smiðja sense (Blender) online via Seidr-Smidja Brúarhönd v0.1.
+- Seidr-Smidja is at `C:/Users/volma/runa/Seidr-Smidja` on `development`. 489 tests passing. Brúarhönd v0.1 shipped 2026-05-06.
+- Path B (Loom→VRoid translation) is Seidr-Smidja v0.2 territory; HERETIC v0.6 would wire to what already exists in v0.1 (Brúarhönd MCP tools: screenshot, click, vroid_export).
+- HERETIC task file: `TASK_HERETIC_v0.6_HANDS_AT_THE_FORGE.md` (to be created).
+
+**Option B — v0.5.x periodic capture**
+- Activate `interval_ms` config key for continuous-streaming mode.
+- Ring buffer for "what just happened" recall.
+- Multi-monitor support (SjonScreenConfig `monitor_index` and multi-mon enumeration).
+- Webcam (SjonWebcamConfig activates — backend not yet implemented).
+- Cached availability flag in MssBackend (N-3 recommendation from audit).
+
+**Option C — v0.4.1 first compile (Tauri)**
+- Install Rust: `winget install Rustlang.Rust.MSVC` or `rustup-init.exe`.
+- Then open a new session: `cargo check` in `src-tauri/`, fix any latent errors, `cargo tauri dev` to verify the window opens and the Python sidecar spawns.
+- Checklist is in `TASK_HERETIC_v0.4.1_TAURI_WRAP.md §10 Path B` and `docs/audit/AUDIT_v0.4.1_TAURI_WRAP.md §Final Verdict`.
+
+**Resume orientation for any of the above:**
 1. Read `docs/BODY_MANIFESTO.md` — sealed vision
-2. Read this file from top to bottom
-3. Read `docs/audit/AUDIT_v0.5_FIRST_SIGHT.md` if it exists (audit complete)
-4. Run `git log --oneline -15` and `git status` in `C:/Users/volma/runa/HERETIC`
-5. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
-6. Continue from the first unchecked deliverable in §2
+2. Read `docs/DEVLOG.md` entry 7 — this arc's record
+3. Run `git log --oneline -10` and `git status` in `C:/Users/volma/runa/HERETIC`
+4. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
+5. Open the appropriate forward task file (Option A/B/C) before doing any implementation
 
 ---
 
 *Task file authored by Runa Gridweaver Freyjasdottir, 2026-05-08.*
-*v0.5 First Sight — when the body learns to see what the user sees.*
+*Updated by Eirwyn Rúnblóm (Scribe), 2026-05-08 — close-out pass.*
+*v0.5 First Sight — the body learned to see. The eye is opened; the gaze is offered.*
