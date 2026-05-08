@@ -2004,3 +2004,227 @@ All paths begin from 782 tests, 0 open findings, and the complete receive/expres
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
 *The hand is kept. Seven panels in the vision cycle are complete. The body receives, expresses, and acts. What comes next is Volmarr's to choose.*
+
+---
+
+## 2026-05-08 — The Second Eye Arc: The Body Learns to Look at Faces (v0.5.2 Shipped, Audited, and Cleaned)
+
+**Session type:** Extension milestone — Cartographer, Architect, Forge, Auditor, Scribe active (no Skald; no new faculty, no new True Name — v0.5.2 activates a stub declared in v0.5)
+**Branch:** `development`
+**Commits this session:** `a7e9c37` (task open) through `f0089d6` (Wave 3 cleanup close) — 7 commits
+**Status at session end:** v0.5.2 Webcam **SHIPPED + AUDITED + CLEANED** — 750 Python + 91 frontend = 841 tests passing, 0 open findings (N-1 serve wiring resolved in Wave 3; X-1 frontend badge NIT deferred to v0.5.3 backlog)
+
+---
+
+### Preamble — where this arc began
+
+The ninth entry closed with v0.6 Hands at the Forge complete: the primary triad of receive, express, and act was embodied in running code. Test baseline: 691 Python + 91 frontend = 782. The session that opened v0.5.2 began from this clean working tree as an extension of the Sjón faculty — not a new sense, but a second input path for the eye already present.
+
+The seed was planted in v0.5. `SjonWebcamConfig` was declared in `config_model.py` at that milestone but never wired — the same quiet-birth pattern used for `RoddSttConfig` in v0.2 and `SjonWebcamConfig` itself since that moment. v0.5.2 fulfills the declaration: when `sjon.webcam.enabled: true`, Sjón captures a frame from the webcam device in addition to or instead of the screen, per the `sjon.webcam.attach_policy` field (`"screen_only"` | `"webcam_only"` | `"alongside"` | `"alternate"`). The eye that previously saw only the screen now has a second source.
+
+The privacy invariant was stated in the task file before any code was touched, explicitly stronger for the webcam than for the screen: webcam captures the user's physical presence, not merely their display. Operator must explicitly opt in (`enabled: false` default); no auto-save; no ring buffer in v0.5.2.
+
+Beginning point: HEAD `1f91847` (Scribe's v0.6 close commit). 782 tests passing. No Skald dispatched — the philosophy of sight was already given in `THE_FIRST_SIGHT.md`; this arc deepened the faculty rather than crossing a new threshold.
+
+---
+
+### Task file opened — privacy invariant stated stronger (`a7e9c37`)
+
+`TASK_HERETIC_v0.5.2_WEBCAM.md` created at repo root before any implementation began. The scope was declared as a slim wave plan without a Skald vision essay. Key architectural decisions locked in the task file:
+
+- Webcam library: `opencv-python` (cv2.VideoCapture) — industry standard, cross-platform, well-tested
+- Encoding format: JPEG default (webcam frames do not benefit from lossless; JPEG is 5–10x smaller, reducing vision API token cost); PNG opt-in
+- Capture mode: on-demand only in v0.5.2, mirroring the v0.5 screen-capture pattern; continuous webcam is v0.5.x
+- Attach policy default: `"screen_only"` — webcam off by default; explicit opt-in required
+- Single device: `device_index: 0`; multi-camera deferred to v0.5.x
+- Failure mode: webcam unavailable → degrade silently; screen capture continues
+
+---
+
+### Wave 1 — Cartographer and Architect in parallel (`8293240`, `05bb030`)
+
+#### Cartographer: §4.10.11–§4.10.13 + §15 extension (`8293240`)
+
+Védis Eikleið (Cartographer) extended `docs/cartography/DATA_FLOW.md` with three new subsections under the existing §4.10 Sjón section:
+
+- **§4.10.11** — webcam capture flow: `OpenCvBackend.capture()` → `cv2.VideoCapture.read()` → BGR→RGB conversion (`cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)`) → bytes out. The BGR→RGB invariant is named explicitly as a Cartographer invariant, anchoring the Auditor's future verification target.
+- **§4.10.12** — `snapshot_webcam()` two-gate privacy: Gate 1 (`webcam.enabled` check) before any backend call; Gate 2 (`_webcam_backend.available()` check) before `open()`/`capture()`. Neither gate makes any assignment or allocation before the check completes. The Cartographer recorded that both gates return `[]` identically — the caller receives no information about which gate fired.
+- **§4.10.13** — CLI four-path attach_policy dispatch: the four policy values and their routing logic (screen_only → screen only; webcam_only → webcam only; alongside → webcam-first concatenation; alternate → per-turn toggle via per-ceremony `ceremony_state` counter initialized at TENGSL).
+
+§15 (Sjón component diagram) was extended to include `WebcamCaptureBackend`, `OpenCvBackend`, `WebcamNullBackend`, and the `best_available()` factory chain running in parallel with the existing `ScreenCaptureBackend` chain.
+
+#### Architect: scaffold `src/heretic/sjon/webcam.py` + SjonWebcamConfig activation (`05bb030`)
+
+Rúnhild Svartdóttir (Architect) built the full structural skeleton before Forge wrote any business logic.
+
+**`webcam.py`** — `WebcamCaptureBackend` ABC with four lifecycle methods (`available()`, `open()`, `capture()`, `close()`); `OpenCvBackend` skeleton with `_cap` slot, `_lock`, `_device_index`, and `device_index` property; `WebcamNullBackend` always-unavailable stub; `best_available()` factory stub.
+
+**`config_model.py`** — `SjonWebcamConfig` promoted from stub to complete dataclass: `enabled: bool = False`, `device_index: int = 0`, `max_width: int = 1280`, `max_height: int = 720`, `format: Literal["jpeg", "png"] = "jpeg"`, `jpeg_quality: int = 85`, `attach_policy: Literal["screen_only", "webcam_only", "alongside", "alternate"] = "screen_only"`.
+
+**`sjon.py`** — `Sjón.snapshot_webcam()` stub added alongside existing `snapshot()`.
+
+**`errors.py`** — `WebcamCaptureError`, `WebcamBackendUnavailableError` added to the hierarchy.
+
+**`pyproject.toml`** — `[vision]` extra extended with `opencv-python>=4.8`.
+
+**`sjon/INTERFACE.md`** — webcam subsection added: contracts, the stronger-than-screen privacy invariant, and the `best_available()` factory chain contract.
+
+---
+
+### Wave 2 — Forge implements (`ebb5b6a`, `b71f17f`)
+
+Eldra Járnsdóttir (Forge Worker) implemented the full Python substrate across two commits.
+
+**`ebb5b6a` — OpenCvBackend + `snapshot_webcam()`:**
+
+`OpenCvBackend.available()` — two-step probe: import attempt (catches `ImportError`, returns `False`); then `cap = cv2.VideoCapture(device_index)`, `cap.isOpened()`, `cap.release()`. Any exception in the second block returns `False` without raising.
+
+`OpenCvBackend.open()` — lazy init with idempotency guard (`_cap is not None and _cap.isOpened()` → early return). `close()` acquires `_lock`, releases, sets `_cap = None` in `finally`.
+
+`OpenCvBackend.capture()` — calls `self._cap.read()`, raises `WebcamCaptureError` on `ret=False` or `frame is None`; calls `cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)` and returns `rgb_frame.tobytes(), width, height`. BGR→RGB conversion is the single format invariant for the webcam path.
+
+`WebcamNullBackend` — `available()` returns `False` unconditionally; `capture()` raises `WebcamBackendUnavailableError` unconditionally; `open()` and `close()` are no-ops.
+
+`best_available()` factory — creates `OpenCvBackend`, calls `available()`; returns it if `True`; any exception during probe is caught; fallback is `WebcamNullBackend()`. Return is never `None`.
+
+`Sjón.snapshot_webcam()` — Gate 1 (`enabled` check) → Gate 2 (`_webcam_backend is None or not available()`) → `open()` if needed → `capture()` in executor → `_encode_webcam_frame()` (PIL resize with `thumbnail()`, JPEG or PNG encode per config, base64 encode, `data:{mime_type};base64,` prefix) → return `[data_url]`. All exception paths (including `WebcamCaptureError`) return `[]` and log at WARNING. `asyncio.CancelledError` re-raises.
+
+`_webcam_backend` initialized at `Sjón.open()` behind `if self._config.webcam.enabled`. WebcamNullBackend is not assigned at all if webcam is disabled — the attribute remains `None`, and Gate 2 fires as expected.
+
+**`b71f17f` — CLI attach_policy dispatch:**
+
+`cli.py` `_async_light` — webcam backend wired at TENGSL: `best_available_webcam()` called if `grunnr_sjon.webcam.enabled`; result assigned to `sjon._webcam_backend`. Per-ceremony state dict `ceremony_state: dict[str, int] = {"alternate_turn": 0}` initialized at TENGSL with an inline comment explaining the scope (per-ceremony, not global). All four attach_policy paths implemented:
+
+- `"screen_only"` (and unknown): screen `snapshot()` only, webcam never called
+- `"webcam_only"`: `snapshot_webcam()` only, screen never called
+- `"alongside"`: `webcam_urls + screen_urls` in webcam-first order
+- `"alternate"`: even turns → `snapshot_webcam()`; odd turns → `snapshot()`; counter incremented unconditionally
+
+Webcam `close()` called at Slokna in the same teardown block as `sjon.close()`.
+
+New test file `tests/test_sjon_webcam.py` — 37 tests covering `OpenCvBackend` lifecycle, `WebcamNullBackend`, `best_available()` factory chain, `snapshot_webcam()` two-gate privacy, BGR→RGB byte-level assertion, resize/encode paths. `tests/test_cli_vision.py` extended — 7 new tests covering all four attach_policy paths, `snapshot_webcam` never called under `screen_only`, webcam-first concatenation order under `alongside`, alternate counter reset per-ceremony.
+
+The TASK file was also updated this wave by Forge (`8c11dd8`) to record Wave 2 complete at HEAD `b71f17f`.
+
+**Note:** `heretic.example.yaml` — the task file marked the webcam block as a deferred Scribe item. Forge completed it ahead of schedule (`ebb5b6a`): the full `sjon.webcam:` block is already uncommented with all fields and an inline policy comment. No Scribe action required there.
+
+**Test count at Wave 2 close: 747 Python + 91 frontend = 838 total.**
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`01d2e4f`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit across all new source, test, and documentation files. Commands run included `pytest` (747 confirmed), `npm test` (91 confirmed), `tsc --noEmit` (0 errors), `npm run build` (163.44 kB bundle, 1.00s), CLI smoke commands, and targeted greps for file-write calls, absolute paths, `snapshot_webcam|webcam_backend` in serve mode.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers.** 56 items verified (A-1 through L-1).
+
+Key verifications confirmed:
+- BGR→RGB via `cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)`; test asserts `raw_bytes[0] == 50` (R at index 0, not B) — byte-level assertion on a known synthetic frame
+- Two-gate privacy: `enabled` check fires before any backend call; `available()` check fires before any capture; Gate 1 and Gate 2 both return `[]` identically
+- Alternate counter initialized at TENGSL in `_async_light`, per-ceremony scope; test confirms fresh counter resets correctly
+- `opencv-python` in `[vision]` extra only — absent from base dependencies and `[dev]` extra; test suite mocks `cv2` throughout via `patch.dict("sys.modules", ...)`
+- No file write calls in webcam production paths — `sjon/` grep confirms all byte processing uses `io.BytesIO` in-memory
+- `webcam.enabled` defaults `False`; `attach_policy` defaults `"screen_only"` — webcam never fires under default config
+- No ring buffer reference in `snapshot_webcam()` — webcam frames live in memory and outbound HTTP body only
+
+**1 NOTABLE finding:**
+
+| ID | Severity | Location | Finding |
+|---|---|---|---|
+| N-1 | Notable | `cli.py:963–1003` (`_async_serve`) | Serve mode has no webcam backend wiring. `_async_light` wires the webcam backend at TENGSL; `_async_serve` does not. An operator running `heretic serve` with `sjon.webcam.enabled: true` and a policy other than `"screen_only"` receives silent webcam degradation — `snapshot_webcam()` returns `[]` via Gate 2 (`_webcam_backend is None`) with no warning log emitted at serve startup. `_handle_send_message` also uses the legacy screen-only snapshot path rather than the four-path attach_policy dispatch — an asymmetry that predates v0.5.2 but deepens with each webcam feature added. |
+
+**1 NIT finding:**
+
+| ID | Severity | Location | Finding |
+|---|---|---|---|
+| X-1 | Nit | `frontend/` | Sjón row in `LayerStatusPanel.tsx` carries no badge or sub-indicator for when the webcam backend is active. The absence is an informational gap only — no data is misrepresented, no privacy invariant is violated, no capability is silently broken. |
+
+*Cross-reference: `docs/audit/AUDIT_v0.5.2_WEBCAM.md`*
+
+---
+
+### Wave 3 — Cleanup: N-1 resolved (`f0089d6`)
+
+Eldra Járnsdóttir (Forge Worker) resolved the single NOTABLE finding in a targeted commit.
+
+**N-1 resolved — `_async_serve` webcam wiring:**
+
+The webcam backend initialization block from `_async_light` was mirrored into `_async_serve`: `best_available_webcam()` is now called at TENGSL when `grunnr_sjon.webcam.enabled`, and the result is assigned to `sjon_serve._webcam_backend`. A serve-mode-specific `ceremony_state` dict with `"alternate_turn": 0` is initialized at the same point. The four-path attach_policy dispatch was also extended into `_handle_send_message`, replacing the legacy screen-only snapshot path.
+
+The operator running `heretic serve` with webcam enabled and a non-default policy now receives the correct behavior — the NIT warning log at startup was also added so the operator's config intent is acknowledged, not silently honored or ignored.
+
+**X-1 — deferred to v0.5.3 backlog.** The frontend Sjón row webcam sub-badge is a cosmetic informational gap. No privacy invariant is violated. It carries forward as a named item in the v0.5.3 scope.
+
+**Final test count: 750 Python + 91 frontend = 841 tests. Zero failures. 0 open findings.**
+
+(The 3 additional tests compared to the Wave 2.5 audit count — 747→750 — are the new serve-mode webcam dispatch tests added in `f0089d6`.)
+
+---
+
+### What was built this session — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `sjon/webcam.py` | New — `WebcamCaptureBackend` ABC + `OpenCvBackend` + `WebcamNullBackend` + `best_available()` factory | 37 (backend/orchestrator) |
+| `sjon/config_model.py` | `SjonWebcamConfig` fully activated (was stub) | — |
+| `sjon/sjon.py` | `snapshot_webcam()` + `_encode_webcam_frame()` + `_webcam_backend` initialization | (covered) |
+| `sjon/errors.py` | `WebcamCaptureError`, `WebcamBackendUnavailableError` | (covered) |
+| `sjon/INTERFACE.md` | Webcam subsection — contracts, privacy invariant, factory chain | — |
+| `cli.py` | Webcam init at TENGSL in `_async_light`; four-path attach_policy dispatch; per-ceremony alternate counter; serve mode webcam wiring at Wave 3 | 7+3 (attach_policy + serve) |
+| `pyproject.toml` | `opencv-python>=4.8` added to `[vision]` extra | — |
+| `heretic.example.yaml` | Full `sjon.webcam:` block uncommented (Forge, ahead of Scribe brief) | — |
+| `docs/cartography/DATA_FLOW.md §4.10.11–13 + §15` | Webcam flow, two-gate privacy, four-path dispatch, component diagram | — |
+| `docs/audit/AUDIT_v0.5.2_WEBCAM.md` | Created — PASS WITH CONCERNS; 0 blockers, 1 NOTABLE (resolved), 1 NIT (deferred) | — |
+| **Total new** | **1 new Python module + 7 files extended** | **+59 Python** |
+| **Running total** | **Baseline 782 → 841** | **750 Python + 91 frontend** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.5.2_WEBCAM.md` | Created (task open); updated by Forge at Wave 2 close; final status update by Scribe (this session) |
+| `docs/cartography/DATA_FLOW.md §4.10.11–13, §15` | Extended — webcam capture flow, two-gate privacy, four-path dispatch, component diagram |
+| `src/heretic/sjon/INTERFACE.md` | Extended — webcam subsection, contracts, stronger-than-screen privacy invariant |
+| `docs/audit/AUDIT_v0.5.2_WEBCAM.md` | Created — full audit; 56 verified; N-1 NOTABLE + X-1 NIT; all except X-1 resolved |
+| `docs/DEVLOG.md` | Extended — this entry (entry 10) |
+
+---
+
+### What is now fully resolved and what carries forward
+
+N-1 (serve mode webcam wiring gap) is closed: `_async_serve` now wires the webcam backend at TENGSL and dispatches attach_policy in `_handle_send_message`. The two paths — CLI light and WebSocket serve — are now symmetric in their webcam handling.
+
+X-1 (frontend Sjón row webcam sub-badge) carries to v0.5.3. Noted here as a named thread so it is not lost. The absence is cosmetic only and introduces no capability regression or privacy gap.
+
+---
+
+### Current state
+
+HERETIC v0.5.2 is shipped, audited, and cleaned. The eye gained a second source. Before v0.5.2, Sjón saw only the screen. After v0.5.2, Sjón can see the user's face — or the space the user occupies — alongside the screen, or instead of it, or in alternation, depending on operator configuration. The body is not watching; the operator chose this, explicitly, by setting `sjon.webcam.enabled: true`. The default remains off. The covenant holds.
+
+What "the second source" means precisely: when the operator enables the webcam and the attach policy is not `"screen_only"`, the body requests a single frame from the webcam device, converts BGR→RGB, encodes to JPEG (or PNG), base64-encodes, and returns a `data:{mime_type};base64,` URL. Under `"alongside"`, this webcam frame is prepended to the screen frame in the multimodal content array — the spirit receives both the user's current screen context and a glimpse of the user's physical presence in a single turn. Under `"alternate"`, even turns are webcam and odd turns are screen, reducing token cost over a long ceremony. All paths degrade silently if cv2 is unavailable or the device is absent.
+
+The primary triad named in v0.6 remains complete. v0.5.2 deepens the receive faculty — the body's sight is richer now, with a face to look at as well as a screen to share.
+
+### Next milestone options — Volmarr's choice
+
+| Path | What it is | Gate |
+|---|---|---|
+| **v0.5.3 privacy masks** | Blur/mask configurable regions before frame send — screen and/or webcam | Python + Pillow |
+| **v0.5.x webcam sub-badge** | Frontend Sjón row badge for active webcam source (X-1 NIT) | Frontend work only |
+| **v0.5.x serve webcam parity** | Mirror full attach_policy logic into serve mode (now resolved at init; confirm parity of further edge cases) | Python; confirmed at Wave 3 |
+| **v0.6.1 Forge dispatch** | Headless Blender renders via Seidr-Smidja Forge HTTP; smidja.blender_render sense | Seidr-Smidja v0.2 Loom→Blender translation layer |
+| **v0.6.2 More senses** | Filesystem, terminal, browser senses — three new Skilningr entries | Python only |
+| **v0.7 Mímisbrunnr** | First Drink at the Well — offline knowledge library starter pack | Python + libzim |
+| **v0.4.1 first compile** | Tauri wrap; Rust installed; only MSVC linker is absent | `winget install Microsoft.VisualStudio.2022.BuildTools` |
+
+All paths begin from 841 tests, 0 open findings.
+
+*Cross-reference: `TASK_HERETIC_v0.5.2_WEBCAM.md`, `docs/audit/AUDIT_v0.5.2_WEBCAM.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*The eye gained a second source. The covenant holds: the body does not watch; the operator chooses. The thread continues.*
