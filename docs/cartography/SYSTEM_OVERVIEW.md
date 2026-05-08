@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.5 First Sight marked SHIPPED (HEAD 4d9d2fa); v0.5.1 Periodic Sight (continuous capture loop + ring buffer + multi-monitor mapping) marked IN PROGRESS; v0.5.1 is an extension of v0.5 — no new layer, same L3 Sjón substrate deepened; cross-reference to DATA_FLOW.md §4.10.7–§4.10.10 added
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.5 First Sight marked SHIPPED (HEAD 4d9d2fa); v0.5.1 Periodic Sight (continuous capture loop + ring buffer + multi-monitor mapping) marked IN PROGRESS; v0.5.1 is an extension of v0.5 — no new layer, same L3 Sjón substrate deepened; cross-reference to DATA_FLOW.md §4.10.7–§4.10.10 added | 2026-05-08 v0.6 addendum — Védis Eikleið: §7 milestone topology updated; v0.5.1 Periodic Sight marked SHIPPED; v0.6 Hands at the Forge (L5 Skilningr substrate + Smiðja sense + Brúarhönd integration) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.11 and §16 added
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -496,7 +496,7 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |    periodic interval capture (v0.5.x), ring buffer recall (v0.5.x)
         |  See DATA_FLOW.md §4.10 (sight flow) and §15 (Sjón component diagram)
         |
-        |  v0.5.1 — Periodic Sight (IN PROGRESS — extension of v0.5, NOT a new layer)
+        |  v0.5.1 — Periodic Sight (SHIPPED — extension of v0.5, NOT a new layer)
         |    SAME L3 Sjón substrate; no new layer added; on-demand path unchanged
         |    New: continuous background capture task (asyncio.Task, loops at interval_ms)
         |    New: ring buffer (collections.deque, maxlen=buffer_depth, default 5)
@@ -510,7 +510,36 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |    Privacy invariant preserved: ring buffer cleared on Slokna; never to disk
         |    Backpressure: slow capture skips next tick rather than queuing
         |    See DATA_FLOW.md §4.10.7–§4.10.10 (periodic subsections) and §15 v0.5.1 extension
-  v0.6  Hands at the Forge  Blender MCP     L5.5 (blender sense + Seidr-Smidja)
+  v0.6  Hands at the Forge  Brúarhönd MCP   L5 Skilningr substrate + L5.5 Smiðja sense  IN PROGRESS
+        |
+        |  v0.6.0 — First Hand (IN PROGRESS)
+        |    NEW: L5 Skilningr substrate (the sense hub layer) — ships for the first time
+        |      src/heretic/skilningr/: SkilningrConfig, ToolDispatcher, errors
+        |      designed to host multiple senses; Smiðja is the first
+        |    NEW: L5.5 Smiðja sense — wraps Seidr-Smidja's Brúarhönd HTTP daemon
+        |      src/heretic/skilningr/senses/smidja/: BrunhandHttpClient, ToolDefinitions,
+        |        SmidjaSense, SmidjaError hierarchy
+        |    NEW: Bifröst client extension — tool_call delta accumulator; emits ToolCall event
+        |    NEW: CLI integration — builds tool registry at TENGSL; passes tools array to
+        |      send_message; routes tool_calls via ToolDispatcher; multi-round loop with
+        |      max_tool_call_rounds cap (default 5)
+        |    NEW: Vébond protocol: sense.tool_call event (state, sense, tool_name, call_id)
+        |    NEW: Frontend: LayerStatusPanel Smiðja row
+        |    NEW: heretic.example.yaml: skilningr.smidja.* block
+        |    Brúarhönd HTTP API: 6 tool surfaces exposed to agent via OpenAI tool_use format
+        |      smidja.screenshot, smidja.click, smidja.type, smidja.hotkey,
+        |      smidja.vroid_open, smidja.vroid_export
+        |    Auth: bearer token from env var named in skilningr.smidja.token_env (never logged)
+        |    Tailscale routing: when skilningr.smidja.host is a Tailscale name/IP, httpx
+        |      connects directly — no special handling; Tailscale plumbed at OS level
+        |    Failure modes: 7 (all return tool_result error JSON; turn never crashes)
+        |      F-1 unreachable, F-2 auth, F-3 timeout, F-4 5xx, F-5 malformed,
+        |      F-6 unknown tool, F-7 max rounds reached
+        |    See DATA_FLOW.md §4.11 (tool flow) and §16 (Smiðja component diagram)
+        |
+        |  v0.6.x backlog (NOT v0.6.0):
+        |    v0.6.1: Forge headless Blender path (Mode B in Brúarhönd; smidja.blender_render)
+        |    v0.6.2: filesystem sense, terminal sense, browser sense (more L5 senses)
   v0.7  Files & Terminal    FS + terminal   L5.1 + L5.2 (filesystem + terminal senses)
         |  v0.7 also: L5.11 Tunga sense (tunga.speak MCP tool — agent-callable TTS)
   v0.7.5 First Drink     Mímisbrunnr        L5.9 light (library sense + Norse seed corpus)
@@ -663,7 +692,7 @@ The naming field is not decoration — it is the architecture.
 
 ---
 
-*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07. Updated 2026-05-08 (v0.5 in-progress).*
+*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07. Updated 2026-05-08 (v0.5 in-progress). Updated 2026-05-08 (v0.6 in-progress — L5 Skilningr substrate + Smiðja first hand).*
 *A body well-mapped is a body that knows itself.*
-*Three senses charted: the mouth speaks (Tunga), the ear hears (Hlust), the eye sees (Sjón).*
+*Four senses charted: the mouth speaks (Tunga), the ear hears (Hlust), the eye sees (Sjón), the hand reaches (Smiðja).*
 *The spirit can only inhabit what has been named.*

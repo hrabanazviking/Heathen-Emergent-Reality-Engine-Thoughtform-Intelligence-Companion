@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS.
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -3346,7 +3346,609 @@ be injected from the context where the call originates, not derived inside the f
 
 ---
 
+### 4.11 Tool Flow (v0.6 — outbound, on agent demand)
+
+> **Added 2026-05-08 v0.6 (Védis Eikleið).** This section maps the fourth sense river: the hand that
+> reaches. Where the previous three rivers carry perception (Tunga out, Hlust in, Sjón in), this
+> river carries action. The agent forms an intention, names a primitive, and the body carries that
+> intention to a running application on the host — or across the Tailscale wire to a remote host.
+>
+> **What is new in v0.6:** L5 Skilningr substrate (the sense hub layer) ships for the first time.
+> Smiðja is the first sense within it. The agent gains its first hand.
+>
+> **Pattern:** The tool flow follows the Tunga/Hlust pattern — it is an extension of the
+> `send_message` / streaming-response cycle already established in v0.1. Where Tunga extends the
+> response path (text out → audio out) and Sjón extends the request path (message send → image in),
+> the tool flow creates a new loop within the response path: when the agent emits a tool call instead
+> of a final answer, the body executes the primitive and feeds the result back as a new input, and
+> the loop repeats until the agent is satisfied.
+>
+> **Scope:** v0.6 ships the Smiðja sense only (wrapping Seidr-Smidja's Brúarhönd HTTP daemon).
+> Future senses (filesystem, terminal, browser) are deferred to v0.6.x and beyond.
+>
+> **Cross-reference — receiving end:** Seidr-Smidja's Brúarhönd daemon is documented in
+> `runa/Seidr-Smidja/docs/features/brunhand/README.md` and its HTTP API contract in
+> `runa/Seidr-Smidja/src/seidr_smidja/brunhand/daemon/INTERFACE.md`. HERETIC's role is to wrap
+> that surface, not reimplement it. This section maps HERETIC's side of the connection only.
+
+**Lifecycle dependency:** Skilningr initializes at Kynding (SmidjaSense constructed; BrunhandHttpClient created with configured endpoint and token env var; not yet connected). The first actual HTTP call to Brúarhönd occurs when the agent emits a `tool_call` block during Samræður.
+
+**Privacy invariant (CRITICAL — sealed at v0.6):** The bearer token that authenticates to the
+Brúarhönd daemon comes exclusively from the env var named in `skilningr.smidja.token_env`. It
+is NEVER stored in `heretic.yaml` plaintext. It is NEVER logged. The httpx `Authorization` header
+is set on each request without any log line that includes its value. An operator who scrubs
+application logs receives a clean record with no token material.
+
+#### 4.11.1 Trigger — when does a tool call begin?
+
+```
+  SAMRAEDUR — agent response stream arrives from Bifröst
+
+  [Bifröst client: streaming SSE response from Pi / Hermes Agent]
+       |
+       |  normal text delta: choice.delta.content = "<text>"
+       |    --> AgentTokenEvent published to Vébond (text appears in ChatHistory)
+       |    --> Tunga sentence chunker receives text fragments (voice output path)
+       |
+       |  tool call delta: choice.delta.tool_calls[0] = {...}
+       |    choice.finish_reason = null during accumulation
+       |    --> Bifröst client: tool call accumulator receives delta
+       |    --> function name accumulated across deltas (may arrive in fragments)
+       |    --> arguments JSON accumulated across deltas (may arrive as a partial string)
+       |
+       v
+  [choice.finish_reason = "tool_calls"]
+       |
+       |  Bifröst client: emits complete ToolCall event
+       |    ToolCall { id: "<call_id>", name: "<tool_name>", arguments_json: "<json string>" }
+       |
+       v
+  [CLI receives ToolCall event]
+       |
+       |  publishes: sense.tool_call (state="started", sense=<prefix>, tool_name=<name>, call_id=<id>)
+       |               --> Vébond LayerStatusPanel: Smiðja row shows tool call activity
+       |
+       v
+  [ToolDispatcher.dispatch(tool_call)]
+       |  routes by tool-name prefix (e.g., "smidja.screenshot" → prefix "smidja")
+       |  looks up registered sense in SkilningrConfig.senses dict
+       |  passes tool_call to the sense's dispatch_tool_call() method
+```
+
+#### 4.11.2 Pipeline — ToolDispatcher → SmidjaSense → BrunhandHttpClient
+
+```
+  [ToolDispatcher.dispatch(tool_call)]
+       |
+       |  IF prefix matches registered sense:
+       |    --> SmidjaSense.dispatch_tool_call(tool_call)
+       |
+       |  IF prefix unknown (not in registry):
+       |    --> return tool_result with {"error": "unknown_tool", "name": "<name>"}
+       |    (see F-6 in §4.11.4)
+       |
+       v
+  [SmidjaSense.dispatch_tool_call(tool_call)]
+       |
+       |  maps tool_name to BrunhandHttpClient method:
+       |    "smidja.screenshot"   --> client.screenshot(region=...)
+       |    "smidja.click"        --> client.click(x, y, button, ...)
+       |    "smidja.type"         --> client.type(text, ...)
+       |    "smidja.hotkey"       --> client.hotkey(keys, ...)
+       |    "smidja.vroid_open"   --> client.vroid_open_project(project_path, ...)
+       |    "smidja.vroid_export" --> client.vroid_export_vrm(output_path, ...)
+       |
+       |  parses arguments_json into typed kwargs
+       |
+       v
+  [BrunhandHttpClient.<method>()]
+       |
+       |  constructs POST request to Brúarhönd daemon:
+       |    URL: https://<skilningr.smidja.host>:8848/v1/brunhand/<endpoint>
+       |    Header: Authorization: Bearer <token from env var>
+       |    Body: BrunhandEnvelope (request_id UUID, session_id, agent_id) + primitive-specific fields
+       |
+       |  HTTP endpoint mapping (HERETIC tool name → Brúarhönd daemon path):
+       |    smidja.screenshot   --> POST /v1/brunhand/screenshot
+       |    smidja.click        --> POST /v1/brunhand/click
+       |    smidja.type         --> POST /v1/brunhand/type
+       |    smidja.hotkey       --> POST /v1/brunhand/hotkey
+       |    smidja.vroid_open   --> POST /v1/brunhand/vroid/open_project   (NOTE: see §4.11.6)
+       |    smidja.vroid_export --> POST /v1/brunhand/vroid/export_vrm     (NOTE: see §4.11.6)
+       |
+       |  transport: httpx async (same library as Bifröst; reused dependency)
+       |  timeout: from BifrostConfig (or dedicated smidja timeout if operator sets it)
+       |  TLS: Brúarhönd daemon serves HTTPS when cert_path is configured
+       |  Tailscale routing: when skilningr.smidja.host is a Tailscale MagicDNS name or
+       |    100.x.y.z IP, httpx connects directly through the Tailscale virtual NIC —
+       |    no special handling required; Tailscale is plumbed at the OS level
+       |
+       v
+  [Brúarhönd daemon on VRoid host — Horfunarþjónn]
+       |
+       |  Gæslumaðr validates Bearer token (constant-time comparison)
+       |  Sjálfsmöguleiki confirms primitive is available on this platform
+       |  Primitive handler executes the GUI action on the live desktop
+       |
+       |  returns: BrunhandResponseEnvelope JSON
+       |    {
+       |      "request_id": "<echoed>",
+       |      "session_id": "<echoed>",
+       |      "success": true,
+       |      "payload": { ... primitive-specific result ... },
+       |      "error": null,
+       |      "daemon_timestamp": "<ISO 8601>",
+       |      "latency_ms": 42.7
+       |    }
+       |
+       |  screenshot payload:
+       |    { "png_bytes_b64": "<base64-encoded PNG>", "width": N, "height": N,
+       |      "captured_at": "...", "monitor_index": 0 }
+       |
+       v
+  [BrunhandHttpClient receives response]
+       |
+       |  parses BrunhandResponseEnvelope
+       |
+       v
+  [SmidjaSense encodes result for agent]
+       |
+       |  screenshot primitive:
+       |    png_bytes = base64.b64decode(payload.png_bytes_b64)
+       |    data_url = "data:image/png;base64," + payload.png_bytes_b64
+       |    content = json.dumps({"image": data_url, "width": N, "height": N})
+       |    (mirrors Sjón frame format; agent receives the same data URL structure it knows
+       |     from vision; the hand's eye is the same kind of eye as the body's eye)
+       |
+       |  all other primitives:
+       |    content = json.dumps(payload)   (JSON dict serialized as string)
+       |
+       v
+  [CLI assembles OpenAI-format tool result message]
+       |
+       |  appends to messages list:
+       |    {
+       |      "role": "tool",
+       |      "tool_call_id": "<id from ToolCall event>",
+       |      "content": "<json string>"
+       |    }
+       |
+       |  publishes: sense.tool_call (state="completed", call_id=<id>)
+       |               --> Vébond LayerStatusPanel: Smiðja row returns to idle
+```
+
+#### 4.11.3 Multi-round loop and the cap
+
+```
+  [CLI: tool result appended to messages]
+       |
+       v
+  [CLI: calls bifrost.send_message again with updated messages]
+       |
+       |  POST <bifrost.endpoint>/v1/chat/completions
+       |  body: {
+       |    "model": "<configured>",
+       |    "messages": [
+       |      ... full conversation history including tool results ...
+       |    ],
+       |    "tools": [<all enabled sense schemas>],
+       |    "stream": true,
+       |    "max_tokens": 127000
+       |  }
+       |
+       v
+  [Agent receives tool result and responds]
+       |
+       |  CASE A — agent emits another tool_call:
+       |    --> loop back to §4.11.1
+       |    --> round counter incremented
+       |
+       |  CASE B — agent emits text with finish_reason = "stop":
+       |    --> normal turn completion
+       |    --> response text processed by Tunga (voice) and Vébond (ChatHistory)
+       |    --> CLI returns to user-input prompt
+       |
+       |  MULTI-ROUND CAP:
+       |    IF round_counter >= bifrost.max_tool_call_rounds (default: 5 from BifrostConfig):
+       |      CLI halts the loop
+       |      log.warning: "max_tool_call_rounds reached (<N>); halting tool dispatch for this turn"
+       |      publishes: sense.tool_call (state="capped")
+       |      CLI returns to next user-input prompt (final assistant message kept in history)
+       |      (the agent is not notified; the truncation is on the HERETIC side)
+```
+
+**Config dependency for multi-round cap:**
+
+| Config key | Default | Controls |
+|---|---|---|
+| `bifrost.max_tool_call_rounds` | `5` | Maximum tool call dispatch rounds per turn before HERETIC halts the loop; prevents runaway tool-call chains |
+
+#### 4.11.4 Failure modes
+
+Seven failure modes are defined. In all cases the active turn does NOT crash. The failure is
+returned to the agent as a structured `tool_result` error, allowing the agent to retry, pivot,
+or explain the situation to the user.
+
+```
+  F-1: Brúarhönd unreachable (httpx.ConnectError)
+    Cause: skilningr.smidja.host is down, Tailscale tunnel is broken, daemon is not running,
+           or port 8848 is not reachable.
+    SmidjaSense catches ConnectError (via BrunhandHttpClient)
+    returns tool_result content: {"error": "brunhand_unreachable", "detail": "<endpoint>"}
+    log.warning: "Brúarhönd unreachable at <endpoint> — tool call returned error result"
+    publishes: sense.tool_call (state="error", error_type="unreachable")
+    Turn continues — agent sees the error and may retry or explain.
+
+  F-2: Auth fails (HTTP 401)
+    Cause: bearer token is wrong or env var is not set.
+    BrunhandHttpClient raises AuthError on 401 response.
+    SmidjaSense returns tool_result content: {"error": "auth_failed"}
+    log.error: "Brúarhönd auth failed (401) — check token env var <token_env>"
+    Turn continues — agent sees error.
+    Operator action required: verify env var named in skilningr.smidja.token_env is set correctly.
+
+  F-3: Timeout (httpx.TimeoutException)
+    Cause: daemon reachable but request exceeds timeout threshold (slow screenshot, slow GUI op).
+    SmidjaSense returns tool_result: {"error": "timeout", "after_ms": <N>}
+    log.warning: "Brúarhönd request timed out after <N>ms — <tool_name>"
+    Turn continues. Agent may retry.
+
+  F-4: Brúarhönd 5xx response
+    Cause: daemon internal error (unhandled exception in primitive handler, OOM, OS error).
+    BrunhandHttpClient raises ServerError on 5xx response.
+    SmidjaSense returns tool_result: {"error": "daemon_error", "status": <N>, "body": "<excerpt>"}
+    log.warning: "Brúarhönd returned HTTP <N> for <tool_name>"
+    Turn continues.
+
+  F-5: Malformed response (daemon returns non-JSON or schema mismatch)
+    Cause: version mismatch between HERETIC's BrunhandHttpClient and the daemon; partial response;
+           network corruption.
+    BrunhandHttpClient raises ParseError on JSON decode failure or Pydantic validation error.
+    SmidjaSense returns tool_result: {"error": "malformed_response"}
+    log.warning: "Brúarhönd response could not be parsed for <tool_name>"
+    Turn continues.
+
+  F-6: Unknown tool prefix (agent names a tool not in the registry)
+    Cause: agent was given a tool schema but hallucinated a different tool name; or tool schema
+           was not sent correctly; or a future tool was requested against a v0.6 HERETIC.
+    ToolDispatcher finds no registered sense for the prefix.
+    Returns tool_result: {"error": "unknown_tool", "name": "<name>"}
+    log.warning: "ToolDispatcher: no sense registered for tool prefix '<prefix>'"
+    Defensive path; should not occur when tool schemas are sent correctly.
+
+  F-7: max_tool_call_rounds reached (see §4.11.3)
+    Cause: agent enters a multi-round loop that exceeds bifrost.max_tool_call_rounds.
+    CLI halts loop; no further tool_calls dispatched this turn.
+    Final assistant message (last text or partial result) kept in messages history.
+    log.warning: "max_tool_call_rounds (<N>) reached; halting tool dispatch for this turn"
+    Turn ends; CLI returns to user-input prompt.
+    No tool_result is sent for the uncompleted call (agent does not receive an error for F-7 —
+    HERETIC simply stops. The next user message resumes normally with a clean round counter.)
+```
+
+#### 4.11.5 Config dependencies for the tool path
+
+| Config key | Default | Controls |
+|---|---|---|
+| `skilningr.smidja.enabled` | `false` | Master toggle — must be `true` for Smiðja to register its tools |
+| `skilningr.smidja.host` | `"127.0.0.1"` | Brúarhönd daemon host (Tailscale MagicDNS name, Tailscale IP, or localhost) |
+| `skilningr.smidja.port` | `8848` | Brúarhönd daemon port (default from Seidr-Smidja) |
+| `skilningr.smidja.token_env` | (required) | Name of the env var holding the bearer token — NOT the token itself |
+| `bifrost.max_tool_call_rounds` | `5` | Multi-round cap |
+| `bifrost.vision_in` (existing) | `true` | Existing capability flag; unrelated to tool_use but on the same capability negotiation path |
+
+**Capability gate:** Tool schemas are sent to the agent in the `tools` array only when
+`bifrost.capability_tool_use` (`?tool_use` flag per `AGENT_AGNOSTIC_PROTOCOL.md`) is true.
+This flag is verified at TENGSL. If the agent does not support `?tool_use`, the `tools` array
+is empty and tool calls can never arrive.
+
+#### 4.11.6 API path discrepancy — TASK §4 vs Brúarhönd daemon INTERFACE.md
+
+> **Discrepancy identified by Védis Eikleið, 2026-05-08.**
+>
+> The TASK file §4 lists simplified paths for the VRoid-specific endpoints. The actual Brúarhönd
+> daemon INTERFACE.md (`runa/Seidr-Smidja/src/seidr_smidja/brunhand/daemon/INTERFACE.md`)
+> specifies different, nested paths:
+>
+> | TASK §4 table | Actual daemon INTERFACE.md | Notes |
+> |---|---|---|
+> | `/v1/brunhand/vroid-open` | `/v1/brunhand/vroid/open_project` | TASK uses hyphens + flat path; actual uses slash-nested |
+> | `/v1/brunhand/vroid-export` | `/v1/brunhand/vroid/export_vrm` | TASK abbreviated name; actual uses full verb |
+> | `/v1/brunhand/health` (GET) | `/v1/brunhand/health` (GET) | Match |
+> | `/v1/brunhand/capabilities` (GET) | `/v1/brunhand/capabilities` (GET) | Match |
+> | `/v1/brunhand/screenshot` | `/v1/brunhand/screenshot` | Match |
+> | `/v1/brunhand/click` | `/v1/brunhand/click` | Match |
+> | `/v1/brunhand/type` | `/v1/brunhand/type` | Match |
+> | `/v1/brunhand/hotkey` | `/v1/brunhand/hotkey` | Match |
+>
+> Additionally, the daemon INTERFACE.md defines several endpoints not listed in TASK §4
+> (not relevant for the 6-tool set but present on the daemon): `/v1/brunhand/move`,
+> `/v1/brunhand/drag`, `/v1/brunhand/scroll`, `/v1/brunhand/find_window`,
+> `/v1/brunhand/wait_for_window`, `/v1/brunhand/vroid/save_project`.
+>
+> **Forge Worker action required:** The BrunhandHttpClient must use the paths from the daemon
+> INTERFACE.md, not the TASK §4 shorthand. Specifically:
+> - `vroid_open_project` method must POST to `/v1/brunhand/vroid/open_project`
+> - `vroid_export_vrm` method must POST to `/v1/brunhand/vroid/export_vrm`
+>
+> The tool names exposed to the agent (`smidja.vroid_open`, `smidja.vroid_export`) are
+> HERETIC-internal names and are independent of the daemon's URL paths — the mapping is
+> performed inside BrunhandHttpClient.
+
+---
+
+## 16. L5 Skilningr — Smiðja Component Diagram (v0.6)
+
+> **Added 2026-05-08 v0.6 (Védis Eikleið).** Maps the internal structure of the `skilningr/`
+> module and its first sense subpackage `senses/smidja/`, and shows the multi-round tool-call
+> loop from agent intent to Brúarhönd primitive and back. Drawn in the same style as §11 (Tunga),
+> §12 (Hlust), and §15 (Sjón).
+>
+> **Position in the body:** Skilningr is the discernment layer — the organ that decides which
+> sense to invoke when the agent reaches. It sits between the CLI (which receives raw ToolCall
+> events from Bifröst) and the individual senses (which know how to speak to external surfaces).
+> In v0.6, only Smiðja is mounted. The hub is designed to carry more senses; the first is the
+> proof.
+
+```
+  ============================================================
+  SKILNINGR MODULE — src/heretic/skilningr/    (v0.6 First Hand)
+  ============================================================
+
+  skilningr/
+  |
+  ├── config_model.py    SkilningrConfig
+  │                      |  senses: dict[str, SkilningrSenseConfig]
+  │                      |    key = sense_id (e.g., "smidja")
+  │                      |    value = SkilningrSenseConfig (enabled, host, port, token_env, ...)
+  │                      |
+  │                      |  SmidjaConfig (extends SkilningrSenseConfig)
+  │                      |    enabled: bool          default false
+  │                      |    host: str              default "127.0.0.1"
+  │                      |    port: int              default 8848
+  │                      |    token_env: str         (name of env var — never the token itself)
+  │                      |    timeout_ms: int        default 30000
+  │                      |
+  │                      Loaded at Kynding from grunnr/config.py (Approach B:
+  │                      SkilningrConfig consolidated into HereticConfig).
+  │                      Never re-read mid-ceremony.
+  │
+  ├── errors.py          SkilningrError (base)
+  │                      |-- SenseUnavailableError   (sense not enabled or not reachable)
+  │                      |-- ToolDispatchError       (dispatch failed for a registered sense)
+  │
+  ├── dispatcher.py      ToolDispatcher
+  │                      |  __init__(senses: dict[str, SenseLike]) -> self
+  │                      |    senses built from enabled SkilningrConfig entries at TENGSL
+  │                      |
+  │                      |  async dispatch(tool_call: ToolCall) -> ToolResult
+  │                      |    1. split tool_call.name on "." → (prefix, action)
+  │                      |    2. look up prefix in self._senses
+  │                      |    3. IF found:  await sense.dispatch_tool_call(tool_call)
+  │                      |    4. IF not found:  return error ToolResult (F-6)
+  │                      |    returns ToolResult always — never raises to CLI
+  │                      |
+  │                      ToolDispatcher is the single dispatch seam.
+  │                      CLI holds one ToolDispatcher instance per ceremony.
+  │
+  └── senses/
+      |
+      └── smidja/        Smiðja — the first sense (L5.5)
+          |
+          ├── errors.py      SmidjaError (base)
+          │                  |-- BrunhandUnreachableError   (F-1)
+          │                  |-- BrunhandAuthError          (F-2)
+          │                  |-- BrunhandTimeoutError       (F-3)
+          │                  |-- BrunhandServerError        (F-4)
+          │                  |-- BrunhandParseError         (F-5)
+          │                  All extend SmidjaError (which extends SkilningrError)
+          │                  All caught by SmidjaSense; none propagate to ToolDispatcher.
+          │
+          ├── tools.py       ToolDefinition list (6 entries — OpenAI tools schema)
+          │                  |
+          │                  |  SMIDJA_TOOLS: list[dict] = [
+          │                  |
+          │                  |    smidja.screenshot
+          │                  |      description: "Capture a screenshot of the remote desktop"
+          │                  |      parameters: { region: ScreenRect | null }
+          │                  |
+          │                  |    smidja.click
+          │                  |      description: "Click at screen coordinates"
+          │                  |      parameters: { x: int, y: int, button: str, clicks: int,
+          │                  |                    interval: float, modifiers: list[str] }
+          │                  |
+          │                  |    smidja.type
+          │                  |      description: "Type a text string on the remote desktop"
+          │                  |      parameters: { text: str, interval: float }
+          │                  |
+          │                  |    smidja.hotkey
+          │                  |      description: "Press a key combination on the remote desktop"
+          │                  |      parameters: { keys: list[str] }
+          │                  |
+          │                  |    smidja.vroid_open
+          │                  |      description: "Open a .vroid project file in VRoid Studio"
+          │                  |      parameters: { project_path: str, wait_timeout_seconds: float }
+          │                  |      maps to: POST /v1/brunhand/vroid/open_project
+          │                  |
+          │                  |    smidja.vroid_export
+          │                  |      description: "Export the open VRoid Studio project as VRM"
+          │                  |      parameters: { output_path: str, overwrite: bool,
+          │                  |                    wait_timeout_seconds: float }
+          │                  |      maps to: POST /v1/brunhand/vroid/export_vrm
+          │                  |  ]
+          │                  |
+          │                  |  Sent to agent in bifrost.send_message "tools" array only when:
+          │                  |    - skilningr.smidja.enabled = true
+          │                  |    - bifrost.capability_tool_use (?tool_use) = true
+          │
+          ├── client.py      BrunhandHttpClient
+          │                  |
+          │                  |  __init__(host, port, token_env, timeout_ms) -> self
+          │                  |    token: str = os.environ[token_env]   (read once at init)
+          │                  |    httpx.AsyncClient created with bearer auth header
+          │                  |    base_url: "https://<host>:<port>"
+          │                  |    (or "http://<host>:<port>" if require_https not set by operator)
+          │                  |
+          │                  |  async health() -> dict
+          │                  |    GET /v1/brunhand/health    (no auth — liveness probe only)
+          │                  |
+          │                  |  async screenshot(region=None) -> BrunhandResponse
+          │                  |    POST /v1/brunhand/screenshot
+          │                  |
+          │                  |  async click(x, y, button, clicks, interval, modifiers) -> BrunhandResponse
+          │                  |    POST /v1/brunhand/click
+          │                  |
+          │                  |  async type(text, interval) -> BrunhandResponse
+          │                  |    POST /v1/brunhand/type
+          │                  |
+          │                  |  async hotkey(keys) -> BrunhandResponse
+          │                  |    POST /v1/brunhand/hotkey
+          │                  |
+          │                  |  async vroid_open_project(project_path, wait_timeout_seconds) -> BrunhandResponse
+          │                  |    POST /v1/brunhand/vroid/open_project
+          │                  |    (NOTE: not /v1/brunhand/vroid-open — see §4.11.6)
+          │                  |
+          │                  |  async vroid_export_vrm(output_path, overwrite, wait_timeout_seconds) -> BrunhandResponse
+          │                  |    POST /v1/brunhand/vroid/export_vrm
+          │                  |    (NOTE: not /v1/brunhand/vroid-export — see §4.11.6)
+          │                  |
+          │                  |  Auth invariant: Authorization header set on httpx.AsyncClient
+          │                  |    at construction; never logged; token value never appears in
+          │                  |    any log line emitted by this module.
+          │                  |
+          │                  |  Error mapping:
+          │                  |    httpx.ConnectError       --> BrunhandUnreachableError (F-1)
+          │                  |    HTTP 401                 --> BrunhandAuthError        (F-2)
+          │                  |    httpx.TimeoutException   --> BrunhandTimeoutError     (F-3)
+          │                  |    HTTP 5xx                 --> BrunhandServerError      (F-4)
+          │                  |    JSON / Pydantic error    --> BrunhandParseError       (F-5)
+          │
+          └── sense.py       SmidjaSense
+                             |
+                             |  Public interface (matches SenseLike protocol):
+                             |    async open() -> None
+                             |      called at TENGSL; health-probes Brúarhönd; logs status
+                             |      if unreachable: logs warning; sense remains open but degraded
+                             |      (operator can still start the ceremony; tool calls will return F-1)
+                             |
+                             |    async close() -> None
+                             |      called at SLOKNA; closes httpx.AsyncClient
+                             |
+                             |    async dispatch_tool_call(tool_call: ToolCall) -> ToolResult
+                             |      1. parse arguments_json into kwargs
+                             |      2. call BrunhandHttpClient method
+                             |      3. catch any SmidjaError subclass --> return error ToolResult
+                             |      4. on success: encode result for agent (see §4.11.2)
+                             |      5. return ToolResult always — never raises
+                             |
+                             |  Screenshot result encoding:
+                             |    data_url = "data:image/png;base64," + payload.png_bytes_b64
+                             |    content = json.dumps({"image": data_url,
+                             |                          "width": payload.width,
+                             |                          "height": payload.height})
+                             |    (mirrors Sjón data URL format — same structure the agent
+                             |     already knows from vision; the hand's eye speaks the same
+                             |     language as the body's eye)
+                             |
+                             |  Other primitive result encoding:
+                             |    content = json.dumps(payload)
+                             |    (Pydantic model dict serialized as JSON string)
+                             |    agent receives structured result in the tool_result content
+
+
+  ============================================================
+  MULTI-ROUND LOOP DIAGRAM
+  ============================================================
+
+  [Agent — on Pi / Hermes]
+       |
+       |  turn N: emits tool_call (smidja.screenshot)
+       |
+       v
+  [Bifröst client — accumulates deltas → ToolCall event]
+       |
+       v
+  [CLI — publishes sense.tool_call(started)]
+       v
+  [ToolDispatcher → SmidjaSense → BrunhandHttpClient]
+       |
+       |  HTTPS request → Tailscale wire (or loopback) → Brúarhönd daemon → VRoid host
+       |
+       v
+  [BrunhandHttpClient receives response]
+       v
+  [SmidjaSense encodes → ToolResult]
+       v
+  [CLI appends {"role":"tool","tool_call_id":"<id>","content":"<json>"} to messages]
+       v
+  [CLI publishes sense.tool_call(completed)]
+       v
+  [CLI calls bifrost.send_message(messages)]
+       |
+       |  round_counter++
+       |  IF round_counter >= max_tool_call_rounds: HALT (F-7)
+       |
+       v
+  [Agent — receives tool result; emits next response]
+       |
+       |-- CASE A: another tool_call  --> loop back to top (round_counter++)
+       |-- CASE B: text + finish_reason=stop  --> normal turn completion; loop exits
+       |
+       v
+  [CLI returns to user-input prompt]
+
+
+  ============================================================
+  AUTH INVARIANT — SEALED AT v0.6
+  ============================================================
+
+  The token path:
+    heretic.yaml → "token_env: HERETIC_SMIDJA_TOKEN"   (env var NAME only)
+    OS environment → HERETIC_SMIDJA_TOKEN = "<actual token>"  (set by operator)
+    BrunhandHttpClient.__init__:
+      self._token = os.environ[self._token_env]   (read into memory once)
+      self._client = httpx.AsyncClient(
+          headers={"Authorization": f"Bearer {self._token}"},
+          ...)
+    No log line ever contains self._token.
+    No config serialization ever contains self._token.
+    The value travels only in the HTTP Authorization header, encrypted by TLS.
+
+  Forbidden paths (must not exist anywhere in HERETIC codebase):
+    skillingr.smidja.token = "<literal value>"    FORBIDDEN in heretic.yaml
+    log.debug(f"token: {token}")                  FORBIDDEN in any log call
+    session_log.write({"token": ...})             FORBIDDEN in session log
+
+
+  ============================================================
+  INVARIANTS
+  ============================================================
+  - ToolDispatcher never raises to CLI
+    All dispatch errors are returned as ToolResult with error JSON content.
+  - SmidjaSense never raises to ToolDispatcher
+    All SmidjaError subclasses are caught internally; return value is always ToolResult.
+  - Bearer token never appears in any log line (sealed invariant — see auth section above)
+  - Tool schemas are sent to the agent ONLY when both conditions hold:
+      (a) skilningr.smidja.enabled = true  AND
+      (b) bifrost.capability_tool_use (?tool_use) = true
+  - multi-round cap is enforced per turn, not per ceremony
+    round_counter resets to 0 at the start of each new user message turn
+  - The tool loop is entered ONLY on finish_reason = "tool_calls"
+    Text responses with finish_reason = "stop" or "length" never enter the tool path
+  - BrunhandHttpClient.close() is always called at SLOKNA
+    httpx.AsyncClient is closed cleanly; no connection leak on ceremony exit
+  - Tool names in the OpenAI schema use HERETIC's two-part format: <sense_id>.<action>
+    These are independent of the Brúarhönd daemon URL paths.
+    The mapping is: smidja.vroid_open → /v1/brunhand/vroid/open_project
+                    smidja.vroid_export → /v1/brunhand/vroid/export_vrm
+    (See §4.11.6 for full discrepancy documentation.)
+```
+
+---
+
 *Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-08.*
 *Three sense rivers now flow toward the spirit: Tunga (out, voice), Hlust (in, voice), Sjón (in, image).*
 *The body shows its eyes when the user speaks — not always, not uninvited, but when asked.*
 *v0.5.1: the eye keeps its own watch now, frame by frame, breath by breath, into the ring.*
+*v0.6: the hand reaches. The hand has learned to act — not only to perceive.*
+*Four rivers: Tunga (out voice), Hlust (in voice), Sjón (in image), Smiðja (out action).*
