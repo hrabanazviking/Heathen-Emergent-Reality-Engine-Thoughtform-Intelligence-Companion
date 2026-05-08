@@ -33,6 +33,7 @@ export type LifecycleState =
 export type BifrostStatus = "open" | "closed" | "opening" | "failed";
 export type TungaState = "idle" | "synthesizing" | "speaking" | "failed";
 export type HlustState = "idle" | "loading" | "listening" | "transcribing" | "failed";
+export type SjonState = "idle" | "capturing" | "encoding" | "failed";
 export type ErrorLevel = "warn" | "error";
 
 /** WebSocket connection state (client-managed; not a server-pushed event type). */
@@ -126,6 +127,20 @@ export interface AgentTurnComplete {
 }
 
 /**
+ * Emitted when the Sjon (Vision / screen capture) state changes.
+ * Frontend: animate the Sjon-glow blue accent in LayerStatusPanel.
+ * Direction: server -> client
+ * Emitted by: L3 Sjon orchestrator via EventBus
+ */
+export interface SjonActivity {
+  type: "sjon.activity";
+  /** Current state of the Sjon capture pipeline. */
+  state: SjonState;
+  /** ISO 8601 UTC timestamp of the state transition. */
+  timestamp: string;
+}
+
+/**
  * Emitted when any layer encounters an error worth surfacing to the user.
  * Frontend: display as a toast notification (AESTHETIC.md error-tone motion).
  */
@@ -147,6 +162,7 @@ export type ProtocolEvent =
   | BifrostHealth
   | TungaActivity
   | HlustActivity
+  | SjonActivity
   | AgentToken
   | AgentTurnComplete
   | ErrorEvent;
@@ -242,6 +258,10 @@ export function isHlustActivity(e: ProtocolEvent): e is HlustActivity {
   return e.type === "hlust.activity";
 }
 
+export function isSjonActivity(e: ProtocolEvent): e is SjonActivity {
+  return e.type === "sjon.activity";
+}
+
 export function isAgentToken(e: ProtocolEvent): e is AgentToken {
   return e.type === "agent.token";
 }
@@ -269,6 +289,7 @@ export function parseProtocolEvent(raw: string): ProtocolEvent | null {
       "bifrost.health",
       "tunga.activity",
       "hlust.activity",
+      "sjon.activity",
       "agent.token",
       "agent.turn_complete",
       "error",

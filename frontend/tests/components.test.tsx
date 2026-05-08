@@ -32,6 +32,7 @@ async function resetStore() {
     tungaState: "idle",
     hlustState: "idle",
     hlustLevelDb: null,
+    sjonState: "idle",
     chatHistory: [],
     activeTurnId: null,
     activeTokenSequence: -1,
@@ -209,6 +210,62 @@ describe("ChatHistory", () => {
     // The streaming cursor span is aria-hidden, check it exists in the DOM
     const cursors = container.querySelectorAll("[aria-hidden='true']");
     expect(cursors.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LayerStatusPanel — Sjon row (v0.5)
+// ---------------------------------------------------------------------------
+
+describe("LayerStatusPanel — Sjon row", () => {
+  beforeEach(() => resetStore());
+
+  it("renders the Sjon label in the panel", async () => {
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    render(<LayerStatusPanel />);
+    expect(screen.getByText("Sjon")).toBeTruthy();
+  });
+
+  it("Sjon row shows healthy dot aria-label when sjonState is idle", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "idle" });
+    render(<LayerStatusPanel />);
+    // When idle, sjonStateToHealth returns "healthy"
+    expect(screen.getByLabelText("Sjon: healthy")).toBeTruthy();
+  });
+
+  it("Sjon row shows active dot aria-label when sjonState is capturing", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "capturing" });
+    render(<LayerStatusPanel />);
+    // When capturing, sjonStateToHealth returns "active"
+    expect(screen.getByLabelText("Sjon: active")).toBeTruthy();
+  });
+
+  it("Sjon row shows active dot when sjonState is encoding", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "encoding" });
+    render(<LayerStatusPanel />);
+    expect(screen.getByLabelText("Sjon: active")).toBeTruthy();
+  });
+
+  it("Sjon row shows degraded dot when sjonState is failed", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "failed" });
+    render(<LayerStatusPanel />);
+    expect(screen.getByLabelText("Sjon: degraded")).toBeTruthy();
+  });
+
+  it("Sjon row shows note when capturing", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "capturing" });
+    render(<LayerStatusPanel />);
+    expect(screen.getByText("capturing")).toBeTruthy();
   });
 });
 

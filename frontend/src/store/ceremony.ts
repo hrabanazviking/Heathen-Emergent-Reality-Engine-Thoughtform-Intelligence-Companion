@@ -20,11 +20,13 @@ import type {
   BifrostStatus,
   TungaState,
   HlustState,
+  SjonState,
   WsConnectionStatus,
   CeremonyStateChanged,
   BifrostHealth,
   TungaActivity,
   HlustActivity,
+  SjonActivity,
   AgentToken,
   AgentTurnComplete,
   ErrorEvent,
@@ -73,6 +75,9 @@ export interface CeremonyState {
   hlustState: HlustState;
   hlustLevelDb: number | null;
 
+  // ---- Vision layer (L3 Sjon) ---
+  sjonState: SjonState;
+
   // ---- Chat ---
   chatHistory: ChatMessage[];
   /** The turn_id of the currently in-flight agent turn, or null. */
@@ -98,6 +103,9 @@ export interface CeremonyState {
 
   /** Called by WsClient when a HlustActivity event arrives. */
   setHlustActivity: (state: HlustState, levelDb: number | null) => void;
+
+  /** Called by WsClient when a SjonActivity event arrives. */
+  setSjonState: (state: SjonState) => void;
 
   /** Called by WsClient when an AgentToken event arrives. Appends to active message. */
   appendAgentToken: (textDelta: string, sequenceId: number, turnId?: string) => void;
@@ -186,6 +194,7 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
   tungaState: "idle",
   hlustState: "idle",
   hlustLevelDb: null,
+  sjonState: "idle" as SjonState,
   chatHistory: [],
   activeTurnId: null,
   activeTokenSequence: -1,
@@ -205,6 +214,9 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
 
   setHlustActivity: (state, levelDb) =>
     set({ hlustState: state, hlustLevelDb: levelDb }),
+
+  setSjonState: (state) =>
+    set({ sjonState: state }),
 
   appendAgentToken: (textDelta, sequenceId, turnId) => {
     set((s) => {
@@ -342,6 +354,10 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
 
     _wsClient.subscribe<HlustActivity>("hlust.activity", (event) => {
       get().setHlustActivity(event.state, event.level_db);
+    });
+
+    _wsClient.subscribe<SjonActivity>("sjon.activity", (event) => {
+      get().setSjonState(event.state);
     });
 
     _wsClient.subscribe<AgentToken>("agent.token", (event) => {

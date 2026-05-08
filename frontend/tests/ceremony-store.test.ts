@@ -313,3 +313,44 @@ describe("ceremony store — clearChatHistory", () => {
     expect(state.activeTokenSequence).toBe(-1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Sjon state (v0.5)
+// ---------------------------------------------------------------------------
+
+describe("ceremony store — Sjon state (v0.5)", () => {
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({ sjonState: "idle" });
+  });
+
+  it("starts with sjonState 'idle'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    expect(useCeremonyStore.getState().sjonState).toBe("idle");
+  });
+
+  it("setSjonState transitions to 'capturing'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSjonState("capturing");
+    expect(useCeremonyStore.getState().sjonState).toBe("capturing");
+  });
+
+  it("setSjonState transitions to 'encoding'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSjonState("encoding");
+    expect(useCeremonyStore.getState().sjonState).toBe("encoding");
+  });
+
+  it("setSjonState transitions to 'failed'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSjonState("failed");
+    expect(useCeremonyStore.getState().sjonState).toBe("failed");
+  });
+
+  it("setSjonState can transition back to 'idle' after 'encoding'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSjonState("encoding");
+    useCeremonyStore.getState().setSjonState("idle");
+    expect(useCeremonyStore.getState().sjonState).toBe("idle");
+  });
+});
