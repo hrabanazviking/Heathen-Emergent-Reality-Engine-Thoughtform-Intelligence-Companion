@@ -4,7 +4,7 @@
 
 > **Started: 2026-05-07** (immediately after v0.4.0 Eldahús Substrate shipped + audited; HEAD at `9e9a5aa`)
 
-> **Mode: PRE-STAGED.** Volmarr explicitly chose: scaffold the Tauri shell + supporting code now; he installs Rust himself before running `cargo tauri build`. No autonomous installation of system toolchains.
+> **Mode: PRE-STAGED + RUST INSTALLED + LINKER BLOCKED.** Original choice 2026-05-07: scaffold only; Volmarr installs Rust. **Update 2026-05-08:** Volmarr authorized autonomous Rust install. Rust 1.95.0 (MSVC + GNU toolchains) installed at `%USERPROFILE%\.cargo\bin\` and added to user PATH persistently. **First-compile blocked at link stage:** MSVC `link.exe` not present (would need Visual Studio Build Tools — `winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools"`, ~5GB + UAC). GNU toolchain's bundled MinGW `dlltool.exe` fails on child-process spawn (incomplete `--profile minimal` MinGW; would need full MinGW-w64 via scoop/choco). Volmarr's call which path: MSVC (Tauri canonical) or MinGW-w64 (lighter). Either resolves the linker; nothing else in the scaffold needs touching until first `cargo tauri dev` succeeds.
 
 ---
 
