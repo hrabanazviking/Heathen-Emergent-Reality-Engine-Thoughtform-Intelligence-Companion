@@ -101,15 +101,17 @@ rodd:
 sjon:
   screen:
     enabled: true
-    interval_ms: 5000        # capture interval in milliseconds
-    width: 1280
-    height: 720
-    crop: null               # null = full screen; or {x: 0, y: 0, w: 1280, h: 720}
-    buffer_depth: 5          # frames to keep in ring buffer
-    save_frames: false       # opt-in only — never auto-saves
+    interval_ms: 5000         # ms between periodic captures (v0.5.x — not active in v0.5 on-demand mode)
+    max_width: 1280           # max output width in pixels; frame is scaled down proportionally if wider
+    max_height: 720           # max output height in pixels; frame is scaled down proportionally if taller
+    crop: null                # null = full screen; or {x: 0, y: 0, w: 1280, h: 720}
+    buffer_depth: 5           # frames in ring buffer (v0.5.x — not active in v0.5 on-demand mode)
+    save_frames: false        # opt-in only — NEVER auto-saves; warning logged when true
+    monitor_index: 0          # 0 = primary monitor; increase for secondary monitors
+    min_interval_ms: 1000     # minimum ms between any two captures (throttle guard)
 
   webcam:
-    enabled: false
+    enabled: false            # webcam support not implemented in v0.5; declared for v1.x
     device: default
     interval_ms: 10000
 

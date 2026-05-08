@@ -34,6 +34,8 @@ Direction conventions (mirroring IPC_PROTOCOL.md):
 
 from __future__ import annotations
 
+from datetime import datetime
+from enum import Enum
 from typing import Annotated, Literal, Optional, Union
 
 try:
@@ -190,6 +192,53 @@ class AgentTurnComplete(BaseModel):
     'error' — turn ended due to a Bifröst error"""
 
 
+class SjonActivityState(str, Enum):
+    """State values for the Sjón (Vision / screen capture) activity indicator.
+
+    Maps to the capture lifecycle of L3 Sjón at capture milestones.
+    The frontend uses this to animate the Sjón-glow blue accent in LayerStatusPanel.
+
+    Wire value: the string value of each member (lowercase — e.g. "idle").
+    """
+    IDLE = "idle"
+    """No capture in progress. Sjón is available and waiting for the next snapshot() call."""
+    CAPTURING = "capturing"
+    """MssBackend.capture() is executing (in a thread pool executor)."""
+    ENCODING = "encoding"
+    """FrameEncoder is converting raw bytes to PNG and base64."""
+    FAILED = "failed"
+    """The last capture or encode attempt failed. Sjón will retry on the next snapshot() call."""
+
+
+class SjonActivity(BaseModel):
+    """Emitted when the Sjón (Vision / screen capture) state changes.
+
+    The frontend uses this to animate the Sjón-glow blue accent in the
+    LayerStatusPanel, mirroring the pattern of tunga.activity / hlust.activity.
+
+    Capture milestones that trigger emission:
+        - idle:      after close() or after a failed attempt recovers
+        - capturing: immediately before backend.capture() is called
+        - encoding:  immediately after capture() returns, before encoder runs
+        - failed:    when ScreenCaptureError, FrameEncodingError, or any
+                     unrecoverable exception occurs during snapshot()
+
+    Direction: S->C (server to client)
+    Emitted by: L3 Sjón orchestrator (sjon.sjon.Sjón) via EventBus
+    Frequency: at each capture milestone during snapshot(); not during idle periods
+
+    Ref: docs/architecture/IPC_PROTOCOL.md §3 (event catalogue).
+         docs/architecture/LAYER_INTERFACES.md §L3 Sjón.
+    """
+
+    type: Literal["sjon.activity"] = "sjon.activity"
+    state: SjonActivityState
+    """Current state of the Sjón capture pipeline."""
+    timestamp: datetime
+    """UTC datetime of the state transition. Use datetime.utcnow() at emission time.
+    Serialised by pydantic as ISO 8601 UTC string in model_dump_json()."""
+
+
 class ErrorEvent(BaseModel):
     """Emitted when any layer encounters an error worth surfacing to the user.
 
@@ -224,6 +273,7 @@ ProtocolEvent = Annotated[
         BifrostHealth,
         TungaActivity,
         HlustActivity,
+        SjonActivity,
         AgentToken,
         AgentTurnComplete,
         ErrorEvent,

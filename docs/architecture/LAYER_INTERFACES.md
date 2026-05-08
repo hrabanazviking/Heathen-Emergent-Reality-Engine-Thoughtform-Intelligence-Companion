@@ -1,6 +1,6 @@
 # HERETIC — Layer Interfaces
 
-**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1; X-3 corrective pass: capability probe conservatism for `?streaming` and `?vision_in` documented in §L1 Bifröst) | 2026-05-07 drift corrective pass — Rúnhild Svartdóttir, resolving G-1 (LAYER_INTERFACES.md §L2 tts block stale), N-2 (language_id semantics), N-3 (voice WAV path semantics). §L2 Rödd config block expanded from 6-field pre-probe stub to full 17-field schema matching `src/heretic/rodd/config_model.py RoddTtsConfig`; `speed` annotated removed; `voice_id` WAV-path semantics documented; `language_id` multilingual scope documented. See also `src/heretic/rodd/INTERFACE.md` (same corrective pass).
+**Last updated:** 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir: resolved naming gap in §L3 Sjón — `?vision_screen` (internal-bus) vs `?vision_in` (agent-protocol probe). Both flags now documented with authoritative cross-references. §L3 config block updated to match SjonScreenConfig canonical fields: `width`/`height` renamed to `max_width`/`max_height`; added `monitor_index`, `min_interval_ms`.) | 2026-05-07 (corrective pass — Rúnhild Svartdóttir, resolving audit blockers A-1, A-3, A-4, C-Q-C1; X-3 corrective pass: capability probe conservatism for `?streaming` and `?vision_in` documented in §L1 Bifröst) | 2026-05-07 drift corrective pass — Rúnhild Svartdóttir, resolving G-1 (LAYER_INTERFACES.md §L2 tts block stale), N-2 (language_id semantics), N-3 (voice WAV path semantics). §L2 Rödd config block expanded from 6-field pre-probe stub to full 17-field schema matching `src/heretic/rodd/config_model.py RoddTtsConfig`; `speed` annotated removed; `voice_id` WAV-path semantics documented; `language_id` multilingual scope documented. See also `src/heretic/rodd/INTERFACE.md` (same corrective pass).
 **Scope:** Per-layer and per-sense contracts: inputs, outputs, owns, never-controls, error model, config keys, event types, capability flags, and SLO tier.
 **Authority:** Derives from `ARCHITECTURE.md` and `DOMAIN_MAP.md`.
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -311,18 +311,28 @@ Frame interpretation, what the agent does with images, audio, MCP tools.
 - `VISION_BUFFER_OVERFLOW` — frame buffer full; drop oldest frames; emit `vision::warn(BUFFER_OVERFLOW)`.
 
 ### Config keys
+
+> **Corrective note — 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir):**
+> The config block below is updated to match `src/heretic/sjon/config_model.py SjonScreenConfig`
+> (the canonical definition, moved from grunnr.config per Approach B).
+> `width`/`height` are renamed `max_width`/`max_height` to clarify they are output
+> size caps, not capture dimensions. `monitor_index` and `min_interval_ms` are added.
+> `heretic.example.yaml` is updated accordingly.
+
 ```yaml
 sjon:
   screen:
     enabled: true
-    interval_ms: 5000         # how often to capture
-    width: 1280
-    height: 720
+    interval_ms: 5000         # ms between periodic captures (v0.5.x — not active in v0.5 on-demand mode)
+    max_width: 1280           # max output width; frame scaled down proportionally if wider
+    max_height: 720           # max output height; frame scaled down proportionally if taller
     crop: null                # null = full screen; or {x, y, w, h}
-    buffer_depth: 5           # frames to keep in ring buffer
-    save_frames: false        # opt-in only; never auto-saves
+    buffer_depth: 5           # frames in ring buffer (v0.5.x — not active in v0.5 on-demand mode)
+    save_frames: false        # opt-in only; NEVER auto-saves; warning logged when true
+    monitor_index: 0          # 0 = primary monitor; increase for secondary monitors
+    min_interval_ms: 1000     # minimum ms between any two captures (throttle guard)
   webcam:
-    enabled: false
+    enabled: false            # declared; not implemented in v0.5 (implementation target: v1.x)
     device: default
     interval_ms: 10000
 ```
@@ -330,8 +340,34 @@ sjon:
 **Infrastructure vs agent surface:** L3 Sjón owns the physical capture schedule, backend, and frame buffer. Auga (`auga.*` tools) is the **agent-callable L5 sense** that surfaces snapshot capability. The capture infrastructure lives in L3; the agent tool surface lives in L5 Skilningr. L3 does not expose tools directly. See `ARCHITECTURE.md` §"Sense layering" for the full resolution.
 
 ### Capability flags
-- `?vision_screen` — screen capture enabled and permission granted
-- `?vision_webcam` — webcam enabled and device available
+
+> **Naming gap resolution — 2026-05-08 (Rúnhild Svartdóttir):**
+> Two distinct capability namespaces exist. This note resolves the v0.4.1-era gap
+> between them. The cross-reference is now canonical.
+
+**`?vision_screen` (internal-bus name)**
+- Set by HERETIC from its own layer state (L3 Sjón) — `sjon.screen.enabled AND MssBackend.available()`.
+- Used internally to decide whether to call `snapshot()` in the turn loop.
+- Reported to the agent in the senses-manifest system message at Tengsl (same mechanism as `?voice_in`).
+- Authoritative source: this file (`LAYER_INTERFACES.md §L3 Sjón`).
+- Cross-reference: `IPC_PROTOCOL.md §8.2` (naming bridge).
+
+**`?vision_in` (agent-protocol probe name)**
+- Set by the agent-protocol capability probe (or read from `bifrost.vision_in` in v0.4.x).
+- Determines whether L1 Bifröst injects Sjón frames as `image_url` content blocks into
+  agent turns. When `?vision_in` is False, frames are captured (if `?vision_screen` is True)
+  but not transmitted — they are held in the ring buffer only.
+- Authoritative source: `AGENT_AGNOSTIC_PROTOCOL.md §5.1` and `§5.2`.
+- Cross-reference: `IPC_PROTOCOL.md §8.2` (naming bridge).
+
+**Relationship between the two flags:**
+  - `?vision_screen` answers: "Can HERETIC's body see at all?"
+  - `?vision_in` answers: "Does the spirit accept images in its messages?"
+  - Frames are injected ONLY when BOTH flags are True.
+  - Either flag can independently be False (body cannot see, or spirit cannot receive images).
+
+**Additional flags:**
+- `?vision_webcam` — webcam enabled and device available (declared; not active in v0.5)
 
 ### SLO tier
 **Cold** — frames captured at user-configured interval (default 5 s). Frame injection into agent turns is not latency-critical; late frames are simply the next scheduled capture.

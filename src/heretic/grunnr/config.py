@@ -132,36 +132,24 @@ class BifrostConfig:
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# L3 Sjón sub-config
+# L3 Sjón sub-config — canonical definition imported from the sjon package.
+#
+# The authoritative field definitions live in heretic.sjon.config_model so
+# that the sjon layer is self-contained. This follows Approach B, mirroring
+# the rodd (S-1) and vebond consolidation patterns.
+#
+# heretic.sjon.config_model has no imports from heretic.grunnr, so this
+# import direction is safe and introduces no circular dependency.
+#
+# Any existing code that did `from heretic.grunnr.config import SjonConfig`
+# (or SjonScreenConfig, SjonWebcamConfig) continues to work unchanged —
+# all three are still exported from this module via the import below.
 # ---------------------------------------------------------------------------
-
-@dataclass
-class SjonScreenConfig:
-    """Screen capture settings."""
-    enabled: bool = True
-    interval_ms: int = 5000
-    width: int = 1280
-    height: int = 720
-    crop: Optional[dict[str, int]] = None
-    """None = full screen; or {x, y, w, h}."""
-    buffer_depth: int = 5
-    save_frames: bool = False
-    """Opt-in only — never auto-saves captured frames."""
-
-
-@dataclass
-class SjonWebcamConfig:
-    """Webcam capture settings."""
-    enabled: bool = False
-    device: str = "default"
-    interval_ms: int = 10000
-
-
-@dataclass
-class SjonConfig:
-    """L3 Sjón — vision layer settings."""
-    screen: SjonScreenConfig = field(default_factory=SjonScreenConfig)
-    webcam: SjonWebcamConfig = field(default_factory=SjonWebcamConfig)
+from heretic.sjon.config_model import (  # noqa: E402
+    SjonConfig,
+    SjonScreenConfig,
+    SjonWebcamConfig,
+)
 
 
 # ---------------------------------------------------------------------------

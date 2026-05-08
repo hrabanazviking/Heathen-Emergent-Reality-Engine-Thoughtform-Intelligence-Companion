@@ -42,6 +42,19 @@ voice = [
     "webrtcvad-wheels>=2.0",
     "pywhispercpp>=1.0",
 ]
+# Vision I/O — install when the machine has a display and the user wants screen capture.
+# mss is NOT a core dep: ``pip install heretic`` works on headless/display-less machines.
+# ``pip install heretic[vision]`` activates:
+#   - MssBackend          (screen capture, cross-platform: Windows GDI / macOS Quartz / Linux X11)
+#   - FrameEncoder        (BGRA -> resize -> PNG -> base64 via Pillow)
+# Distinct from [voice]: operators may need TTS on a headless server (voice without display)
+# or screen capture without audio (vision without voice). The senses are conceptually
+# independent and an operator should not be required to install both to use one.
+# Ref: docs/architecture/LAYER_INTERFACES.md §L3 Sjón.
+vision = [
+    "mss>=9",
+    "Pillow>=10",
+]
 # L4 Vebond WebSocket server — install when running the Summoning Circle backend.
 # ``pip install heretic[serve]`` activates:
 #   - FastAPI          (ASGI framework; /ws WebSocket endpoint + /health REST)

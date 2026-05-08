@@ -161,7 +161,7 @@ rodd:
     enabled: false
 sjon:
   screen:
-    width: 640
+    max_width: 640
 vebond:
   theme: dark_norse
 skilningr:
@@ -175,7 +175,9 @@ skilningr:
     assert cfg.bifrost.model == "my-model"
     assert cfg.bifrost.max_tokens == 99999
     assert cfg.rodd.stt.enabled is False
-    assert cfg.sjon.screen.width == 640
+    # sjon.screen.max_width renamed from 'width' in v0.5 scaffold (Approach B migration
+    # to sjon.config_model canonical fields — SjonScreenConfig uses max_width/max_height).
+    assert cfg.sjon.screen.max_width == 640
     assert cfg.vebond.theme == "dark_norse"
     assert cfg.skilningr.filesystem.enabled is True
 
