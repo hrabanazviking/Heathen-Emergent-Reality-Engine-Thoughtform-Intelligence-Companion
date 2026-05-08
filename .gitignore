@@ -34,3 +34,7 @@ coverage.xml
 # HERETIC runtime artefacts (never commit user config or keys)
 heretic.yaml
 .env
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
