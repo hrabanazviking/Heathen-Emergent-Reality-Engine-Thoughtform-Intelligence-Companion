@@ -151,12 +151,18 @@ at runtime through the sense layer.
   ===============================================
 
   runa/Seidr-Smidja                    --> L5.5 blender sense  [OPTIONAL]
-  |-- Brúarhönd v0.1 — cross-machine VRoid Studio / Blender remote control
-  |-- Provides: blender.screenshot, blender.click, blender.type_text, blender.hotkey,
-  |             blender.vroid_open, blender.vroid_export, blender.health, blender.capabilities
-  |-- Status: 489 tests green, v0.1 shipped
-  |-- How: blender (Smiðja) sense wraps Brúarhönd's HTTP API
-  |-- Lives: laptop (Blender running locally) or remote via Tailscale
+  |-- Brúarhönd v0.1 — cross-machine VRoid Studio / Blender live GUI remote control
+  |   Provides: smidja.screenshot, smidja.click, smidja.type, smidja.hotkey,
+  |             smidja.vroid_open, smidja.vroid_export
+  |   Endpoint: default https://<host>:8848  (Tailscale or loopback)
+  |   Auth: bearer token from env var
+  |-- Straumur REST — headless Blender render pipeline  (v0.6.1)
+  |   Provides: smidja.forge_build_avatar, smidja.forge_get_avatar, smidja.forge_inspect_avatar
+  |   Endpoint: default http://127.0.0.1:8765
+  |   Auth: optional bearer token (not required on localhost)
+  |-- Status: 489 tests green, Brúarhönd v0.1 shipped; Straumur integration v0.6.1 IN PROGRESS
+  |-- How: Smiðja sense holds two independent HTTP clients — BrunhandHttpClient + ForgeHttpClient
+  |-- Lives: laptop (apps running locally) or remote via Tailscale
 
   runa/MindSpark_ThoughtForge          --> L5.9 library sense backend  [OPTIONAL]
   |-- Universal RAG + cognitive scaffolding layer
@@ -422,11 +428,13 @@ A single reference for all external connections — physical location, HERETIC s
 | Whisper.cpp | Laptop: bundled or installed | L2 Rödd (Hlust) | Rödd | Required for STT | MIT |
 | Tailscale daemon | Laptop + Pi | Bifröst transport | Bifröst | Required | External |
 
-**Note on Seidr-Smidja:** The `blender` sense MCP server (True Name: Smiðja) in HERETIC wraps
-Seidr-Smidja's Brúarhönd v0.1 API. Seidr-Smidja is a sibling repo at
-`github.com/hrabanazviking/Seidr-Smidja` — it must be running locally. HERETIC calls its HTTP
-endpoints. Seidr-Smidja is the organ; HERETIC's blender sense server is the nerve that connects
-to it. Tool calls to this sense are prefixed `blender.*` (e.g., `blender.screenshot`).
+**Note on Seidr-Smidja:** The Smiðja sense in HERETIC wraps two surfaces of Seidr-Smidja:
+Brúarhönd v0.1 (live GUI control, port 8848) and Straumur REST (headless Blender render, port 8765,
+v0.6.1). Seidr-Smidja is a sibling repo at `github.com/hrabanazviking/Seidr-Smidja` — it must be
+running locally. HERETIC calls its HTTP endpoints via two independent HTTP clients (BrunhandHttpClient
+and ForgeHttpClient). Each arm opens and closes independently; either can be absent without affecting
+the other. Tool calls are prefixed `smidja.*` — Brúarhönd tools have no sub-prefix; Forge tools carry
+a `forge_` sub-prefix (e.g., `smidja.forge_build_avatar`).
 
 ---
 
@@ -568,8 +576,27 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |      F-6 unknown tool, F-7 max rounds reached
         |    See DATA_FLOW.md §4.11 (tool flow) and §16 (Smiðja component diagram)
         |
-        |  v0.6.x backlog (NOT v0.6.0):
-        |    v0.6.1: Forge headless Blender path (Mode B in Brúarhönd; smidja.blender_render)
+        |  v0.6.1 — Second Anvil (IN PROGRESS)
+        |    NEW: ForgeHttpClient — second HTTP client inside Smiðja sense (parallel to BrunhandHttpClient)
+        |      wraps Seidr-Smidja Straumur REST API (/v1/avatars, /v1/inspect, /v1/assets, /health)
+        |      independent endpoint (default http://127.0.0.1:8765), optional bearer token,
+        |      120s default timeout (Blender renders are slow)
+        |    NEW: SmidjaConfig.forge sub-block — ForgeConfig dataclass
+        |      fields: enabled, endpoint, token_env (optional), request_timeout_seconds
+        |    NEW: 3 Forge tools added to SMIDJA_TOOL_DEFINITIONS:
+        |      smidja.forge_build_avatar  (POST /v1/avatars)
+        |      smidja.forge_get_avatar    (GET /v1/avatars/{id})
+        |      smidja.forge_inspect_avatar (POST /v1/inspect)
+        |    NEW: Dual-half lifecycle — SmidjaSense.open() probes both arms independently
+        |      either arm can be absent without affecting the other
+        |      degradation matrix: full / Brúarhönd-only / Forge-only / both degraded
+        |    NEW: Forge error class hierarchy: ForgeError → ForgeUnreachableError,
+        |      ForgeTimeoutError, ForgeValidationError, ForgeServerError
+        |    NEW: Forge failure modes F-1 through F-5 (see DATA_FLOW.md §4.11.9)
+        |    See DATA_FLOW.md §4.11.7 (Forge dispatch), §4.11.8 (dual-half lifecycle),
+        |        §4.11.9 (Forge failure modes), §16 v0.6.1 extension (ForgeHttpClient diagram)
+        |
+        |  v0.6.x backlog:
         |    v0.6.2: filesystem sense, terminal sense, browser sense (more L5 senses)
   v0.7  Files & Terminal    FS + terminal   L5.1 + L5.2 (filesystem + terminal senses)
         |  v0.7 also: L5.11 Tunga sense (tunga.speak MCP tool — agent-callable TTS)
@@ -723,7 +750,8 @@ The naming field is not decoration — it is the architecture.
 
 ---
 
-*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07. Updated 2026-05-08 (v0.5 in-progress). Updated 2026-05-08 (v0.6 in-progress — L5 Skilningr substrate + Smiðja first hand).*
+*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07. Updated 2026-05-08 (v0.5 in-progress). Updated 2026-05-08 (v0.6 in-progress — L5 Skilningr substrate + Smiðja first hand). Updated 2026-05-08 (v0.6.1 in-progress — Smiðja second anvil: ForgeHttpClient + dual-half lifecycle).*
 *A body well-mapped is a body that knows itself.*
 *Four senses charted: the mouth speaks (Tunga), the ear hears (Hlust), the eye sees (Sjón), the hand reaches (Smiðja).*
+*The workshop holds two anvils: one for the living GUI, one for the headless forge.*
 *The spirit can only inhabit what has been named.*

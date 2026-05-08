@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS.
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -4189,18 +4189,21 @@ is empty and tool calls can never arrive.
 
 ---
 
-## 16. L5 Skilningr — Smiðja Component Diagram (v0.6)
+## 16. L5 Skilningr — Smiðja Component Diagram (v0.6.1)
 
-> **Added 2026-05-08 v0.6 (Védis Eikleið).** Maps the internal structure of the `skilningr/`
-> module and its first sense subpackage `senses/smidja/`, and shows the multi-round tool-call
-> loop from agent intent to Brúarhönd primitive and back. Drawn in the same style as §11 (Tunga),
+> **Added 2026-05-08 v0.6 (Védis Eikleið). Extended 2026-05-08 v0.6.1 (Védis Eikleið).**
+> Maps the internal structure of the `skilningr/` module and its first sense subpackage
+> `senses/smidja/`, and shows the multi-round tool-call loop from agent intent to either arm
+> of the workshop and back. In v0.6 the workshop held one anvil (Brúarhönd). In v0.6.1 it holds
+> two: Brúarhönd (live GUI) and Forge (headless Blender). Drawn in the same style as §11 (Tunga),
 > §12 (Hlust), and §15 (Sjón).
 >
 > **Position in the body:** Skilningr is the discernment layer — the organ that decides which
 > sense to invoke when the agent reaches. It sits between the CLI (which receives raw ToolCall
 > events from Bifröst) and the individual senses (which know how to speak to external surfaces).
-> In v0.6, only Smiðja is mounted. The hub is designed to carry more senses; the first is the
-> proof.
+> In v0.6.1, Smiðja is the only mounted sense but now contains two HTTP clients: one for the live
+> GUI surface (Brúarhönd) and one for the headless render surface (Forge / Straumur REST). The
+> hub is designed to carry more senses; the first is the proof.
 
 ```
   ============================================================
@@ -4214,12 +4217,22 @@ is empty and tool calls can never arrive.
   │                      |    key = sense_id (e.g., "smidja")
   │                      |    value = SkilningrSenseConfig (enabled, host, port, token_env, ...)
   │                      |
-  │                      |  SmidjaConfig (extends SkilningrSenseConfig)
-  │                      |    enabled: bool          default false
-  │                      |    host: str              default "127.0.0.1"
-  │                      |    port: int              default 8848
-  │                      |    token_env: str         (name of env var — never the token itself)
-  │                      |    timeout_ms: int        default 30000
+  │                      |  SmidjaConfig (extends SkilningrSenseConfig)   [v0.6.1: extended]
+  │                      |
+  │                      |    brunhand:  BrunhandConfig   (sub-block — Brúarhönd arm)
+  │                      |      enabled: bool          default false
+  │                      |      host: str              default "127.0.0.1"
+  │                      |      port: int              default 8848
+  │                      |      token_env: str         (name of env var — never the token itself)
+  │                      |      timeout_ms: int        default 30000
+  │                      |
+  │                      |    forge:     ForgeConfig    (sub-block — Forge arm)   (v0.6.1)
+  │                      |      enabled: bool                      default false
+  │                      |      endpoint: str                      default "http://127.0.0.1:8765"
+  │                      |      token_env: str | None              default None
+  │                      |        (optional — Straumur may not require auth on localhost)
+  │                      |      request_timeout_seconds: int       default 120
+  │                      |        (Blender renders are slow; 120s is the minimum safe default)
   │                      |
   │                      Loaded at Kynding from grunnr/config.py (Approach B:
   │                      SkilningrConfig consolidated into HereticConfig).
@@ -4248,17 +4261,25 @@ is empty and tool calls can never arrive.
       └── smidja/        Smiðja — the first sense (L5.5)
           |
           ├── errors.py      SmidjaError (base)
-          │                  |-- BrunhandUnreachableError   (F-1)
-          │                  |-- BrunhandAuthError          (F-2)
-          │                  |-- BrunhandTimeoutError       (F-3)
-          │                  |-- BrunhandServerError        (F-4)
-          │                  |-- BrunhandParseError         (F-5)
+          │                  |-- BrunhandUnreachableError   (F-1, Brúarhönd arm)
+          │                  |-- BrunhandAuthError          (F-2, Brúarhönd arm)
+          │                  |-- BrunhandTimeoutError       (F-3, Brúarhönd arm)
+          │                  |-- BrunhandServerError        (F-4, Brúarhönd arm)
+          │                  |-- BrunhandParseError         (F-5, Brúarhönd arm)
+          │                  |-- ForgeError (base for Forge arm)
+          │                        |-- ForgeUnreachableError  (F-1, Forge arm)
+          │                        |-- ForgeTimeoutError      (F-2, Forge arm)
+          │                        |-- ForgeValidationError   (F-3 + F-5, Forge arm)
+          │                        |-- ForgeServerError       (F-4, Forge arm)
           │                  All extend SmidjaError (which extends SkilningrError)
           │                  All caught by SmidjaSense; none propagate to ToolDispatcher.
           │
-          ├── tools.py       ToolDefinition list (6 entries — OpenAI tools schema)
+          ├── tools.py       ToolDefinition list (6 Brúarhönd + 3 Forge entries — OpenAI tools schema)
+          │                  |                  (v0.6.1: extended from 6 to 9 entries)
           │                  |
           │                  |  SMIDJA_TOOLS: list[dict] = [
+          │                  |
+          │                  |    --- BRÚARHÖND ARM (live GUI) ---
           │                  |
           │                  |    smidja.screenshot
           │                  |      description: "Capture a screenshot of the remote desktop"
@@ -4287,13 +4308,39 @@ is empty and tool calls can never arrive.
           │                  |      parameters: { output_path: str, overwrite: bool,
           │                  |                    wait_timeout_seconds: float }
           │                  |      maps to: POST /v1/brunhand/vroid/export_vrm
+          │                  |
+          │                  |    --- FORGE ARM (headless Blender render) ---   (v0.6.1)
+          │                  |
+          │                  |    smidja.forge_build_avatar
+          │                  |      description: "Build a VRM avatar from a Loom spec via headless Blender"
+          │                  |      parameters: { spec: object }
+          │                  |      maps to: POST /v1/avatars
+          │                  |      timeout: forge.request_timeout_seconds (default 120)
+          │                  |
+          │                  |    smidja.forge_get_avatar
+          │                  |      description: "Get avatar metadata and artifact URLs by ID"
+          │                  |      parameters: { id: str }
+          │                  |      maps to: GET /v1/avatars/{id}
+          │                  |
+          │                  |    smidja.forge_inspect_avatar
+          │                  |      description: "Inspect an avatar (schema validation and diagnostics)"
+          │                  |      parameters: { id: str }
+          │                  |      maps to: POST /v1/inspect
+          │                  |
           │                  |  ]
           │                  |
-          │                  |  Sent to agent in bifrost.send_message "tools" array only when:
-          │                  |    - skilningr.smidja.enabled = true
+          │                  |  Brúarhönd tools included when:
+          │                  |    - skilningr.smidja.brunhand.enabled = true
           │                  |    - bifrost.capability_tool_use (?tool_use) = true
+          │                  |
+          │                  |  Forge tools included when:
+          │                  |    - skilningr.smidja.forge.enabled = true
+          │                  |    - bifrost.capability_tool_use (?tool_use) = true
+          │                  |
+          │                  |  Each arm contributes its tool subset independently.
+          │                  |  Agent only sees tools for enabled arms.
           │
-          ├── client.py      BrunhandHttpClient
+          ├── client.py      BrunhandHttpClient   [BRÚARHÖND ARM — live GUI control]
           │                  |
           │                  |  __init__(host, port, token_env, timeout_ms) -> self
           │                  |    token: str = os.environ[token_env]   (read once at init)
@@ -4335,37 +4382,96 @@ is empty and tool calls can never arrive.
           │                  |    HTTP 5xx                 --> BrunhandServerError      (F-4)
           │                  |    JSON / Pydantic error    --> BrunhandParseError       (F-5)
           │
+          ├── forge_client.py  ForgeHttpClient   [FORGE ARM — headless Blender render]  (v0.6.1)
+          │                  |
+          │                  |  __init__(endpoint, token_env, request_timeout_seconds) -> self
+          │                  |    token: str | None = os.environ.get(token_env) if token_env else None
+          │                  |      (optional — Straumur may run unauthenticated on localhost)
+          │                  |    httpx.AsyncClient; Authorization header set only if token present
+          │                  |    base_url: endpoint  (default "http://127.0.0.1:8765")
+          │                  |    timeout: request_timeout_seconds  (default 120 — Blender renders slow)
+          │                  |
+          │                  |  async health() -> dict
+          │                  |    GET /health    (no auth — liveness probe only)
+          │                  |    NOTE: path is /health, NOT /v1/brunhand/health
+          │                  |
+          │                  |  async build_avatar(spec: dict) -> ForgeAvatarResponse
+          │                  |    POST /v1/avatars
+          │                  |    Body: { "spec": spec }
+          │                  |    Returns: { "id": str, "status": str, "artifacts": [...] }
+          │                  |
+          │                  |  async get_avatar(avatar_id: str) -> ForgeAvatarResponse
+          │                  |    GET /v1/avatars/{avatar_id}
+          │                  |
+          │                  |  async inspect_avatar(avatar_id: str) -> ForgeInspectResponse
+          │                  |    POST /v1/inspect
+          │                  |    Body: { "id": avatar_id }
+          │                  |
+          │                  |  async list_assets() -> ForgeAssetsResponse
+          │                  |    GET /v1/assets
+          │                  |
+          │                  |  Auth note: optional bearer token; env var NAME in forge.token_env.
+          │                  |    If token_env is None or env var absent: no Authorization header.
+          │                  |    Pattern mirrors BrunhandHttpClient but token is not required.
+          │                  |
+          │                  |  Error mapping:
+          │                  |    httpx.ConnectError       --> ForgeUnreachableError  (F-1)
+          │                  |    httpx.TimeoutException   --> ForgeTimeoutError      (F-2)
+          │                  |    HTTP 4xx                 --> ForgeValidationError   (F-3 / F-5)
+          │                  |    HTTP 5xx                 --> ForgeServerError       (F-4)
+          │                  |
+          │                  |  PARALLEL TO BrunhandHttpClient — independent endpoint, independent
+          │                  |  auth, independent timeout profile. Both live under the same sense.
+          │
           └── sense.py       SmidjaSense
+                             |
+                             |  v0.6.1: the workshop now holds two anvils.
+                             |  SmidjaSense owns one BrunhandHttpClient (Brúarhönd arm)
+                             |  and one ForgeHttpClient (Forge arm). Each half opens, probes,
+                             |  and closes independently. Either can be absent without preventing
+                             |  the other from working.
                              |
                              |  Public interface (matches SenseLike protocol):
                              |    async open() -> None
-                             |      called at TENGSL; health-probes Brúarhönd; logs status
-                             |      if unreachable: logs warning; sense remains open but degraded
-                             |      (operator can still start the ceremony; tool calls will return F-1)
+                             |      called at TENGSL; probes BOTH arms independently (see §4.11.8)
+                             |        IF brunhand.enabled: health-probe /v1/brunhand/health
+                             |        IF forge.enabled:    health-probe /health
+                             |      unreachable arm: logs warning; arm marked degraded
+                             |      sense as a whole remains open regardless
                              |
                              |    async close() -> None
-                             |      called at SLOKNA; closes httpx.AsyncClient
+                             |      called at SLOKNA
+                             |      IF brunhand client exists: BrunhandHttpClient.close()
+                             |      IF forge client exists:    ForgeHttpClient.close()
+                             |      each close in independent try/except
                              |
                              |    async dispatch_tool_call(tool_call: ToolCall) -> ToolResult
                              |      1. parse arguments_json into kwargs
-                             |      2. call BrunhandHttpClient method
+                             |      2. route by tool_name prefix:
+                             |           tool_name has "forge_" sub-prefix
+                             |             --> ForgeHttpClient method
+                             |           else
+                             |             --> BrunhandHttpClient method
                              |      3. catch any SmidjaError subclass --> return error ToolResult
-                             |      4. on success: encode result for agent (see §4.11.2)
+                             |         (covers both BrunhandError and ForgeError hierarchies)
+                             |      4. on success: encode result for agent
                              |      5. return ToolResult always — never raises
                              |
-                             |  Screenshot result encoding:
+                             |  Screenshot result encoding (Brúarhönd arm, unchanged):
                              |    data_url = "data:image/png;base64," + payload.png_bytes_b64
                              |    content = json.dumps({"image": data_url,
                              |                          "width": payload.width,
                              |                          "height": payload.height})
-                             |    (mirrors Sjón data URL format — same structure the agent
-                             |     already knows from vision; the hand's eye speaks the same
-                             |     language as the body's eye)
+                             |    (mirrors Sjón data URL format)
                              |
-                             |  Other primitive result encoding:
+                             |  Forge result encoding:
+                             |    content = json.dumps({"id": ..., "status": ..., "artifacts": [...]})
+                             |    or json.dumps(diagnostics_dict) for inspect
+                             |    agent receives structured JSON in tool_result content
+                             |
+                             |  Other Brúarhönd primitive result encoding (unchanged):
                              |    content = json.dumps(payload)
                              |    (Pydantic model dict serialized as JSON string)
-                             |    agent receives structured result in the tool_result content
 
 
   ============================================================
@@ -4382,12 +4488,22 @@ is empty and tool calls can never arrive.
        v
   [CLI — publishes sense.tool_call(started)]
        v
-  [ToolDispatcher → SmidjaSense → BrunhandHttpClient]
+  [ToolDispatcher → SmidjaSense]
        |
-       |  HTTPS request → Tailscale wire (or loopback) → Brúarhönd daemon → VRoid host
+       |  routes by tool_name prefix:
+       |    "forge_" sub-prefix  -->  ForgeHttpClient
+       |    no "forge_" prefix   -->  BrunhandHttpClient
+       |
+       +--- [BrunhandHttpClient]
+       |         HTTPS/HTTP request → Tailscale wire (or loopback) → Brúarhönd daemon → VRoid host
+       |         (fast, sub-second for most primitives)
+       |
+       +--- [ForgeHttpClient]
+                 HTTP request → Straumur REST → headless Blender pipeline → render
+                 (slow; up to 120s default timeout; agent waits for tool_result)
        |
        v
-  [BrunhandHttpClient receives response]
+  [Client receives response]
        v
   [SmidjaSense encodes → ToolResult]
        v
@@ -4438,22 +4554,271 @@ is empty and tool calls can never arrive.
   - ToolDispatcher never raises to CLI
     All dispatch errors are returned as ToolResult with error JSON content.
   - SmidjaSense never raises to ToolDispatcher
-    All SmidjaError subclasses are caught internally; return value is always ToolResult.
-  - Bearer token never appears in any log line (sealed invariant — see auth section above)
-  - Tool schemas are sent to the agent ONLY when both conditions hold:
-      (a) skilningr.smidja.enabled = true  AND
+    All SmidjaError subclasses are caught internally (both Brúarhönd and Forge hierarchies);
+    return value is always ToolResult.
+  - Bearer token never appears in any log line (sealed invariant — applies to both arms)
+    Brúarhönd: token_env required; Authorization header set at construction.
+    Forge: token_env optional; Authorization header set only if token present.
+    Neither token value appears in any log line, config serialization, or session log.
+  - Tool schemas are sent to the agent ONLY per arm when both conditions hold:
+      (a) arm.enabled = true  AND
       (b) bifrost.capability_tool_use (?tool_use) = true
+    Brúarhönd tools and Forge tools are included independently based on their respective enabled flags.
+  - Each arm opens and closes independently (v0.6.1 — dual-half lifecycle, see §4.11.8)
+    Failure of one arm at TENGSL does not prevent the other arm from opening.
+    Failure to close one arm at SLOKNA does not prevent the other arm from closing.
   - multi-round cap is enforced per turn, not per ceremony
     round_counter resets to 0 at the start of each new user message turn
   - The tool loop is entered ONLY on finish_reason = "tool_calls"
     Text responses with finish_reason = "stop" or "length" never enter the tool path
-  - BrunhandHttpClient.close() is always called at SLOKNA
-    httpx.AsyncClient is closed cleanly; no connection leak on ceremony exit
+  - BrunhandHttpClient.close() and ForgeHttpClient.close() are always called at SLOKNA
+    Each httpx.AsyncClient is closed cleanly; no connection leak on ceremony exit
   - Tool names in the OpenAI schema use HERETIC's two-part format: <sense_id>.<action>
-    These are independent of the Brúarhönd daemon URL paths.
-    The mapping is: smidja.vroid_open → /v1/brunhand/vroid/open_project
-                    smidja.vroid_export → /v1/brunhand/vroid/export_vrm
-    (See §4.11.6 for full discrepancy documentation.)
+    These are independent of the daemon URL paths.
+    Brúarhönd mapping:  smidja.vroid_open → /v1/brunhand/vroid/open_project
+                        smidja.vroid_export → /v1/brunhand/vroid/export_vrm
+                        (See §4.11.6 for full discrepancy documentation.)
+    Forge mapping:      smidja.forge_build_avatar → POST /v1/avatars
+                        smidja.forge_get_avatar   → GET  /v1/avatars/{id}
+                        smidja.forge_inspect_avatar → POST /v1/inspect
+```
+
+---
+
+#### 4.11.7 Forge dispatch (v0.6.1 — headless Blender)
+
+> **Added 2026-05-08 v0.6.1 (Védis Eikleið).** Maps the second arm of the Smiðja sense: the
+> headless Blender pipeline. Where Brúarhönd controls a live GUI process, the Forge submits
+> Loom specs to Seidr-Smidja's Straumur REST layer, which drives a headless Blender render and
+> returns artifact URLs. Both arms live under the same sense; the workshop now houses two anvils.
+
+```
+  FORGE DISPATCH PIPELINE
+
+  [Agent — tool_call: smidja.forge_build_avatar]
+       |
+       |  arguments_json:
+       |    { "spec": { <Loom avatar spec JSON> } }
+       |
+       v
+  [ToolDispatcher.dispatch(tool_call)]
+       |
+       |  prefix = "smidja"  --> SmidjaSense
+       |
+       v
+  [SmidjaSense.dispatch_tool_call(tool_call)]
+       |
+       |  tool_name has "forge_" sub-prefix
+       |    --> routed to ForgeHttpClient (not BrunhandHttpClient)
+       |
+       v
+  [ForgeHttpClient.build_avatar(spec: dict) -> ForgeResponse]
+       |
+       |  POST /v1/avatars
+       |  Host: skilningr.smidja.forge.endpoint   (default "http://127.0.0.1:8765")
+       |  Header: Authorization: Bearer <token from forge.token_env>
+       |          (optional — Straumur may run unauthenticated on localhost)
+       |  Body: { "spec": <Loom spec JSON> }
+       |
+       |  transport: httpx async
+       |  timeout: skilningr.smidja.forge.request_timeout_seconds  (default 120)
+       |           (Blender renders are slow; 120s is the minimum safe default)
+       |
+       v
+  [Seidr-Smidja — Straumur REST layer]
+       |
+       |  validates Loom spec
+       |  schedules headless Blender pipeline
+       |  returns immediately with job ID and status "accepted" OR
+       |         blocks until render completes (depends on Straumur mode)
+       |
+       v
+  [ForgeHttpClient receives response: ForgeAvatarResponse]
+       |
+       |  { "id": "<avatar_id>",
+       |    "status": "complete" | "pending" | "failed",
+       |    "artifacts": [ { "type": "vrm", "url": "<url>" }, ... ] }
+       |
+       v
+  [SmidjaSense encodes -> ToolResult]
+       |
+       |  content = json.dumps({"id": ..., "status": ..., "artifacts": [...]})
+       |  agent receives the avatar ID and artifact URLs in the tool_result
+       |
+       v
+  [CLI appends tool_result to messages; resumes agent loop]
+
+
+  TOOL SURFACE — FORGE ARM:
+
+    smidja.forge_build_avatar
+      POST /v1/avatars
+      Body: Loom spec (JSON object supplied by agent)
+      Returns: avatar id, status, artifact URLs
+
+    smidja.forge_get_avatar
+      GET /v1/avatars/{id}
+      Returns: avatar metadata, render status, artifact URLs
+
+    smidja.forge_inspect_avatar
+      POST /v1/inspect
+      Body: { "id": "<avatar_id>" }
+      Returns: diagnostics, ground-truth schema validation output
+
+    smidja.forge_list_assets   (optional)
+      GET /v1/assets
+      Returns: available asset packs
+
+    smidja.forge_health_probe  (internal — not exposed to agent)
+      GET /health
+      Used by SmidjaSense.open() to probe Forge availability
+
+
+  TIMING NOTE:
+    Blender renders are slow. The 120s default timeout is a floor, not a ceiling.
+    Operators running complex Loom specs should raise request_timeout_seconds accordingly.
+    The agent sees sense.tool_call events (state="started") during the full render window.
+    The agent does NOT stream progress — it waits for one tool_result.
+    This is expected behavior: the forge burns at its own pace.
+```
+
+---
+
+#### 4.11.8 Dual-half lifecycle — Brúarhönd and Forge open independently
+
+> **Added 2026-05-08 v0.6.1 (Védis Eikleið).** Each arm of the workshop opens and closes on
+> its own terms. A missing Forge daemon does not silence the live GUI arm, and vice versa.
+
+```
+  LIFECYCLE — INDEPENDENT HALVES
+
+  At TENGSL (connection):
+    SmidjaSense.open() called
+
+    IF skilningr.smidja.brunhand.enabled = true:
+      BrunhandHttpClient.health() → GET /v1/brunhand/health
+        OK:        log.info  "Brúarhönd reachable at <endpoint>"
+                   sense._brunhand_available = True
+        ConnectError or non-200:
+                   log.warning "Brúarhönd not reachable at <endpoint> — Brúarhönd tools degraded"
+                   sense._brunhand_available = False
+                   (ceremony continues; Brúarhönd tools return F-1 error result when called)
+
+    IF skilningr.smidja.forge.enabled = true:
+      ForgeHttpClient.health() → GET /health
+        OK:        log.info  "Seidr-Smidja Forge reachable at <endpoint>"
+                   sense._forge_available = True
+        ConnectError or non-200:
+                   log.warning "Seidr-Smidja Forge not reachable at <endpoint> — Forge tools degraded"
+                   sense._forge_available = False
+                   (ceremony continues; Forge tools return F-1 error result when called)
+
+    The two probes run independently.
+    Either can fail without preventing the ceremony from starting.
+    Either can fail without affecting the other arm.
+
+
+  AT SLOKNA (ceremony close):
+    SmidjaSense.close() called
+
+    IF brunhand client was created:  BrunhandHttpClient.close()  (closes httpx.AsyncClient)
+    IF forge client was created:     ForgeHttpClient.close()      (closes httpx.AsyncClient)
+
+    Each client closed in its own try/except.
+    Close failure of one arm does not prevent close of the other.
+
+
+  TOOL ROUTING BY ARM:
+    Tool name has NO "forge_" sub-prefix:
+      smidja.screenshot, smidja.click, smidja.type, smidja.hotkey,
+      smidja.vroid_open, smidja.vroid_export
+      --> routed to BrunhandHttpClient
+      --> if _brunhand_available = False: F-1 error tool_result returned immediately
+
+    Tool name has "forge_" sub-prefix:
+      smidja.forge_build_avatar, smidja.forge_get_avatar,
+      smidja.forge_inspect_avatar, smidja.forge_list_assets
+      --> routed to ForgeHttpClient
+      --> if _forge_available = False: F-1 error tool_result returned immediately
+
+
+  DEGRADATION MATRIX:
+    Brúarhönd up  / Forge up:   All 9+ tools available. Full workshop.
+    Brúarhönd up  / Forge down: 6 Brúarhönd tools available. Forge tools return F-1.
+    Brúarhönd down/ Forge up:   3+ Forge tools available. Brúarhönd tools return F-1.
+    Brúarhönd down/ Forge down: All tools degraded. Ceremony still starts; agent sees errors.
+```
+
+---
+
+#### 4.11.9 Forge-specific failure modes
+
+> **Added 2026-05-08 v0.6.1 (Védis Eikleið).** Five failure modes specific to the Forge arm.
+> All follow the invariant: no crash; structured error tool_result returned to agent; turn
+> continues. See §4.11.4 for the Brúarhönd arm failure modes (F-1 through F-7).
+
+```
+  FORGE FAILURE MODES
+
+  F-1: Forge unreachable (httpx.ConnectError)
+    Cause: Seidr-Smidja Straumur daemon is not running; endpoint is wrong;
+           network is unavailable.
+    ForgeHttpClient raises ForgeUnreachableError.
+    SmidjaSense returns tool_result: {"error": "forge_unreachable", "detail": "<endpoint>"}
+    log.warning: "Seidr-Smidja Forge unreachable at <endpoint> — tool call returned error result"
+    Turn continues. Agent may explain, retry, or attempt a Brúarhönd path instead.
+
+  F-2: Timeout (render exceeds request_timeout_seconds)
+    Cause: headless Blender render takes longer than the configured timeout.
+           Default 120s; complex Loom specs may exceed this.
+    ForgeHttpClient raises ForgeTimeoutError (httpx.TimeoutException).
+    SmidjaSense returns tool_result: {"error": "forge_timeout",
+                                      "timeout_seconds": <configured value>,
+                                      "hint": "raise skilningr.smidja.forge.request_timeout_seconds"}
+    log.warning: "Seidr-Smidja Forge timed out after <N>s for <tool_name>"
+    Turn continues. Agent may advise operator to raise the timeout or simplify the spec.
+
+  F-3: Spec validation error (4xx with validation body)
+    Cause: Loom spec submitted by agent is invalid — missing required fields, bad types,
+           or references an unknown asset pack.
+    Straumur returns HTTP 4xx with a structured validation error body.
+    ForgeHttpClient raises ForgeValidationError.
+    SmidjaSense returns tool_result: {"error": "forge_validation_error",
+                                      "status": <N>,
+                                      "detail": "<excerpt from validation body>"}
+    log.warning: "Seidr-Smidja Forge rejected spec (HTTP <N>) for <tool_name>"
+    Turn continues. Agent may revise the spec and retry.
+
+  F-4: Render failure (5xx)
+    Cause: Straumur / Blender internal error — unhandled exception in the render pipeline,
+           OOM during render, corrupt asset, Blender crash.
+    Straumur returns HTTP 5xx.
+    ForgeHttpClient raises ForgeServerError.
+    SmidjaSense returns tool_result: {"error": "forge_server_error",
+                                      "status": <N>,
+                                      "body": "<excerpt>"}
+    log.warning: "Seidr-Smidja Forge returned HTTP <N> for <tool_name>"
+    Turn continues. Agent may retry or diagnose.
+
+  F-5: Missing asset pack referenced by Loom spec
+    Cause: Loom spec names an asset pack ID that does not exist in Seidr-Smidja's Hoard.
+    Straumur returns HTTP 4xx with an asset-not-found body.
+    Behavior: same as F-3 (spec validation error), but with a specific error key:
+    tool_result: {"error": "forge_asset_not_found",
+                  "asset_id": "<id from spec>",
+                  "hint": "call smidja.forge_list_assets to see available packs"}
+    Agent can recover by calling smidja.forge_list_assets and revising the spec.
+
+
+  FORGE ERROR CLASS HIERARCHY (mirrors Brúarhönd):
+    SmidjaError (base)
+      |-- ForgeError (base for all Forge arm errors; extends SmidjaError)
+            |-- ForgeUnreachableError   (F-1)
+            |-- ForgeTimeoutError       (F-2)
+            |-- ForgeValidationError    (F-3)
+            |-- ForgeServerError        (F-4)
+    F-5 (asset not found) is a subcase of ForgeValidationError with distinct error key.
+    All caught by SmidjaSense.dispatch_tool_call(); none propagate to ToolDispatcher.
 ```
 
 ---
@@ -4466,3 +4831,5 @@ is empty and tool calls can never arrive.
 *Four rivers: Tunga (out voice), Hlust (in voice), Sjón (in image), Smiðja (out action).*
 *v0.5.2: the eye gains a second source. The screen shows the work; the webcam shows the worker.*
 *Only when invited — stronger gate, stronger consent, the camera's light goes off when the ceremony ends.*
+*v0.6.1: the workshop holds two anvils. Brúarhönd tends the living GUI; Forge drives headless Blender.*
+*One arm reaches for the screen. The other reaches into the render. Both belong to the same hand.*
