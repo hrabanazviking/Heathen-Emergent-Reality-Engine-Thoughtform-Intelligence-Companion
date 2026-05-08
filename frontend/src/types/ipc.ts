@@ -33,7 +33,14 @@ export type LifecycleState =
 export type BifrostStatus = "open" | "closed" | "opening" | "failed";
 export type TungaState = "idle" | "synthesizing" | "speaking" | "failed";
 export type HlustState = "idle" | "loading" | "listening" | "transcribing" | "failed";
-export type SjonState = "idle" | "capturing" | "encoding" | "failed";
+export type SjonState =
+  | "idle"
+  | "capturing"
+  | "encoding"
+  | "failed"
+  | "continuous_running"   // Background periodic capture task is active and looping
+  | "continuous_stopped"   // Background task was stopped cleanly; returning to idle
+  | "buffer_full";          // Ring buffer reached buffer_depth capacity; oldest evicted
 export type ErrorLevel = "warn" | "error";
 
 /** WebSocket connection state (client-managed; not a server-pushed event type). */

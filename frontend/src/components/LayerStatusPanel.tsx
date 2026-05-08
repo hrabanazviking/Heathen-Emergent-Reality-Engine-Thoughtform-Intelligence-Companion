@@ -30,8 +30,15 @@ function sjonStateToHealth(
     case "encoding":
       // Actively processing a frame — show as active (pulsing).
       return "active";
+    case "continuous_running":
+    case "buffer_full":
+      // Continuous mode active — the eye keeps watching.
+      // buffer_full is informational: buffer is saturated but operational.
+      // Use "active" so the Sjon-glow blue accent pulses continuously.
+      return "active";
     case "idle":
-      // Available and waiting for the next snapshot() call.
+    case "continuous_stopped":
+      // Available and waiting, or continuous task cleanly stopped.
       return "healthy";
     case "failed":
       // Last capture or encode attempt failed.
@@ -48,8 +55,13 @@ export function LayerStatusPanel(): React.ReactElement {
   const sjonState = useCeremonyStore((s) => s.sjonState);
 
   // Derive a note for the Sjon row so operators see the current pipeline state.
+  // v0.5.1: "continuous" badge when the background task is running.
   const sjonNote =
-    sjonState === "capturing"
+    sjonState === "continuous_running"
+      ? "continuous"
+      : sjonState === "buffer_full"
+      ? "continuous"
+      : sjonState === "capturing"
       ? "capturing"
       : sjonState === "encoding"
       ? "encoding"

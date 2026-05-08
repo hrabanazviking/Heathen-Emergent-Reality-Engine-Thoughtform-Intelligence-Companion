@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
 
@@ -278,3 +278,177 @@ class TestSjonInitSetsVisionScreenFlag:
             client.capability_vision_screen = True
 
         assert client.capability_vision_screen is False
+
+
+# ---------------------------------------------------------------------------
+# v0.5.1 attach_policy logic tests
+# ---------------------------------------------------------------------------
+
+class TestAttachPolicyLogic:
+    """Tests for per-turn attach_policy dispatch introduced in v0.5.1.
+
+    These tests exercise the policy logic in isolation (not the full CLI),
+    mirroring the pattern of TestVisionGateLogic above.
+    """
+
+    def _make_sjon_mock(
+        self,
+        snapshot_result: list[str],
+        recent_frames_result: list[str] | None = None,
+    ) -> MagicMock:
+        """Build a mock Sjón with controlled snapshot() and recent_frames() results.
+
+        snapshot() is an AsyncMock so callers can assert_not_called() / assert_called().
+        recent_frames() is a regular MagicMock (sync method).
+        """
+        mock_sjon = MagicMock()
+        mock_sjon.is_available = True
+
+        # Use AsyncMock so the mock is awaitable AND trackable via assert_not_called etc.
+        mock_sjon.snapshot = AsyncMock(return_value=snapshot_result)
+
+        if recent_frames_result is not None:
+            mock_sjon.recent_frames = MagicMock(return_value=recent_frames_result)
+        else:
+            mock_sjon.recent_frames = MagicMock(return_value=[])
+
+        return mock_sjon
+
+    def _make_screen_config(
+        self,
+        policy: str = "latest",
+        continuous: bool = False,
+    ):
+        """Build a minimal screen config stub for policy dispatch tests."""
+        cfg = MagicMock()
+        cfg.attach_policy = policy
+        cfg.continuous = continuous
+        return cfg
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_none_sends_no_image(self) -> None:
+        """attach_policy='none' always results in an empty image list."""
+        sjon = self._make_sjon_mock(snapshot_result=["data:image/png;base64,frame"])
+        screen_cfg = self._make_screen_config(policy="none")
+
+        # Replicate the CLI attach_policy dispatch logic
+        image_data_urls: list[str] = []
+        try:
+            policy = screen_cfg.attach_policy
+            if policy == "none":
+                image_data_urls = []
+            elif policy == "all_buffered" and screen_cfg.continuous:
+                image_data_urls = sjon.recent_frames()
+            elif policy == "latest" and screen_cfg.continuous:
+                image_data_urls = sjon.recent_frames(n=1)
+                if not image_data_urls:
+                    image_data_urls = await sjon.snapshot()
+            else:
+                image_data_urls = await sjon.snapshot()
+        except Exception:
+            image_data_urls = []
+
+        assert image_data_urls == []
+        sjon.snapshot.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_all_buffered_with_continuous_attaches_all_frames(self) -> None:
+        """attach_policy='all_buffered' in continuous mode returns all buffered frames."""
+        buffered = [
+            "data:image/png;base64,f1",
+            "data:image/png;base64,f2",
+            "data:image/png;base64,f3",
+        ]
+        sjon = self._make_sjon_mock(snapshot_result=[], recent_frames_result=buffered)
+        screen_cfg = self._make_screen_config(policy="all_buffered", continuous=True)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == buffered
+        sjon.recent_frames.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_latest_with_continuous_uses_buffer(self) -> None:
+        """attach_policy='latest' in continuous mode uses the single most-recent buffered frame."""
+        sjon = self._make_sjon_mock(
+            snapshot_result=[],
+            recent_frames_result=["data:image/png;base64,most_recent"],
+        )
+        screen_cfg = self._make_screen_config(policy="latest", continuous=True)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == ["data:image/png;base64,most_recent"]
+        sjon.recent_frames.assert_called_once_with(n=1)
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_latest_with_empty_buffer_falls_back_to_snapshot(self) -> None:
+        """'latest' with empty buffer (interval not yet fired) falls back to on-demand snapshot."""
+        sjon = self._make_sjon_mock(
+            snapshot_result=["data:image/png;base64,on_demand"],
+            recent_frames_result=[],  # buffer empty
+        )
+        screen_cfg = self._make_screen_config(policy="latest", continuous=True)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            image_data_urls = await sjon.snapshot()
+
+        assert image_data_urls == ["data:image/png;base64,on_demand"]
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_latest_on_demand_uses_snapshot(self) -> None:
+        """'latest' with continuous=False uses the on-demand snapshot() path."""
+        sjon = self._make_sjon_mock(
+            snapshot_result=["data:image/png;base64,snap"],
+            recent_frames_result=["data:image/png;base64,should_not_use"],
+        )
+        screen_cfg = self._make_screen_config(policy="latest", continuous=False)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            image_data_urls = await sjon.snapshot()
+
+        # On-demand: snapshot() called, recent_frames() never called
+        assert image_data_urls == ["data:image/png;base64,snap"]
+        sjon.recent_frames.assert_not_called()

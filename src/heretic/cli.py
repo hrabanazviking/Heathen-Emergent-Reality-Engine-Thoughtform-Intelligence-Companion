@@ -215,6 +215,22 @@ async def _async_light(args: argparse.Namespace) -> int:
             )
             sjon = None
 
+    # --- Sjón continuous capture: kick off at TENGSL if configured ---
+    # Only starts when sjon is available AND continuous mode is enabled in config.
+    # On-demand mode (continuous=False) uses snapshot() per turn — no background task.
+    if sjon is not None and sjon.is_available and grunnr_sjon.screen.continuous:
+        try:
+            await sjon.start_continuous_capture()
+            log.info(
+                "Sjon continuous capture started (interval_ms=%d, buffer_depth=%d).",
+                grunnr_sjon.screen.interval_ms,
+                grunnr_sjon.screen.buffer_depth,
+            )
+        except Exception as exc:
+            log.warning(
+                "Sjon start_continuous_capture failed — falling back to on-demand: %s", exc
+            )
+
     print(
         f"[HERETIC] Bifrost open - connected to {bf_config.endpoint} "
         f"(model: {bf_config.model})",
@@ -271,11 +287,16 @@ async def _async_light(args: argparse.Namespace) -> int:
             if user_text.strip().lower() == "/quit":
                 break
 
-            # --- Vision attach (v0.5): snapshot before building the user message.
-            # Both flags must be True:
+            # --- Vision attach (v0.5.1): per-turn frame attach with attach_policy.
+            # Both capability flags must be True:
             #   ?vision_in     — agent capability (from probe): accepts image content.
             #   ?vision_screen — body state (from Sjón init): screen capture available.
             # Frames are only injected when the spirit can receive AND the eye can see.
+            # attach_policy governs which frames to attach in continuous mode:
+            #   "none"         — no frames attached (continuous runs but silent)
+            #   "latest"       — attach the single most-recent frame from buffer
+            #                    (or on-demand snapshot if buffer empty / not continuous)
+            #   "all_buffered" — attach all frames currently in ring buffer
             image_data_urls: list[str] = []
             if (
                 sjon is not None
@@ -283,11 +304,27 @@ async def _async_light(args: argparse.Namespace) -> int:
                 and client.capability_vision_screen
             ):
                 try:
-                    image_data_urls = await sjon.snapshot()
+                    policy = grunnr_sjon.screen.attach_policy
+                    if policy == "none":
+                        image_data_urls = []
+                    elif policy == "all_buffered" and grunnr_sjon.screen.continuous:
+                        # Return all buffered frames (up to buffer_depth).
+                        image_data_urls = sjon.recent_frames()
+                    elif policy == "latest" and grunnr_sjon.screen.continuous:
+                        # Return the single most-recent buffered frame.
+                        # If the buffer is empty (first tick not yet fired), fall back
+                        # to an on-demand snapshot so the turn is never frameless.
+                        image_data_urls = sjon.recent_frames(n=1)
+                        if not image_data_urls:
+                            image_data_urls = await sjon.snapshot()
+                    else:
+                        # On-demand mode (continuous=False) — existing v0.5 path.
+                        image_data_urls = await sjon.snapshot()
                 except Exception as exc:
-                    # snapshot() guarantees no raise, but wrap defensively
+                    # Wrap defensively — snapshot() and recent_frames() never raise
+                    # by contract, but we guard the whole block to be safe.
                     log.warning(
-                        "Sjón snapshot raised unexpectedly; sending text-only: %s", exc
+                        "Sjon attach failed; sending text-only: %s", exc
                     )
                     image_data_urls = []
 

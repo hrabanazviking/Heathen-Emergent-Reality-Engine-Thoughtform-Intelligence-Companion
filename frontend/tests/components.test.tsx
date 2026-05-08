@@ -270,6 +270,48 @@ describe("LayerStatusPanel — Sjon row", () => {
 });
 
 // ---------------------------------------------------------------------------
+// LayerStatusPanel — Sjon continuous mode (v0.5.1)
+// ---------------------------------------------------------------------------
+
+describe("LayerStatusPanel — Sjon continuous mode v0.5.1", () => {
+  beforeEach(() => resetStore());
+
+  it("shows 'active' dot when sjonState is continuous_running", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "continuous_running" });
+    render(<LayerStatusPanel />);
+    // continuous_running maps to "active" health -> aria-label is "Sjon: active"
+    expect(screen.getByLabelText("Sjon: active")).toBeTruthy();
+  });
+
+  it("shows 'continuous' note badge when sjonState is continuous_running", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "continuous_running" });
+    render(<LayerStatusPanel />);
+    expect(screen.getByText("continuous")).toBeTruthy();
+  });
+
+  it("shows 'healthy' dot when sjonState is continuous_stopped", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "continuous_stopped" });
+    render(<LayerStatusPanel />);
+    expect(screen.getByLabelText("Sjon: healthy")).toBeTruthy();
+  });
+
+  it("shows 'active' dot when sjonState is buffer_full", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LayerStatusPanel } = await import("../src/components/LayerStatusPanel");
+    useCeremonyStore.setState({ sjonState: "buffer_full" });
+    render(<LayerStatusPanel />);
+    // buffer_full maps to "active" — eye is fully populated, still operational
+    expect(screen.getByLabelText("Sjon: active")).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // ToastSystem
 // ---------------------------------------------------------------------------
 

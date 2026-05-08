@@ -354,3 +354,48 @@ describe("ceremony store — Sjon state (v0.5)", () => {
     expect(useCeremonyStore.getState().sjonState).toBe("idle");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Sjon state — v0.5.1 continuous mode states
+// ---------------------------------------------------------------------------
+
+describe("ceremony store — Sjon state v0.5.1 continuous mode", () => {
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({ sjonState: "idle" });
+  });
+
+  it("setSjonState transitions to 'continuous_running'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSjonState("continuous_running");
+    expect(useCeremonyStore.getState().sjonState).toBe("continuous_running");
+  });
+
+  it("setSjonState transitions to 'continuous_stopped'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSjonState("continuous_stopped");
+    expect(useCeremonyStore.getState().sjonState).toBe("continuous_stopped");
+  });
+
+  it("setSjonState transitions to 'buffer_full'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setSjonState("buffer_full");
+    expect(useCeremonyStore.getState().sjonState).toBe("buffer_full");
+  });
+
+  it("full continuous lifecycle: idle -> continuous_running -> buffer_full -> continuous_stopped -> idle", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const transitions = [
+      "idle",
+      "continuous_running",
+      "buffer_full",
+      "continuous_running",
+      "continuous_stopped",
+      "idle",
+    ] as const;
+    for (const state of transitions) {
+      useCeremonyStore.getState().setSjonState(state);
+      expect(useCeremonyStore.getState().sjonState).toBe(state);
+    }
+  });
+});
