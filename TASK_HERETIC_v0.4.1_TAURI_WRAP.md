@@ -95,7 +95,7 @@ Slimmer than v0.1-v0.4 (this is a wrap milestone, not a new faculty):
 - **Architect** (Rúnhild Svartdóttir) — scaffold `src-tauri/`: Cargo.toml (Tauri 2.x deps + plugins), tauri.conf.json (Tauri 2 schema, window config, sidecar reference, bundle config), src/main.rs skeleton, src/sidecar.rs skeleton, src/error.rs, build.rs, placeholder icons (text-based generation OK for v0.4.1), `docs/architecture/TAURI_SHELL.md` architecture doc, README_DEV.md updates with install path. Update root `package.json` with tauri script targets and devDeps. Update `frontend/vite.config.ts` for Tauri-friendly defaults. Update `frontend/package.json` with @tauri-apps/api dependency.
 
 ### Wave 2 — sequential
-- **Forge** (Eldra Járnsdóttir) — implement Rust bodies: `main.rs` window creation + RunEvent handlers; `sidecar.rs` Python process spawn/probe/kill with proper Drop trait; ensure clean shutdown on RunEvent::ExitRequested; add the three minimal Tauri commands (quit, focus_window, get_sidecar_port). Generate placeholder icon files (32×32 .ico minimum). Lint TOML/JSON via `python -m json.tool` and Python `tomllib`. Cannot compile without Rust — document Forge's logical-correctness review checklist in commit message.
+- **Forge** (Eldra Járnsdóttir) — COMPLETE (2026-05-07, HEAD `6ceffc5`). All `todo!()` bodies replaced. See commit for full inventory. FORGE-NOTE items documented for first-compile session. Frontend 59/59 green, build clean.
 - **Auditor** (Sólrún Hvítmynd) — audit the pre-staged scaffold against:
   - Tauri 2 config schema (validate `tauri.conf.json` field names + types)
   - Tauri 2 Rust API (`tauri::Builder`, `RunEvent`, `WindowBuilder` — verify no v1 holdovers)
