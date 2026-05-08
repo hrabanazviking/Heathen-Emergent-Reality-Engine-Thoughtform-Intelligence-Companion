@@ -1,12 +1,12 @@
 /* HERETIC — global styles entry point */
 
+/* Norse aesthetic CSS custom properties — @import must precede all other rules */
+@import "./theme.css";
+
 /* Tailwind CSS base reset + design system */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Norse aesthetic CSS custom properties */
-@import "./theme.css";
 
 /* ------------------------------------------------------------------
    Base overrides — the longhouse defaults

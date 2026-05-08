@@ -208,6 +208,99 @@ describe("ceremony store — appendAgentToken / finalizeAgentTurn", () => {
   });
 });
 
+describe("ceremony store — appendAgentToken / finalizeAgentTurn — real WS path (no explicit turnId)", () => {
+  // These tests simulate the actual WS subscription wiring in connectWs:
+  //   _wsClient.subscribe<AgentToken>("agent.token", (event) => {
+  //       get().appendAgentToken(event.text_delta, event.sequence_id); // NO turnId
+  //   });
+  //   _wsClient.subscribe<AgentTurnComplete>("agent.turn_complete", (event) => {
+  //       get().finalizeAgentTurn(event.turn_id, event.finish_reason); // backend UUID
+  //   });
+  // S-1 regression: finalizeAgentTurn must locate the message via activeTurnId,
+  // not via the backend uuid, because AgentToken carries no turn_id field.
+
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({
+      chatHistory: [],
+      activeTurnId: null,
+      activeTokenSequence: -1,
+    });
+  });
+
+  it("appendAgentToken without explicit turnId creates a streaming message", async () => {
+    // Reproduces the real WS subscription: no turnId argument passed
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().appendAgentToken("Hail", 0);
+    const history = useCeremonyStore.getState().chatHistory;
+    expect(history).toHaveLength(1);
+    expect(history[0].role).toBe("assistant");
+    expect(history[0].content).toBe("Hail");
+    expect(history[0].streaming).toBe(true);
+    // activeTurnId must be set to a non-null stable local ID
+    expect(useCeremonyStore.getState().activeTurnId).not.toBeNull();
+    expect(useCeremonyStore.getState().activeTurnId).toMatch(/^local-\d+-\d+$/);
+  });
+
+  it("finalizeAgentTurn with backend UUID finalizes the streaming message via activeTurnId", async () => {
+    // S-1 regression: backend UUID on AgentTurnComplete !== local ID on the message.
+    // finalizeAgentTurn must use activeTurnId (local) not the argument (backend UUID).
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    // Simulate WS token stream — no turnId arg
+    useCeremonyStore.getState().appendAgentToken("The ", 0);
+    useCeremonyStore.getState().appendAgentToken("raven ", 1);
+    useCeremonyStore.getState().appendAgentToken("speaks.", 2);
+
+    const beforeHistory = useCeremonyStore.getState().chatHistory;
+    expect(beforeHistory).toHaveLength(1);
+    expect(beforeHistory[0].content).toBe("The raven speaks.");
+    expect(beforeHistory[0].streaming).toBe(true);
+
+    // Simulate AgentTurnComplete with a backend UUID that does NOT match the local ID
+    const backendUuid = "a3c72f1b-0000-4b2e-9f1e-deadbeef0001";
+    useCeremonyStore.getState().finalizeAgentTurn(backendUuid, "stop");
+
+    const afterHistory = useCeremonyStore.getState().chatHistory;
+    // Message must now be finalized — streaming flag cleared, timestamp set
+    expect(afterHistory[0].streaming).toBe(false);
+    expect(afterHistory[0].timestamp).not.toBeNull();
+    expect(useCeremonyStore.getState().activeTurnId).toBeNull();
+    expect(useCeremonyStore.getState().activeTokenSequence).toBe(-1);
+  });
+
+  it("two consecutive turns assemble separate messages", async () => {
+    // Verifies that activeTurnId is reset after finalize so a second turn starts fresh
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+
+    // Turn 1
+    useCeremonyStore.getState().appendAgentToken("First.", 0);
+    const firstLocalId = useCeremonyStore.getState().activeTurnId;
+    useCeremonyStore.getState().finalizeAgentTurn("backend-uuid-turn-1", "stop");
+
+    // After finalize: activeTurnId must be null
+    expect(useCeremonyStore.getState().activeTurnId).toBeNull();
+
+    // Turn 2
+    useCeremonyStore.getState().appendAgentToken("Second.", 0);
+    const secondLocalId = useCeremonyStore.getState().activeTurnId;
+
+    // Both turns have distinct local IDs
+    expect(firstLocalId).not.toBeNull();
+    expect(secondLocalId).not.toBeNull();
+    expect(firstLocalId).not.toBe(secondLocalId);
+
+    useCeremonyStore.getState().finalizeAgentTurn("backend-uuid-turn-2", "stop");
+
+    const history = useCeremonyStore.getState().chatHistory;
+    expect(history).toHaveLength(2);
+    expect(history[0].content).toBe("First.");
+    expect(history[0].streaming).toBe(false);
+    expect(history[1].content).toBe("Second.");
+    expect(history[1].streaming).toBe(false);
+    expect(useCeremonyStore.getState().activeTurnId).toBeNull();
+  });
+});
+
 describe("ceremony store — clearChatHistory", () => {
   it("clears history and resets turn state", async () => {
     const { useCeremonyStore } = await import("../src/store/ceremony");

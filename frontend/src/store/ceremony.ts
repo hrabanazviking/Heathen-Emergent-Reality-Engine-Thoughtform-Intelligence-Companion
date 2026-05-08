@@ -156,6 +156,16 @@ export interface CeremonyState {
  */
 let _wsClient: WsClient | null = null;
 
+/**
+ * Monotonic counter for local turn ID generation.
+ *
+ * Appended to Date.now() so that two turns starting within the same millisecond
+ * (common in synchronous test code) still receive distinct IDs. Resets only on
+ * module reload (page refresh / HMR), which is fine — the counter just needs to
+ * be unique within a single browser session.
+ */
+let _localTurnCounter = 0;
+
 // ==============================================================================
 // Store implementation
 // ==============================================================================
@@ -200,8 +210,17 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
     set((s) => {
       const chatHistory = s.chatHistory;
 
-      // Determine the effective turn ID — prefer explicit, fall back to generated
-      const effectiveTurnId = turnId ?? s.activeTurnId ?? `turn-${Date.now()}`;
+      // Determine the effective turn ID.
+      //
+      // Priority: explicit turnId arg (tests or future protocol) > existing
+      // activeTurnId (continuing a turn) > generate a stable local ID.
+      //
+      // The local ID uses "local-" prefix so it is distinct from backend UUIDs.
+      // It is generated ONCE on the first token and held in activeTurnId for
+      // all subsequent tokens of this turn. finalizeAgentTurn() resolves the
+      // message by activeTurnId, not by the backend turn_id from AgentTurnComplete,
+      // so there is never a mismatch between the local ID and the backend UUID.
+      const effectiveTurnId = turnId ?? s.activeTurnId ?? `local-${Date.now()}-${++_localTurnCounter}`;
 
       // If this is a new turn (activeTurnId changed or first token), append a new message
       if (s.activeTurnId !== effectiveTurnId) {
@@ -234,11 +253,21 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
     });
   },
 
-  finalizeAgentTurn: (turnId, _finishReason) => {
+  finalizeAgentTurn: (_turnId, _finishReason) => {
+    // IMPORTANT: we finalize by activeTurnId (the store's local ID), NOT by the
+    // backend _turnId from AgentTurnComplete. The backend UUID never travels on
+    // AgentToken events, so the streaming message was keyed by a local ID.
+    // Attempting to find msg.id === `assistant-${backendUuid}` would always miss.
+    // The backend _turnId is accepted for future use (logging, protocol v0.4.x).
     set((s) => {
+      const localTurnId = s.activeTurnId;
+      if (localTurnId === null) {
+        // No active turn to finalize — guard against spurious complete events
+        return { activeTurnId: null, activeTokenSequence: -1 };
+      }
       const now = new Date().toISOString();
       const updatedHistory = s.chatHistory.map((msg) => {
-        if (msg.id === `assistant-${turnId}` && msg.streaming) {
+        if (msg.id === `assistant-${localTurnId}` && msg.streaming) {
           return { ...msg, streaming: false, timestamp: now };
         }
         return msg;
