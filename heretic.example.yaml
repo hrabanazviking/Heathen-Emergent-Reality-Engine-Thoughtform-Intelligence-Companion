@@ -110,6 +110,10 @@ sjon:
     monitor_index: 0          # 0 = primary monitor; increase for secondary monitors
     min_interval_ms: 1000     # minimum ms between any two captures (throttle guard)
 
+    # v0.5.1 — periodic capture mode (opt-in)
+    continuous: false         # if true, Sjón runs background capture at interval_ms into a ring buffer
+    attach_policy: latest     # latest | all_buffered | none — per-turn frame attach behavior
+
   webcam:
     enabled: false            # webcam support not implemented in v0.5; declared for v1.x
     device: default

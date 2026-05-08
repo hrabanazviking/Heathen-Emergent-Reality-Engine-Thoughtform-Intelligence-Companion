@@ -29,7 +29,8 @@ What v0.5.1 does NOT add:
 
 ## 2. Current status — 2026-05-08
 
-**Phase:** v0.5 SHIPPED + AUDITED + CLEANED at `4d9d2fa`. Test baseline: Python 527 + frontend 70 = 597.
+**Phase:** v0.5.1 SHIPPED + AUDITED + CLEANED 2026-05-08; HEAD post-`2f81c6f`; 569 Python + 78 frontend = 647 tests.
+*(Baseline when this task opened: v0.5 SHIPPED + AUDITED + CLEANED at `4d9d2fa`. Python 527 + frontend 70 = 597.)*
 
 ### Done in v0.5 (recap)
 - `src/heretic/sjon/` — capture, encoder, orchestrator (on-demand snapshot only)
@@ -40,19 +41,18 @@ What v0.5.1 does NOT add:
 - Privacy invariant locked: save_frames default False, never auto-save
 
 ### v0.5.1 deliverables (this milestone)
-- ⏳ `Sjón.start_continuous_capture()` async task — loops at config.screen.interval_ms, calls capture+encode, pushes to ring buffer
-- ⏳ `Sjón.stop_continuous_capture()` — stops the task cleanly
-- ⏳ `Sjón.recent_frames(n: int | None = None) -> list[str]` — returns the last N data URLs from the buffer (None = all)
-- ⏳ Ring buffer in `sjon.py` — collections.deque with `maxlen=config.screen.buffer_depth`
-- ⏳ New config field: `sjon.screen.continuous: bool` (default False — opt-in for periodic mode)
-- ⏳ New config field: `sjon.screen.attach_policy: str` (default "latest"; values "latest" | "all_buffered" | "none")
-- ⏳ Multi-monitor capture: when `monitor_index = 0`, MssBackend captures the virtual all-monitors composite; when `>= 1`, individual screen
-- ⏳ New helper: `MssBackend.list_monitors() -> list[dict]` (for future UI / config-tool use)
-- ⏳ CLI integration: when `continuous` mode active, kick off Sjón.start_continuous_capture() at TENGSL; stop at SLOKNA; per-turn attach uses recent_frames() per attach_policy
-- ⏳ vebond IPC: extend SjonActivity state machine with new states (CONTINUOUS_RUNNING, CONTINUOUS_STOPPED, BUFFER_FULL); OR add a new event SjonBuffer with depth/oldest_age fields. Architect chooses.
-- ⏳ Frontend: LayerStatusItem reflects continuous mode (e.g., faster pulse, label "Sjón (continuous)" when active)
-- ⏳ Tests — 25+ new Python tests (continuous task lifecycle, ring buffer behavior, attach policy paths, multi-monitor mocked) + 2-3 frontend tests
-- ⏳ Total target: 555+ Python + 73+ frontend = 628+ overall
+- ~~⏳~~ **Done 2026-05-08 (`394d360`)** — `Sjón.start_continuous_capture()` async task — loops at config.screen.interval_ms, calls capture+encode, pushes to ring buffer
+- ~~⏳~~ **Done 2026-05-08 (`394d360`)** — `Sjón.stop_continuous_capture()` — stops the task cleanly
+- ~~⏳~~ **Done 2026-05-08 (`394d360`)** — `Sjón.recent_frames(n: int | None = None) -> list[str]` — returns the last N data URLs from the buffer (None = all)
+- ~~⏳~~ **Done 2026-05-08 (`394d360`)** — Ring buffer in `sjon.py` — collections.deque with `maxlen=config.screen.buffer_depth`
+- ~~⏳~~ **Done 2026-05-08 (`ce94edf`)** — New config field: `sjon.screen.continuous: bool` (default False — opt-in for periodic mode)
+- ~~⏳~~ **Done 2026-05-08 (`ce94edf`)** — New config field: `sjon.screen.attach_policy: str` (default "latest"; values "latest" | "all_buffered" | "none")
+- ~~⏳~~ **Done 2026-05-08 (`394d360`)** — Multi-monitor capture: `_resolve_mss_monitor_index()` pure helper encodes mode-asymmetry; index 0 + continuous → mss composite; index 0 + on-demand → mss primary; index >=1 → pass-through
+- ~~⏳~~ **Done 2026-05-08 (`394d360`)** — New helper: `MssBackend.list_monitors() -> list[dict]`
+- ~~⏳~~ **Done 2026-05-08 (`3d795d4`)** — CLI integration: start_continuous_capture() at TENGSL; stop at SLOKNA; per-turn attach_policy dispatch
+- ~~⏳~~ **Done 2026-05-08 (`ce94edf`)** — vebond IPC: Option A chosen — three new SjonActivityState enum values (CONTINUOUS_RUNNING, CONTINUOUS_STOPPED, BUFFER_FULL)
+- ~~⏳~~ **Done 2026-05-08 (`3d795d4`)** — Frontend: LayerStatusPanel reflects continuous mode ("continuous" note badge; active pulse on continuous_running and buffer_full)
+- ~~⏳~~ **Done 2026-05-08 (`2f81c6f`)** — Tests: 569 Python + 78 frontend = 647 total (Wave 2: +42 Python +8 frontend; Wave 3: +8 Python via unskip+tighten+edge). Exceeds original target of 628+.
 
 ### Constraints carried from v0.1+v0.2+v0.3+v0.4+v0.5
 - Privacy invariant: NEVER auto-save frames
@@ -98,18 +98,19 @@ What v0.5.1 does NOT add:
 
 ## 5. Mythic Engineering wave plan (slim — extension milestone)
 
-### Wave 1 — parallel (no Skald; no new vision essay)
-- **Cartographer** (Védis Eikleið) — extend `docs/cartography/DATA_FLOW.md §4.10` with periodic-mode subsections (continuous task lifecycle, ring buffer flow, attach-policy decision tree, multi-monitor index mapping). Add §15 component-diagram update.
-- **Architect** (Rúnhild Svartdóttir) — extend `src/heretic/sjon/config_model.py` with `continuous` + `attach_policy` fields + validation; update `INTERFACE.md`; choose IPC event approach (new states vs new SjonBuffer event) and update `protocol.py` + `IPC_PROTOCOL.md` accordingly; add NotImplementedError stubs in sjon.py for `start_continuous_capture()`, `stop_continuous_capture()`, `recent_frames()`, `list_monitors()`; update placeholder tests.
+### Wave 1 — parallel (no Skald; no new vision essay) — **COMPLETE**
+- **Cartographer** (Védis Eikleið) — `b33637f` — §4.10.7-§4.10.10 + §15 extended. Multi-monitor mode-asymmetry flagged as sharp edge.
+- **Architect** (Rúnhild Svartdóttir) — `ce94edf` — config fields + validation; Option A IPC (three new SjonActivityState values); stubs; 15 placeholder tests; INTERFACE.md continuous subsection.
 
-### Wave 2 — sequential
-- **Forge** (Eldra Járnsdóttir) — implement: continuous capture task (asyncio.Task lifecycle), ring buffer (collections.deque), attach policy logic in CLI integration, multi-monitor handling, IPC state propagation, frontend continuous-mode indicator. Real Python tests + frontend Vitest tests.
-- **Auditor** (Sólrún Hvítmynd) — `docs/audit/AUDIT_v0.5.1_PERIODIC_SIGHT.md`. Verify continuous task starts/stops correctly; ring buffer FIFO behavior; attach_policy paths exercised by tests; multi-monitor mapping correctness (config 0 → mss 0 composite; config N>=1 → mss N single); privacy invariant (buffer cleared on Slokna; no disk writes anywhere); backpressure (slow capture doesn't queue); throttle interaction with continuous; cross-platform.
+### Wave 2 — sequential — **COMPLETE**
+- **Forge** (Eldra Járnsdóttir) — `394d360` (Python continuous+ring buffer+multi-monitor, 34 tests) + `3d795d4` (attach_policy CLI + frontend indicator, 8 frontend tests).
+- **Auditor** (Sólrún Hvítmynd) — `2c978dc` — PASS WITH CONCERNS, 0 blockers, 52 verified, 4 findings (N-1, N-2, X-1, X-2).
 
-### Wave 3 — cleanup (only if Auditor finds notables)
+### Wave 3 — cleanup — **COMPLETE**
+- **Forge** (Eldra Járnsdóttir) — `2f81c6f` — N-1 (unskip 7 tests), N-2 (tighten BUFFER_FULL assert to == 1, AsyncMock pattern), X-1 (remove getattr guard), X-2 (add edge test for continuous=False+all_buffered). Python 561 → 569. 0 open findings.
 
-### Close-out
-- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 8 + update this TASK file + memory refresh.
+### Close-out — **COMPLETE**
+- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 8 written; this TASK file updated; memory refreshed; heretic.example.yaml X-2 nit closed.
 
 ---
 
@@ -158,23 +159,31 @@ What v0.5.1 does NOT add:
 ## 8. Backlog carried + forward
 
 ### v0.4.1 backlog (still pending — NOT v0.5.1's territory)
-- v0.4.1 first compile blocked at linker (Rust 1.95.0 installed; needs MSVC Build Tools or full MinGW-w64). See TASK_HERETIC_v0.4.1_TAURI_WRAP.md for full state.
+- v0.4.1 first compile **BLOCKED AT LINKER** — Rust 1.95.0 installed (this session); MSVC link.exe absent; GNU dlltool fails CreateProcess (minimal-profile MinGW incomplete). Requires: `winget install Microsoft.VisualStudio.2022.BuildTools` (MSVC path, recommended) or full MinGW-w64 (GNU path). See `TASK_HERETIC_v0.4.1_TAURI_WRAP.md` for full state.
 
 ### v0.5.x backlog (carried; NOT v0.5.1's scope)
 - v0.5.2: webcam (SjonWebcamConfig activates)
 - v0.5.3: privacy mask regions (blur/mask configurable areas before send)
-- v0.5.x further: token-cost-aware attach policies, live continuous-context streaming
+- v0.5.x further: token-cost-aware attach policies, live continuous-context streaming, cached MssBackend availability flag (N-3 from v0.5 audit)
 
 ---
 
-## 9. How to resume this task in a future session
+## 9. How to orient a future session (v0.5.1 is COMPLETE)
+
+**v0.5.1 is fully shipped, audited, and cleaned. This task file is sealed.**
+
+To resume work on HERETIC in a future session:
 
 1. Read `docs/BODY_MANIFESTO.md` — sealed vision
-2. Read this file from top to bottom
-3. Read `docs/audit/AUDIT_v0.5.1_PERIODIC_SIGHT.md` if it exists
-4. Run `git log --oneline -15` and `git status` in `C:/Users/volma/runa/HERETIC`
-5. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
-6. Continue from the first unchecked deliverable in §2
+2. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md` — current quick-facts
+3. Read `docs/DEVLOG.md` — most recent entry (entry 8, 2026-05-08)
+4. Run `git log --oneline -10` and `git status` in `C:/Users/volma/runa/HERETIC`
+5. Choose forward path:
+   - **v0.6 Hands at the Forge** — Blender MCP via Seidr-Smidja Brúarhönd (`C:\Users\volma\runa\Seidr-Smidja`); opens `TASK_HERETIC_v0.6_HANDS_AT_THE_FORGE.md`
+   - **v0.5.2 webcam** — extends Sjón with camera capture; `SjonWebcamConfig` is already declared
+   - **v0.4.1 first compile** — install MSVC Build Tools or MinGW-w64, then `cargo check` in `src-tauri/`; full checklist in `TASK_HERETIC_v0.4.1_TAURI_WRAP.md §10`
+
+HEAD at close: `2f81c6f` (forge: clean v0.5.1 audit). Python 569 + frontend 78 = 647 tests. 0 open findings.
 
 ---
 

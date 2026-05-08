@@ -1576,3 +1576,208 @@ The choice is Volmarr's. All three paths begin from 597 passing tests and 0 open
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
 *The eye is opened. Six panels of the vision cycle are complete. The body has all five primary senses — it can connect, speak, hear, be seen, and see. What it cannot yet do is reach out with its hands. That belongs to the Forge.*
+
+---
+
+## 2026-05-08 — Two Arcs in One Session: The Carpenter's First Attempt (v0.4.1) and the Eye That Keeps Watch (v0.5.1 Periodic Sight)
+
+**Session type:** Dual-arc autonomous Mythic Engineering run — v0.4.1 first-compile attempt (blocked at linker, documented) followed immediately by full v0.5.1 Periodic Sight extension milestone (shipped, audited, and cleaned)
+**Branch:** `development`
+**Commits this session:** `e476e16` through `2f81c6f` (7 commits spanning both arcs)
+**Status at session end:** v0.4.1 first compile **BLOCKED AT LINKER** (Rust installed; linker absent — documented); v0.5.1 Periodic Sight **SHIPPED + AUDITED + CLEANED** — 569 Python + 78 frontend = 647 tests passing, 0 open findings
+
+---
+
+### Preamble — where both arcs began
+
+The seventh entry closed with v0.5 First Sight shipped and audited: the body gained eyes. Five primary faculties complete. The Scribe noted three possible next paths — v0.6 Blender MCP, v0.5.x periodic capture, or v0.4.1 first compile. Volmarr authorized the session to proceed with all three sequenced steps, beginning with Rust installation and the Tauri first-compile attempt.
+
+---
+
+### Arc 1: v0.4.1 First-Compile Attempt — The Carpenter Arrived; The Linker Was Not With Him
+
+#### Authorization and Rust installation
+
+Volmarr authorized Rust to be installed autonomously. `rustup-init.exe` was downloaded and run in non-interactive mode, installing Rust 1.95.0 with both MSVC and GNU toolchain targets. The toolchain landed at `%USERPROFILE%\.cargo\bin\`. Both `rustc --version` and `cargo --version` reported correctly. A `.gitignore` entry for `src-tauri/target/` was committed (`e476e16`) and `Cargo.lock` committed for reproducibility.
+
+**`4dcc1d9`** — v0.4.1 status update: Rust install documented.
+
+The scaffold had been waiting since the sixth arc. Now `rustc` was present and `cargo check` could be attempted.
+
+---
+
+#### First compile blocked at link stage
+
+`cargo check` in `src-tauri/` invoked successfully — the compiler parsed source files and resolved types without complaint. The compilation stage completed. The failure came at the **link stage**:
+
+| Linker | Result |
+|---|---|
+| MSVC `link.exe` | **absent** — `x86_64-pc-windows-msvc` toolchain installed by rustup, but Microsoft Visual C++ Build Tools were never installed on this machine. `link.exe` is part of MSVC Build Tools, not Rust. |
+| GNU `dlltool.exe` | **fails CreateProcess** — `x86_64-pc-windows-gnu` toolchain present, but the GNU toolchain was installed via rustup's minimal-profile configuration, which does not include the full MinGW-w64 toolchain. `dlltool` cannot be found. |
+
+Both linker paths were attempted; both failed for the same root reason: the minimal rustup install does not include the C/C++ build environment that Rust-on-Windows requires. This was not a defect in the scaffold — the Tauri architecture docs (TAURI_SHELL.md §9) had anticipated exactly this class of first-compile gotcha.
+
+The state was documented in `4dcc1d9` and in `TASK_HERETIC_v0.4.1_TAURI_WRAP.md`. The path forward is Volmarr's choice:
+
+| Option | What to install |
+|---|---|
+| MSVC path (recommended for Windows) | Microsoft Visual C++ Build Tools — `winget install Microsoft.VisualStudio.2022.BuildTools` (select "Desktop development with C++") or the full VS 2022 Community installer |
+| GNU path | Full MinGW-w64 from `winget install MinGW.MinGW` or the MSYS2 installer; then `rustup set default-host x86_64-pc-windows-gnu` |
+
+Neither option requires any code changes. The scaffold is correct; only the host toolchain is incomplete.
+
+---
+
+### Arc 2: v0.5.1 Periodic Sight — The Eye Learns to Keep Watching
+
+#### Task file opened — privacy invariant carry-forward (`f5778f9`)
+
+`TASK_HERETIC_v0.5.1_PERIODIC_SIGHT.md` was opened before any implementation. The session mode was declared: **extension milestone** — no new Skald vision essay, no new faculty, no new True Name. v0.5.1 deepens an existing faculty. The two most important items locked here:
+
+1. **Privacy invariant carry-forward:** The v0.5 covenant — *NEVER auto-save frames to disk* — extends without qualification to the ring buffer. Frames in the buffer live entirely in memory. On Slokna, the buffer is cleared before any other teardown step. This rule belongs to the task record first, before any code, so no future session can claim the extension changed the terms.
+
+2. **Mode asymmetry pre-declaration:** The config field `monitor_index: 0` means different things in on-demand mode (primary single monitor, mss index 1) and in continuous mode (all-monitors composite, mss index 0). The Cartographer was given explicit guidance to map this asymmetry before the Forge touched the monitor-selection code.
+
+---
+
+#### Wave 1 — Cartographer maps; Architect designs (parallel, `b33637f`, `ce94edf`)
+
+**Cartographer** (Védis Eikleið) extended `docs/cartography/DATA_FLOW.md` with four new subsections under §4.10 (the existing Sjón sight-flow section):
+
+- **§4.10.7** — continuous task lifecycle (start/stop/teardown sequence; how the asyncio.Task interacts with the ceremony Slokna chain)
+- **§4.10.8** — ring buffer flow (deque append path, eviction on overflow, recent_frames access pattern)
+- **§4.10.9** — attach-policy decision tree (three branches: "none" / "latest" / "all_buffered", each with continuous-mode and non-continuous-mode behavior)
+- **§4.10.10** — **multi-monitor mode-asymmetry sharp edge**: the Cartographer's most important contribution. The mode string (`continuous=True/False`) must travel with the monitor index whenever `capture()` is called, or the wrong mss monitor is selected. When `monitor_index=0` and `continuous=True`, the intent is the all-monitors composite (mss index 0). When `monitor_index=0` and `continuous=False`, the intent is the primary single monitor (mss index 1). The Cartographer named this a sharp edge and flagged it explicitly for the Architect and Forge.
+
+§15 (Sjón component diagram) was also extended to reflect the continuous capture task and ring buffer.
+
+**Architect** (Rúnhild Svartdóttir) staged the full v0.5.1 structural skeleton:
+
+- `config_model.py` — `SjonScreenConfig` extended with `continuous: bool = False` and `attach_policy: str = "latest"` plus validation (`attach_policy` must be one of `"latest" | "all_buffered" | "none"`; warning logged when `continuous=True` and `interval_ms < 500`)
+- `sjon.py` — `Sjón` orchestrator stubs for `start_continuous_capture()`, `stop_continuous_capture()`, `recent_frames(n: int | None = None)`, ring buffer slot, and new `SjonActivityState` values
+- `capture.py` — `MssBackend.list_monitors()` stub
+- `vebond/protocol.py` and `IPC_PROTOCOL.md` — **Option A** chosen: three new states on the existing `SjonActivityState` enum (`CONTINUOUS_RUNNING`, `CONTINUOUS_STOPPED`, `BUFFER_FULL`) rather than a new event class. Simpler and symmetric with the existing schema; no new Pydantic model required.
+- `sjon/INTERFACE.md` — continuous-mode subsection with the ring buffer lock contract and `recent_frames()` read-without-lock justification
+- 15 placeholder tests (skip-marked, ready for Forge to activate)
+
+---
+
+#### Wave 2 — Forge implements (`394d360`, `3d795d4`)
+
+**`394d360`** — Eldra Járnsdóttir (Forge Worker) implemented the Python substrate:
+
+- **`_continuous_loop()`** — asyncio.Task body: `asyncio.sleep(interval_s)` per tick; `_capture_in_flight` local boolean for backpressure (slow captures skip the next tick rather than queue); per-tick try/finally guarding the `snapshot()` call; outer try/except for `asyncio.CancelledError` (re-raises) and generic `Exception` (dies gracefully); `_emit("continuous_running")` at task start, `_emit("continuous_stopped")` on clean cancellation.
+- **Ring buffer** — `collections.deque(maxlen=config.screen.buffer_depth)` with `_buffer_lock` (asyncio.Lock) guarding writes; `recent_frames()` reads synchronously without the lock (justified: single event loop, no concurrent async reader in v0.5.1).
+- **BUFFER_FULL emission** — `_last_buffer_full_emitted` local flag (not an instance attribute) prevents repeated emission while the buffer stays at capacity. The flag is sound: it is local to `_continuous_loop` and the teardown order (`stop_continuous_capture()` before `buffer.clear()`) ensures no external code can drain the buffer while the loop is running.
+- **`_resolve_mss_monitor_index()`** — module-level pure function, no self dependency, that encodes the mode-asymmetry the Cartographer flagged. Truth table: `continuous=True, config_index=0 → mss_index=0` (composite); `continuous=False, config_index=0 → mss_index=1` (primary); `config_index>=1 → pass-through` in both modes. Four dedicated unit tests and four integration tests verify all cells.
+- **`list_monitors()`** — fresh `mss.mss()` context (never reuses instance), returns plain dicts, typed errors on backend failure.
+- **34 new Python tests** across `test_sjon_orchestrator.py` and `test_sjon_capture.py`.
+
+**`3d795d4`** — attach_policy CLI turn loop and frontend continuous indicator:
+
+- `cli.py` — attach policy dispatch: `"none"` → empty list, no snapshot; `"all_buffered" + continuous` → `recent_frames()`; `"latest" + continuous` → `recent_frames(n=1)` with fallback to `snapshot()` when buffer empty; `"latest" + not continuous` (or any unmatched) → `snapshot()`. Continuous task started at TENGSL, stopped at SLOKNA.
+- `LayerStatusPanel.tsx` — continuous mode reflected: `continuous_running` → `"active"` pulse + `"continuous"` note badge; `buffer_full` → `"active"` (eye is saturated and operational); `continuous_stopped` → `"healthy"` resting dot.
+- **8 new frontend tests** covering all three IPC state values and their rendered outputs.
+
+**Test count after Wave 2: Python 561 + frontend 78 = 639.**
+
+---
+
+#### Wave 2.5 — Audit: PASS WITH CONCERNS (`2c978dc`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit across all new source, tests, and documentation.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers.** 52 claims verified (A-1 through I-5). The prior SERIOUS finding S-1 from v0.5 (oversize retry dead variable) was confirmed RESOLVED in v0.5.1 — the fix and its assertion test had both landed in `7a84098`.
+
+**Cartographer's mode-asymmetry thread: FULLY RESOLVED.** `_resolve_mss_monitor_index()` encodes the truth table exactly. All four test cells verified.
+
+| Severity | Count | Items |
+|---|---|---|
+| BLOCKER | 0 | — |
+| SERIOUS | 0 | — |
+| NOTABLE | 2 | N-1: 7 skip-marked config tests are stale placeholders (code already implemented; decorators never removed); N-2: BUFFER_FULL emission test upper bound <= 3 is conservative (flag logic deterministically emits exactly 1, but bound was <= 3 to guard against scheduler variability) |
+| NIT | 2 | X-1: `getattr(self._config, "continuous", False)` defensive guard on a locked type (harmless; keep for now); X-2: `heretic.example.yaml` missing `continuous` and `attach_policy` keys in sjon.screen block |
+
+---
+
+#### Wave 3 — Cleanup: all findings closed (`2f81c6f`)
+
+Eldra Járnsdóttir (Forge Worker) resolved all four findings in a single targeted commit.
+
+**N-1 resolved** — 7 `@pytest.mark.skip` decorators removed from `TestSjonScreenConfigContinuousField` and `TestSjonScreenConfigAttachPolicyField` in `test_sjon_config.py`. The code had already been implemented; the tests passed immediately upon unskipping. Python count rose from 561 to 568.
+
+**N-2 resolved** — `test_continuous_loop_buffer_full_emits_once` tightened from `assert buffer_full_count <= 3` to `assert buffer_full_count == 1`. This required two iterations: the first attempt used a real asyncio event loop and collided with executor-thread timing; the second approach patched `snapshot()` directly with `AsyncMock`, making the mock awaitable within the event loop without spawning threads. The mock is deterministic; the assertion is now exact. Python count rose from 568 to 569 with one additional edge-case test (continuous=False with attach_policy="all_buffered" correctly falls through to `snapshot()`).
+
+**X-1 resolved** — `getattr(self._config, "continuous", False)` defensive guard removed from `capture.py:306` per the Auditor's recommendation. `SjonScreenConfig` always has `continuous`; the guard added cognitive noise without safety value. Direct attribute access now; cleaner.
+
+**X-2 resolved** — `heretic.example.yaml` `sjon.screen` block extended with commented example entries for both new fields:
+```yaml
+continuous: false       # if true, Sjón runs background capture at interval_ms into a ring buffer
+attach_policy: latest   # latest | all_buffered | none — per-turn frame attach behavior
+```
+
+**Final state: 569 Python + 78 frontend = 647 tests. 0 open findings. 0 skips. 0 failures.**
+
+---
+
+### What was built across v0.5.1 — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `sjon/config_model.py` | `continuous` + `attach_policy` fields; validation in `__post_init__` | 7 (config unit tests, unskipped) |
+| `sjon/capture.py` | `_resolve_mss_monitor_index()` pure helper; `list_monitors()`; capture() wired to helper | 9 (asymmetry + list_monitors) |
+| `sjon/sjon.py` | `_continuous_loop()`, `start/stop_continuous_capture()`, `recent_frames()`, ring buffer, BUFFER_FULL flag | 34 (orchestrator) |
+| `cli.py` | attach_policy dispatch; continuous start at TENGSL / stop at SLOKNA | 8 (CLI vision) |
+| `vebond/protocol.py` | Three new `SjonActivityState` values | — |
+| `frontend/src/types/ipc.ts` | `SjonState` union extended with 3 new values | — |
+| `frontend/src/store/ceremony.ts` | Handles all 7 SjonState values | 4 (store tests) |
+| `frontend/src/components/LayerStatusPanel.tsx` | Continuous-mode visual differentiation | 4 (component tests) |
+| **Total new** | **8 Python files modified + 4 frontend files modified** | **+50 Python, +8 frontend** |
+| **Running total** | | **647 (569 Python + 78 frontend)** |
+
+---
+
+### What was documented across both arcs
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.4.1_TAURI_WRAP.md` | Updated — Rust install documented; linker blocker recorded; next-step instructions added |
+| `TASK_HERETIC_v0.5.1_PERIODIC_SIGHT.md` | Created (task open) then updated through all three waves |
+| `docs/cartography/DATA_FLOW.md §4.10.7–§4.10.10` | Extended — continuous lifecycle, ring buffer flow, attach-policy tree, multi-monitor asymmetry |
+| `docs/cartography/DATA_FLOW.md §15` | Extended — Sjón component diagram updated for ring buffer and continuous task |
+| `docs/architecture/IPC_PROTOCOL.md §2 + §3.8` | Extended — three new SjonState values + frontend rendering guide |
+| `src/heretic/sjon/INTERFACE.md` | Extended — continuous-mode subsection, ring buffer lock contract |
+| `heretic.example.yaml` | Extended — `continuous` and `attach_policy` example fields added under `sjon.screen` |
+| `docs/audit/AUDIT_v0.5.1_PERIODIC_SIGHT.md` | Created — PASS WITH CONCERNS; 0 blockers; 52 verified; all 4 findings resolved at `2f81c6f` |
+| `docs/DEVLOG.md` | Extended — this entry |
+
+---
+
+### Backlog carried forward
+
+| Item | Status | Notes |
+|---|---|---|
+| v0.4.1 first compile | **PENDING — awaits linker install** | MSVC Build Tools (recommended) or full MinGW-w64. Rust 1.95.0 installed. Scaffold unchanged. |
+| v0.5.2 webcam | Backlog | `SjonWebcamConfig` declared; no implementation yet |
+| v0.5.3 privacy masks | Backlog | Configurable blur/mask regions before frame send |
+| v0.5.x N-3 cached availability | Backlog (from v0.5) | `MssBackend.available()` still opens mss context per call; cached flag deferred |
+| v0.6 Hands at the Forge | Backlog | Blender MCP via Seidr-Smidja Brúarhönd; L5 Smiðja sense activation |
+
+---
+
+### Current state
+
+The eye now keeps watching. Before v0.5.1, Sjón was on-demand: the body captured one frame when the user sent a message, if the agent's capability probe confirmed vision support. After v0.5.1, Sjón can also run in continuous mode: a background asyncio task captures one frame per interval, holding the most recent `buffer_depth` frames in a ring buffer that lives entirely in memory and is cleared on Slokna. Per-turn attach policy lets the operator choose how many of those frames to offer the spirit.
+
+The privacy covenant is unchanged. The buffer is memory-only. Slokna always clears it before any other teardown step. No frame is ever written to disk.
+
+The v0.4.1 Rust linker gap is documented precisely. The scaffold is correct; only the host C toolchain is absent. Volmarr's choice of MSVC Build Tools or full MinGW-w64 is the only required action before `cargo tauri dev` can run.
+
+The next milestone is Volmarr's choice: v0.6 Hands at the Forge (Blender MCP via Seidr-Smidja Brúarhönd), v0.5.2 webcam, v0.5.3 privacy masks, or the v0.4.1 linker install followed by first compile.
+
+*Cross-reference: `TASK_HERETIC_v0.5.1_PERIODIC_SIGHT.md`, `TASK_HERETIC_v0.4.1_TAURI_WRAP.md`, `docs/audit/AUDIT_v0.5.1_PERIODIC_SIGHT.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*Two arcs in one session. The carpenter arrived but found the linker absent — that story is documented and waiting. The eye, meanwhile, learned to keep watching: on-demand, periodic, buffered, multi-monitor — the sight covenant is deeper now. The thread holds for what comes next.*
