@@ -452,3 +452,44 @@ class TestAttachPolicyLogic:
         # On-demand: snapshot() called, recent_frames() never called
         assert image_data_urls == ["data:image/png;base64,snap"]
         sjon.recent_frames.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_attach_policy_all_buffered_with_continuous_false_falls_back_to_snapshot(
+        self,
+    ) -> None:
+        """attach_policy='all_buffered' with continuous=False falls back to on-demand snapshot.
+
+        The operator may set attach_policy='all_buffered' but leave continuous=False (e.g.
+        copied from an example config).  The ring buffer will be empty because no background
+        task is running.  Rather than sending a frameless message, the CLI falls through to
+        the on-demand snapshot() path so the user turn still receives a frame.
+
+        Code path: the `elif policy == "all_buffered" and grunnr_sjon.screen.continuous:`
+        guard does NOT fire when continuous=False, so control falls to the bare `else`
+        branch which calls snapshot() — matching the existing v0.5 on-demand behaviour.
+        """
+        sjon = self._make_sjon_mock(
+            snapshot_result=["data:image/png;base64,fallback_snap"],
+            recent_frames_result=[],  # buffer is empty — continuous never ran
+        )
+        screen_cfg = self._make_screen_config(policy="all_buffered", continuous=False)
+
+        image_data_urls: list[str] = []
+        policy = screen_cfg.attach_policy
+        if policy == "none":
+            image_data_urls = []
+        elif policy == "all_buffered" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames()
+        elif policy == "latest" and screen_cfg.continuous:
+            image_data_urls = sjon.recent_frames(n=1)
+            if not image_data_urls:
+                image_data_urls = await sjon.snapshot()
+        else:
+            # all_buffered + continuous=False falls here: graceful degradation to snapshot().
+            image_data_urls = await sjon.snapshot()
+
+        # The buffer path must NOT be taken — recent_frames() never called.
+        sjon.recent_frames.assert_not_called()
+        # The fallback snapshot must be used so the message is not frameless.
+        assert image_data_urls == ["data:image/png;base64,fallback_snap"]
+        sjon.snapshot.assert_awaited_once()

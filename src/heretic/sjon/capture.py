@@ -303,7 +303,7 @@ class MssBackend(ScreenCaptureBackend):
                 # src/heretic/sjon/INTERFACE.md §Continuous mode mapping table.
                 monitors = sct.monitors
                 mss_index = _resolve_mss_monitor_index(
-                    continuous=getattr(self._config, "continuous", False),
+                    continuous=self._config.continuous,
                     config_index=self._config.monitor_index,
                 )
                 max_mss_index = len(monitors) - 1  # last real monitor index

@@ -483,7 +483,29 @@ class TestSjonContinuousCapture:
 
     @pytest.mark.asyncio
     async def test_continuous_loop_buffer_full_emits_once(self) -> None:
-        """BUFFER_FULL is emitted at most once per fill cycle, not on every subsequent tick."""
+        """BUFFER_FULL is emitted exactly once per fill cycle.
+
+        Both asyncio.sleep and snapshot() are patched so the loop runs with zero
+        real-time delay and no thread-pool executor calls.  This makes the test
+        fully deterministic regardless of CI scheduler pressure.
+
+        The loop structure is:
+            while True:
+                await asyncio.sleep(interval_s)    <- yields once, returns immediately
+                urls = await self.snapshot()       <- returns ["data:...FULL"] instantly
+                ... append to buffer, check flags ...
+
+        With buffer_depth=2 the buffer fills at tick 2:
+            tick 1: len=0 < 2, at_capacity=False, append -> len=1, flag reset (False)
+            tick 2: len=1 < 2, at_capacity=False, append -> len=2, flag reset (False)
+            tick 3: len=2 == 2, at_capacity=True, NOT emitted yet -> emit BUFFER_FULL,
+                    flag=True
+            tick 4+: at_capacity=True, flag=True -> suppressed
+
+        Wait: the deque is maxlen=2.  Once full (len==maxlen), appending evicts the oldest
+        and len stays at 2 forever.  So at_capacity is True from tick 3 onward.
+        The flag is set True at tick 3 and never reset.  Exactly 1 emission.
+        """
         emitted_states = []
 
         def _emitter(event):
@@ -492,27 +514,44 @@ class TestSjonContinuousCapture:
             except AttributeError:
                 emitted_states.append(str(event))
 
-        # Very small buffer (depth=2) + fast interval so it fills quickly
-        sjon, _, mock_encoder = _make_sjon_continuous(
-            interval_ms=15,
+        # Small buffer (depth=2) so it fills quickly.
+        sjon, _, _ = _make_sjon_continuous(
+            interval_ms=50,
             buffer_depth=2,
             min_interval_ms=0,
             event_emitter=_emitter,
         )
-        mock_encoder.to_data_url.return_value = "data:image/png;base64,FULL"
 
-        await sjon.start_continuous_capture()
-        # Wait long enough for buffer to fill and several extra ticks to fire
-        await asyncio.sleep(0.15)
-        await sjon.stop_continuous_capture()
+        _real_sleep = asyncio.sleep
+        tick_count = 0
+
+        async def _instant_sleep(_seconds: float) -> None:
+            # Count ticks; let the loop run 10 ticks then cancel on the next sleep.
+            nonlocal tick_count
+            tick_count += 1
+            await _real_sleep(0)
+
+        async def _mock_snapshot() -> list[str]:
+            return ["data:image/png;base64,FULL"]
+
+        with (
+            patch("heretic.sjon.sjon.asyncio.sleep", side_effect=_instant_sleep),
+            patch.object(sjon, "snapshot", side_effect=_mock_snapshot),
+        ):
+            await sjon.start_continuous_capture()
+            # Drive the event loop until we have at least 10 ticks fired.
+            # Each iteration of the outer loop checks tick_count.
+            for _ in range(100):
+                await _real_sleep(0)
+                if tick_count >= 10:
+                    break
+            await sjon.stop_continuous_capture()
 
         buffer_full_count = emitted_states.count("buffer_full")
-        # BUFFER_FULL must be emitted at least once (buffer did fill)
-        assert buffer_full_count >= 1
-        # Must NOT be spammed — should be limited by the once-per-fill logic.
-        # We allow up to 3 to account for potential test timing variability where
-        # the buffer briefly drains and refills, re-triggering the emission.
-        assert buffer_full_count <= 3
+        # The flag logic guarantees exactly 1 BUFFER_FULL per fill cycle:
+        # once the buffer is at maxlen the flag stays True until close() resets
+        # the buffer — which stops the task first, so the loop never resets the flag.
+        assert buffer_full_count == 1
 
     @pytest.mark.asyncio
     async def test_continuous_loop_capture_failure_does_not_crash_loop(self) -> None:

@@ -215,21 +215,16 @@ class TestHereticConfigSjonField:
 class TestSjonScreenConfigContinuousField:
     """SjonScreenConfig.continuous field — v0.5.1 additions. (Placeholders: Forge implements.)"""
 
-    @pytest.mark.skip(reason="v0.5.1 placeholder — Forge implements continuous default")
     def test_continuous_default_is_false(self) -> None:
         from heretic.sjon.config_model import SjonScreenConfig
         cfg = SjonScreenConfig()
         assert cfg.continuous is False
 
-    @pytest.mark.skip(reason="v0.5.1 placeholder — Forge verifies continuous=True accepted")
     def test_continuous_true_accepted(self) -> None:
         from heretic.sjon.config_model import SjonScreenConfig
         cfg = SjonScreenConfig(continuous=True)
         assert cfg.continuous is True
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge verifies sub-500ms continuous interval warns"
-    )
     def test_continuous_sub500ms_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         from heretic.sjon.config_model import SjonScreenConfig
         with caplog.at_level(logging.WARNING, logger="heretic.sjon.config_model"):
@@ -240,25 +235,21 @@ class TestSjonScreenConfigContinuousField:
 class TestSjonScreenConfigAttachPolicyField:
     """SjonScreenConfig.attach_policy field — v0.5.1 additions. (Placeholders: Forge implements.)"""
 
-    @pytest.mark.skip(reason="v0.5.1 placeholder — Forge verifies attach_policy default")
     def test_attach_policy_default_is_latest(self) -> None:
         from heretic.sjon.config_model import SjonScreenConfig
         cfg = SjonScreenConfig()
         assert cfg.attach_policy == "latest"
 
-    @pytest.mark.skip(reason="v0.5.1 placeholder — Forge verifies all_buffered accepted")
     def test_attach_policy_all_buffered_accepted(self) -> None:
         from heretic.sjon.config_model import SjonScreenConfig
         cfg = SjonScreenConfig(attach_policy="all_buffered")
         assert cfg.attach_policy == "all_buffered"
 
-    @pytest.mark.skip(reason="v0.5.1 placeholder — Forge verifies none accepted")
     def test_attach_policy_none_accepted(self) -> None:
         from heretic.sjon.config_model import SjonScreenConfig
         cfg = SjonScreenConfig(attach_policy="none")
         assert cfg.attach_policy == "none"
 
-    @pytest.mark.skip(reason="v0.5.1 placeholder — Forge verifies invalid attach_policy raises")
     def test_attach_policy_invalid_raises(self) -> None:
         from heretic.sjon.config_model import SjonScreenConfig
         with pytest.raises(ValueError, match="attach_policy"):
