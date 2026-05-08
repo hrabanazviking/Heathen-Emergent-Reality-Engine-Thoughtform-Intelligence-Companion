@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.5 First Sight marked SHIPPED (HEAD 4d9d2fa); v0.5.1 Periodic Sight (continuous capture loop + ring buffer + multi-monitor mapping) marked IN PROGRESS; v0.5.1 is an extension of v0.5 — no new layer, same L3 Sjón substrate deepened; cross-reference to DATA_FLOW.md §4.10.7–§4.10.10 added
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -477,7 +477,7 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |    Prerequisite to compile: `winget install Rustlang.Rust.MSVC` (Windows) or rustup-init
         |    See DATA_FLOW.md §4.9 (Tauri shell flow) and §14 (shell wrapper diagram)
         |    PyInstaller bundling deferred to v0.4.1.x — v0.4.1 requires Python 3.10+ on PATH
-  v0.5  First Sight      screen capture     L3 Sjón substrate                       IN PROGRESS (HEAD fed2478 pre-v0.5)
+  v0.5  First Sight      screen capture     L3 Sjón substrate                       SHIPPED HEAD 4d9d2fa AUDITED
         |  Sjón path: user message send → SjonOrchestrator.snapshot()
         |    → MssBackend.capture(monitor=primary) [mss, MIT, cross-platform]
         |    → FrameEncoder: BGRA → PIL.Image(RGB) → thumbnail(1280×720) → PNG(compress_level=6)
@@ -495,6 +495,21 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |  v0.5 does NOT include: L5 Auga sense wrapper (deferred v0.7+), webcam (v0.5.x),
         |    periodic interval capture (v0.5.x), ring buffer recall (v0.5.x)
         |  See DATA_FLOW.md §4.10 (sight flow) and §15 (Sjón component diagram)
+        |
+        |  v0.5.1 — Periodic Sight (IN PROGRESS — extension of v0.5, NOT a new layer)
+        |    SAME L3 Sjón substrate; no new layer added; on-demand path unchanged
+        |    New: continuous background capture task (asyncio.Task, loops at interval_ms)
+        |    New: ring buffer (collections.deque, maxlen=buffer_depth, default 5)
+        |    New: attach_policy field — "latest" (default) | "all_buffered" | "none"
+        |    New: continuous config field — sjon.screen.continuous: bool (default false)
+        |    New: multi-monitor support — monitor_index=0 maps differently by mode:
+        |           on-demand: config 0 → mss 1 (primary screen)
+        |           continuous: config 0 → mss 0 (all-monitors composite)
+        |           either mode: config N>=1 → mss N (specific display)
+        |    New: MssBackend.list_monitors() helper
+        |    Privacy invariant preserved: ring buffer cleared on Slokna; never to disk
+        |    Backpressure: slow capture skips next tick rather than queuing
+        |    See DATA_FLOW.md §4.10.7–§4.10.10 (periodic subsections) and §15 v0.5.1 extension
   v0.6  Hands at the Forge  Blender MCP     L5.5 (blender sense + Seidr-Smidja)
   v0.7  Files & Terminal    FS + terminal   L5.1 + L5.2 (filesystem + terminal senses)
         |  v0.7 also: L5.11 Tunga sense (tunga.speak MCP tool — agent-callable TTS)

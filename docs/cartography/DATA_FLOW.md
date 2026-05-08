@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS.
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -2783,6 +2783,284 @@ an `error` event surfaced as a toast notification).
 
 Full schema lives in `src/heretic/sjon/config_model.py SjonConfig` and LAYER_INTERFACES.md §L3 Sjón.
 
+#### 4.10.7 Continuous task lifecycle (v0.5.1)
+
+> **Added 2026-05-08 v0.5.1 (Védis Eikleið).** The eye that once opened only when spoken to now
+> keeps its own watch. This section maps the background capture loop that begins at TENGSL and
+> runs until SLOKNA, feeding the ring buffer one frame at a time.
+
+```
+  TENGSL transition — ceremony connects
+       |
+       |  IF config.sjon.screen.continuous = true:
+       |    sjon.start_continuous_capture() called
+       |         |
+       |         |  creates asyncio.Task (stored as _continuous_task)
+       |         |  task body: continuous capture loop
+       |         |
+       |         v
+       |    [continuous capture loop — runs until cancelled]
+       |         |
+       |         |  loop iteration:
+       |         |    record tick_start = now()
+       |         |
+       |         |    [capture + encode — same pipeline as snapshot()]
+       |         |      MssBackend.capture(monitor mapped per §4.10.10)
+       |         |      run_in_executor (sync wrapped, same as on-demand path)
+       |         |      FrameEncoder.encode(...)
+       |         |      run_in_executor (sync wrapped)
+       |         |
+       |         |    IF capture+encode succeeds:
+       |         |      push data_url to ring buffer (deque append, see §4.10.8)
+       |         |      emit sjon.activity(state="buffer_updated", depth=len(buffer))
+       |         |
+       |         |    IF capture+encode fails (any exception):
+       |         |      log.warning — tick skipped; buffer unchanged
+       |         |      no sjon.activity failure event emitted per tick (too noisy)
+       |         |
+       |         |    [throttle re-enforcement]
+       |         |      elapsed = now() - tick_start
+       |         |      sleep_for = max(0, (config.sjon.screen.min_interval_ms / 1000) - elapsed)
+       |         |      IF sleep_for < (config.sjon.screen.interval_ms / 1000):
+       |         |        sleep_for = config.sjon.screen.interval_ms / 1000
+       |         |        (interval_ms is the floor; min_interval_ms can only extend, never shorten)
+       |         |
+       |         |    [backpressure gate — was the last capture still in flight?]
+       |         |      IF the previous run_in_executor had not completed when the tick woke:
+       |         |        tick is SKIPPED entirely (no queued capture)
+       |         |        log.debug: "Sjón continuous: tick skipped — previous capture still in flight"
+       |         |        await asyncio.sleep(interval_ms / 1000) and continue
+       |         |        rationale: prevents runaway accumulation under system load;
+       |         |                   one frame late is better than many frames queued
+       |         |
+       |         v
+       |    await asyncio.sleep(sleep_for)
+       |    (loop repeats until task cancelled)
+       |
+       v
+  SLOKNA transition — ceremony extinguishes
+       |
+       |  sjon.stop_continuous_capture() called:
+       |    _continuous_task.cancel()
+       |    await task (catches CancelledError)
+       |    _continuous_task = None
+       |
+       |  ring buffer cleared (see §4.10.8 privacy invariant)
+```
+
+**Config keys for continuous mode:**
+
+| Config key | Default | Controls |
+|---|---|---|
+| `sjon.screen.continuous` | `false` | Master toggle for periodic capture; on-demand path always available regardless |
+| `sjon.screen.interval_ms` | (to be set by operator) | Target milliseconds between capture ticks; operator tunes to desired watch cadence |
+| `sjon.screen.min_interval_ms` | `1000` | Minimum gap enforced; continuous mode respects this even if interval_ms is lower |
+| `sjon.screen.attach_policy` | `"latest"` | How the per-turn message attaches buffered frames; see §4.10.9 |
+
+#### 4.10.8 Ring buffer
+
+> The eye does not hold every moment it sees — only the most recent handful. The oldest fades
+> when a newer arrives and the depth is full.
+
+```
+  Ring buffer — lives inside SjonOrchestrator
+
+  Implementation:
+    self._frame_buffer: collections.deque = collections.deque(maxlen=config.sjon.screen.buffer_depth)
+    default buffer_depth: 5 (already declared in SjonConfig; now activated in v0.5.1)
+
+  Write path (continuous loop tick):
+    self._frame_buffer.append(data_url)
+    - data_url is a complete "data:image/png;base64,..." string
+    - if len == maxlen: oldest entry is automatically evicted (deque maxlen behavior)
+    - no explicit lock needed for append — asyncio single-threaded; appends are atomic from
+      the perspective of the event loop
+
+  Read path (Sjón.recent_frames):
+    def recent_frames(n: int | None = None) -> list[str]:
+      frames = list(self._frame_buffer)   (snapshot of current state)
+      if n is None:
+        return frames                     (all buffered frames, oldest first)
+      return frames[-n:]                  (last N frames, most recent last)
+
+  Traversal note:
+    deque iteration during append is safe in asyncio (single-threaded),
+    but if multi-threaded access is ever added, an asyncio.Lock would be required here.
+    The current design is asyncio-only; no threading is introduced in v0.5.1.
+
+  Overflow behavior:
+    maxlen=5 means the buffer never grows beyond 5 frames.
+    On the 6th append, frame[0] (oldest) is dropped silently.
+    This is the standard deque(maxlen) contract — no code required for eviction.
+
+  Privacy invariant (sealed from v0.5, re-enforced here):
+    self._frame_buffer.clear() is called:
+      - inside stop_continuous_capture()
+      - inside Sjón.close() (called by the SLOKNA lifecycle transition)
+    The buffer is NEVER written to disk.
+    No frame from the ring buffer is persisted past the ceremony in any form.
+    The buffer only exists while the ceremony is live and continuous mode is active.
+```
+
+**Ring buffer state transitions:**
+
+```
+  [buffer empty, continuous not started]
+       |
+       |  start_continuous_capture() called
+       v
+  [continuous running — frames accumulating]
+    buffer: [frame_1, frame_2, frame_3]  (grows up to maxlen)
+    on overflow: [frame_2, frame_3, frame_4]  (oldest evicted)
+       |
+       |  stop_continuous_capture() called  (SLOKNA)
+       v
+  [buffer cleared — [] — continuous stopped]
+```
+
+#### 4.10.9 Attach-policy decision tree (per-turn)
+
+> When the user speaks, the question arises: what should the eye send with the words?
+> Three answers are offered. One is the default; the others are for operators who know the cost.
+
+```
+  [user message arrives — turn begins]
+       |
+       |  pre-check (same as on-demand; no change from §4.10.1):
+       |    capability_vision_in = true?  AND  sjon.screen.enabled = true?
+       |    IF either is false: image_data_urls = []  (text-only turn)
+       |
+       v
+  [continuous mode active? — config.sjon.screen.continuous = true?]
+       |
+       |  IF NOT continuous (or buffer is empty):
+       |    --> fall back to on-demand snapshot() (the v0.5 path, §4.10.2)
+       |    image_data_urls = [await sjon.snapshot()]  (one fresh frame)
+       |    (if snapshot returns []: text-only turn)
+       |
+       |  IF continuous AND buffer has frames:
+       |    evaluate config.sjon.screen.attach_policy:
+       |
+       |    attach_policy = "none":
+       |      image_data_urls = []
+       |      turn is text-only regardless of buffer contents
+       |      use case: operator wants the eye watching but not attaching
+       |                (e.g., logging only, future annotation tools)
+       |
+       |    attach_policy = "latest"  (DEFAULT):
+       |      image_data_urls = [sjon.recent_frames(n=1)[-1]]  (most recent frame)
+       |      one frame per turn — mirrors v0.5 on-demand behavior
+       |      if buffer is empty (not yet filled after continuous start):
+       |        fall back to on-demand snapshot()
+       |      cost: same as v0.5 on-demand — one inline PNG per turn
+       |
+       |    attach_policy = "all_buffered":
+       |      image_data_urls = sjon.recent_frames()  (up to buffer_depth frames)
+       |      all currently buffered frames attached in order (oldest first)
+       |      use case: operator needs temporal context ("show me the last 5 frames")
+       |      COST WARNING: attaches up to buffer_depth x single-frame cost per turn
+       |        at buffer_depth=5 and ~1 MB per frame: up to ~5 MB per turn injected
+       |        operator must opt in explicitly; not the default
+       |      token implication: each image_url content block consumes vision tokens
+       |        frame count x approximate_tokens_per_image; operator is responsible for
+       |        understanding the model's per-image token cost before enabling this policy
+       |
+       v
+  [image_data_urls passed into bifrost.send_message(text, image_data_urls)]
+  [Bifröst integration unchanged — see §4.10.3]
+```
+
+#### 4.10.10 Multi-monitor index mapping (CRITICAL — intentional asymmetry between modes)
+
+> **This is the most subtle contract in v0.5.1. Forge Worker and Auditor must both read this
+> section carefully.** The same config field — `config.sjon.screen.monitor_index` — resolves
+> differently depending on which capture mode is active. This is not a bug; it is an intentional
+> design choice that matches the semantic intent of each mode.
+
+```
+  mss monitor indexing convention (underlying library):
+    mss index 0  = the all-monitors virtual composite (all displays merged into one canvas)
+    mss index 1  = primary monitor (single screen, first physical display)
+    mss index N  = the Nth physical display (1-indexed for individual monitors)
+
+  config.sjon.screen.monitor_index — operator-facing field:
+    default: 0
+
+  How monitor_index 0 is mapped — PER MODE:
+
+  +---------------------------------------------------------+
+  |  MODE           | monitor_index=0 maps to | Rationale   |
+  +---------------------------------------------------------+
+  | ON-DEMAND       | mss index 1             | "show me my |
+  | (v0.5 path)     | (primary monitor)       |  work" —    |
+  |                 |                         |  one clean   |
+  |                 |                         |  user-       |
+  |                 |                         |  meaningful  |
+  |                 |                         |  screen      |
+  +---------------------------------------------------------+
+  | CONTINUOUS      | mss index 0             | "watch what |
+  | (v0.5.1 path)   | (all-monitors           |  I'm doing" |
+  |                 |  composite)             |  — full      |
+  |                 |                         |  context,    |
+  |                 |                         |  multi-      |
+  |                 |                         |  display     |
+  |                 |                         |  visible     |
+  +---------------------------------------------------------+
+  | EITHER MODE     | mss index N (direct)    | operator has |
+  | monitor_index=N | (individual screen N)   |  chosen a    |
+  | (N >= 1)        |                         |  specific    |
+  |                 |                         |  display     |
+  +---------------------------------------------------------+
+```
+
+**Capture.py implementation contract for Forge:**
+
+```python
+  def _resolve_mss_monitor(mode: str, config_index: int) -> int:
+      """
+      Map config monitor_index to mss monitor index.
+
+      mode: "on_demand" | "continuous"
+      config_index: value from config.sjon.screen.monitor_index (default 0)
+
+      Returns: integer index to pass to mss.mss().grab(monitors[index])
+      """
+      if config_index >= 1:
+          return config_index          # direct pass-through for specific screen
+      # config_index == 0: mode-dependent default
+      if mode == "continuous":
+          return 0                     # mss 0 = all-monitors composite
+      else:
+          return 1                     # mss 1 = primary monitor (on-demand default)
+```
+
+**Why this asymmetry is intentional:**
+
+The on-demand path exists for the moment when the user says "look at this" — they want the agent
+to see the primary working screen, cleanly framed, without distraction from secondary monitors.
+Mapping config 0 to mss 1 (primary) achieves this and matches how most users think of "the screen."
+
+The continuous path exists so the agent can keep context across time — it watches the full
+workspace, not just one panel. Mapping config 0 to mss 0 (all-monitors composite) gives the
+agent the widest view for that purpose. A user with multiple monitors is likely using them all.
+
+An operator who wants on-demand to capture all monitors (or continuous to capture only primary)
+can override by setting `monitor_index: 1` (primary explicit) or by choosing the mss index
+directly. The default is tuned for the most common and most semantically appropriate behavior.
+
+**Audit check for Auditor (Sólrún Hvítmynd):** verify that `_resolve_mss_monitor` is called
+in BOTH the on-demand snapshot() path AND the continuous capture tick, with the correct mode
+string passed. A tick that accidentally passes `"on_demand"` will silently capture only primary
+instead of the composite — the wrong semantic without a visible error. The mode string must
+be injected from the context where the call originates, not derived inside the function.
+
+**Config dependencies for multi-monitor (v0.5.1 additions):**
+
+| Config key | Default | Controls |
+|---|---|---|
+| `sjon.screen.monitor_index` | `0` | Operator-chosen monitor; see mapping table above |
+| `sjon.screen.continuous` | `false` | Determines which branch of the index-0 mapping fires |
+
 ---
 
 ## 15. L3 Sjón — Internal Component Diagram (v0.5)
@@ -2978,8 +3256,97 @@ Full schema lives in `src/heretic/sjon/config_model.py SjonConfig` and LAYER_INT
     Unit tests use mocked mss and mocked PIL to cover all paths without hardware
 ```
 
+```
+  ============================================================
+  SJÓN MODULE — v0.5.1 EXTENSION: continuous pump + ring buffer
+  ============================================================
+
+  sjon/
+    (all v0.5 files unchanged in structure; new behavior added to sjon.py)
+
+    sjon.py
+      ┌──────────────────────────────────────────────────────────┐
+      │ SjonOrchestrator                                         │
+      │                                                          │
+      │  on-demand path (v0.5 — unchanged):                     │
+      │    async snapshot() ─────────────────────────> [data_url]│
+      │      throttle → capture → encode → return [data_url]    │
+      │                                                          │
+      │  continuous path (v0.5.1 — new):                        │
+      │    start_continuous_capture()                            │
+      │     └─> asyncio.Task (_continuous_task)                  │
+      │           └─> capture + encode tick (loop)              │
+      │                 └─> deque(maxlen=buffer_depth) ─────────>│
+      │                       _frame_buffer                      │
+      │                         (ring buffer, memory-only)       │
+      │                                                          │
+      │  recent_frames(n: int | None = None) -> list[str]        │
+      │    reads _frame_buffer (snapshot copy)                   │
+      │    returns last N data URLs (None = all)                 │
+      │    used by attach_policy logic in CLI / Vébond per-turn  │
+      │                                                          │
+      │  stop_continuous_capture()                               │
+      │    cancels _continuous_task                              │
+      │    awaits cancellation                                    │
+      │    _continuous_task = None                               │
+      │                                                          │
+      │  Slokna / close():                                       │
+      │    stop_continuous_capture() called                      │
+      │    _frame_buffer.clear()  [privacy invariant]            │
+      │                                                          │
+      │  monitor index resolution (per §4.10.10):               │
+      │    on-demand: config 0 → mss 1 (primary)                │
+      │    continuous: config 0 → mss 0 (all-monitors composite) │
+      │    either mode: config N>=1 → mss N (specific display)  │
+      └──────────────────────────────────────────────────────────┘
+
+    capture.py (v0.5.1 additions):
+      MssBackend
+        list_monitors() -> list[dict]
+          returns mss monitor list (mss.mss().monitors)
+          index 0 = composite descriptor; index 1..N = individual screens
+          for operator tooling / future UI config support
+
+        capture(monitor_index: int) -> CaptureResult
+          extended from v0.5 (was: capture(monitor: str))
+          now accepts an integer mss index directly
+          caller resolves config index to mss index via _resolve_mss_monitor()
+          before passing to capture()
+
+  ============================================================
+  NEW SYNC vs ASYNC ANNOTATIONS (v0.5.1)
+  ============================================================
+
+  Component                       Sync / Async   Notes
+  ---------                       -----------    -----
+  start_continuous_capture()      async          creates asyncio.Task; awaitable
+  _continuous_task (the loop)     async          runs as background Task; cancelled on Slokna
+  stop_continuous_capture()       async          cancels task; awaits CancelledError
+  recent_frames()                 sync           reads deque snapshot; no I/O; no await
+  _frame_buffer (deque)           n/a            stdlib deque; asyncio-safe for single loop
+  MssBackend.list_monitors()      sync           wraps mss property; call in run_in_executor
+                                                 if called from async context
+
+  ============================================================
+  NEW INVARIANTS (v0.5.1)
+  ============================================================
+  - The continuous capture loop NEVER queues frames
+    If the previous tick's capture is still running, the new tick is skipped entirely.
+    One late frame is always preferable to a growing backlog under load.
+  - recent_frames() ALWAYS returns a copy (list snapshot of the deque)
+    Callers may not hold a reference to the internal deque.
+    This prevents races if a tick fires while a turn is reading the buffer.
+  - The ring buffer is CLEARED on every Slokna
+    Privacy invariant carries from v0.5: frames exist only during the live ceremony.
+    Even if stop_continuous_capture() is called before close(), clear() is always called.
+  - monitor_index=0 means PRIMARY in on-demand mode and COMPOSITE in continuous mode
+    This is a named, documented, intentional asymmetry — not a bug.
+    See §4.10.10 for the full rationale and the _resolve_mss_monitor contract.
+```
+
 ---
 
 *Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-08.*
 *Three sense rivers now flow toward the spirit: Tunga (out, voice), Hlust (in, voice), Sjón (in, image).*
 *The body shows its eyes when the user speaks — not always, not uninvited, but when asked.*
+*v0.5.1: the eye keeps its own watch now, frame by frame, breath by breath, into the ring.*
