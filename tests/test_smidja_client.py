@@ -636,6 +636,62 @@ async def test_vroid_export_sends_output_path(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# wait_timeout_seconds flow-through (X-1 — Eldra Járnsdóttir, 2026-05-08)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_vroid_open_passes_wait_timeout_in_body(monkeypatch):
+    """vroid_open with a non-default wait_timeout_seconds includes the value in the request body.
+
+    Verifies the full flow-through: tool arg -> client kwarg -> envelope body field.
+    Previously only project_path was asserted (test_vroid_open_sends_project_path);
+    this test closes the coverage gap identified by Auditor finding X-1.
+    """
+    import httpx
+    monkeypatch.setenv("BRUNHAND_TOKEN_HERETIC", "tok")
+    cfg = make_config(enabled=True, require_https=False)
+    client = BrunhandHttpClient(cfg)
+
+    response = make_mock_response(200, {"payload": {}})
+    mock_http = AsyncMock(spec=httpx.AsyncClient)
+    mock_http.post = AsyncMock(return_value=response)
+    client._http = mock_http
+
+    await client.vroid_open("characters/hero.vroid", wait_timeout_seconds=45.0)
+    body = mock_http.post.call_args.kwargs.get("json", {})
+    assert body.get("project_path") == "characters/hero.vroid"
+    assert body.get("wait_timeout_seconds") == 45.0, (
+        f"Expected wait_timeout_seconds=45.0 in body, got: {body.get('wait_timeout_seconds')!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_vroid_export_passes_wait_timeout_in_body(monkeypatch):
+    """vroid_export with a non-default wait_timeout_seconds includes the value in the request body.
+
+    Verifies the full flow-through: tool arg -> client kwarg -> envelope body field.
+    Previously only output_path was asserted (test_vroid_export_sends_output_path);
+    this test closes the coverage gap identified by Auditor finding X-1.
+    """
+    import httpx
+    monkeypatch.setenv("BRUNHAND_TOKEN_HERETIC", "tok")
+    cfg = make_config(enabled=True, require_https=False)
+    client = BrunhandHttpClient(cfg)
+
+    response = make_mock_response(200, {"payload": {}})
+    mock_http = AsyncMock(spec=httpx.AsyncClient)
+    mock_http.post = AsyncMock(return_value=response)
+    client._http = mock_http
+
+    await client.vroid_export("exports/hero.vrm", wait_timeout_seconds=90.0)
+    body = mock_http.post.call_args.kwargs.get("json", {})
+    assert body.get("output_path") == "exports/hero.vrm"
+    assert body.get("wait_timeout_seconds") == 90.0, (
+        f"Expected wait_timeout_seconds=90.0 in body, got: {body.get('wait_timeout_seconds')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Token never appears in logs
 # ---------------------------------------------------------------------------
 

@@ -419,27 +419,54 @@ async def _async_light(args: argparse.Namespace) -> int:
                 had_bifrost_error = False
 
                 try:
+                    import json as _json
+
                     async for chunk in client.send_message(messages, tools=tools_array):
-                        if chunk.startswith("{") and '"type": "tool_call"' in chunk:
-                            # Bifröst emits completed tool_call records as JSON strings
-                            import json as _json
+                        # Determine if this chunk is a structured tool_call record.
+                        # Bifröst's _parse_sse_stream assembles all tool-call argument
+                        # fragments and yields them as a JSON string with {"type": "tool_call"}.
+                        # Text deltas are yielded as plain strings (never wrapped in JSON).
+                        #
+                        # We parse the chunk as JSON and inspect the 'type' field — this is
+                        # the canonical classification, not a string-heuristic on the raw
+                        # bytes. A legitimate text response that *contains* the substring
+                        # '"type": "tool_call"' will not be misrouted because it will either
+                        # fail JSON parsing (not valid JSON) or — if it is valid JSON — will
+                        # only route here if its top-level 'type' field IS "tool_call", which
+                        # is reserved for Bifröst-assembled tool-call records.
+                        #
+                        # C-3 fix (Eldra Járnsdóttir, 2026-05-08): replaced string heuristic
+                        # chunk.startswith("{") and '"type": "tool_call"' in chunk with
+                        # structured JSON inspection of the parsed dict's 'type' field.
+                        _parsed_event: dict | None = None
+                        if chunk.startswith("{"):
                             try:
-                                tc_record = _json.loads(chunk)
+                                _parsed_event = _json.loads(chunk)
+                            except _json.JSONDecodeError:
+                                _parsed_event = None
+
+                        if (
+                            _parsed_event is not None
+                            and isinstance(_parsed_event, dict)
+                            and _parsed_event.get("type") == "tool_call"
+                        ):
+                            # Bifröst emits completed tool_call records as JSON strings
+                            try:
                                 # Re-shape into OpenAI tool_call format for dispatcher
                                 accumulated_tool_calls.append({
-                                    "id": tc_record.get("id", ""),
+                                    "id": _parsed_event.get("id", ""),
                                     "type": "function",
                                     "function": {
-                                        "name": tc_record.get("name", ""),
-                                        "arguments": tc_record.get("arguments", "{}"),
+                                        "name": _parsed_event.get("name", ""),
+                                        "arguments": _parsed_event.get("arguments", "{}"),
                                     },
                                 })
                                 log.info(
                                     "Tool call received: %s (id=%s)",
-                                    tc_record.get("name"), tc_record.get("id"),
+                                    _parsed_event.get("name"), _parsed_event.get("id"),
                                 )
                             except Exception as exc:
-                                log.warning("Could not parse tool_call record: %s", exc)
+                                log.warning("Could not process tool_call record: %s", exc)
                         else:
                             print(chunk, end="", flush=True)
                             collected_text += chunk
@@ -904,6 +931,95 @@ async def _async_serve(args: argparse.Namespace) -> int:
             log.warning("Sjón serve init failed — serve continues sightless: %s", exc)
             sjon_serve = None
 
+    # --- Skilningr (L5): initialise Smiðja sense hub for serve mode ---
+    # Mirrors the _async_light pattern; key difference is that event_emitter is wired
+    # to event_bus.publish so SenseToolCall IPC events flow to all WS clients.
+    # Constructed here (after Bifröst config is built); actual open() deferred to
+    # _handle_light so it fires AFTER the Bifröst connection is established at TENGSL.
+    #
+    # N-1 fix (Eldra Járnsdóttir, 2026-05-08): serve mode previously had no Skilningr
+    # wiring — tool calls were silently dropped in _handle_send_message and the
+    # Smiðja LayerStatusPanel row never activated for serve-mode sessions.
+    serve_dispatcher: "ToolDispatcher | None" = None  # type: ignore[name-defined]
+    serve_smidja_sense: "SmidjaSense | None" = None  # type: ignore[name-defined]
+
+    # Helper: build and open Smiðja in serve mode. Called from _handle_light so the
+    # Bifröst client exists and capabilities are known when we set capability_tool_use.
+    async def _init_serve_smidja() -> None:
+        """Initialise Smiðja sense and dispatcher for serve mode at TENGSL."""
+        nonlocal serve_dispatcher, serve_smidja_sense
+
+        from heretic.skilningr.senses.smidja.client import BrunhandHttpClient
+        from heretic.skilningr.senses.smidja.sense import SmidjaSense
+        from heretic.skilningr.senses.smidja.errors import (
+            BrunhandAuthError,
+            BrunhandUnreachableError,
+        )
+        from heretic.skilningr.dispatcher import ToolDispatcher
+        from heretic.skilningr.config_model import SmidjaConfig
+
+        grunnr_skilningr = cfg.skilningr
+        grunnr_smidja_serve = grunnr_skilningr.smidja
+
+        if not grunnr_smidja_serve.enabled:
+            return
+
+        try:
+            smidja_config_serve = SmidjaConfig(
+                enabled=grunnr_smidja_serve.enabled,
+                host=grunnr_smidja_serve.host,
+                port=grunnr_smidja_serve.port,
+                token_env=grunnr_smidja_serve.token_env,
+                request_timeout_seconds=grunnr_smidja_serve.request_timeout_seconds,
+                require_https=grunnr_smidja_serve.require_https,
+                host_name=grunnr_smidja_serve.host_name,
+            )
+            smidja_client_serve = BrunhandHttpClient(smidja_config_serve, log)
+
+            # Wire event_emitter to event_bus.publish so SenseToolCall events reach WS clients.
+            # This is the critical difference from _async_light (CLI), where event_emitter=None.
+            def _smidja_event_emitter(evt: object) -> None:
+                try:
+                    event_bus.publish(evt)
+                except Exception as exc_emit:
+                    log.debug("Smiðja event_emitter error (ignored): %s", exc_emit)
+
+            serve_smidja_sense = SmidjaSense(
+                smidja_config_serve,
+                smidja_client_serve,
+                log,
+                event_emitter=_smidja_event_emitter,
+            )
+            await serve_smidja_sense.open()
+            if serve_smidja_sense.is_available:
+                serve_dispatcher = ToolDispatcher()
+                serve_dispatcher.register_sense("smidja", serve_smidja_sense)
+                # Signal Bifröst that the body now has hands (tool-use capability active)
+                client._capability_tool_use = True
+                log.info(
+                    "Smiðja sense ready in serve mode — %d tools registered.",
+                    len(serve_dispatcher.all_tool_definitions()),
+                )
+            else:
+                log.warning(
+                    "Smiðja sense enabled but is_available=False in serve mode — "
+                    "ceremony continues without hands."
+                )
+        except (BrunhandAuthError, BrunhandUnreachableError) as exc_smidja:
+            log.warning(
+                "Smiðja init failed in serve mode — ceremony continues without the hand: %s",
+                exc_smidja,
+            )
+            serve_smidja_sense = None
+            serve_dispatcher = None
+        except Exception as exc_smidja:
+            log.warning(
+                "Smiðja serve init raised unexpected error — ceremony continues without the hand: %s",
+                exc_smidja,
+            )
+            serve_smidja_sense = None
+            serve_dispatcher = None
+
     # --- State for the serve turn loop ---
     messages: list[dict] = []
     _in_flight_turn_id: list[str] = [None]  # mutable reference in closure
@@ -937,6 +1053,9 @@ async def _async_serve(args: argparse.Namespace) -> int:
             endpoint=bf_config.endpoint,
             latency_ms=None,
         ))
+        # Initialise Smiðja sense now that Bifröst is open (TENGSL state).
+        # Non-fatal: ceremony continues without tool-use if this fails.
+        await _init_serve_smidja()
         print(
             f"[HERETIC] Bifrost open via serve — connected to {bf_config.endpoint}",
             file=sys.stderr,
@@ -947,6 +1066,12 @@ async def _async_serve(args: argparse.Namespace) -> int:
         if _in_flight_task[0] and not _in_flight_task[0].done():
             _in_flight_task[0].cancel()
         lc.transition(LifecycleState.SLOKNA)
+        # Close Smiðja sense first (L5 hands) before Bifröst closes
+        if serve_smidja_sense is not None:
+            try:
+                await serve_smidja_sense.close()
+            except Exception as exc:
+                log.warning("Smiðja serve close error on extinguish: %s", exc)
         if hlust is not None:
             try:
                 await hlust.close()
@@ -1002,37 +1127,145 @@ async def _async_serve(args: argparse.Namespace) -> int:
         sequence = [0]
 
         async def _run_turn() -> None:
+            import json as _json_serve
+
+            # --- Multi-round tool dispatch loop for serve mode ---
+            # Mirrors _async_light: build tools_array when dispatcher ready,
+            # loop until agent emits text response or max_tool_call_rounds is reached.
+            # Key difference: text tokens are published to EventBus (not printed to stdout);
+            # tool call events are emitted via SmidjaSense.event_emitter -> event_bus.publish.
+            serve_tools_array = None
+            if serve_dispatcher is not None and client.capability_tool_use:
+                serve_tools_array = serve_dispatcher.all_tool_definitions() or None
+
+            tool_call_rounds_serve = 0
+            max_rounds_serve = bf_config.max_tool_call_rounds
             assistant_text = ""
-            try:
-                async for chunk in client.send_message(messages):
-                    if not chunk.startswith("{"):
-                        event_bus.publish(AgentToken(
-                            role="assistant",
-                            text_delta=chunk,
-                            sequence_id=sequence[0],
-                        ))
-                        sequence[0] += 1
-                        assistant_text += chunk
-                        if tunga is not None and not tunga.is_degraded:
+
+            while True:
+                accumulated_tool_calls_serve: list[dict] = []
+                collected_text_serve = ""
+                had_bifrost_error_serve = False
+
+                try:
+                    async for chunk in client.send_message(messages, tools=serve_tools_array):
+                        # Structured tool_call detection — same C-3 fix as _async_light.
+                        # Parse JSON and check 'type' field; never use string heuristics.
+                        _parsed_serve: dict | None = None
+                        if chunk.startswith("{"):
                             try:
-                                await tunga.feed_chunk(chunk)
-                            except Exception as exc:
-                                log.warning("Tunga.feed_chunk: %s", exc)
-            except asyncio.CancelledError:
-                event_bus.publish(AgentTurnComplete(turn_id=turn_id, finish_reason="cancelled"))
-                return
-            except BifrostError as exc:
-                log.warning("Bifrost error during turn: %s", exc)
-                event_bus.publish(ErrorEvent(level="error", source="bifrost", message=str(exc)))
-                event_bus.publish(AgentTurnComplete(turn_id=turn_id, finish_reason="error"))
-                return
+                                _parsed_serve = _json_serve.loads(chunk)
+                            except _json_serve.JSONDecodeError:
+                                _parsed_serve = None
+
+                        if (
+                            _parsed_serve is not None
+                            and isinstance(_parsed_serve, dict)
+                            and _parsed_serve.get("type") == "tool_call"
+                        ):
+                            try:
+                                accumulated_tool_calls_serve.append({
+                                    "id": _parsed_serve.get("id", ""),
+                                    "type": "function",
+                                    "function": {
+                                        "name": _parsed_serve.get("name", ""),
+                                        "arguments": _parsed_serve.get("arguments", "{}"),
+                                    },
+                                })
+                                log.info(
+                                    "Serve tool call received: %s (id=%s)",
+                                    _parsed_serve.get("name"), _parsed_serve.get("id"),
+                                )
+                            except Exception as exc_tc:
+                                log.warning("Could not process serve tool_call record: %s", exc_tc)
+                        else:
+                            event_bus.publish(AgentToken(
+                                role="assistant",
+                                text_delta=chunk,
+                                sequence_id=sequence[0],
+                            ))
+                            sequence[0] += 1
+                            collected_text_serve += chunk
+                            if tunga is not None and not tunga.is_degraded:
+                                try:
+                                    await tunga.feed_chunk(chunk)
+                                except Exception as exc_tts:
+                                    log.warning("Tunga.feed_chunk: %s", exc_tts)
+                except asyncio.CancelledError:
+                    event_bus.publish(AgentTurnComplete(turn_id=turn_id, finish_reason="cancelled"))
+                    return
+                except BifrostError as exc_bf:
+                    log.warning("Bifrost error during serve turn: %s", exc_bf)
+                    event_bus.publish(ErrorEvent(level="error", source="bifrost", message=str(exc_bf)))
+                    event_bus.publish(AgentTurnComplete(turn_id=turn_id, finish_reason="error"))
+                    return
+
+                # If tool calls received and dispatcher available and rounds left, dispatch
+                if (
+                    accumulated_tool_calls_serve
+                    and serve_dispatcher is not None
+                    and tool_call_rounds_serve < max_rounds_serve
+                    and not had_bifrost_error_serve
+                ):
+                    tool_call_rounds_serve += 1
+                    log.info(
+                        "Serve: dispatching %d tool call(s) (round %d/%d).",
+                        len(accumulated_tool_calls_serve),
+                        tool_call_rounds_serve,
+                        max_rounds_serve,
+                    )
+
+                    # Append assistant message with tool_calls to context
+                    if collected_text_serve:
+                        messages.append({
+                            "role": "assistant",
+                            "content": collected_text_serve,
+                            "tool_calls": accumulated_tool_calls_serve,
+                        })
+                    else:
+                        messages.append({
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": accumulated_tool_calls_serve,
+                        })
+
+                    # Dispatch each tool call and append results
+                    for tool_call_serve in accumulated_tool_calls_serve:
+                        try:
+                            tool_result_serve = await serve_dispatcher.dispatch(tool_call_serve)
+                        except Exception as exc_disp:
+                            log.error(
+                                "Serve dispatcher raised unexpectedly for tool %r: %s",
+                                tool_call_serve.get("function", {}).get("name"), exc_disp,
+                            )
+                            tool_result_serve = {
+                                "tool_call_id": tool_call_serve.get("id", "unknown"),
+                                "role": "tool",
+                                "content": _json_serve.dumps({
+                                    "error": True,
+                                    "code": "SENSE_INTERNAL_ERROR",
+                                    "message": f"Dispatcher error: {type(exc_disp).__name__}",
+                                }),
+                            }
+                        messages.append(tool_result_serve)
+
+                    continue  # Loop for the agent's next response
+
+                # No tool calls OR dispatcher unavailable OR rounds exhausted — done
+                if tool_call_rounds_serve >= max_rounds_serve and accumulated_tool_calls_serve:
+                    log.warning(
+                        "Serve: tool-call round cap reached at %d — breaking dispatch loop.",
+                        max_rounds_serve,
+                    )
+                assistant_text = collected_text_serve
+                break
 
             # Flush TTS at end of turn
             if tunga is not None and not tunga.is_degraded:
                 try:
                     await tunga.flush()
-                except Exception as exc:
-                    log.warning("Tunga.flush: %s", exc)
+                except Exception as exc_flush:
+                    log.warning("Tunga.flush: %s", exc_flush)
 
             if assistant_text:
                 messages.append({"role": "assistant", "content": assistant_text})
@@ -1149,6 +1382,13 @@ async def _async_serve(args: argparse.Namespace) -> int:
         await client.close()
     except Exception as exc:
         log.warning("Error closing Bifrost: %s", exc)
+
+    # Close Smiðja sense at Slokna (L5 hands last active resource before Bifröst)
+    if serve_smidja_sense is not None:
+        try:
+            await serve_smidja_sense.close()
+        except Exception as exc:
+            log.warning("Error closing Smiðja sense (serve Slokna): %s", exc)
 
     await server.stop()
     lc.transition(LifecycleState.EXTINGUISHED)

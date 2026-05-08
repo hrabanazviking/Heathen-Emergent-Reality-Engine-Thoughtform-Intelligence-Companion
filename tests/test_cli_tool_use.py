@@ -239,3 +239,107 @@ def test_tool_call_record_reshaping():
     assert reshaped["id"] == "call_abc123"
     assert reshaped["function"]["name"] == "smidja.screenshot"
     assert reshaped["function"]["arguments"] == '{"region": null}'
+
+
+# ---------------------------------------------------------------------------
+# C-3: Structured chunk detection — text response containing tool_call substring
+# ---------------------------------------------------------------------------
+
+def test_text_chunk_containing_tool_call_substring_not_misrouted():
+    """A text response that contains the literal string '"type": "tool_call"' must
+    NOT be routed to the dispatcher.
+
+    C-3 fix: the CLI now parses JSON and checks the top-level 'type' field rather
+    than using a string heuristic (chunk.startswith("{") and '"type": "tool_call"' in chunk).
+    This test verifies that the structured detection correctly classifies such a chunk
+    as text (not a tool_call) when its JSON 'type' field is NOT "tool_call".
+
+    Ref: AUDIT_v0.6_HANDS_AT_FORGE.md C-3 (Eldra Járnsdóttir, 2026-05-08)
+    """
+    import json as _json
+
+    # A text chunk the agent might produce — valid JSON, contains the substring,
+    # but its 'type' field is NOT "tool_call".
+    agent_text_chunk = _json.dumps({
+        "note": 'To call a tool you would use {"type": "tool_call"} in the protocol.',
+        "type": "text_commentary",
+    })
+
+    # Simulate the structured detection logic from cli.py (C-3 fix)
+    _parsed: dict | None = None
+    if agent_text_chunk.startswith("{"):
+        try:
+            _parsed = _json.loads(agent_text_chunk)
+        except _json.JSONDecodeError:
+            _parsed = None
+
+    is_tool_call = (
+        _parsed is not None
+        and isinstance(_parsed, dict)
+        and _parsed.get("type") == "tool_call"
+    )
+
+    assert not is_tool_call, (
+        "Text chunk with type='text_commentary' should NOT be classified as tool_call. "
+        "String heuristic would have misrouted it; structured check correctly rejects it."
+    )
+
+
+def test_plain_text_chunk_not_misrouted():
+    """A plain text chunk (not JSON at all) must not be routed to dispatcher.
+
+    Edge case: chunk that starts with '{' but is not valid JSON (e.g., '{hello world}').
+    Structured detection must handle JSONDecodeError gracefully and treat chunk as text.
+    """
+    import json as _json
+
+    invalid_json_chunk = '{"hello world" — not JSON'  # starts with { but invalid
+
+    _parsed: dict | None = None
+    if invalid_json_chunk.startswith("{"):
+        try:
+            _parsed = _json.loads(invalid_json_chunk)
+        except _json.JSONDecodeError:
+            _parsed = None  # expected path
+
+    is_tool_call = (
+        _parsed is not None
+        and isinstance(_parsed, dict)
+        and _parsed.get("type") == "tool_call"
+    )
+
+    assert _parsed is None, "Invalid JSON chunk should yield _parsed=None"
+    assert not is_tool_call, "Invalid JSON chunk must not be classified as tool_call"
+
+
+def test_genuine_tool_call_chunk_correctly_classified():
+    """The actual Bifrost tool_call record format IS correctly classified.
+
+    Ensures the C-3 structured detection accepts real tool_call records
+    (not just rejecting false positives).
+    """
+    import json as _json
+
+    bifrost_tool_call_chunk = _json.dumps({
+        "type": "tool_call",
+        "id": "call_xyz",
+        "name": "smidja.screenshot",
+        "arguments": "{}",
+    })
+
+    _parsed: dict | None = None
+    if bifrost_tool_call_chunk.startswith("{"):
+        try:
+            _parsed = _json.loads(bifrost_tool_call_chunk)
+        except _json.JSONDecodeError:
+            _parsed = None
+
+    is_tool_call = (
+        _parsed is not None
+        and isinstance(_parsed, dict)
+        and _parsed.get("type") == "tool_call"
+    )
+
+    assert is_tool_call, (
+        "Genuine Bifrost tool_call record must be classified as tool_call by structured detection."
+    )
