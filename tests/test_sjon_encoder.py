@@ -1,92 +1,234 @@
 """
-Placeholder tests for heretic.sjon.encoder.
+Tests for heretic.sjon.encoder — FrameEncoder.
 
-These tests are skip-marked during the v0.5 scaffold phase. Forge implements
-the full test suite in Wave 2 after the stubs in encoder.py are filled.
-
-Coverage targets (Forge):
-    - FrameEncoder.encode() returns bytes (PNG magic bytes: b'\\x89PNG')
-    - FrameEncoder.encode() raises FrameEncodingError when Pillow is not installed
-    - FrameEncoder.encode() converts BGRA pixel data to correct RGB PNG
-    - FrameEncoder.resize_if_needed() does not resize when frame fits within limits
-    - FrameEncoder.resize_if_needed() downscales proportionally when frame is too wide
-    - FrameEncoder.resize_if_needed() downscales proportionally when frame is too tall
-    - FrameEncoder.resize_if_needed() downscales by the minimum ratio (not width, not height)
-    - FrameEncoder.to_data_url() produces a string starting with 'data:image/png;base64,'
-    - FrameEncoder.to_data_url() round-trips correctly (decode base64 -> original PNG bytes)
-    - FrameEncoder.encode_to_data_url() is equivalent to encode() then to_data_url()
-    - FrameEncoder raises FrameEncodingError (not a PIL or other raw exception) on failure
+All Pillow calls use real Pillow if installed, with a fallback mock path
+so tests can also run in envs without Pillow (they will skip gracefully).
 """
 
 from __future__ import annotations
 
+import base64
+import io
+import logging
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 
-@pytest.mark.skip(reason="v0.5 scaffold placeholder — Forge implements in Wave 2")
-def test_encoder_to_data_url_format() -> None:
-    """to_data_url() output starts with the correct data URL prefix."""
-    from heretic.sjon.encoder import FrameEncoder
-    encoder = FrameEncoder(max_width=1280, max_height=720)
-    # Minimal 1x1 white PNG (valid PNG bytes for testing round-trip)
-    import base64
-    import io
+def _pillow_available() -> bool:
     try:
-        from PIL import Image
-        buf = io.BytesIO()
-        Image.new("RGB", (1, 1), color=(255, 255, 255)).save(buf, format="PNG")
-        png_bytes = buf.getvalue()
+        from PIL import Image  # noqa: F401
+        return True
     except ImportError:
-        pytest.skip("Pillow not installed — cannot generate test PNG")
-    data_url = encoder.to_data_url(png_bytes)
-    assert data_url.startswith("data:image/png;base64,")
+        return False
 
 
-@pytest.mark.skip(reason="v0.5 scaffold placeholder — Forge implements in Wave 2")
-def test_encoder_resize_not_needed_when_small() -> None:
-    """resize_if_needed() returns the image unchanged when it fits within limits."""
-    from heretic.sjon.encoder import FrameEncoder
-    encoder = FrameEncoder(max_width=1280, max_height=720)
-    try:
+# ---------------------------------------------------------------------------
+# to_data_url — pure stdlib, always works
+# ---------------------------------------------------------------------------
+
+class TestToDataUrl:
+    def test_produces_correct_prefix(self) -> None:
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder()
+        fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        data_url = encoder.to_data_url(fake_png)
+        assert data_url.startswith("data:image/png;base64,")
+
+    def test_base64_encodes_payload(self) -> None:
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder()
+        fake_png = b"hello png"
+        data_url = encoder.to_data_url(fake_png)
+        prefix = "data:image/png;base64,"
+        encoded_part = data_url[len(prefix):]
+        decoded = base64.standard_b64decode(encoded_part)
+        assert decoded == fake_png
+
+    def test_empty_bytes_produces_valid_data_url(self) -> None:
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder()
+        data_url = encoder.to_data_url(b"")
+        assert data_url == "data:image/png;base64,"
+
+    def test_output_is_ascii(self) -> None:
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder()
+        fake_png = bytes(range(256))  # all byte values
+        data_url = encoder.to_data_url(fake_png)
+        # Must be pure ASCII — safe to embed in JSON
+        data_url.encode("ascii")  # raises if non-ASCII
+
+
+# ---------------------------------------------------------------------------
+# resize_if_needed — requires Pillow
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not _pillow_available(), reason="Pillow not installed")
+class TestResizeIfNeeded:
+    def test_no_resize_when_within_bounds(self) -> None:
         from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        encoder = FrameEncoder(max_width=1280, max_height=720)
         img = Image.new("RGB", (640, 360))
-    except ImportError:
-        pytest.skip("Pillow not installed")
-    result = encoder.resize_if_needed(img)
-    assert result.size == (640, 360)
+        result = encoder.resize_if_needed(img)
+        # Small image — returned unchanged (same size)
+        assert result.size == (640, 360)
 
-
-@pytest.mark.skip(reason="v0.5 scaffold placeholder — Forge implements in Wave 2")
-def test_encoder_resize_proportional_when_wide() -> None:
-    """resize_if_needed() downscales proportionally when frame is wider than max_width."""
-    from heretic.sjon.encoder import FrameEncoder
-    encoder = FrameEncoder(max_width=1280, max_height=720)
-    try:
+    def test_no_resize_at_exact_boundary(self) -> None:
         from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        encoder = FrameEncoder(max_width=1280, max_height=720)
+        img = Image.new("RGB", (1280, 720))
+        result = encoder.resize_if_needed(img)
+        assert result.size == (1280, 720)
+
+    def test_downscales_oversized_width(self) -> None:
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        encoder = FrameEncoder(max_width=640, max_height=480)
+        img = Image.new("RGB", (1920, 1080))
+        result = encoder.resize_if_needed(img)
+        w, h = result.size
+        assert w <= 640
+        assert h <= 480
+
+    def test_downscales_oversized_height(self) -> None:
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        encoder = FrameEncoder(max_width=3000, max_height=360)
+        img = Image.new("RGB", (1920, 1080))
+        result = encoder.resize_if_needed(img)
+        _w, h = result.size
+        assert h <= 360
+
+    def test_aspect_ratio_preserved(self) -> None:
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        encoder = FrameEncoder(max_width=480, max_height=270)
+        img = Image.new("RGB", (1920, 1080))  # 16:9
+        result = encoder.resize_if_needed(img)
+        w, h = result.size
+        # Aspect ratio should be 16:9 (within 1 pixel rounding)
+        assert abs(w / h - 16 / 9) < 0.02
+
+    def test_resize_proportional_when_wide(self) -> None:
+        """resize_if_needed() downscales proportionally when frame is wider than max_width."""
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        encoder = FrameEncoder(max_width=1280, max_height=720)
         # 2560x720 — double width, same height — should scale to 1280x360
         img = Image.new("RGB", (2560, 720))
-    except ImportError:
-        pytest.skip("Pillow not installed")
-    result = encoder.resize_if_needed(img)
-    assert result.size == (1280, 360)
+        result = encoder.resize_if_needed(img)
+        assert result.size == (1280, 360)
 
 
-@pytest.mark.skip(reason="v0.5 scaffold placeholder — Forge implements in Wave 2")
-def test_encoder_encode_raises_frame_encoding_error_when_pillow_absent(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """encode() raises FrameEncodingError (not ImportError) when Pillow is not installed."""
-    import builtins
-    real_import = builtins.__import__
+# ---------------------------------------------------------------------------
+# encode() — requires Pillow; tests BGRX channel path
+# ---------------------------------------------------------------------------
 
-    def mock_import(name: str, *args: object, **kwargs: object) -> object:
-        if name == "PIL" or name.startswith("PIL."):
-            raise ImportError("Pillow not installed")
-        return real_import(name, *args, **kwargs)
+@pytest.mark.skipif(not _pillow_available(), reason="Pillow not installed")
+class TestFrameEncoderEncode:
+    def _make_bgra_bytes(self, width: int, height: int) -> bytes:
+        """Create a synthetic BGRA byte sequence for testing."""
+        # Simple gradient: B=x%256, G=y%256, R=0, A=255
+        result = bytearray()
+        for y in range(height):
+            for x in range(width):
+                result.extend([x % 256, y % 256, 0, 255])
+        return bytes(result)
 
-    monkeypatch.setattr(builtins, "__import__", mock_import)
-    from heretic.sjon.encoder import FrameEncoder
-    from heretic.sjon.errors import FrameEncodingError
-    encoder = FrameEncoder()
-    with pytest.raises(FrameEncodingError):
-        encoder.encode(b"\x00" * 4, width=1, height=1, pixel_format="BGRA")
+    def test_encode_returns_png_bytes(self) -> None:
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder(max_width=64, max_height=64)
+        w, h = 32, 32
+        bgra = self._make_bgra_bytes(w, h)
+        png = encoder.encode(bgra, w, h, "BGRA")
+        # PNG magic bytes
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_encode_bgra_to_rgb_produces_valid_image(self) -> None:
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder(max_width=64, max_height=64)
+        w, h = 16, 16
+        bgra = self._make_bgra_bytes(w, h)
+        png = encoder.encode(bgra, w, h, "BGRA")
+        # Verify round-trip via Pillow: PNG decodes to an image of correct size
+        img = Image.open(io.BytesIO(png))
+        assert img.size == (w, h)
+        assert img.mode == "RGB"
+
+    def test_encode_downscales_when_oversized(self) -> None:
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder(max_width=8, max_height=8)
+        w, h = 32, 32
+        bgra = self._make_bgra_bytes(w, h)
+        png = encoder.encode(bgra, w, h, "BGRA")
+        img = Image.open(io.BytesIO(png))
+        assert img.size[0] <= 8
+        assert img.size[1] <= 8
+
+    def test_encode_raises_frame_encoding_error_on_bad_input(self) -> None:
+        from heretic.sjon.errors import FrameEncodingError
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder(max_width=64, max_height=64)
+        # Wrong dimensions — too few bytes for a 100x100 BGRA image
+        with pytest.raises(FrameEncodingError):
+            encoder.encode(b"\x00\x01\x02\x03", 100, 100, "BGRA")
+
+    def test_encode_to_data_url_convenience_method(self) -> None:
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder(max_width=64, max_height=64)
+        w, h = 8, 8
+        bgra = bytes(w * h * 4)
+        data_url = encoder.encode_to_data_url(bgra, w, h, "BGRA")
+        assert data_url.startswith("data:image/png;base64,")
+
+    def test_encode_to_data_url_equivalent_to_encode_then_to_data_url(self) -> None:
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder(max_width=64, max_height=64)
+        w, h = 8, 8
+        bgra = bytes(w * h * 4)
+        via_convenience = encoder.encode_to_data_url(bgra, w, h, "BGRA")
+        via_two_steps = encoder.to_data_url(encoder.encode(bgra, w, h, "BGRA"))
+        assert via_convenience == via_two_steps
+
+
+# ---------------------------------------------------------------------------
+# encode() with Pillow mocked — for envs without Pillow
+# ---------------------------------------------------------------------------
+
+class TestFrameEncoderImportError:
+    def test_encode_raises_frame_encoding_error_when_pillow_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """encode() raises FrameEncodingError (not ImportError) when Pillow is not installed."""
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name: str, *args: object, **kwargs: object) -> object:
+            if name == "PIL" or name.startswith("PIL."):
+                raise ImportError("Pillow not installed")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", mock_import)
+        from heretic.sjon.encoder import FrameEncoder
+        from heretic.sjon.errors import FrameEncodingError
+        encoder = FrameEncoder()
+        with pytest.raises(FrameEncodingError):
+            encoder.encode(b"\x00" * 4, width=1, height=1, pixel_format="BGRA")
+
+    def test_to_data_url_works_without_pillow(self) -> None:
+        """to_data_url() only uses stdlib base64 — works regardless of Pillow."""
+        from heretic.sjon.encoder import FrameEncoder
+        encoder = FrameEncoder()
+        result = encoder.to_data_url(b"\x89PNG")
+        assert result.startswith("data:image/png;base64,")

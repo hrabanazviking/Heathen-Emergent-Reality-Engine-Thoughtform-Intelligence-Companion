@@ -1,7 +1,7 @@
 """
 Screen capture backends — L3 Sjón substrate.
 
-Defines the ScreenCaptureBackend abstract base class and three concrete
+Defines the ScreenCaptureBackend abstract base class and two concrete
 implementations:
 
 - MssBackend: primary cross-platform backend using the ``mss`` library
@@ -32,9 +32,14 @@ from __future__ import annotations
 
 import abc
 import logging
+import threading
 from typing import TYPE_CHECKING
 
-from heretic.sjon.errors import BackendUnavailableError, ScreenCaptureError
+from heretic.sjon.errors import (
+    BackendUnavailableError,
+    PermissionDeniedError,
+    ScreenCaptureError,
+)
 
 if TYPE_CHECKING:
     from heretic.sjon.config_model import SjonScreenConfig
@@ -85,10 +90,8 @@ class ScreenCaptureBackend(abc.ABC):
             A ScreenCaptureBackend instance. Never None — NullBackend is the
             final fallback.
         """
-        raise NotImplementedError(
-            "ScreenCaptureBackend.best_available() must be implemented. "
-            "Forge implements the full selection chain in this classmethod."
-        )
+        # Delegate to the module-level factory for symmetry with rodd.playback
+        return best_available(logger, config)
 
     @abc.abstractmethod
     def available(self) -> bool:
@@ -138,7 +141,8 @@ class MssBackend(ScreenCaptureBackend):
     """Primary screen capture backend using the ``mss`` library (MIT, cross-platform).
 
     mss returns raw BGRA pixel data. The FrameEncoder (encoder.py) converts
-    BGRA to RGB before PNG encoding.
+    BGRA to RGB before PNG encoding using Pillow's "BGRX" raw decoder mode
+    (BGRX = BGR with ignored alpha byte, which is exactly BGRA without the alpha).
 
     Cross-platform support:
         - Windows: GDI capture
@@ -147,8 +151,9 @@ class MssBackend(ScreenCaptureBackend):
 
     This backend is selected only when ``mss`` is importable (in the [vision] extra).
 
-    All methods are NotImplementedError stubs — Forge implements the full mss API
-    integration. The stub messages describe what each method must do.
+    Thread safety: capture() uses a per-instance lock to serialise concurrent calls.
+    The mss instance is created lazily on first capture and reused across calls
+    to avoid the overhead of creating a new context for every frame.
 
     Ref: docs/TASK_HERETIC_v0.5_FIRST_SIGHT.md §3 (mss decision).
     """
@@ -164,71 +169,168 @@ class MssBackend(ScreenCaptureBackend):
             config: SjonScreenConfig providing monitor_index and crop settings.
             logger: Logger for capture diagnostics and warnings.
 
-        Note: Does NOT acquire any OS resource at init time. The mss context
-        manager is created per-capture (or kept open across captures — Forge decides
-        based on mss lifecycle docs).
+        Note: Does NOT acquire any OS resource at init time. The mss instance
+        is created lazily on the first capture() call.
         """
         self._config = config
         self._logger = logger
-        self._mss_instance: object | None = None  # type: ignore[assignment]
-        # Forge: replace object with mss.MssBase when mss is imported.
+        self._mss_instance: object | None = None
+        # Lock guards the lazy mss instance and serialises capture() calls.
+        # Both threading.Lock (for sync tests) and asyncio contexts are safe
+        # because capture() is always called from run_in_executor (a thread).
+        self._lock = threading.Lock()
 
     def available(self) -> bool:
         """Return True if mss is importable and basic screen access is possible.
 
         Probe order (no side effects beyond import attempt):
-            1. Attempt to import mss.
+            1. Attempt to import mss and PIL.
             2. If import fails -> return False (dep not installed).
-            3. Attempt a cheap probe (e.g. mss.mss().__enter__() and immediately close).
-               If the probe raises a PermissionError or mss-specific exception -> return False.
+            3. Attempt a cheap probe: open mss.mss() context, read monitors,
+               confirm at least one monitor is present, close context.
+               If the probe raises any exception -> return False.
             4. Return True.
 
-        Must not raise. Must not leave an open mss instance.
+        Must not raise. Must not leave an open mss instance after return.
         """
-        raise NotImplementedError(
-            "MssBackend.available(): import mss; attempt a lightweight probe to "
-            "confirm the OS allows screen capture; return True/False without raising. "
-            "Catch mss.exception.ScreenShotError, PermissionError, and ImportError."
-        )
+        try:
+            import mss  # noqa: F401
+            from PIL import Image  # noqa: F401
+            # Probe: verify mss can enumerate monitors without crashing.
+            # mss.mss() returns a context-manager-capable instance.
+            # We open, read monitors, and close immediately.
+            with mss.mss() as sct:
+                monitors = sct.monitors
+                # monitors[0] is the "all monitors" virtual — always present.
+                # monitors[1+] are individual screens. No real monitors -> degraded.
+                if not monitors or len(monitors) < 1:
+                    self._logger.warning(
+                        "MssBackend.available(): mss reports no monitors — backend unavailable."
+                    )
+                    return False
+            return True
+        except ImportError:
+            self._logger.debug(
+                "MssBackend.available(): mss or Pillow not installed — backend unavailable. "
+                "Install heretic[vision] to enable screen capture."
+            )
+            return False
+        except Exception as exc:
+            self._logger.debug(
+                "MssBackend.available(): probe failed (%s) — backend unavailable.", exc
+            )
+            return False
 
     def capture(self) -> tuple[bytes, int, int]:
         """Capture one frame using mss.
 
         Implementation contract:
             - Use self._config.monitor_index to select the monitor.
+              mss.monitors[0] = "all monitors" virtual; mss.monitors[1+] = individual.
+              The config's monitor_index 0 maps to the primary screen (mss index 1).
             - If monitor_index is out of range, clamp to the highest available and warn.
             - If self._config.crop is set, apply the sub-region to the mss grab call.
-            - Return (raw_bgra_bytes, width, height).
-            - Raise PermissionDeniedError on macOS TCC denial (mss raises ScreenShotError
+            - Returns (raw_bgra_bytes, width, height).
+            - Raises PermissionDeniedError on macOS TCC denial (mss raises ScreenShotError
               with 'permission' in the message on macOS 10.15+).
-            - Raise ScreenCaptureError on any other mss failure.
+            - Raises ScreenCaptureError on any other mss failure.
 
         Returns:
             (raw_bytes, width, height) — BGRA pixel data + frame dimensions.
 
         Raises:
             PermissionDeniedError: OS denied screen capture permission.
-            ScreenCaptureError: any other capture failure (device error, mss crash, etc.).
-            BackendUnavailableError: mss is no longer importable or initializable.
+            ScreenCaptureError: any other capture failure.
+            BackendUnavailableError: mss is not importable.
         """
-        raise NotImplementedError(
-            "MssBackend.capture(): use mss.mss() context manager; call grab() with "
-            "the configured monitor and optional crop region; return "
-            "(bytes(sct_img.bgra), sct_img.width, sct_img.height). "
-            "Wrap mss.exception.ScreenShotError -> ScreenCaptureError. "
-            "Detect permission denial from macOS TCC error message."
-        )
+        try:
+            import mss
+            import mss.exception
+        except ImportError as exc:
+            raise BackendUnavailableError(
+                "mss is not installed. Install heretic[vision]."
+            ) from exc
+
+        with self._lock:
+            try:
+                # Lazy-init mss instance — reuse across captures for efficiency.
+                if self._mss_instance is None:
+                    self._mss_instance = mss.mss().__enter__()
+
+                sct = self._mss_instance
+
+                # monitors[0] = virtual "all monitors" bounding box.
+                # monitors[1] = primary monitor.
+                # config.monitor_index is 0-based where 0 = primary (mss index 1).
+                monitors = sct.monitors
+                # Map config index -> mss index: config 0 -> mss 1 (primary)
+                mss_index = self._config.monitor_index + 1
+                max_mss_index = len(monitors) - 1  # last real monitor index
+
+                if mss_index > max_mss_index:
+                    self._logger.warning(
+                        "MssBackend.capture(): monitor_index %d out of range "
+                        "(max %d). Clamping to primary monitor.",
+                        self._config.monitor_index, max_mss_index - 1,
+                    )
+                    mss_index = 1 if max_mss_index >= 1 else 0
+
+                monitor = monitors[mss_index]
+
+                # Apply crop if configured.
+                if self._config.crop is not None:
+                    c = self._config.crop
+                    grab_region = {
+                        "left":   monitor["left"] + c.get("x", 0),
+                        "top":    monitor["top"] + c.get("y", 0),
+                        "width":  c.get("w", monitor["width"]),
+                        "height": c.get("h", monitor["height"]),
+                    }
+                else:
+                    grab_region = monitor
+
+                sct_img = sct.grab(grab_region)
+                # mss returns BGRA raw bytes in sct_img.bgra; dimensions in .width/.height
+                raw_bgra = bytes(sct_img.bgra)
+                return raw_bgra, sct_img.width, sct_img.height
+
+            except mss.exception.ScreenShotError as exc:
+                # Check for macOS TCC permission denial in the error message.
+                msg = str(exc).lower()
+                if "permission" in msg or "tcc" in msg or "access denied" in msg:
+                    raise PermissionDeniedError(
+                        f"OS denied screen capture permission: {exc}. "
+                        "On macOS: grant Screen Recording in System Privacy settings. "
+                        "On Windows: check UIPI policy."
+                    ) from exc
+                raise ScreenCaptureError(
+                    f"mss ScreenShotError during capture: {exc}"
+                ) from exc
+            except (PermissionDeniedError, ScreenCaptureError, BackendUnavailableError):
+                raise  # re-raise typed errors as-is
+            except Exception as exc:
+                raise ScreenCaptureError(
+                    f"Unexpected error during screen capture: {exc}"
+                ) from exc
 
     def close(self) -> None:
         """Close the mss context manager if one is held open, releasing OS resources.
 
         Must be idempotent. Must not raise.
         """
-        raise NotImplementedError(
-            "MssBackend.close(): if self._mss_instance is not None, call its "
-            "__exit__() or .close() method (check mss API). Set to None afterward. "
-            "Wrap any exception with a logged warning — do not propagate."
-        )
+        with self._lock:
+            if self._mss_instance is not None:
+                try:
+                    # mss.MssBase supports __exit__ for context-manager close.
+                    # We entered it manually in capture(), so we must exit manually.
+                    self._mss_instance.__exit__(None, None, None)
+                except Exception as exc:
+                    self._logger.warning(
+                        "MssBackend.close(): error closing mss instance (ignored): %s", exc
+                    )
+                finally:
+                    self._mss_instance = None
+        self._logger.debug("MssBackend closed.")
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +375,7 @@ class NullBackend(ScreenCaptureBackend):
 
 
 # ---------------------------------------------------------------------------
-# Factory (full implementation deferred to Forge)
+# Factory
 # ---------------------------------------------------------------------------
 
 def best_available(
@@ -296,9 +398,18 @@ def best_available(
     Returns:
         A ScreenCaptureBackend instance. Never None.
     """
-    raise NotImplementedError(
-        "best_available(): instantiate MssBackend(config, logger); if backend.available() "
-        "return it with an info log. Otherwise log a warning explaining mss is not installed "
-        "or screen permission is denied. Return NullBackend() as the final fallback. "
-        "This mirrors AudioPlayback.best_available() in rodd/playback.py."
+    candidate = MssBackend(config, logger)
+    if candidate.available():
+        logger.info(
+            "MssBackend selected for screen capture (mss + Pillow available)."
+        )
+        return candidate
+
+    # mss not available or permission denied — fall back to NullBackend.
+    logger.warning(
+        "No screen capture backend available. "
+        "Install heretic[vision] (pip install heretic[vision]) and ensure "
+        "screen recording permission is granted. "
+        "Sjón will remain inactive for this ceremony."
     )
+    return NullBackend()
