@@ -8,12 +8,10 @@
  *   docs/architecture/CEREMONY.md
  *   docs/architecture/IPC_PROTOCOL.md
  *
- * Forge implementation guide:
- *   1. Wire WsClient.subscribe() calls inside the `connectWs` action.
- *   2. Each subscribe call maps one ProtocolEvent type to the corresponding action.
- *   3. Actions must be pure state transitions — no side effects in actions.
- *   4. The WsClient instance is held outside Zustand state (it is a class, not
- *      serializable data) — import it or accept it as a parameter to connectWs.
+ * WsClient singleton pattern:
+ *   The WsClient instance lives outside Zustand state (it is a class instance,
+ *   not serializable data). It is held in a module-level variable `_wsClient`
+ *   and created inside `connectWs`. This is intentional — see connectWs docstring.
  */
 
 import { create } from "zustand";
@@ -23,7 +21,15 @@ import type {
   TungaState,
   HlustState,
   WsConnectionStatus,
+  CeremonyStateChanged,
+  BifrostHealth,
+  TungaActivity,
+  HlustActivity,
+  AgentToken,
+  AgentTurnComplete,
+  ErrorEvent,
 } from "../types/ipc";
+import { WsClient } from "../api/ws-client";
 
 // ==============================================================================
 // Chat history entry types
@@ -116,8 +122,13 @@ export interface CeremonyState {
 
   /**
    * Connect the WebSocket client and wire all event subscriptions.
-   * Forge implements this action — it imports or receives WsClient and
-   * subscribes to each ProtocolEvent type, mapping each to the relevant action.
+   *
+   * Creates a WsClient singleton (or reuses it if already connected), calls
+   * connect(), then subscribes each ProtocolEvent type to its corresponding
+   * store action. Also wires onStatusChange to setConnectionStatus.
+   *
+   * @param wsUrl Optional override for the WebSocket URL. Defaults to
+   *   the WsClient default (ws://localhost:8642/ws).
    */
   connectWs: (wsUrl?: string) => Promise<void>;
 
@@ -126,10 +137,27 @@ export interface CeremonyState {
    * Called on app unmount or Slokna completion.
    */
   disconnectWs: () => Promise<void>;
+
+  /**
+   * Send a command via the active WsClient.
+   * Returns false if no client is connected.
+   */
+  sendCommand: (command: Record<string, unknown>) => boolean;
 }
 
 // ==============================================================================
-// Store implementation — Forge fills in all action bodies
+// Module-level WsClient singleton — lives outside Zustand state
+// ==============================================================================
+
+/**
+ * The single WsClient for this browser session.
+ * Held here so it can be shared across connectWs / disconnectWs / sendCommand
+ * without polluting Zustand's serializable state.
+ */
+let _wsClient: WsClient | null = null;
+
+// ==============================================================================
+// Store implementation
 // ==============================================================================
 
 /**
@@ -157,34 +185,70 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
   // ---- Actions ----
 
   setLifecycleState: (state) =>
-    // Forge: set({ lifecycleState: state })
     set({ lifecycleState: state }),
 
   setBifrostHealth: (status, endpoint, latencyMs) =>
-    // Forge: set({ bifrostStatus: status, bifrostEndpoint: endpoint, bifrostLatencyMs: latencyMs })
     set({ bifrostStatus: status, bifrostEndpoint: endpoint, bifrostLatencyMs: latencyMs }),
 
   setTungaState: (state) =>
-    // Forge: set({ tungaState: state })
     set({ tungaState: state }),
 
   setHlustActivity: (state, levelDb) =>
-    // Forge: set({ hlustState: state, hlustLevelDb: levelDb })
     set({ hlustState: state, hlustLevelDb: levelDb }),
 
-  appendAgentToken: (_textDelta, _sequenceId, _turnId) => {
-    throw new Error(
-      "Forge will implement: find or create the active streaming ChatMessage, " +
-      "append textDelta to its content, update activeTurnId and activeTokenSequence. " +
-      "If turnId is new (first token of a new turn), push a new streaming message."
-    );
+  appendAgentToken: (textDelta, sequenceId, turnId) => {
+    set((s) => {
+      const chatHistory = s.chatHistory;
+
+      // Determine the effective turn ID — prefer explicit, fall back to generated
+      const effectiveTurnId = turnId ?? s.activeTurnId ?? `turn-${Date.now()}`;
+
+      // If this is a new turn (activeTurnId changed or first token), append a new message
+      if (s.activeTurnId !== effectiveTurnId) {
+        const newMsg: ChatMessage = {
+          id: `assistant-${effectiveTurnId}`,
+          role: "assistant",
+          content: textDelta,
+          streaming: true,
+          timestamp: null,
+        };
+        return {
+          chatHistory: [...chatHistory, newMsg],
+          activeTurnId: effectiveTurnId,
+          activeTokenSequence: sequenceId,
+        };
+      }
+
+      // Continuing an in-flight turn — find the streaming message and append
+      const updatedHistory = chatHistory.map((msg) => {
+        if (msg.id === `assistant-${effectiveTurnId}` && msg.streaming) {
+          return { ...msg, content: msg.content + textDelta };
+        }
+        return msg;
+      });
+
+      return {
+        chatHistory: updatedHistory,
+        activeTokenSequence: sequenceId,
+      };
+    });
   },
 
-  finalizeAgentTurn: (_turnId, _finishReason) => {
-    throw new Error(
-      "Forge will implement: set streaming=false on the ChatMessage with matching " +
-      "activeTurnId, set timestamp to now, clear activeTurnId."
-    );
+  finalizeAgentTurn: (turnId, _finishReason) => {
+    set((s) => {
+      const now = new Date().toISOString();
+      const updatedHistory = s.chatHistory.map((msg) => {
+        if (msg.id === `assistant-${turnId}` && msg.streaming) {
+          return { ...msg, streaming: false, timestamp: now };
+        }
+        return msg;
+      });
+      return {
+        chatHistory: updatedHistory,
+        activeTurnId: null,
+        activeTokenSequence: -1,
+      };
+    });
   },
 
   addToast: (level, source, message) => {
@@ -218,24 +282,86 @@ export const useCeremonyStore = create<CeremonyState>((set, get) => ({
   clearChatHistory: () =>
     set({ chatHistory: [], activeTurnId: null, activeTokenSequence: -1 }),
 
-  connectWs: async (_wsUrl?: string) => {
-    throw new Error(
-      "Forge will implement: construct WsClient(wsUrl ?? default), call connect(), " +
-      "subscribe to each ProtocolEvent type and route to corresponding store actions: " +
-      "  ceremony.state_changed -> setLifecycleState(event.to_state) " +
-      "  bifrost.health -> setBifrostHealth(...) " +
-      "  tunga.activity -> setTungaState(event.state) " +
-      "  hlust.activity -> setHlustActivity(event.state, event.level_db) " +
-      "  agent.token -> appendAgentToken(event.text_delta, event.sequence_id, event.turn_id?) " +
-      "  agent.turn_complete -> finalizeAgentTurn(event.turn_id, event.finish_reason) " +
-      "  error -> addToast(event.level, event.source, event.message) " +
-      "  WsClient.onStatusChange -> setConnectionStatus(status)"
-    );
+  connectWs: async (wsUrl?: string) => {
+    // Reuse existing connected client if already live
+    if (_wsClient !== null) {
+      const status = _wsClient.connectionStatus;
+      if (status === "connected" || status === "connecting") {
+        return;
+      }
+    }
+
+    _wsClient = new WsClient(wsUrl);
+
+    // Wire connection status changes
+    _wsClient.onStatusChange((status) => {
+      get().setConnectionStatus(status);
+    });
+
+    // Wire all server->client event types to corresponding store actions
+    _wsClient.subscribe<CeremonyStateChanged>("ceremony.state_changed", (event) => {
+      get().setLifecycleState(event.to_state);
+    });
+
+    _wsClient.subscribe<BifrostHealth>("bifrost.health", (event) => {
+      get().setBifrostHealth(event.status, event.endpoint, event.latency_ms);
+    });
+
+    _wsClient.subscribe<TungaActivity>("tunga.activity", (event) => {
+      get().setTungaState(event.state);
+    });
+
+    _wsClient.subscribe<HlustActivity>("hlust.activity", (event) => {
+      get().setHlustActivity(event.state, event.level_db);
+    });
+
+    _wsClient.subscribe<AgentToken>("agent.token", (event) => {
+      // AgentToken has no turn_id field in the protocol — sequence_id tracks ordering
+      get().appendAgentToken(event.text_delta, event.sequence_id);
+    });
+
+    _wsClient.subscribe<AgentTurnComplete>("agent.turn_complete", (event) => {
+      get().finalizeAgentTurn(event.turn_id, event.finish_reason);
+    });
+
+    _wsClient.subscribe<ErrorEvent>("error", (event) => {
+      get().addToast(event.level, event.source, event.message);
+    });
+
+    // Attempt connection — throws if backend is unreachable
+    try {
+      await _wsClient.connect();
+    } catch (err) {
+      // Status already set to "error" by WsClient. Backoff reconnect is running.
+      console.warn("[HERETIC] Initial WS connect failed:", err);
+    }
   },
 
   disconnectWs: async () => {
-    throw new Error(
-      "Forge will implement: call wsClient.disconnect(), set connectionStatus 'disconnected'."
-    );
+    if (_wsClient !== null) {
+      await _wsClient.disconnect();
+      _wsClient = null;
+    }
+    set({ connectionStatus: "disconnected" });
+  },
+
+  sendCommand: (command) => {
+    if (_wsClient === null || _wsClient.connectionStatus !== "connected") {
+      return false;
+    }
+    try {
+      _wsClient.send(command as unknown as Parameters<WsClient["send"]>[0]);
+      return true;
+    } catch {
+      return false;
+    }
   },
 }));
+
+/**
+ * Expose the raw WsClient instance for components that need to call send() directly.
+ * Returns null if not connected.
+ */
+export function getWsClient(): WsClient | null {
+  return _wsClient;
+}
