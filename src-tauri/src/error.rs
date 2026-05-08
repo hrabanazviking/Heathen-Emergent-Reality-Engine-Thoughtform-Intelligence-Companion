@@ -69,6 +69,16 @@ pub enum SidecarError {
     #[error("sidecar health probe returned unexpected status: {status}")]
     HealthUnexpected { status: u16 },
 
+    /// No Python interpreter was found on the system PATH.
+    /// Checked candidates: `python`, `python3`, `py` (Windows launcher).
+    #[error(
+        "Python 3.10+ not found on PATH. \
+        Candidates tried: {candidates}. \
+        Install Python 3.10+ and ensure it is on the system PATH, \
+        then restart H.E.R.E.T.I.C."
+    )]
+    PythonNotFound { candidates: String },
+
     /// The sidecar process could not be killed cleanly.
     #[error("failed to kill sidecar process (pid {pid}): {source}")]
     KillFailed {

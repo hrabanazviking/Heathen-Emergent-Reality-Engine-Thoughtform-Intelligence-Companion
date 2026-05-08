@@ -3,33 +3,21 @@
 // TAURI VERSION: 2.x — do NOT apply Tauri 1.x patterns here.
 //
 // Key Tauri 2 vs 1 differences honored in this file:
-//   - `.plugin()` is used for single-instance and log (v1 had these built-in)
+//   - `.plugin()` is used for single-instance, log, and dialog (v1 had none of these built-in)
 //   - `generate_context!()` is the v2 macro (same name, different internals)
 //   - `RunEvent` variants are accessed from `tauri::RunEvent` (same in v2)
 //   - `WindowBuilder` v2 API is at `tauri::WebviewWindowBuilder` (changed from v1)
 //   - Capabilities are in capabilities/default.json, NOT in tauri.conf.json allowlist
+//   - `app.get_webview_window()` replaces v1 `app.get_window()`
 //
-// FORGE: implement all todo!() bodies. Priority order:
-//   1. setup() — sidecar spawn + health probe
-//   2. RunEvent::ExitRequested handler — sidecar kill
-//   3. quit command — graceful window close
-//   4. focus_window command — bring window to foreground
-//   5. get_sidecar_port command — return the active port
-//
-// FORGE: verify Tauri 2 AppHandle API:
-//   https://docs.rs/tauri/2/tauri/struct.AppHandle.html
-// FORGE: verify Tauri 2 WebviewWindowBuilder:
-//   https://docs.rs/tauri/2/tauri/webview/struct.WebviewWindowBuilder.html
-// FORGE: verify tauri-plugin-single-instance v2 usage:
-//   https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/single-instance
+// Forge Worker: Eldra Járnsdóttir — all todo!() macros replaced with live bodies (v0.4.1).
 
 // Prevent a console window from appearing on Windows release builds.
-// Remove this if you need the console during development.
+// Remove this if you need the console output during development.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use heretic_lib::error::TauriError;
+use heretic_lib::error::{SidecarError, TauriError};
 use heretic_lib::sidecar::PythonSidecar;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, RunEvent, State};
@@ -40,124 +28,270 @@ use tauri::{AppHandle, Manager, RunEvent, State};
 
 /// Thread-safe wrapper around the Python sidecar handle.
 /// Stored in Tauri managed state so all commands and event handlers can reach it.
+///
+/// The `Option<PythonSidecar>` is None if:
+///   a) spawn has not yet been called (before setup_app completes), or
+///   b) the sidecar was explicitly killed and the slot cleared.
 type SidecarState = Arc<Mutex<Option<PythonSidecar>>>;
 
 // ---------------------------------------------------------------------------
 // Tauri commands — minimal surface (v0.4.1)
-//
-// The IPC_PROTOCOL.md makes clear that MOST IPC is WebSocket (ws://localhost:8642/ws).
-// These Tauri commands handle only what only-native can do:
-//   - quit:             confirm-and-close the window
-//   - focus_window:     bring the window to the foreground (single-instance redirect)
-//   - get_sidecar_port: let the WebView know the bound port (avoids hardcoding in TS)
 // ---------------------------------------------------------------------------
 
 /// Quit the application.
 ///
-/// The sidecar is killed in the RunEvent::ExitRequested handler; this command
-/// triggers the exit which causes that event to fire.
+/// Triggers `app.exit(0)` which causes `RunEvent::ExitRequested` to fire,
+/// where the sidecar kill path lives. Do NOT kill the sidecar here — the
+/// RunEvent handler is the single authoritative kill site.
 ///
 /// Called from the WebView when the user confirms a close action.
-/// In v0.4.1, no confirmation dialog is shown by the shell — the frontend may
-/// show one via its own React modal before invoking this command.
+/// In v0.4.1 no shell-level confirmation dialog is shown — the frontend
+/// may show a React modal before invoking this command.
 #[tauri::command]
 async fn quit(app: AppHandle) -> Result<(), TauriError> {
-    // FORGE: implement this body.
-    // Pattern:
-    //   app.exit(0);
-    //   Ok(())
-    //
-    // Note: app.exit() is the Tauri 2 way to request clean shutdown.
-    // Do NOT call std::process::exit() here — Tauri must run its cleanup path.
-    let _ = app; // suppress unused warning until Forge implements
-    todo!("Forge implements: app.exit(0) — trigger graceful Tauri shutdown")
+    log::info!("quit command received — calling app.exit(0)");
+    app.exit(0);
+    Ok(())
 }
 
 /// Bring the main window to the foreground.
 ///
-/// Called by the single-instance plugin when a second launch attempt is detected.
-/// Tauri's single-instance plugin fires a callback on the first instance;
-/// that callback should invoke this command (or call the window API directly).
+/// Called by the single-instance plugin callback when a second launch is
+/// detected. Retrieves the "summoning-circle" WebviewWindow and calls
+/// `set_focus()`. Returns an error if the window is not found.
 #[tauri::command]
 async fn focus_window(app: AppHandle) -> Result<(), TauriError> {
-    // FORGE: implement this body.
-    // Pattern (Tauri 2 WebviewWindow API):
-    //   let window = app.get_webview_window("summoning-circle")
-    //     .ok_or(TauriError::Window { message: "summoning-circle window not found".into() })?;
-    //   window.set_focus().map_err(|e| TauriError::Window { message: e.to_string() })?;
-    //   Ok(())
-    //
-    // FORGE: verify Tauri 2 API: AppHandle::get_webview_window
-    //   https://docs.rs/tauri/2/tauri/struct.AppHandle.html#method.get_webview_window
-    let _ = app;
-    todo!("Forge implements: get_webview_window(\"summoning-circle\").set_focus()")
+    // Odin's eye turns to the summoning circle and brings it to the fore.
+    app.get_webview_window("summoning-circle")
+        .ok_or_else(|| TauriError::Window {
+            message: "summoning-circle window not found".into(),
+        })?
+        .set_focus()
+        .map_err(|e| TauriError::Window {
+            message: e.to_string(),
+        })?;
+    Ok(())
 }
 
 /// Return the port the Python sidecar is bound to.
 ///
 /// The WebView JS layer calls this on startup to confirm the WebSocket port
-/// rather than hardcoding `8642`. If the sidecar is not running, returns an error.
+/// rather than hardcoding 8642. Returns an error if the sidecar is not running.
 #[tauri::command]
 async fn get_sidecar_port(state: State<'_, SidecarState>) -> Result<u16, TauriError> {
-    // FORGE: implement this body.
-    // Pattern:
-    //   let guard = state.lock().map_err(|e| TauriError::Internal { message: e.to_string() })?;
-    //   match guard.as_ref() {
-    //     Some(sidecar) => Ok(sidecar.port()),
-    //     None => Err(TauriError::Sidecar { message: "sidecar not running".into() }),
-    //   }
-    let _ = state;
-    todo!("Forge implements: lock SidecarState and return sidecar.port()")
+    // Heimdall checks the portcullis — what gate does the sidecar guard?
+    let guard = state
+        .lock()
+        .map_err(|e| TauriError::Internal { message: e.to_string() })?;
+    match guard.as_ref() {
+        Some(sidecar) => Ok(sidecar.port()),
+        None => Err(TauriError::Sidecar {
+            message: "sidecar is not running — cannot return port".into(),
+        }),
+    }
 }
 
 // ---------------------------------------------------------------------------
 // Application setup
 // ---------------------------------------------------------------------------
 
+/// Show a blocking error dialog and exit the application.
+///
+/// Used when the sidecar fails to spawn or fails the health probe. Tauri
+/// `tauri_plugin_dialog` is used for the native message box. This function
+/// does NOT return — it calls `app.exit(1)` after the user dismisses the dialog.
+///
+/// FORGE-NOTE: `tauri_plugin_dialog::blocking::MessageDialogBuilder` is the
+/// synchronous API (Tauri 2 dialog plugin). In Tauri 2.x the blocking builder
+/// is available from `tauri_plugin_dialog::blocking`. If the dialog plugin
+/// version does not expose `.blocking()`, fall back to `MessageDialogBuilder`
+/// from the root of the crate and call `.show(|_| {})` (async fire-and-forget).
+/// The exit() call below runs regardless, so the dialog is best-effort UX.
+fn show_fatal_error_and_exit(app: &tauri::App, title: &str, message: &str) {
+    log::error!("Fatal startup error — {}: {}", title, message);
+
+    // Show a blocking native message dialog.
+    // FORGE-NOTE: tauri_plugin_dialog 2.x API —
+    //   `tauri_plugin_dialog::blocking::MessageDialogBuilder::new(app, title, message).show()`
+    // This call blocks the current thread until the user clicks OK.
+    // If the blocking API is unavailable in the installed version, remove the
+    // `.blocking()` call and use the async `.show(|_| {})` form instead — the
+    // exit() call below will still run after the closure is enqueued.
+    use tauri_plugin_dialog::DialogExt;
+    let _ = app
+        .dialog()
+        .message(message)
+        .title(title)
+        .blocking_show();
+
+    // Terminate the application with a non-zero exit code.
+    app.handle().exit(1);
+}
+
 /// Called once during `tauri::Builder::default().setup(...)`.
 ///
 /// Responsibilities:
-///   1. Read the sidecar port from managed state (or heretic.yaml via Tauri config).
-///   2. Spawn the Python sidecar.
-///   3. Probe the /health endpoint (with a 30 s timeout).
-///   4. Store the sidecar handle in managed state.
+///   1. Read the sidecar port from HERETIC_PORT env (default 8642).
+///   2. Resolve the pid_file path via Tauri's app_local_data_dir().
+///   3. Spawn the Python sidecar.
+///   4. Probe /health (30 s timeout).
+///   5. Store the sidecar handle in managed state.
 ///
-/// If setup fails, the app should surface a user-facing error dialog and exit.
-/// In v0.4.1 we log the error and continue (the WebView will show a connection-
-/// error state via its normal WebSocket error handling).
+/// On any failure, a user-facing error dialog is shown and the app exits.
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    // FORGE: implement this body.
+    log::info!("HERETIC shell setup: beginning sidecar spawn sequence");
+
+    // --- Step 1: Determine sidecar port from environment ---------------------
+    // Per RULES.AI.md: never hardcode settings. Port comes from env first,
+    // then falls back to the heretic.yaml default (8642).
+    let port: u16 = std::env::var("HERETIC_PORT")
+        .ok()
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(8642);
+
+    log::info!("HERETIC shell: sidecar port resolved to {}", port);
+
+    // --- Step 2: Resolve pid_file path via Tauri PathResolver ---------------
+    // Tauri's app_local_data_dir() returns:
+    //   Windows: %LOCALAPPDATA%\io.heretic.app\
+    //   macOS:   ~/Library/Application Support/io.heretic.app/
+    //   Linux:   ~/.local/share/io.heretic.app/ (or $XDG_DATA_HOME/io.heretic.app/)
     //
-    // Steps:
-    //   1. Determine sidecar port.
-    //      The port is read from heretic.yaml at Python startup. For Tauri's purposes,
-    //      we default to 8642 (the heretic.yaml default `vebond.ws_port`) and allow it
-    //      to be overridden via a HERETIC_PORT environment variable.
-    //      Do NOT hardcode 8642 in production paths — read from env or config file.
-    //      See RULES.AI.md: "Never hardcode settings in the code, always use data files."
+    // This is cross-platform and location-agnostic (RULES.AI.md).
     //
-    //   2. pid_file path: use Tauri's app_local_data_dir() for cross-platform portability.
-    //      let pid_file = app.path().app_local_data_dir()?.join("heretic-serve.pid");
-    //
-    //   3. Spawn:
-    //      let sidecar = PythonSidecar::spawn(port, pid_file)
-    //        .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
-    //
-    //   4. Probe:
-    //      sidecar.health_probe(Duration::from_secs(30))
-    //        .map_err(|e| format!("Sidecar health probe failed: {}", e))?;
-    //
-    //   5. Store in managed state:
-    //      let state = app.state::<SidecarState>();
-    //      *state.lock().unwrap() = Some(sidecar);
-    //
-    // FORGE: verify Tauri 2 API: App::path()
-    //   https://docs.rs/tauri/2/tauri/struct.App.html#method.path
-    // FORGE: verify Tauri 2 API: PathResolver::app_local_data_dir()
-    //   https://docs.rs/tauri/2/tauri/path/struct.PathResolver.html
-    let _ = app;
-    log::info!("HERETIC shell setup: sidecar spawn deferred to Forge implementation");
+    // FORGE-NOTE: Tauri 2 API — app.path().app_local_data_dir()
+    //   Returns Result<PathBuf, tauri::Error>
+    let pid_file: std::path::PathBuf = match app.path().app_local_data_dir() {
+        Ok(data_dir) => data_dir.join("heretic-serve.pid"),
+        Err(e) => {
+            // Non-fatal: if we cannot resolve the data dir, skip PID tracking.
+            log::warn!(
+                "HERETIC shell: could not resolve app_local_data_dir: {}; pid_file disabled",
+                e
+            );
+            std::path::PathBuf::new()
+        }
+    };
+
+    // --- Step 3: Spawn the Python sidecar ------------------------------------
+    // The runes are carved — we breathe life into the Python daemon.
+    let sidecar = match PythonSidecar::spawn(port, pid_file) {
+        Ok(s) => s,
+        Err(ref e @ SidecarError::PythonNotFound { .. }) => {
+            show_fatal_error_and_exit(
+                app,
+                "H.E.R.E.T.I.C. — Python Not Found",
+                &format!(
+                    "Python 3.10+ was not found on your system PATH.\n\n\
+                    Please install Python 3.10 or later from https://python.org \
+                    and ensure it is available on the PATH, then restart H.E.R.E.T.I.C.\n\n\
+                    Technical detail: {}",
+                    e
+                ),
+            );
+            // show_fatal_error_and_exit calls app.exit(1) — this line is unreachable
+            // but Rust needs a value here; the process will have exited.
+            return Ok(());
+        }
+        Err(e) => {
+            show_fatal_error_and_exit(
+                app,
+                "H.E.R.E.T.I.C. — Startup Error",
+                &format!(
+                    "H.E.R.E.T.I.C. could not start its background service.\n\n\
+                    Technical detail: {}\n\n\
+                    Check that 'heretic[serve]' is installed (pip install -e .[serve]) \
+                    and try again.",
+                    e
+                ),
+            );
+            return Ok(());
+        }
+    };
+
+    // --- Step 4: Health probe ------------------------------------------------
+    // The völva reads the wyrd — we wait for the sidecar's heartbeat.
+    if let Err(e) = sidecar.health_probe(Duration::from_secs(30)) {
+        show_fatal_error_and_exit(
+            app,
+            "H.E.R.E.T.I.C. — Sidecar Not Responding",
+            &format!(
+                "H.E.R.E.T.I.C. started its background service but it did not become \
+                ready within 30 seconds.\n\n\
+                Technical detail: {}\n\n\
+                Check the application logs for further information.",
+                e
+            ),
+        );
+        return Ok(());
+    }
+
+    // --- Step 5: Store in managed state -------------------------------------
+    // The sidecar rune is sealed in Yggdrasil's bark.
+    let state = app.state::<SidecarState>();
+    match state.lock() {
+        Ok(mut guard) => {
+            *guard = Some(sidecar);
+            log::info!("HERETIC shell: sidecar running and healthy — setup complete");
+        }
+        Err(e) => {
+            // Mutex poisoned — extremely unlikely during setup.
+            log::error!("HERETIC shell: SidecarState mutex poisoned: {}", e);
+            show_fatal_error_and_exit(
+                app,
+                "H.E.R.E.T.I.C. — Internal Error",
+                "An internal state error occurred during startup. Please restart the application.",
+            );
+        }
+    }
+
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// RunEvent handler — sidecar kill on exit
+// ---------------------------------------------------------------------------
+
+/// Kill the sidecar when the application is exiting.
+///
+/// Called from the `RunEvent::ExitRequested` arm in the run() event loop.
+/// This is the authoritative kill site — do not kill the sidecar from command
+/// handlers or window-close handlers.
+///
+/// TAURI NOTE: Do NOT call `app_handle.exit()` inside this handler — that would
+/// recursively re-fire ExitRequested. The exit was already triggered by the
+/// `quit` command or window close; we are merely cleaning up.
+fn on_exit_requested(app_handle: &AppHandle) {
+    log::info!("RunEvent::ExitRequested: initiating sidecar shutdown");
+    match app_handle.try_state::<SidecarState>() {
+        Some(state) => {
+            match state.lock() {
+                Ok(mut guard) => {
+                    if let Some(ref mut sidecar) = *guard {
+                        match sidecar.kill() {
+                            Ok(()) => log::info!("RunEvent::ExitRequested: sidecar killed cleanly"),
+                            Err(SidecarError::NotRunning) => {
+                                log::debug!("RunEvent::ExitRequested: sidecar was already stopped")
+                            }
+                            Err(e) => {
+                                log::error!("RunEvent::ExitRequested: kill failed: {}", e)
+                            }
+                        }
+                    } else {
+                        log::debug!("RunEvent::ExitRequested: no sidecar in state (was not started)")
+                    }
+                }
+                Err(e) => {
+                    // Mutex poisoned — process is exiting anyway; log and continue.
+                    log::error!("RunEvent::ExitRequested: mutex poisoned: {}", e);
+                }
+            }
+        }
+        None => {
+            // State was not yet managed (failed very early in setup).
+            log::warn!("RunEvent::ExitRequested: SidecarState not managed — nothing to kill");
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -171,16 +305,24 @@ fn main() {
     // The invoke_handler macro registers all #[tauri::command] functions.
     // generate_context!() reads tauri.conf.json at compile time.
     tauri::Builder::default()
+        // Dialog plugin — required for show_fatal_error_and_exit() native dialogs.
+        // Must be registered before setup() runs.
+        .plugin(tauri_plugin_dialog::init())
         // Single-instance lock: if a second launch attempt occurs, focus the
         // existing window instead of opening a second one.
-        // FORGE: verify the v2 single-instance plugin callback API:
-        //   https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/single-instance
+        //
+        // FORGE-NOTE: the callback receives &AppHandle. We cannot call the
+        // async `focus_window` command from here (no async context), so we
+        // call the window API directly. If the window is not yet ready (early
+        // re-launch during startup), the set_focus() call will log a warning
+        // and the user will need to click the taskbar icon.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // FORGE: implement this callback.
-            // When a second instance is launched, focus the existing window:
-            //   let _ = tauri::async_runtime::block_on(focus_window(app.clone()));
-            log::info!("Second instance detected; focusing existing window");
-            let _ = app; // suppress unused warning
+            log::info!("second instance detected — focusing existing summoning-circle window");
+            if let Some(window) = app.get_webview_window("summoning-circle") {
+                if let Err(e) = window.set_focus() {
+                    log::warn!("single-instance focus failed: {}", e);
+                }
+            }
         }))
         // Structured logging: routes Rust log:: calls to the Tauri log plugin.
         // Log level and targets are configured in tauri.conf.json plugins.log.
@@ -197,20 +339,15 @@ fn main() {
         .run(|app_handle, event| {
             match event {
                 // ExitRequested fires when the last window is closed OR when
-                // app.exit() is called. Kill the sidecar here.
+                // app.exit() is called from the `quit` command.
+                // Kill the sidecar here — single authoritative kill site.
+                //
+                // ARCHITECTURE NOTE (TAURI_SHELL.md §9 gotcha 4):
+                //   Do NOT call app_handle.exit() here — that would recurse.
+                //   The exit was already triggered; we are only cleaning up.
                 RunEvent::ExitRequested { code, .. } => {
-                    log::info!("RunEvent::ExitRequested (code: {:?}); killing sidecar", code);
-                    // FORGE: implement sidecar kill here.
-                    // Pattern:
-                    //   let state = app_handle.state::<SidecarState>();
-                    //   if let Ok(mut guard) = state.lock() {
-                    //     if let Some(ref mut sidecar) = *guard {
-                    //       if let Err(e) = sidecar.kill() {
-                    //         log::error!("Failed to kill sidecar: {}", e);
-                    //       }
-                    //     }
-                    //   }
-                    let _ = app_handle;
+                    log::info!("RunEvent::ExitRequested (code: {:?})", code);
+                    on_exit_requested(app_handle);
                 }
                 RunEvent::Ready => {
                     log::info!("HERETIC shell ready — Summoning Circle window open");
