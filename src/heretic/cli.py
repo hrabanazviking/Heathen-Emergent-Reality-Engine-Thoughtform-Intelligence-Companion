@@ -176,6 +176,45 @@ async def _async_light(args: argparse.Namespace) -> int:
             log.warning("Hlust init failed — ceremony continues text-only: %s", exc)
             hlust = None
 
+    # --- Sjón (L3 Vision): initialise screen capture if enabled ---
+    # Constructed after Bifröst is open; errors here are non-fatal — ceremony
+    # continues without screen frames if Sjón cannot initialise.
+    sjon: Any | None = None
+    grunnr_sjon = cfg.sjon
+    if grunnr_sjon.screen.enabled:
+        try:
+            from heretic.sjon.sjon import Sjón
+            from heretic.sjon.encoder import FrameEncoder as SjonFrameEncoder
+            from heretic.sjon.capture import best_available as sjon_best_available
+            sjon_encoder = SjonFrameEncoder(
+                max_width=grunnr_sjon.screen.max_width,
+                max_height=grunnr_sjon.screen.max_height,
+                logger=log,
+            )
+            sjon_backend = sjon_best_available(log, grunnr_sjon.screen)
+            sjon = Sjón(
+                config=grunnr_sjon,
+                capture_backend=sjon_backend,
+                encoder=sjon_encoder,
+                logger=log,
+                event_emitter=None,  # CLI mode: no EventBus wiring
+            )
+            if sjon.is_available:
+                # Wire the body-state flag: tell Bifröst the eye is open.
+                client.capability_vision_screen = True
+                log.info("Sjón initialised — screen capture available.")
+            else:
+                log.warning(
+                    "Sjón init succeeded but is_available=False — "
+                    "no screen capture backend available. Sight inactive."
+                )
+                sjon = None
+        except Exception as exc:
+            log.warning(
+                "Sjón init failed — ceremony continues sightless: %s", exc
+            )
+            sjon = None
+
     print(
         f"[HERETIC] Bifrost open - connected to {bf_config.endpoint} "
         f"(model: {bf_config.model})",
@@ -183,7 +222,9 @@ async def _async_light(args: argparse.Namespace) -> int:
     )
     print(
         f"[HERETIC] Capabilities: tool_use={client.capability_tool_use} "
-        f"vision_in={client.capability_vision_in} streaming={client.capability_streaming}",
+        f"vision_in={client.capability_vision_in} "
+        f"vision_screen={client.capability_vision_screen} "
+        f"streaming={client.capability_streaming}",
         file=sys.stderr,
     )
     print("[HERETIC] Enter Samraedur - type your message and press Enter.", file=sys.stderr)
@@ -230,7 +271,35 @@ async def _async_light(args: argparse.Namespace) -> int:
             if user_text.strip().lower() == "/quit":
                 break
 
-            messages.append({"role": "user", "content": [{"type": "text", "text": user_text}]})
+            # --- Vision attach (v0.5): snapshot before building the user message.
+            # Both flags must be True:
+            #   ?vision_in     — agent capability (from probe): accepts image content.
+            #   ?vision_screen — body state (from Sjón init): screen capture available.
+            # Frames are only injected when the spirit can receive AND the eye can see.
+            image_data_urls: list[str] = []
+            if (
+                sjon is not None
+                and client.capability_vision_in
+                and client.capability_vision_screen
+            ):
+                try:
+                    image_data_urls = await sjon.snapshot()
+                except Exception as exc:
+                    # snapshot() guarantees no raise, but wrap defensively
+                    log.warning(
+                        "Sjón snapshot raised unexpectedly; sending text-only: %s", exc
+                    )
+                    image_data_urls = []
+
+            # Build the user message content.
+            # When image_data_urls is non-empty, use OpenAI multimodal content array.
+            # When empty, fall back to a simple text-only content array.
+            # The content is ALWAYS a list per the protocol (§2.1 content array format).
+            user_content: list[dict] = [{"type": "text", "text": user_text}]
+            for url in image_data_urls:
+                user_content.append({"type": "image_url", "image_url": {"url": url}})
+
+            messages.append({"role": "user", "content": user_content})
 
             # Stream the response
             print("agent> ", end="", flush=True)
@@ -288,6 +357,13 @@ async def _async_light(args: argparse.Namespace) -> int:
             await tunga.close()
         except Exception as exc:
             log.warning("Error closing Tunga: %s", exc)
+
+    # Close Sjón — release screen capture resources
+    if sjon is not None:
+        try:
+            await sjon.close()
+        except Exception as exc:
+            log.warning("Error closing Sjón: %s", exc)
 
     try:
         await client.close()
@@ -586,6 +662,48 @@ async def _async_serve(args: argparse.Namespace) -> int:
             log.warning("Hlust init failed — serve continues without STT: %s", exc)
             hlust = None
 
+    # --- Sjón (L3 Vision): initialise for serve mode ---
+    sjon_serve: Any | None = None
+    grunnr_sjon_serve = cfg.sjon
+    if grunnr_sjon_serve.screen.enabled:
+        try:
+            from heretic.sjon.sjon import Sjón as SjonServe
+            from heretic.sjon.encoder import FrameEncoder as SjonFrameEncoderServe
+            from heretic.sjon.capture import best_available as sjon_best_available_serve
+            from heretic.vebond.protocol import SjonActivity, SjonActivityState
+            import datetime as _dt
+
+            _sjon_encoder_serve = SjonFrameEncoderServe(
+                max_width=grunnr_sjon_serve.screen.max_width,
+                max_height=grunnr_sjon_serve.screen.max_height,
+                logger=log,
+            )
+            _sjon_backend_serve = sjon_best_available_serve(log, grunnr_sjon_serve.screen)
+
+            def _sjon_event_emitter(evt: object) -> None:
+                """Forward SjonActivity events from the Sjón orchestrator to the EventBus."""
+                try:
+                    event_bus.publish(evt)
+                except Exception as exc:
+                    log.debug("Sjón event_emitter error (ignored): %s", exc)
+
+            sjon_serve = SjonServe(
+                config=grunnr_sjon_serve,
+                capture_backend=_sjon_backend_serve,
+                encoder=_sjon_encoder_serve,
+                logger=log,
+                event_emitter=_sjon_event_emitter,
+            )
+            if sjon_serve.is_available:
+                client.capability_vision_screen = True
+                log.info("Sjón initialised for serve mode — screen capture available.")
+            else:
+                log.warning("Sjón serve init: is_available=False — sight inactive.")
+                sjon_serve = None
+        except Exception as exc:
+            log.warning("Sjón serve init failed — serve continues sightless: %s", exc)
+            sjon_serve = None
+
     # --- State for the serve turn loop ---
     messages: list[dict] = []
     _in_flight_turn_id: list[str] = [None]  # mutable reference in closure
@@ -659,7 +777,24 @@ async def _async_serve(args: argparse.Namespace) -> int:
             ))
             return
 
-        messages.append({"role": "user", "content": [{"type": "text", "text": text}]})
+        # Vision attach for serve mode — same dual-flag gate as CLI light.
+        serve_image_urls: list[str] = []
+        if (
+            sjon_serve is not None
+            and client.capability_vision_in
+            and client.capability_vision_screen
+        ):
+            try:
+                serve_image_urls = await sjon_serve.snapshot()
+            except Exception as exc:
+                log.warning("Sjón serve snapshot error (text-only): %s", exc)
+                serve_image_urls = []
+
+        serve_content: list[dict] = [{"type": "text", "text": text}]
+        for url in serve_image_urls:
+            serve_content.append({"type": "image_url", "image_url": {"url": url}})
+
+        messages.append({"role": "user", "content": serve_content})
         lc.transition(LifecycleState.SAMRAEDUR)
 
         turn_id = str(uuid.uuid4())
@@ -803,6 +938,12 @@ async def _async_serve(args: argparse.Namespace) -> int:
             await tunga.close()
         except Exception as exc:
             log.warning("Error closing Tunga: %s", exc)
+
+    if sjon_serve is not None:
+        try:
+            await sjon_serve.close()
+        except Exception as exc:
+            log.warning("Error closing Sjón (serve): %s", exc)
 
     try:
         await client.close()

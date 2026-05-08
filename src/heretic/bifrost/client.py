@@ -122,6 +122,15 @@ class BifrostClient(abc.ABC):
     def capability_streaming(self) -> bool:
         """True if the agent supports SSE streaming responses."""
 
+    @property
+    @abc.abstractmethod
+    def capability_vision_screen(self) -> bool:
+        """True if HERETIC has a working screen capture backend (L3 Sjón body-state flag).
+
+        Distinct from capability_vision_in (agent capability).
+        Frames are injected only when BOTH are True.
+        """
+
 
 class OpenAICompatClient(BifrostClient):
     """OpenAI Chat Completions API client with streaming and tool_use support.
@@ -147,6 +156,12 @@ class OpenAICompatClient(BifrostClient):
         self._capability_tool_use: bool = False
         self._capability_vision_in: bool = False
         self._capability_streaming: bool = False
+        # ?vision_screen: HERETIC body-state flag (distinct from ?vision_in).
+        # ?vision_in  — agent capability: does the spirit accept image content?
+        # ?vision_screen — body state: does HERETIC have a working screen capture backend?
+        # Frames are injected only when BOTH are True.
+        # Set by the CLI/serve after Sjón initialises and reports is_available.
+        self._capability_vision_screen: bool = False
 
     # ------------------------------------------------------------------
     # Public API — BifrostClient contract
@@ -257,6 +272,7 @@ class OpenAICompatClient(BifrostClient):
         self._capability_tool_use = False
         self._capability_vision_in = False
         self._capability_streaming = False
+        self._capability_vision_screen = False
         _log.info("Bifröst closed.")
 
     # ------------------------------------------------------------------
@@ -274,6 +290,24 @@ class OpenAICompatClient(BifrostClient):
     @property
     def capability_streaming(self) -> bool:
         return self._capability_streaming
+
+    @property
+    def capability_vision_screen(self) -> bool:
+        """True if HERETIC has a working screen capture backend (L3 Sjón).
+
+        This is a HERETIC body-state flag, distinct from capability_vision_in:
+          ?vision_in     — agent can receive image content (agent probe result).
+          ?vision_screen — HERETIC body has a screen capture backend available.
+
+        Both must be True for frames to be injected into user messages.
+        Set by the CLI or serve.py after Sjón initialises and calls is_available.
+        """
+        return self._capability_vision_screen
+
+    @capability_vision_screen.setter
+    def capability_vision_screen(self, value: bool) -> None:
+        """Set the ?vision_screen body-state flag from the CLI or serve.py wiring."""
+        self._capability_vision_screen = value
 
     # ------------------------------------------------------------------
     # Internal helpers
