@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.5 First Sight marked SHIPPED (HEAD 4d9d2fa); v0.5.1 Periodic Sight (continuous capture loop + ring buffer + multi-monitor mapping) marked IN PROGRESS; v0.5.1 is an extension of v0.5 — no new layer, same L3 Sjón substrate deepened; cross-reference to DATA_FLOW.md §4.10.7–§4.10.10 added | 2026-05-08 v0.6 addendum — Védis Eikleið: §7 milestone topology updated; v0.5.1 Periodic Sight marked SHIPPED; v0.6 Hands at the Forge (L5 Skilningr substrate + Smiðja sense + Brúarhönd integration) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.11 and §16 added
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.5 First Sight marked SHIPPED (HEAD 4d9d2fa); v0.5.1 Periodic Sight (continuous capture loop + ring buffer + multi-monitor mapping) marked IN PROGRESS; v0.5.1 is an extension of v0.5 — no new layer, same L3 Sjón substrate deepened; cross-reference to DATA_FLOW.md §4.10.7–§4.10.10 added | 2026-05-08 v0.6 addendum — Védis Eikleið: §7 milestone topology updated; v0.5.1 Periodic Sight marked SHIPPED; v0.6 Hands at the Forge (L5 Skilningr substrate + Smiðja sense + Brúarhönd integration) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.11 and §16 added | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §7 milestone topology updated; v0.5.2 Webcam Capture (WebcamCaptureBackend, OpenCvBackend, NullWebcamBackend, snapshot_webcam(), 4-path attach_policy decision tree, stronger privacy stance) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.10.11–§4.10.13 and §15 v0.5.2 extension added
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -510,6 +510,37 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |    Privacy invariant preserved: ring buffer cleared on Slokna; never to disk
         |    Backpressure: slow capture skips next tick rather than queuing
         |    See DATA_FLOW.md §4.10.7–§4.10.10 (periodic subsections) and §15 v0.5.1 extension
+        |
+        |  v0.5.2 — Webcam Capture (IN PROGRESS)
+        |    SAME L3 Sjón substrate; no new layer; screen path unchanged
+        |    New: WebcamCaptureBackend ABC + OpenCvBackend (cv2.VideoCapture) + NullWebcamBackend
+        |      src/heretic/sjon/webcam.py — parallel to capture.py (MssBackend)
+        |    New: SjonOrchestrator.snapshot_webcam() — mirrors snapshot() for webcam source
+        |      pipeline: VideoCapture.read() → BGR ndarray → BGR[:,:,::-1] (→ RGB) → PIL.Image
+        |                → thumbnail(max_width, max_height) → JPEG (default) or PNG
+        |                → base64 → data URL → return [data_url]
+        |      JPEG default: photographic content; ~80–200 KB vs ~800–1200 KB PNG;
+        |                    configurable via sjon.webcam.format + sjon.webcam.jpeg_quality
+        |    New: attach_policy field (sjon.webcam.attach_policy) — 4 values:
+        |      "screen_only" (DEFAULT): webcam silently ignored even if enabled;
+        |                               backward-compatible with all prior v0.5 configs
+        |      "webcam_only": webcam attaches; screen NOT captured this turn
+        |      "alongside":   both captured; webcam first then screen in content array
+        |      "alternate":   toggles per turn; state tracked in CLI session (_sjon_alternate_turn_counter)
+        |                     odd turns → webcam; even turns → screen
+        |    New: SjonWebcamConfig fields completed:
+        |      device_index (default 0), max_width (1280), max_height (720),
+        |      format ("jpeg"), jpeg_quality (85), attach_policy ("screen_only")
+        |    Privacy gate (STRONGER than screen):
+        |      sjon.webcam.enabled defaults false — operator must explicitly opt in
+        |      attach_policy "screen_only" (default) ignores webcam even when enabled
+        |      two deliberate acts required to send any webcam frame
+        |      webcam captures physical presence (face, room, environment) — not just screen output
+        |      frames never written to disk; VideoCapture released at SLOKNA
+        |      ring buffer NOT implemented (on-demand only; ring buffer deferred to v0.5.x)
+        |    New dep: opencv-python>=4.8 added to [vision] extra in pyproject.toml
+        |    See DATA_FLOW.md §4.10.11 (pipeline), §4.10.12 (attach_policy tree),
+        |        §4.10.13 (privacy stance), §15 v0.5.2 extension (WebcamCaptureBackend diagram)
   v0.6  Hands at the Forge  Brúarhönd MCP   L5 Skilningr substrate + L5.5 Smiðja sense  IN PROGRESS
         |
         |  v0.6.0 — First Hand (IN PROGRESS)

@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS.
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -3061,6 +3061,328 @@ be injected from the context where the call originates, not derived inside the f
 | `sjon.screen.monitor_index` | `0` | Operator-chosen monitor; see mapping table above |
 | `sjon.screen.continuous` | `false` | Determines which branch of the index-0 mapping fires |
 
+#### 4.10.11 Webcam capture pipeline (v0.5.2)
+
+> **Added 2026-05-08 v0.5.2 (Védis Eikleið).** The eye gains a second source. Where the screen
+> shows what the spirit can see of the work, the webcam shows what the spirit can see of the
+> worker — face, room, lighting, physical presence. Because of this, the privacy gate for webcam
+> is stronger than for screen: `sjon.webcam.enabled` defaults to `false` and requires an explicit
+> operator opt-in. The pipeline mirrors the screen path with one additional step: OpenCV BGR frame
+> bytes must be converted to RGB before PIL can interpret them correctly.
+>
+> **Trigger:** Webcam capture fires at exactly the same moment as the screen path — when the user
+> sends a message — subject to the same three gates:
+> 1. `sjon.webcam.enabled: true` (config gate — default false)
+> 2. `bifrost.client.capability_vision_in = true` (agent capability gate — same as screen)
+> 3. `sjon.webcam.attach_policy` is not `"screen_only"` (policy gate — see §4.10.12)
+
+```
+  [snapshot_webcam() called — by CLI / Vébond per-turn dispatch]
+       |
+       |  IF sjon.webcam.enabled = false:
+       |    return []  (no attempt; no warning; this is expected default)
+       |
+       v
+  [WebcamCaptureBackend.open(device_index)]                       (lazy init)
+       |
+       |  cv2.VideoCapture(config.sjon.webcam.device_index)
+       |    device_index default: 0  (first available webcam)
+       |    lazy open: VideoCapture object created on first call to snapshot_webcam();
+       |    held for the ceremony lifetime; released in Sjón.close() at SLOKNA
+       |
+       |  IF cv2 unavailable at import time (NullWebcamBackend):
+       |    return []
+       |    log.warn: "opencv-python not installed — webcam capture unavailable; "
+       |              "install heretic[vision] to enable"
+       |    ?vision_webcam capability flag = false
+       |
+       |  IF device_index not found or VideoCapture.isOpened() = False:
+       |    return []
+       |    log.warn: "Webcam device <N> not found or could not be opened"
+       |    ?vision_webcam capability flag = false
+       |
+       v
+  [cv2.VideoCapture.read()]                                       (sync — run_in_executor)
+       |
+       |  ret, frame = cap.read()
+       |    ret: bool — False if frame could not be captured
+       |    frame: numpy.ndarray (shape: height × width × 3, dtype uint8, BGR order)
+       |           OpenCV always returns BGR — NOT RGB
+       |
+       |  IF ret = False:
+       |    return []
+       |    log.warn: "Webcam read() failed — frame dropped for this turn"
+       |
+       v
+  [BGR → RGB conversion]                                          (sync, numpy)
+       |
+       |  frame_rgb = frame[:, :, ::-1]
+       |    (reverses the channel axis: BGR → RGB; zero-copy view in numpy)
+       |    This step is mandatory — PIL.Image.fromarray() expects RGB, not BGR.
+       |    Omitting it causes a blue-channel swap that subtly distorts all colours;
+       |    the Auditor invariant check must verify this conversion is present.
+       |
+       v
+  [PIL.Image.fromarray(frame_rgb)]                                (sync — run_in_executor)
+       |
+       |  image = PIL.Image.fromarray(frame_rgb)
+       |    mode: "RGB"  (derived from shape: 3 channels)
+       |    width: frame.shape[1], height: frame.shape[0]
+       |
+       v
+  [Resize to max_width / max_height]                              (sync, Pillow)
+       |
+       |  config keys: sjon.webcam.max_width (default 1280), sjon.webcam.max_height (default 720)
+       |  if image.width > max_width OR image.height > max_height:
+       |    image.thumbnail((max_width, max_height), PIL.Image.LANCZOS)
+       |    (in-place; aspect-ratio preserving; never upscales)
+       |  Typical webcam resolution: 640×480 (VGA), 1280×720 (HD), 1920×1080 (FHD)
+       |  At 640×480: no resize needed (below default threshold)
+       |  At 1280×720: exactly at threshold — no resize (thumbnail does not upscale)
+       |  At 1920×1080: scaled to 1280×720 (1.5× reduction, aspect ratio 16:9 preserved)
+       |
+       v
+  [Encode: JPEG (default) or PNG (opt-in)]                        (sync, Pillow)
+       |
+       |  config key: sjon.webcam.format — "jpeg" (default) | "png"
+       |
+       |  IF format = "jpeg":
+       |    buffer = io.BytesIO()
+       |    image.save(buffer, format="JPEG", quality=config.sjon.webcam.jpeg_quality)
+       |    jpeg_quality config key: default 85 (range 1–95; Pillow convention)
+       |    JPEG encoding is the default because webcam frames are photographic content —
+       |    lossless PNG carries 3–5× the byte cost for negligible perceptual improvement.
+       |    At 1280×720 JPEG quality=85: typically 80–200 KB (vs ~800–1200 KB PNG)
+       |    This is the primary token-cost argument for JPEG as default.
+       |    MIME type: "image/jpeg"
+       |
+       |  IF format = "png":
+       |    buffer = io.BytesIO()
+       |    image.save(buffer, format="PNG", compress_level=6)
+       |    MIME type: "image/png"
+       |
+       |  encoded_bytes = buffer.getvalue()
+       |
+       v
+  [base64 encode + data URL]                                      (sync)
+       |
+       |  b64_str = base64.b64encode(encoded_bytes).decode("ascii")
+       |  mime = "image/jpeg" if format == "jpeg" else "image/png"
+       |  data_url = f"data:{mime};base64,{b64_str}"
+       |
+       v
+  [return [data_url]]
+       |
+       |  No disk write under any default configuration.
+       |  The data URL exists only in memory and in the outbound HTTP request body.
+```
+
+**Session log entry for webcam capture:**
+```json
+{
+  "event": "sjon_webcam_snapshot",
+  "ts": "...",
+  "device_index": 0,
+  "frame_width": 1280,
+  "frame_height": 720,
+  "format": "jpeg",
+  "jpeg_quality": 85,
+  "encoded_bytes": 142800,
+  "b64_chars": 190416,
+  "encode_ms": 22,
+  "saved_to_disk": false
+}
+```
+
+**Config dependencies for the webcam capture path:**
+
+| Config key | Default | Controls |
+|---|---|---|
+| `sjon.webcam.enabled` | `false` | Master toggle — operator must explicitly set `true` to activate webcam capture; default off is the stronger consent gate |
+| `sjon.webcam.device_index` | `0` | OpenCV VideoCapture device index; 0 = first available webcam |
+| `sjon.webcam.max_width` | `1280` | Max output width after resize; thumbnail() will not upscale |
+| `sjon.webcam.max_height` | `720` | Max output height after resize; aspect ratio preserved |
+| `sjon.webcam.format` | `"jpeg"` | Encoding format: `"jpeg"` (smaller, photographic) or `"png"` (lossless, larger) |
+| `sjon.webcam.jpeg_quality` | `85` | JPEG quality (1–95); only used when format = "jpeg"; ignored for PNG |
+| `sjon.webcam.attach_policy` | `"screen_only"` | Governs how webcam and screen frames are combined per turn — see §4.10.12 |
+
+#### 4.10.12 Webcam/screen attach_policy decision tree (v0.5.2)
+
+> The eye now has two sources. The question on every turn: which does the spirit receive?
+> Four answers are defined. One locks the old behaviour; three open the new possibilities.
+
+This decision tree operates in the CLI / Vébond per-turn dispatch layer — not inside
+SjonOrchestrator. Sjón itself provides two independent methods: `snapshot()` (screen) and
+`snapshot_webcam()` (webcam). The caller decides which to invoke and in what order based on
+`sjon.webcam.attach_policy`. Sjón has no knowledge of the policy; the policy logic lives
+entirely in the caller.
+
+**Pre-conditions (unchanged from §4.10.1):**
+Both capture paths are gated by `capability_vision_in = true`. If the agent does not support
+vision, both paths are bypassed and `image_data_urls = []` regardless of policy.
+
+```
+  [user message arrives — pre-check passed: capability_vision_in = true]
+       |
+       v
+  [read: sjon.webcam.attach_policy]
+       |
+       |
+  +----|---------------------------------------- attach_policy = "screen_only" (DEFAULT) ---+
+  |    |                                                                                    |
+  |    v                                                                                    |
+  |  [screen path only — identical to v0.5 / v0.5.1]                                       |
+  |    sjon.screen.enabled gate applies as before                                           |
+  |    snapshot() called if gate passes                                                     |
+  |    webcam_enabled flag is IGNORED regardless of its value                               |
+  |    image_data_urls = [screen_data_url]  (or [] on failure)                             |
+  |                                                                                         |
+  |  Why this is the default:                                                               |
+  |    Backward compatibility — any operator who was running v0.5 / v0.5.1 without          |
+  |    touching the webcam config gets the exact same behaviour after upgrading to v0.5.2.  |
+  |    The webcam block being present in heretic.yaml (enabled: false by default) does      |
+  |    not change the screen path. Only an explicit attach_policy change activates webcam.  |
+  +----------------------------------------------------------------------------------------+
+       |
+  +----|---------------------------------------- attach_policy = "webcam_only" ---------------+
+  |    |                                                                                      |
+  |    v                                                                                      |
+  |  [webcam path only — screen NOT captured this turn]                                      |
+  |    snapshot_webcam() called (if sjon.webcam.enabled = true)                              |
+  |    snapshot() is NOT called                                                               |
+  |    image_data_urls = [webcam_data_url]  (or [] on webcam failure)                        |
+  |                                                                                           |
+  |  Use case: operator wants the spirit to see the user's face / room, not the screen.      |
+  |  Example: a companion app where screen content is irrelevant but physical presence        |
+  |           helps the spirit understand the user's current emotional state or environment.  |
+  |  Cost: same as v0.5 screen path — one image per turn.                                    |
+  +-------------------------------------------------------------------------------------------+
+       |
+  +----|---------------------------------------- attach_policy = "alongside" ----------------+
+  |    |                                                                                     |
+  |    v                                                                                     |
+  |  [both captured — both attached in the same turn]                                       |
+  |    snapshot_webcam() called first (if sjon.webcam.enabled = true AND screen.enabled)    |
+  |    snapshot() called second                                                              |
+  |    failures handled independently: each returns [] or [data_url] independently          |
+  |                                                                                          |
+  |  Attachment order in content array:                                                      |
+  |    [                                                                                     |
+  |      {"type": "text",      "text": "<user message>"},                                   |
+  |      {"type": "image_url", "image_url": {"url": "<webcam_data_url>"}},   // webcam first|
+  |      {"type": "image_url", "image_url": {"url": "<screen_data_url>"}}    // screen last |
+  |    ]                                                                                     |
+  |    Webcam comes first because it provides subject context (who is asking)               |
+  |    before content context (what they are looking at).                                    |
+  |                                                                                          |
+  |  IF either capture fails:                                                                |
+  |    the successful capture is still attached; partial result is acceptable                |
+  |    no failure escalation if one source is unavailable                                    |
+  |                                                                                          |
+  |  Cost: two images per turn. Token cost roughly doubles versus single-image policies.     |
+  |  Operator should verify their vision model's per-image token cost before enabling.       |
+  |  Tailscale bandwidth: ~1–1.5 MB per turn (JPEG webcam ~150 KB + PNG screen ~800–1200 KB)|
+  +-------------------------------------------------------------------------------------------+
+       |
+  +----|---------------------------------------- attach_policy = "alternate" ---------------+
+  |    |                                                                                    |
+  |    v                                                                                    |
+  |  [alternates between webcam and screen on successive turns]                            |
+  |    state tracked per CLI ceremony session: _sjon_alternate_turn_counter (int, starts 0)|
+  |                                                                                         |
+  |    IF _sjon_alternate_turn_counter is ODD:                                              |
+  |      webcam capture this turn (snapshot_webcam())                                       |
+  |      screen NOT captured                                                                |
+  |      image_data_urls = [webcam_data_url]                                                |
+  |                                                                                         |
+  |    IF _sjon_alternate_turn_counter is EVEN:                                             |
+  |      screen capture this turn (snapshot())                                              |
+  |      webcam NOT captured                                                                |
+  |      image_data_urls = [screen_data_url]                                                |
+  |                                                                                         |
+  |    _sjon_alternate_turn_counter incremented after each turn regardless of capture       |
+  |    result (including [] on failure — the counter advances to keep the alternation in    |
+  |    sync with the conversation rhythm, not with capture success).                        |
+  |                                                                                         |
+  |    State scope: per CLI ceremony session; resets to 0 at each ceremony start.          |
+  |    Not persisted across ceremonies.                                                     |
+  |                                                                                         |
+  |  Use case: attention shift tracking — the spirit alternates between understanding what  |
+  |            the user is seeing (screen) and how the user appears to be reacting (webcam).|
+  |            At every other turn each source is refreshed, at half the token cost of      |
+  |            "alongside" over the same conversation length.                               |
+  |  Cost: one image per turn (same as single-image policies); the cost alternates between  |
+  |        webcam and screen sources.                                                        |
+  +-------------------------------------------------------------------------------------------+
+```
+
+**Summary table:**
+
+| attach_policy | Screen captured? | Webcam captured? | Images / turn | Webcam order | Notes |
+|---|---|---|---|---|---|
+| `"screen_only"` (default) | Yes (per §4.10.1–4.10.9) | No (ignored) | 0 or 1 | N/A | Backward compatible with v0.5/v0.5.1 |
+| `"webcam_only"` | No | Yes | 0 or 1 | N/A | Screen path completely bypassed |
+| `"alongside"` | Yes | Yes | 0, 1, or 2 | Webcam first | Both attached; order: webcam then screen |
+| `"alternate"` | Even turns | Odd turns | 0 or 1 | N/A | Counter in CLI session state |
+
+**Session log annotation (alternate policy):**
+```json
+{
+  "event": "sjon_attach_policy_dispatch",
+  "policy": "alternate",
+  "turn_counter": 7,
+  "active_source": "webcam",
+  "ts": "..."
+}
+```
+
+#### 4.10.13 Webcam privacy stance (v0.5.2)
+
+> The webcam sees the person, not the work. This distinction carries a heavier obligation.
+
+**Why the default is stronger than screen:**
+
+Screen capture reveals what is on the display — code, documents, browser tabs. These are the
+user's output, already externalized into a machine interface. Webcam capture reveals what is in
+the room — the user's face, posture, lighting, background, and physical presence. This is not
+output; this is the person. The distinction demands a stronger default.
+
+| Gate | Screen | Webcam |
+|---|---|---|
+| Master toggle default | `sjon.screen.enabled: true` | `sjon.webcam.enabled: false` |
+| Consent model | Operator opts in by enabling screen capture | Operator must explicitly opt in AND choose a non-"screen_only" policy |
+| Default attach_policy | already active when enabled | `"screen_only"` ignores webcam even if enabled |
+| Result | Screen capture is active unless disabled | Webcam capture requires two deliberate acts: enable it AND change the policy |
+
+The two-gate design means that an operator who adds the webcam block to heretic.yaml with
+`enabled: true` but forgets to change `attach_policy` still sends no webcam frames. The policy
+gate is a second, independent consent point.
+
+**Privacy invariants (sealed at v0.5.2 — carry forward from screen invariants in §4.10):**
+
+1. Webcam frames are NEVER written to disk under any default configuration. No session log
+   entry contains frame bytes; only metadata (device, dimensions, encoding, byte count) is
+   logged.
+2. Webcam frames exist only in memory and in the outbound HTTP request body. They travel
+   through the same Tailscale-encrypted Bifröst wire as screen frames. No separate exfiltration
+   path exists.
+3. A ring buffer for webcam is NOT implemented in v0.5.2 (on-demand only, same as screen in
+   v0.5). Continuous/periodic webcam capture with a ring buffer is backlog item v0.5.x.
+4. The VideoCapture object is held open for the ceremony lifetime (for performance) but its
+   frames are never accumulated — each `read()` call produces one frame that is immediately
+   encoded, base64-encoded, returned, and then goes out of scope. No frame is retained in
+   the orchestrator after the data URL is returned.
+5. At SLOKNA, `cap.release()` is called on the VideoCapture object. The camera is released
+   regardless of how the ceremony ends (normal Slokna, crash, or timeout teardown).
+
+**Operator communication note (for INTERFACE.md and operator docs):**
+
+Any operator-facing documentation that explains webcam capture should include a clear statement
+that the webcam captures physical presence — face, room, and environment. Operators deploying
+HERETIC in a shared, professional, or regulated environment are responsible for ensuring that
+consent is obtained from any person who may appear in webcam frames before enabling this feature.
+HERETIC provides the privacy defaults; obtaining consent is an operator responsibility.
+
 ---
 
 ## 15. L3 Sjón — Internal Component Diagram (v0.5)
@@ -3342,6 +3664,196 @@ be injected from the context where the call originates, not derived inside the f
   - monitor_index=0 means PRIMARY in on-demand mode and COMPOSITE in continuous mode
     This is a named, documented, intentional asymmetry — not a bug.
     See §4.10.10 for the full rationale and the _resolve_mss_monitor contract.
+```
+
+```
+  ============================================================
+  SJÓN MODULE — v0.5.2 EXTENSION: webcam capture backend
+  ============================================================
+
+  > Added 2026-05-08 v0.5.2 (Védis Eikleið). The eye gains a second source alongside MssBackend.
+  > WebcamCaptureBackend is a parallel capture path, not a replacement. Both backends are
+  > independently instantiated; neither knows the other exists. The SjonOrchestrator gains a
+  > new method snapshot_webcam() that mirrors snapshot() but calls the webcam backend.
+  > The attach_policy logic lives in the CLI / Vébond caller — Sjón is not responsible for it.
+
+  sjon/
+    (v0.5 and v0.5.1 files unchanged; new file: webcam.py)
+
+    webcam.py                     NEW in v0.5.2
+    |
+    ├── WebcamCaptureBackend (ABC)
+    │     available() -> bool
+    │     open(device_index: int) -> None    (lazy; called on first snapshot_webcam())
+    │     read_frame() -> WebcamFrame        (WebcamFrame: bgr_array, width, height)
+    │     close() -> None                    (called at SLOKNA; releases cv2.VideoCapture)
+    │
+    ├── OpenCvBackend  (primary — requires opencv-python>=4.8)
+    │     available():
+    │       try: import cv2; return True
+    │       except ImportError: return False
+    │     open(device_index: int):
+    │       self._cap = cv2.VideoCapture(device_index)
+    │       if not self._cap.isOpened():
+    │         raise WebcamBackendUnavailableError(f"device {device_index} not found")
+    │     read_frame() -> WebcamFrame:
+    │       ret, bgr_array = self._cap.read()
+    │       if not ret: raise WebcamCaptureError("VideoCapture.read() returned False")
+    │       return WebcamFrame(bgr_array=bgr_array,
+    │                          width=bgr_array.shape[1],
+    │                          height=bgr_array.shape[0])
+    │     close():
+    │       if self._cap is not None:
+    │         self._cap.release()
+    │         self._cap = None
+    │
+    │     SYNC I/O — all methods are synchronous.
+    │     Caller (SjonOrchestrator.snapshot_webcam) must wrap in run_in_executor.
+    │
+    ├── NullWebcamBackend  (fallback — no-op when opencv-python not installed)
+    │     available() -> False
+    │     open() -> raises WebcamBackendUnavailableError immediately
+    │     read_frame() -> raises WebcamBackendUnavailableError
+    │     close() -> no-op
+    │
+    └── best_available_webcam() -> WebcamCaptureBackend
+          factory function:
+            try OpenCvBackend — if available: return OpenCvBackend()
+            else: return NullWebcamBackend()
+          called once at SjonOrchestrator.__init__
+          (parallel to best_available() for the screen backend)
+
+    errors.py  (v0.5.2 additions)
+    |
+    |  WebcamCaptureError          raised by OpenCvBackend.read_frame() on read failure
+    |  WebcamBackendUnavailableError  raised by NullWebcamBackend or on device not found
+    |    Both extend SjonError (existing base); both caught by SjonOrchestrator.snapshot_webcam()
+
+
+    sjon.py  (v0.5.2 additions to SjonOrchestrator)
+    |
+    ├── __init__ additions:
+    │     self._webcam_backend: WebcamCaptureBackend = best_available_webcam()
+    │     self._webcam_opened: bool = False
+    │     (VideoCapture opened lazily on first snapshot_webcam() call)
+    │
+    ├── async snapshot_webcam() -> list[str]
+    │     Mirrors snapshot() in structure; calls the webcam backend.
+    │     Steps:
+    │       1. IF NOT config.webcam.enabled: return []  (fast path; no log; expected default)
+    │       2. IF NOT self._webcam_opened:
+    │            await loop.run_in_executor(None,
+    │                    self._webcam_backend.open, config.webcam.device_index)
+    │            on WebcamBackendUnavailableError: log.warn; return []
+    │            self._webcam_opened = True
+    │       3. emit sjon.activity(state="capturing_webcam")  --> EventBus
+    │       4. frame = await loop.run_in_executor(None, self._webcam_backend.read_frame)
+    │            on WebcamCaptureError: log.warn; emit sjon.activity(state="failed"); return []
+    │       5. emit sjon.activity(state="encoding_webcam")
+    │       6. data_url = await loop.run_in_executor(
+    │                       None, _encode_webcam_frame,
+    │                       frame, config.webcam.max_width, config.webcam.max_height,
+    │                       config.webcam.format, config.webcam.jpeg_quality)
+    │            on FrameEncodingError: log.warn; emit sjon.activity(state="failed"); return []
+    │       7. emit sjon.activity(state="idle")
+    │       8. return [data_url]
+    │
+    └── close() additions (SLOKNA):
+          if self._webcam_opened:
+            self._webcam_backend.close()
+            self._webcam_opened = False
+          (webcam is always released at SLOKNA; privacy invariant sealed)
+
+    Internal helper (can live in webcam.py or encoder.py):
+
+    _encode_webcam_frame(frame: WebcamFrame, max_w, max_h, fmt, quality) -> str
+      Steps:
+        1. bgr_to_rgb: frame.bgr_array[:, :, ::-1]  (numpy channel reverse; zero-copy)
+        2. image = PIL.Image.fromarray(rgb_array)
+        3. if image.width > max_w or image.height > max_h:
+             image.thumbnail((max_w, max_h), PIL.Image.LANCZOS)
+        4. buffer = io.BytesIO()
+           if fmt == "jpeg":
+             image.save(buffer, format="JPEG", quality=quality)
+             mime = "image/jpeg"
+           else:
+             image.save(buffer, format="PNG", compress_level=6)
+             mime = "image/png"
+        5. b64_str = base64.b64encode(buffer.getvalue()).decode("ascii")
+        6. return f"data:{mime};base64,{b64_str}"
+      Raises FrameEncodingError on any Pillow exception.
+      SYNC — caller wraps in run_in_executor.
+
+
+  ============================================================
+  PARALLEL BACKEND TOPOLOGY (v0.5.2)
+  ============================================================
+
+  SCREEN SOURCE                          WEBCAM SOURCE
+  ============                           =============
+
+  capture.py                             webcam.py
+  ScreenCaptureBackend (ABC)             WebcamCaptureBackend (ABC)
+    |                                      |
+    ├── MssBackend (primary)               ├── OpenCvBackend (primary)
+    |     mss.mss().grab()                 |     cv2.VideoCapture.read()
+    |     returns BGRA bytes               |     returns BGR ndarray
+    |                                      |
+    └── NullBackend (fallback)             └── NullWebcamBackend (fallback)
+                                                 available() = False
+
+  Both fed into SjonOrchestrator:
+
+  SjonOrchestrator
+  |  _screen_backend = best_available()         --> MssBackend or NullBackend
+  |  _webcam_backend = best_available_webcam()  --> OpenCvBackend or NullWebcamBackend
+  |
+  |  async snapshot()         --> screen capture pipeline  (§4.10.2)
+  |  async snapshot_webcam()  --> webcam capture pipeline  (§4.10.11)
+  |
+  |  Attach policy dispatch lives in CLI / Vébond, NOT in SjonOrchestrator.
+  |  SjonOrchestrator provides primitives; the caller decides the policy.
+
+  EventBus activity states for webcam (new in v0.5.2):
+    sjon.activity(state="capturing_webcam")   -- cv2.read() in flight
+    sjon.activity(state="encoding_webcam")    -- PIL encode + base64 in flight
+    (existing states "idle" and "failed" reused for webcam path; no new states added)
+
+
+  ============================================================
+  SYNC vs ASYNC ANNOTATIONS (v0.5.2 additions)
+  ============================================================
+
+  Component                       Sync / Async   Notes
+  ---------                       -----------    -----
+  OpenCvBackend.open()            sync (cv2)     wrapped in run_in_executor by snapshot_webcam
+  OpenCvBackend.read_frame()      sync (cv2)     wrapped in run_in_executor by snapshot_webcam
+  OpenCvBackend.close()           sync (cv2)     called at SLOKNA from async close(); no executor
+                                                 needed (release() is fast and non-blocking)
+  _encode_webcam_frame()          sync (Pillow)  wrapped in run_in_executor by snapshot_webcam
+  NullWebcamBackend.*             sync           raises immediately; no I/O
+
+
+  ============================================================
+  NEW INVARIANTS (v0.5.2)
+  ============================================================
+  - WebcamCaptureBackend has no knowledge of the screen backend or attach policy
+    It is a pure capture primitive.
+  - SjonOrchestrator has no knowledge of the attach policy
+    attach_policy logic belongs to CLI / Vébond caller.
+  - VideoCapture is held open for the ceremony lifetime after first use
+    This avoids repeated open/close latency per frame. The device is reserved
+    for HERETIC while the ceremony is active.
+  - VideoCapture is ALWAYS released at SLOKNA (via close())
+    The camera's indicator light goes off when the ceremony ends.
+  - Webcam frames are never written to disk (privacy invariant from §4.10.13)
+    No frame bytes appear in session logs; only metadata.
+  - attach_policy = "screen_only" ignores sjon.webcam.enabled
+    An operator who sets enabled: true but does not change the policy gets no webcam frames.
+    This two-gate design is intentional — see §4.10.13.
+  - ring buffer for webcam is NOT implemented in v0.5.2
+    snapshot_webcam() is on-demand only; no continuous webcam task.
+    Periodic webcam with ring buffer is backlog item v0.5.x.
 ```
 
 ---
@@ -3952,3 +4464,5 @@ is empty and tool calls can never arrive.
 *v0.5.1: the eye keeps its own watch now, frame by frame, breath by breath, into the ring.*
 *v0.6: the hand reaches. The hand has learned to act — not only to perceive.*
 *Four rivers: Tunga (out voice), Hlust (in voice), Sjón (in image), Smiðja (out action).*
+*v0.5.2: the eye gains a second source. The screen shows the work; the webcam shows the worker.*
+*Only when invited — stronger gate, stronger consent, the camera's light goes off when the ceremony ends.*
