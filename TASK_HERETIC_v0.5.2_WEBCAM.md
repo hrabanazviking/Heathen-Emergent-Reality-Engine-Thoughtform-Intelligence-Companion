@@ -26,17 +26,17 @@ What v0.5.2 does NOT add:
 
 ## 2. Current status — 2026-05-08
 
-**Phase:** v0.6 SHIPPED + AUDITED + CLEANED at `1f91847`. Test baseline: 691 Python + 91 frontend = 782.
+**Phase:** Forge Wave 2 COMPLETE at `b71f17f`. Test count: 747 Python + 91 frontend = 838.
 
 ### v0.5.2 deliverables
-- ⏳ Activate `SjonWebcamConfig` (declared in v0.5; fields: enabled, device_index, max_width, max_height, format ["png"|"jpeg"], jpeg_quality, attach_policy)
-- ⏳ `src/heretic/sjon/webcam.py` — WebcamCaptureBackend ABC + OpenCvBackend (cv2.VideoCapture) + NullBackend + best_available()
-- ⏳ Sjón orchestrator extension: `snapshot_webcam()` returns webcam frame as data URL, mirroring `snapshot()` for screen
-- ⏳ CLI dispatch — when both screen+webcam enabled: per attach_policy combine into image_data_urls list
-- ⏳ Frontend Sjón row: small badge or sub-indicator when webcam active (no new layer row; Sjón still owns)
-- ⏳ pyproject.toml — add `opencv-python>=4.8` to `[vision]` extra (heaviest dep so far; ~70MB; acceptable for opt-in)
-- ⏳ heretic.example.yaml — uncomment + complete `webcam:` block
-- ⏳ Tests — 20+ new Python tests; total target 711+ Python + 92+ frontend = 803+
+- DONE Activate `SjonWebcamConfig` (fields live and validated in config_model.py)
+- DONE `src/heretic/sjon/webcam.py` — OpenCvBackend fully implemented: available()/open()/capture()/close() + BGR→RGB conversion + NullBackend + best_available() factory live
+- DONE Sjón orchestrator: `snapshot_webcam()` + `_encode_webcam_frame()` implemented, fault-tolerant, never raises
+- DONE CLI dispatch — webcam init at TENGSL + all 4 attach_policy paths (screen_only/webcam_only/alongside/alternate) + per-ceremony alternate counter + Slokna teardown
+- ⏳ Frontend Sjón row: small badge or sub-indicator when webcam active (deferred to v0.5.3 or Auditor pass)
+- DONE pyproject.toml — `opencv-python>=4.8` in `[vision]` extra (confirmed present)
+- ⏳ heretic.example.yaml — uncomment + complete `webcam:` block (minor; deferred to Scribe)
+- DONE Tests — 56 new Python tests (+37 webcam backend/orchestrator, +7 webcam CLI policy); 747 total (+56 from baseline 691)
 
 ### Privacy stance (stronger than screen)
 
