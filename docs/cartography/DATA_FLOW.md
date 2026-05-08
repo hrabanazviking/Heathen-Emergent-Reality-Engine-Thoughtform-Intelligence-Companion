@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -1349,6 +1349,7 @@ Arrows show the data flow between components within the package.
 *The rivers do not invent themselves. They were always there — I only followed their course.*
 *v0.2 addendum: the voice path is now drawn. The body knows how to speak.*
 *v0.3 addendum: the listening path is now drawn. The body knows how to hear.*
+*v0.4.0 addendum: the face path is now drawn. The ceremony becomes visible.*
 
 ---
 
@@ -1467,3 +1468,614 @@ execution model.
   - The L5 Hlust sense (hlust.listen MCP tool — agent-callable STT) is out of scope for v0.3;
     the rodd/ Hlust module is the substrate; the L5 sense wrapper ships in a later milestone
 ```
+
+---
+
+## 13. L4 Vébond — Eldahús Component Diagram (v0.4.0)
+
+> **Added 2026-05-07 v0.4.0 (Védis Eikleið).** Drawn in the same style as §11 (Tunga) and §12
+> (Hlust). Shows the internal structure of the Eldahús layer as it ships in v0.4.0: the Python
+> backend, the React component tree, the WS seam between them, and which components subscribe
+> to which events. This diagram reflects the v0.4.0 substrate (browser mode); the Tauri native
+> wrapper (v0.4.1) adds only the outer shell — the component tree and WS protocol do not change.
+
+```
+  BACKEND SIDE (Python — src/heretic/vebond/)
+  ============================================
+
+  src/heretic/vebond/
+  |
+  ├── config_model.py    VebondConfig
+  │                      |  ws_port: int = 8642
+  │                      |  ws_host: str = "127.0.0.1"
+  │                      |  allow_remote_bind: bool = False
+  │                      |  theme: str = "dark_norse"
+  │                      |  show_agent_text_stream: bool = True
+  │                      |  ceremony_button_confirm: bool = True
+  │                      |  show_frame_thumbnail: bool = False
+  │                      |  Loaded at Kynding; injected into serve.py constructor
+  │
+  ├── errors.py          VebondError (base)
+  │                      BindError       (host/port already in use or permission denied)
+  │                      ProtocolError   (malformed command from client; recoverable — emit error event)
+  │                      SerializeError  (failed to JSON-encode an outbound event; log + skip)
+  │
+  ├── protocol.py        Pydantic models for all events and commands
+  │                      |
+  │                      |  -- Server-push events (server --> client) --
+  │                      |  CeremonyStateChangedEvent   (from, to, timestamp)
+  │                      |  BifrostHealthEvent          (status, endpoint, latency_ms)
+  │                      |  TungaActivityEvent          (state)
+  │                      |  HlustActivityEvent          (state, level_db)
+  │                      |  AgentTokenEvent             (role, text_delta, sequence_id)
+  │                      |  AgentTurnCompleteEvent      (turn_id, finish_reason)
+  │                      |  ErrorEvent                  (level, source, message)
+  │                      |
+  │                      |  -- Client commands (client --> server) --
+  │                      |  LightCommand                ({command: "light"})
+  │                      |  ExtinguishCommand           ({command: "extinguish"})
+  │                      |  SendMessageCommand          ({command: "send_message", text: str})
+  │                      |  CancelTurnCommand           ({command: "cancel_turn", turn_id: str})
+  │                      |  ToggleSenseCommand          ({command: "toggle_sense", sense_id, enabled})
+  │                        (ToggleSenseCommand received but rejected with error event in v0.4.0)
+  │
+  └── serve.py           FastAPI application
+                         |
+                         |  FastAPI app + uvicorn server
+                         |  ROUTE: GET /ws  -- WebSocket endpoint (upgraded from HTTP)
+                         |
+                         |  WebSocketEndpoint
+                         |  |  on_connect():
+                         |  |    adds connection to active set
+                         |  |    pushes CeremonyStateChangedEvent snapshot (from=null, to=current)
+                         |  |  on_message(data):
+                         |  |    parses command via protocol.py
+                         |  |    dispatches to: LightCommand -> lifecycle.light()
+                         |  |                   ExtinguishCommand -> lifecycle.extinguish()
+                         |  |                   SendMessageCommand -> bifrost_client.send_message(text)
+                         |  |                   CancelTurnCommand -> bifrost_client.cancel_turn(id)
+                         |  |                   ToggleSenseCommand -> reply ErrorEvent (warn, deferred)
+                         |  |                   unknown -> reply ErrorEvent (warn, unknown command)
+                         |  |  on_disconnect():
+                         |  |    removes connection from active set; no teardown of ceremony
+                         |  |
+                         |  EventBus (internal async broadcast)
+                         |  |  subscribed to:
+                         |  |    Lifecycle state transitions
+                         |  |     --> publishes CeremonyStateChangedEvent to all connections
+                         |  |    BifrostClient state changes
+                         |  |     --> publishes BifrostHealthEvent
+                         |  |    BifrostClient agent SSE stream (token deltas)
+                         |  |     --> publishes AgentTokenEvent (if show_agent_text_stream: true)
+                         |  |    BifrostClient turn completions
+                         |  |     --> publishes AgentTurnCompleteEvent
+                         |  |    Tunga voice::speaking_start / voice::speaking_end
+                         |  |     --> publishes TungaActivityEvent
+                         |  |    Hlust VAD speech / transcribing / idle state
+                         |  |     --> publishes HlustActivityEvent (with level_db if "listening")
+                         |  |    any VebondError / downstream error
+                         |  |     --> publishes ErrorEvent to all connections
+                         |  |
+                         |  Connections: Set[WebSocket]  (all open connections; broadcast to all)
+                         |  (v0.4.0 expects exactly one connection — the browser tab;
+                         |   multiple connections are tolerated: all receive all events)
+
+
+  THE SEAM — WebSocket Bridge
+  ============================
+
+  frontend/src/api/ws-client.ts               Python vebond/serve.py WebSocketEndpoint
+  ------------------------------               -----------------------------------------
+       WsClient                                WebSocketEndpoint
+       |  constructor(url: string)             |  on_connect(websocket)
+       |  connect() -> void                    |    register connection
+       |  send(command: Command) -> void       |    push state snapshot
+       |  subscribe(handler) -> Unsubscribe    |
+       |  disconnect() -> void                 |  on_message(data: str)
+       |                                       |    parse command JSON
+       |  reconnect loop:                      |    dispatch to layer
+       |    backoff 1s, 2s, 4s ... 30s         |
+       |    on reconnect: server re-snapshots  |  on_disconnect(websocket)
+       |                                       |    deregister connection
+       <===  ws://localhost:8642/ws  ==========>
+         bidirectional JSON text frames
+
+
+  FRONTEND SIDE (React — frontend/src/)
+  ======================================
+
+  frontend/src/
+  |
+  ├── types/ipc.ts          TypeScript mirrors of Python protocol.py
+  │                         |  ServerEvent = CeremonyStateChangedEvent
+  │                         |             | BifrostHealthEvent
+  │                         |             | TungaActivityEvent
+  │                         |             | HlustActivityEvent
+  │                         |             | AgentTokenEvent
+  │                         |             | AgentTurnCompleteEvent
+  │                         |             | ErrorEvent
+  │                         |  ClientCommand = LightCommand | ExtinguishCommand
+  │                         |              | SendMessageCommand | CancelTurnCommand
+  │                         |              | ToggleSenseCommand
+  │
+  ├── api/ws-client.ts      WsClient — typed WebSocket wrapper
+  │                         subscribes / unsubscribes event handlers per event type
+  │
+  ├── api/events.ts         event handler registry
+  │                         |  on("ceremony.state_changed", handler)
+  │                         |  on("bifrost.health", handler)
+  │                         |  on("tunga.activity", handler)
+  │                         |  on("hlust.activity", handler)
+  │                         |  on("agent.token", handler)
+  │                         |  on("agent.turn_complete", handler)
+  │                         |  on("error", handler)
+  │
+  ├── store/ceremony.ts     Zustand store — SINGLE SOURCE OF UI TRUTH
+  │                         |  State fields:
+  │                         |    lifecycleState:  LifecycleState | null
+  │                         |    wsConnected:     boolean
+  │                         |    bifrostStatus:   "open" | "closed" | "opening" | "failed" | null
+  │                         |    bifrostLatencyMs: number | null
+  │                         |    tungaState:      "idle"|"synthesizing"|"speaking"|"failed" | null
+  │                         |    hlustState:      "idle"|"loading"|"listening"|"transcribing"|"failed" | null
+  │                         |    hlustLevelDb:    number | null
+  │                         |    chatHistory:     ChatMessage[]    (role, content, turnId, streaming)
+  │                         |    activeToasts:    Toast[]
+  │                         |    wsError:         string | null
+  │                         |
+  │                         |  Actions fed by WS events (via events.ts handlers):
+  │                         |    setLifecycleState(state, from, timestamp)
+  │                         |    setBifrostHealth(status, endpoint, latency_ms)
+  │                         |    setTungaActivity(state)
+  │                         |    setHlustActivity(state, level_db)
+  │                         |    appendAgentToken(role, text_delta, sequence_id)
+  │                         |    sealTurn(turn_id, finish_reason)
+  │                         |    addToast(level, message)
+  │                         |    setWsConnected(bool)
+  │
+  └── components/           React component tree
+      |
+      App.tsx
+      |
+      ├── ToastSystem.tsx
+      │       subscribes: "error" event --> addToast()
+      │       renders: ephemeral toast stack (Varúð for error, dim for warn; single pulse per AESTHETIC.md)
+      │
+      ├── SummoningCircle.tsx     center stage
+      │   |
+      │   ├── LifecyclePulse.tsx
+      │   │       subscribes: ceremony.lifecycleState (from store)
+      │   │       renders: the ring glow + breathing animation (Hvíla-grey at rest;
+      │   │                Eld brightening bloom at OPENING; 4s sinusoidal breathing
+      │   │                at Tengsl/Samræður; flicker modifier at RECOVERING;
+      │   │                dimming at EXTINGUISHED; all per AESTHETIC.md motion language)
+      │   │
+      │   └── CenterCrest.tsx
+      │           subscribes: ceremony.lifecycleState (from store)
+      │           renders: Eld-flame sigil or Hvíla-grey dormant crest per state
+      │
+      ├── SidePanel (left)
+      │   |
+      │   ├── LayerStatusPanel.tsx
+      │   │   |
+      │   │   ├── LayerStatusItem.tsx  [Bifröst]
+      │   │   │       subscribes: "bifrost.health" --> store.bifrostStatus, store.bifrostLatencyMs
+      │   │   │       color: Sjón-glow when open; Hvíla-grey when closed; Varúð when failed
+      │   │   │
+      │   │   ├── LayerStatusItem.tsx  [Tunga]
+      │   │   │       subscribes: "tunga.activity" --> store.tungaState
+      │   │   │       color: Mál-green when "speaking"; Hvíla-grey when "idle"; Varúð when "failed"
+      │   │   │
+      │   │   └── LayerStatusItem.tsx  [Hlust]
+      │   │           subscribes: "hlust.activity" --> store.hlustState, store.hlustLevelDb
+      │   │           color: Mál-green when "listening" or "transcribing"; Hvíla-grey when "idle"
+      │   │           animation: inward pull (receptive) when "listening" per AESTHETIC.md
+      │   │
+      │   └── SenseTogglePanel.tsx
+      │           READ-ONLY in v0.4.0
+      │           subscribes: ceremony.lifecycleState (to show/hide; enabled in Tengsl+)
+      │           displays: heretic.yaml enabled senses at startup; no toggle commands sent
+      │           (toggle_sense command deferred to v0.4.x)
+      │
+      ├── SidePanel (right)
+      │   |
+      │   └── ChatPanel.tsx
+      │       |
+      │       ├── ChatHistory.tsx
+      │       │       subscribes: "agent.token" --> store.appendAgentToken()
+      │       │                   "agent.turn_complete" --> store.sealTurn()
+      │       │       renders: streaming message bubbles; assistant tokens appear in real time
+      │       │                (JetBrains Mono for code blocks; Inter for prose per AESTHETIC.md)
+      │       │
+      │       └── ChatInput.tsx
+      │               subscribes: store.wsConnected (disabled when false)
+      │               emits: SendMessageCommand on Enter / send button
+      │               (voice cue annotation: when store.hlustState = "listening",
+      │                ChatInput shows a subtle Mál-green microphone indicator;
+      │                the voice path from Hlust is automatic — user does not type during
+      │                voice input; the indicator is purely informational)
+      │
+      └── BottomBar.tsx
+          |
+          ├── LightButton.tsx
+          │       subscribes: ceremony.lifecycleState
+          │       enabled when: READY (sends LightCommand on click)
+          │       disabled when: OPENING, Tengsl, Samræður, RECOVERING, CONFIG_ERROR
+          │       color: Eld when enabled; Hvíla-grey when disabled
+          │       label: "Light the Candle" (Cinzel font per AESTHETIC.md display scale)
+          │
+          ├── ExtinguishButton.tsx
+          │       subscribes: ceremony.lifecycleState
+          │       enabled when: Tengsl or Samræður (sends ExtinguishCommand after optional confirm)
+          │       disabled otherwise
+          │       confirm: if vebond.ceremony_button_confirm: true, shows inline confirm before sending
+          │       color: Varúð (sienna) when enabled to signal intentional finality
+          │
+          └── ConnectionIndicator.tsx
+                  subscribes: store.wsConnected
+                  renders: small dot + label
+                    connected:    Mál-green dot, "Connected"
+                    disconnected: Varúð dot, "Disconnected — reconnecting..."
+                    (this indicator reflects the WS transport state, not the ceremony state;
+                     a connected WS in Hvíld is "Connected" + ceremony ring in Hvíla-grey)
+
+
+  COMPONENT-TO-EVENT SUBSCRIPTION MAP (summary)
+
+  Component              Subscribes to events / store slices
+  ---------              ------------------------------------
+  LifecyclePulse         ceremony.state_changed --> lifecycleState
+  CenterCrest            ceremony.state_changed --> lifecycleState
+  LayerStatusItem[Bifrost] bifrost.health --> bifrostStatus, bifrostLatencyMs
+  LayerStatusItem[Tunga]   tunga.activity --> tungaState
+  LayerStatusItem[Hlust]   hlust.activity --> hlustState, hlustLevelDb
+  ChatHistory            agent.token --> chatHistory (streaming)
+                         agent.turn_complete --> chatHistory (seal)
+  LightButton            ceremony.state_changed --> lifecycleState (enabled?)
+  ExtinguishButton       ceremony.state_changed --> lifecycleState (enabled?)
+  ConnectionIndicator    wsConnected (store)
+  ToastSystem            error event --> activeToasts
+  SenseTogglePanel       ceremony.state_changed --> lifecycleState (visibility)
+  ChatInput              wsConnected (store) + hlustState (voice cue annotation)
+
+
+  INVARIANTS:
+  - ceremony.ts (Zustand store) is the ONLY source of truth for UI state
+    No component reads WS events directly — all reads go through the store
+    (events.ts handlers update the store; components subscribe to the store)
+  - The WS seam is the ONLY path between Python and React
+    No HTTP polling. No REST fallback for state. WS down = UI shows disconnected.
+  - All visual state derives from store slices, not from internal component state
+    (exception: ephemeral UI micro-interactions like hover are local component state)
+  - vebond/serve.py broadcasts to ALL open WebSocket connections
+    (v0.4.0: one browser tab expected; multiple tabs receive duplicate streams — acceptable)
+  - Python protocol.py is the canonical event/command schema
+    TypeScript ipc.ts must mirror it; drift between them is a bug to fix in Forge/Auditor pass
+  - LightButton and ExtinguishButton commands are idempotent from the server's perspective:
+    a LightCommand in Samræður emits error event (warn); it does not restart the ceremony
+  - The backend does NOT persist WS session state
+    After reconnect, the client receives a fresh state snapshot and rebuilds from there
+    ChatHistory is client-side memory and survives reconnects (held in Zustand store)
+```
+
+--- (v0.4.0 — Summoning Circle Substrate)
+
+> **Added 2026-05-07 v0.4.0 (Védis Eikleið).** This section maps the face: how L4 Vébond
+> (Eldahús) becomes visible to the user in v0.4.0. The body can now connect (v0.1), speak
+> (v0.2), and hear (v0.3). This path reveals how the ceremony state becomes visible and
+> how the user's touch becomes a command.
+>
+> **v0.4.0 scope:** Python `heretic serve` backend (FastAPI + WebSocket) + React/Vite frontend
+> served via `npm run dev`. Browser-rendered UI only. The Tauri native shell is deferred to
+> v0.4.1 (requires Rust; see TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md §2 architectural constraint).
+>
+> **Aesthetic cross-reference:** The visual language for this flow is defined in
+> `docs/vision/AESTHETIC.md`. Color tokens used in the components below:
+> - `Eld` (amber `#c8860a` / `#e8a020`) — active connection state, LightButton, summoning ring in Tengsl/Samræður
+> - `Sjón-glow` (blue `#4080b0` / `#60a8e0`) — Bifröst/layer health indicator when probing or vision-related
+> - `Mál-green` (teal `#1a6050` / `#30a880`) — voice indicators (Hlust listening, Tunga speaking), active Rödd state
+> - `Hvíla-grey` (`#404850`) — dormant state; the ring and most indicators at rest (Hvíld / READY pre-connection)
+> - `Varúð` (sienna `#c04020`) — error and warning indicators (RECOVERING flicker, sense degraded)
+>
+> Sub-state → visual mapping (from CEREMONY.md §8 L4 Vébond display rules):
+> - `READY` → Kynding appearance (fire kindled, Hvíla-grey ring, LightButton active)
+> - `OPENING` → Kynding-rising (Eld ring slowly brightening; 1.5–2s bloom transition per AESTHETIC.md)
+> - `Tengsl` → bonded (Eld ring burning steadily; breathing pulse begins; sense toggles become interactive)
+> - `Samræður` → full ceremony (ring breathes at 4s sinusoidal cycle; Mál-green Rödd pulse active)
+> - `RECOVERING` → flickering modifier on Tengsl/Samræður display (Varúð flicker, once per event)
+> - `EXTINGUISHED` → Slokna-fading (ring dims through Hvíla-grey; returns to READY appearance)
+> - `CONFIG_ERROR` → distinct error state; clear actionable message; no phase ring indicator
+
+**Lifecycle dependency:** The WebSocket backend (`vebond/serve.py`) starts when `heretic serve`
+is invoked. It is independent of — and wraps — the existing Lifecycle, BifrostClient, Tunga,
+and Hlust. It exposes a single WS endpoint. The React frontend (`frontend/src/`) connects to
+that endpoint on load and does not reconnect to a resumed session — each new connection is
+treated as fresh state. Config port lives at `vebond.ws_port` in heretic.yaml (default 8642);
+host at `vebond.ws_host` (default 127.0.0.1 — localhost only in v0.4.0, as documented in
+TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md §3 and LAYER_INTERFACES.md §L4).
+
+#### 4.8.1 WebSocket Connection Lifecycle
+
+```
+  [User opens browser to http://localhost:5173 (or npm run dev URL)]
+       |
+       v
+  [React app mounts — frontend/src/main.tsx bootstraps <App>]
+       |
+       v
+  [frontend/src/api/ws-client.ts: WsClient constructor]
+       |
+       |  opens WebSocket: ws://localhost:<vebond.ws_port>/ws
+       |  (port default: 8642; read from environment at build time or runtime config)
+       |
+       v
+  [vebond/serve.py: FastAPI WebSocket endpoint /ws]
+       |
+       |  connection accepted
+       |
+       |  IMMEDIATELY: server pushes ceremony.state_changed snapshot
+       |  {
+       |    "event": "ceremony.state_changed",
+       |    "from": null,
+       |    "to": <current LifecycleState>,
+       |    "timestamp": "<ISO8601>"
+       |  }
+       |  (this orients the fresh client without the client asking for state)
+       |
+       v
+  [WsClient receives snapshot]
+       |
+       v
+  [frontend/src/store/ceremony.ts: Zustand store updated]
+       |
+       |  store.setState({ lifecycleState: <to>, connected: true })
+       |
+       v
+  [React components re-render — the face becomes visible]
+       |
+       |  LifecyclePulse: ring color/animation reflects new state
+       |  LayerStatusPanel: health indicators at their known values
+       |  LightButton / ExtinguishButton: enabled or disabled per state
+       |  ConnectionIndicator: shows "connected"
+       |
+       v
+  [Bidirectional event/command stream open]
+       |
+       |  server pushes events as ceremony state changes (see §4.8.2)
+       |  client sends commands as user acts (see §4.8.3)
+       |
+       v
+  [Disconnect — browser closes tab, or `heretic serve` process exits]
+       |
+       |  WsClient detects close event
+       |  --> ConnectionIndicator: "disconnected"
+       |  --> text input (ChatInput) disabled
+       |  --> LightButton / ExtinguishButton disabled
+       |  --> frontend remains visually alive at last known state
+       |  --> WsClient begins exponential-backoff reconnect loop:
+       |        attempt 1: after 1s
+       |        attempt 2: after 2s
+       |        attempt 3: after 4s  (cap at 30s; repeat)
+       |        on reconnect: full re-sync (server pushes state snapshot again)
+       |  (no session resume — v0.4.0 reconnect is a fresh connection; state on
+       |   the Python side is authoritative and snapshoted to the new client)
+```
+
+#### 4.8.2 Server-Push Events (backend to frontend)
+
+The Python EventBus in `vebond/serve.py` publishes events from Lifecycle, BifrostClient,
+Tunga, and Hlust onto all open WS connections. All events are JSON objects with an `"event"`
+discriminator field. Frontend event handler registry lives in `frontend/src/api/events.ts`;
+TypeScript types in `frontend/src/types/ipc.ts` mirror Python `vebond/protocol.py`.
+
+Total: **7 server-push event types.**
+
+```
+  EVENT 1: ceremony.state_changed
+  --------------------------------
+  Direction: server --> all connected clients
+  Trigger:   any LifecycleState transition (see CEREMONY.md §2 full state diagram)
+  Payload:
+    {
+      "event":     "ceremony.state_changed",
+      "from":      <LifecycleState | null>,   // null on initial snapshot
+      "to":        <LifecycleState>,           // one of: Hvíld, Kynding, READY, OPENING,
+                                               //         Tengsl, Samræður, RECOVERING,
+                                               //         Slokna, EXTINGUISHED, CONFIG_ERROR
+      "timestamp": "<ISO8601>"
+    }
+  Consumer: LifecyclePulse (ring animation + color), LightButton (enabled?), ExtinguishButton (enabled?)
+
+  EVENT 2: bifrost.health
+  -----------------------
+  Direction: server --> all connected clients
+  Trigger:   Bifröst state change (DISCONNECTED | CONNECTING | CONNECTED | RECOVERING | ERROR)
+  Payload:
+    {
+      "event":       "bifrost.health",
+      "status":      "open" | "closed" | "opening" | "failed",
+      "endpoint":    "<str>",               // agent endpoint URL (no API key — informational only)
+      "latency_ms":  <int | null>           // null if not yet measured
+    }
+  Consumer: LayerStatusPanel (Bifröst row indicator)
+
+  EVENT 3: tunga.activity
+  -----------------------
+  Direction: server --> all connected clients
+  Trigger:   L2 Rödd Tunga state change (emitted from voice::speaking_start / voice::speaking_end)
+  Payload:
+    {
+      "event": "tunga.activity",
+      "state": "idle" | "synthesizing" | "speaking" | "failed"
+    }
+  Consumer: LayerStatusPanel (Tunga row); future: waveform widget (v0.4.x)
+
+  EVENT 4: hlust.activity
+  -----------------------
+  Direction: server --> all connected clients
+  Trigger:   L2 Rödd Hlust state change (VAD speech detection, transcription, error)
+  Payload:
+    {
+      "event":    "hlust.activity",
+      "state":    "idle" | "loading" | "listening" | "transcribing" | "failed",
+      "level_db": <float | null>   // RMS level in dBFS while "listening"; null otherwise
+    }
+  Consumer: LayerStatusPanel (Hlust row; Mál-green animation when "listening" or "transcribing")
+  Note: level_db is available from v0.4.0 VadDetector; dedicated waveform widget deferred to v0.4.x
+
+  EVENT 5: agent.token
+  --------------------
+  Direction: server --> all connected clients
+  Trigger:   each SSE text_delta chunk from Bifröst while a Samræður turn is in progress
+  Payload:
+    {
+      "event":       "agent.token",
+      "role":        "assistant",
+      "text_delta":  "<str>",    // one token or small fragment of the spirit's reply
+      "sequence_id": <int>       // monotonically increasing per turn; lets client detect drops
+    }
+  Consumer: ChatHistory (appends delta to in-progress message bubble in real time)
+
+  EVENT 6: agent.turn_complete
+  ----------------------------
+  Direction: server --> all connected clients
+  Trigger:   SSE stream sends [DONE] for the current turn, OR tool-call round-trip finishes
+  Payload:
+    {
+      "event":         "agent.turn_complete",
+      "turn_id":       "<str>",          // UUID matching the turn that generated this event
+      "finish_reason": "stop" | "length" | "tool_calls" | "cancelled" | "error"
+    }
+  Consumer: ChatHistory (seals the in-progress message bubble; stops streaming cursor)
+
+  EVENT 7: error
+  --------------
+  Direction: server --> all connected clients
+  Trigger:   any recoverable error in the Vébond layer or downstream (WS decode fail,
+             invalid command, internal exception that did not abort the ceremony)
+  Payload:
+    {
+      "event":   "error",
+      "level":   "warn" | "error",
+      "source":  "<str>",     // e.g. "vebond.serve", "bifrost", "hlust"
+      "message": "<str>"
+    }
+  Consumer: ToastSystem (displays ephemeral error toast; Varúð color for "error", dimmer for "warn")
+```
+
+#### 4.8.3 Client Commands (frontend to backend)
+
+Commands are JSON objects sent by the browser over the WS connection. The backend parses them
+via `vebond/protocol.py` typed command models. An unknown command type causes the server to
+reply with an `error` event (level: "warn") and take no further action.
+
+Total: **5 client command types.**
+
+```
+  COMMAND 1: light
+  ----------------
+  Direction: client --> server
+  Trigger:   user clicks LightButton
+  Payload:   {"command": "light"}
+  Effect:    initiates Kynding --> READY --> OPENING --> Tengsl sequence
+             (idempotent if already in Tengsl or Samræður: server replies with error event,
+              level "warn", "already connected")
+
+  COMMAND 2: extinguish
+  ---------------------
+  Direction: client --> server
+  Trigger:   user clicks ExtinguishButton
+             (if vebond.ceremony_button_confirm: true in heretic.yaml, button shows
+              a confirm step before sending this command — UI-side; command arrives only after
+              confirmation)
+  Payload:   {"command": "extinguish"}
+  Effect:    initiates Slokna --> EXTINGUISHED --> READY sequence
+
+  COMMAND 3: send_message
+  -----------------------
+  Direction: client --> server
+  Trigger:   user submits text in ChatInput (Enter key or send button)
+  Payload:   {"command": "send_message", "text": "<str>"}
+  Effect:    backend injects text as user-role message into Bifröst, starts a new turn
+             (rejected if not in Tengsl or Samræður; server replies with error event)
+  Note:      ChatInput is disabled when ConnectionIndicator shows disconnected
+
+  COMMAND 4: cancel_turn
+  ----------------------
+  Direction: client --> server
+  Trigger:   user clicks a cancel/interrupt control during an active turn (v0.4.0 UI)
+  Payload:   {"command": "cancel_turn", "turn_id": "<str>"}
+  Effect:    backend signals in-flight Bifröst turn to abort; finish_reason on the resulting
+             agent.turn_complete event will be "cancelled"
+  Note:      if turn_id does not match any active turn, server replies with error event (warn)
+
+  COMMAND 5: toggle_sense
+  -----------------------
+  Direction: client --> server
+  Payload:   {"command": "toggle_sense", "sense_id": "<str>", "enabled": <bool>}
+  Status:    DEFERRED to v0.4.x
+             In v0.4.0: command is received and acknowledged with an error event
+             (level "warn", message "sense toggle not yet implemented; edit heretic.yaml
+             to enable/disable senses and restart heretic serve").
+             SenseTogglePanel in v0.4.0 is READ-ONLY — it displays the heretic.yaml
+             state at startup but does not send this command.
+```
+
+#### 4.8.4 Reconnection and Failure Modes
+
+```
+  SCENARIO A: Backend not running when browser loads
+  ---------------------------------------------------
+  WsClient: WebSocket() construction fails immediately (connection refused)
+  --> ConnectionIndicator: "disconnected" (Hvíla-grey)
+  --> LightButton, ExtinguishButton, ChatInput: all disabled
+  --> WsClient: begins backoff reconnect loop (1s, 2s, 4s ... 30s, 30s, ...)
+  --> When `heretic serve` starts: next reconnect attempt succeeds
+  --> Server pushes state snapshot; UI unlocks
+
+  SCENARIO B: Backend exits mid-ceremony (crash or Ctrl+C)
+  ----------------------------------------------------------
+  WsClient: receives WS close frame (or times out on keepalive if crash)
+  --> ConnectionIndicator: "disconnected" immediately
+  --> ChatInput disabled; buttons disabled
+  --> WsClient: begins backoff reconnect loop
+  --> Ceremony state on backend side is lost (v0.4.0 has no server-side session persistence)
+  --> When backend restarts: client reconnects; receives fresh Hvíld snapshot
+  --> User must click LightButton again to re-open Bifröst
+
+  SCENARIO C: WS error during agent.token stream
+  -----------------------------------------------
+  WsClient: WS error event fires (not a clean close)
+  --> log.warn in WsClient; attempt immediate single reconnect
+  --> if reconnect succeeds: state snapshot received; chat history in Zustand store
+      is preserved (it is client-side memory; not lost on WS reconnect)
+  --> if reconnect fails: standard backoff loop begins
+  --> in-progress message bubble in ChatHistory remains visible with partial content;
+      ToastSystem shows a "Reconnecting..." toast
+
+  SCENARIO D: Invalid command sent by client
+  ------------------------------------------
+  Server: receives unknown "command" field value
+  --> server replies: {"event":"error","level":"warn","source":"vebond.serve",
+                       "message":"unknown command: <cmd>"}
+  --> client: ToastSystem shows warn toast; no state change
+
+  SCENARIO E: IPC message decode error (malformed JSON from server)
+  -----------------------------------------------------------------
+  WsClient: JSON.parse() throws
+  --> log.warn in ws-client.ts; message discarded; no crash
+  --> ToastSystem: no visible toast (warn-level decode errors are silent; see LAYER_INTERFACES.md §L4)
+```
+
+#### 4.8.5 Config Dependencies for the UI Path
+
+| Config key | Default | Controls |
+|---|---|---|
+| `vebond.ws_port` | `8642` | Port for WS server (`ws://localhost:<port>/ws`); frontend must match |
+| `vebond.ws_host` | `"127.0.0.1"` | Bind host; localhost only in v0.4.0; set `vebond.allow_remote_bind: true` for non-localhost (opt-in, v0.4.x) |
+| `vebond.theme` | `"dark_norse"` | Visual theme; no alternatives in v0.4.0 (dark mode is identity per AESTHETIC.md) |
+| `vebond.show_agent_text_stream` | `true` | If false, `agent.token` events are not forwarded to WS; ChatHistory shows only completed turns |
+| `vebond.ceremony_button_confirm` | `true` | If true, ExtinguishButton shows a confirm step before sending `extinguish` command |
+| `vebond.show_frame_thumbnail` | `false` | If true, vision frames from Sjón are sent to UI (deferred; v0.5+ when Sjón ships) |
+
+---

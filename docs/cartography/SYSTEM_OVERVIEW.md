@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -94,7 +94,11 @@ inhabits the body. When the ceremony ends, the body sleeps and the shrine endure
        |-- [L4] Vébond
        |    ceremony state machine
        |    lifecycle event emitter
-       |    drives Eldahús UI state
+       |    drives Eldahús UI state                            [v0.4.0 IN PROGRESS]
+       |    Python backend: FastAPI WebSocket server (vebond/serve.py)
+       |    React frontend: Vite + React + TypeScript + Tailwind + Zustand
+       |    WS protocol: ws://localhost:8642/ws (default; port via vebond.ws_port)
+       |    See DATA_FLOW.md §4.8 and §13 for full cartography
        |
        |-- [L5] Skilningr (MCP Sense Hub)
             |  (tool prefix is the sense_id — no "sense." prefix in any tool name)
@@ -435,7 +439,7 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |    → AudioPlayback → OS audio device → speakers
         |  Fallback: /health fail or synthesis error → text-only, ceremony continues
         |  See DATA_FLOW.md §4.6 and §11 for full cartography of this path.
-  v0.3  First Listening  STT                L0 + L1 + L2 full Rödd (Hlust / Whisper.cpp)   IN PROGRESS
+  v0.3  First Listening  STT                L0 + L1 + L2 full Rödd (Hlust / Whisper.cpp)   SHIPPED HEAD 77d49c9 AUDITED
         |  Hlust path: mic 16kHz int16 30ms frames → VadDetector (webrtcvad primary,
         |    energy-threshold fallback) → utterance buffer → WhisperEngine (pywhispercpp
         |    primary, whisper-cli fallback) → transcript → CLI display → Bifröst user message
@@ -443,8 +447,26 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |  Fallback chain: sounddevice fail → Hlust disabled → stdin; webrtcvad fail → energy RMS;
         |    pywhispercpp fail → whisper-cli; neither Whisper → stdin fallback; ceremony never crashes
         |  See DATA_FLOW.md §4.7 and §12 for full cartography of this path.
-  v0.4  Summoning Circle Tauri UI           L4 added (Eldahús + Vébond)
-        |  v0.4 note: SSE text chunks will fork here to chat display alongside v0.2 Tunga
+  v0.4  Summoning Circle L4 Vébond          Eldahús UI — Python WS backend + React/Vite frontend
+        |
+        |  v0.4.0 — Eldahús Substrate (IN PROGRESS — this session)
+        |    Python `heretic serve`: FastAPI + WebSocket on ws://localhost:8642/ws
+        |    React/Vite frontend in frontend/ directory; served via `npm run dev`
+        |    Norse dark aesthetic per AESTHETIC.md (Eld/Sjón-glow/Mál-green/Hvíla-grey)
+        |    Components: SummoningCircle, LifecyclePulse, CenterCrest, ChatPanel, ChatHistory,
+        |      ChatInput, LayerStatusPanel, SenseTogglePanel (read-only), LightButton,
+        |      ExtinguishButton, ConnectionIndicator, ToastSystem
+        |    WS event protocol: 7 server-push events + 5 client commands
+        |    Zustand store: single source of UI truth; fed by WS events
+        |    SSE text chunks fork to ChatHistory display alongside Tunga TTS (as projected in v0.2)
+        |    See DATA_FLOW.md §4.8 (UI flow) and §13 (L4 Vébond component diagram)
+        |
+        |  v0.4.1 — Tauri Shell Wrap (DEFERRED — separate session, requires Rust install)
+        |    src-tauri/ Rust+Tauri shell wrapping the React frontend
+        |    Tauri spawns Python heretic serve as sidecar process
+        |    Native window, Norse window chrome, .msi installer for Windows
+        |    Prerequisite: rustup or `winget install Rustlang.Rust.MSVC`
+        |    Frontend code does not change between v0.4.0 and v0.4.1
   v0.5  First Sight      screen capture     L3 added (Sjón substrate + auga sense)
   v0.6  Hands at the Forge  Blender MCP     L5.5 (blender sense + Seidr-Smidja)
   v0.7  Files & Terminal    FS + terminal   L5.1 + L5.2 (filesystem + terminal senses)
