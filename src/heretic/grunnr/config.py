@@ -165,17 +165,22 @@ class SjonConfig:
 
 
 # ---------------------------------------------------------------------------
-# L4 Vébond sub-config
+# L4 Vébond sub-config — canonical definition re-imported from the vebond package.
+#
+# The authoritative field definitions live in heretic.vebond.config_model so
+# that the vebond layer is self-contained and carries both UI display settings
+# AND WebSocket server settings in one place.
+#
+# heretic.vebond.config_model has no imports from heretic.grunnr, so this
+# import direction is safe and introduces no circular dependency.
+#
+# Approach B (mirror of the rodd consolidation pattern from S-1):
+#   - The inline VebondConfig stub that previously lived here is replaced by
+#     this import. HereticConfig.vebond carries the full canonical schema.
+#   - Any existing code that did `from heretic.grunnr.config import VebondConfig`
+#     continues to work unchanged — VebondConfig is still exported from this module.
 # ---------------------------------------------------------------------------
-
-@dataclass
-class VebondConfig:
-    """L4 Vébond / Eldahús — UI ceremony shell settings."""
-    theme: str = "dark_norse"
-    show_frame_thumbnail: bool = False
-    show_agent_text_stream: bool = True
-    ceremony_button_confirm: bool = True
-    """Require confirmation before Extinguish."""
+from heretic.vebond.config_model import VebondConfig  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

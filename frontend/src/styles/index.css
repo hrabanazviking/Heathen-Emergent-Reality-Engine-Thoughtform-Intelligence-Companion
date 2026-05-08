@@ -1,0 +1,100 @@
+/* HERETIC — global styles entry point */
+
+/* Tailwind CSS base reset + design system */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Norse aesthetic CSS custom properties */
+@import "./theme.css";
+
+/* ------------------------------------------------------------------
+   Base overrides — the longhouse defaults
+   ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    /* Force dark mode as the identity — never defaults to light */
+    color-scheme: dark;
+    background-color: var(--color-void);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  /* Scrollbar — muted, not intrusive */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-structure);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-hvila);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-ghost);
+  }
+
+  /* Selection — warm, not clinical */
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-eld) 30%, transparent);
+    color: var(--color-text-primary);
+  }
+
+  /* Focus ring — visible but Norse-toned */
+  :focus-visible {
+    outline: 2px solid var(--color-eld);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Utility layer — ceremony-specific utilities not in Tailwind config
+   ------------------------------------------------------------------ */
+
+@layer utilities {
+  /* Text rendering */
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-display);
+  }
+  .font-code {
+    font-family: var(--font-code);
+    font-size: var(--text-code);
+  }
+
+  /* Glow effects for active accent colors */
+  .glow-eld {
+    box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-eld-glow) 40%, transparent);
+  }
+  .glow-sjon {
+    box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-sjon-glow) 40%, transparent);
+  }
+  .glow-mal {
+    box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-mal-glow) 40%, transparent);
+  }
+
+  /* The Summoning Circle ring — the breathing boundary */
+  .ring-ceremony {
+    border-radius: 50%;
+    border: var(--ring-stroke) solid var(--color-hvila);
+    width: var(--ring-diameter);
+    height: var(--ring-diameter);
+  }
+  .ring-ceremony.ring-active {
+    border-color: var(--color-eld);
+  }
+}

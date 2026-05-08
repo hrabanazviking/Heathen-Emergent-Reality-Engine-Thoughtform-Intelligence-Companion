@@ -377,6 +377,39 @@ def _cmd_version(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    """Start the L4 Vébond WebSocket and REST server (the Summoning Circle backend).
+
+    Loads heretic.yaml (or the config at --config PATH), applies any CLI overrides
+    for --port and --host, then binds a FastAPI + uvicorn WebSocket server at
+    ws://<host>:<port>/ws and a REST health endpoint at http://<host>:<port>/health.
+
+    The server integrates with the existing Lifecycle state machine and the
+    L1 Bifröst / L2 Rödd / L3 Sjón layers via the EventBus. The React frontend
+    (frontend/) connects to this server and sends LightCommand / ExtinguishCommand /
+    SendMessageCommand / CancelTurnCommand / ToggleSenseCommand; the server pushes
+    back CeremonyStateChanged / BifrostHealth / TungaActivity / HlustActivity /
+    AgentToken / AgentTurnComplete / ErrorEvent.
+
+    Default bind: ws://127.0.0.1:8642/ws  (loopback; configurable via heretic.yaml
+    vebond.ws_port and vebond.ws_host — see docs/architecture/IPC_PROTOCOL.md).
+
+    Usage:
+        heretic serve
+        heretic serve --port 8643
+        heretic serve --host 0.0.0.0 --port 8643  (requires allow_remote_bind: true)
+        heretic serve --config /path/to/heretic.yaml
+    """
+    raise NotImplementedError(
+        "Forge will implement: load config, apply --port/--host CLI overrides to "
+        "VebondConfig, construct EventBus and WebSocketServer, integrate with the "
+        "Lifecycle / Bifrost / Tunga / Hlust layers via EventBus subscriptions, "
+        "then call asyncio.run(server.start()) and keep the event loop alive. "
+        "See src/heretic/vebond/serve.py for the WebSocketServer skeleton. "
+        "See docs/architecture/IPC_PROTOCOL.md for the full event/command schema."
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct and return the top-level argument parser.
 
@@ -436,6 +469,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the HERETIC version and exit.",
     )
     p_version.set_defaults(func=_cmd_version)
+
+    # serve
+    p_serve = subparsers.add_parser(
+        "serve",
+        help=(
+            "Start the L4 Vebond WebSocket server (Summoning Circle backend). "
+            "The React frontend connects to this server. "
+            "Default: ws://127.0.0.1:8642/ws — requires: pip install heretic[serve]"
+        ),
+    )
+    p_serve.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "WebSocket server port. Overrides vebond.ws_port in heretic.yaml. "
+            "Default: 8642."
+        ),
+    )
+    p_serve.add_argument(
+        "--host",
+        type=str,
+        default=None,
+        metavar="HOST",
+        help=(
+            "WebSocket server bind address. Overrides vebond.ws_host in heretic.yaml. "
+            "Default: 127.0.0.1 (loopback). Non-loopback addresses require "
+            "vebond.allow_remote_bind: true in heretic.yaml."
+        ),
+    )
+    p_serve.set_defaults(func=_cmd_serve)
 
     return parser
 

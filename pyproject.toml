@@ -42,6 +42,20 @@ voice = [
     "webrtcvad-wheels>=2.0",
     "pywhispercpp>=1.0",
 ]
+# L4 Vebond WebSocket server — install when running the Summoning Circle backend.
+# ``pip install heretic[serve]`` activates:
+#   - FastAPI          (ASGI framework; /ws WebSocket endpoint + /health REST)
+#   - uvicorn[standard] (ASGI server; WebSocket support via websockets)
+#   - websockets       (WebSocket protocol implementation used by uvicorn)
+#   - pydantic         (typed IPC schema — ProtocolEvent / ProtocolCommand models)
+# The [serve] extra is NOT required for headless ``heretic light`` use —
+# the CLI voice loop in v0.1-v0.3 does not need a WebSocket server.
+serve = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "websockets>=12",
+    "pydantic>=2.5",
+]
 
 [project.scripts]
 heretic = "heretic.cli:main"
