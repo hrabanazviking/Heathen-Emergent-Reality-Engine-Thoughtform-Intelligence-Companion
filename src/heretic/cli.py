@@ -1002,6 +1002,56 @@ async def _async_serve(args: argparse.Namespace) -> int:
             log.warning("Sjón serve init failed — serve continues sightless: %s", exc)
             sjon_serve = None
 
+    # --- Sjón webcam serve (v0.5.2 N-1 fix, Eldra Járnsdóttir 2026-05-08) ---
+    # Mirror the _async_light webcam-init pattern for serve mode.
+    # Deferred to _init_serve_webcam() (called from _handle_light at TENGSL) so it
+    # fires after sjon_serve is confirmed available.  Close deferred to _handle_extinguish.
+    # Per-ceremony alternate counter lives in serve_ceremony_state (reset at TENGSL).
+    from heretic.sjon.webcam import WebcamNullBackend as _ServeWebcamNullBackend  # noqa: E402
+    serve_webcam_backend: Any | None = None
+    serve_ceremony_state: dict[str, int] = {"alternate_turn": 0}
+
+    async def _init_serve_webcam() -> None:
+        """Initialise webcam backend for serve mode at TENGSL.
+
+        Mirrors the _async_light webcam wiring (cli.py:278–303).  Non-fatal — ceremony
+        continues screen-only (or sightless) if webcam cannot be initialised.
+        """
+        nonlocal serve_webcam_backend, serve_ceremony_state
+
+        if sjon_serve is None:
+            return
+        if not grunnr_sjon_serve.webcam.enabled:
+            return
+
+        try:
+            from heretic.sjon.webcam import best_available as _webcam_best_available_serve
+            from heretic.sjon.webcam import WebcamNullBackend as _WNB
+            _wc = _webcam_best_available_serve(log, grunnr_sjon_serve.webcam)
+            if not _wc.available():
+                log.warning(
+                    "Serve webcam configured but unavailable — "
+                    "cv2 not installed or no device at index %d. "
+                    "Degrading to WebcamNullBackend.",
+                    grunnr_sjon_serve.webcam.device_index,
+                )
+                _wc = _WNB()
+            sjon_serve._webcam_backend = _wc
+            serve_webcam_backend = _wc
+            # Reset per-ceremony alternate counter at TENGSL
+            serve_ceremony_state["alternate_turn"] = 0
+            log.info(
+                "Sjón webcam backend wired for serve mode (attach_policy=%s, device=%d).",
+                grunnr_sjon_serve.webcam.attach_policy,
+                grunnr_sjon_serve.webcam.device_index,
+            )
+        except Exception as exc:
+            log.warning(
+                "Sjón webcam init failed in serve mode — serve continues without webcam: %s",
+                exc,
+            )
+            serve_webcam_backend = None
+
     # --- Skilningr (L5): initialise Smiðja sense hub for serve mode ---
     # Mirrors the _async_light pattern; key difference is that event_emitter is wired
     # to event_bus.publish so SenseToolCall IPC events flow to all WS clients.
@@ -1127,6 +1177,9 @@ async def _async_serve(args: argparse.Namespace) -> int:
         # Initialise Smiðja sense now that Bifröst is open (TENGSL state).
         # Non-fatal: ceremony continues without tool-use if this fails.
         await _init_serve_smidja()
+        # Initialise webcam backend for serve mode (N-1 fix, v0.5.2 audit).
+        # Non-fatal: ceremony continues without webcam if this fails.
+        await _init_serve_webcam()
         print(
             f"[HERETIC] Bifrost open via serve — connected to {bf_config.endpoint}",
             file=sys.stderr,
@@ -1143,6 +1196,14 @@ async def _async_serve(args: argparse.Namespace) -> int:
                 await serve_smidja_sense.close()
             except Exception as exc:
                 log.warning("Smiðja serve close error on extinguish: %s", exc)
+        # Close webcam backend (N-1 fix) — skip WebcamNullBackend (no-op close, but safe)
+        if serve_webcam_backend is not None and not isinstance(
+            serve_webcam_backend, _ServeWebcamNullBackend
+        ):
+            try:
+                serve_webcam_backend.close()
+            except Exception as exc:
+                log.warning("Sjón webcam serve close error on extinguish: %s", exc)
         if hlust is not None:
             try:
                 await hlust.close()
@@ -1173,7 +1234,10 @@ async def _async_serve(args: argparse.Namespace) -> int:
             ))
             return
 
-        # Vision attach for serve mode — same dual-flag gate as CLI light.
+        # Vision attach for serve mode — mirrors _async_light 4-path attach_policy dispatch.
+        # Gate: both capability flags must be True (vision_in from probe; vision_screen from
+        # Sjón init).  webcam_policy maps to the same four paths as in the light turn loop.
+        # Per-ceremony alternate counter is serve_ceremony_state["alternate_turn"].
         serve_image_urls: list[str] = []
         if (
             sjon_serve is not None
@@ -1181,9 +1245,43 @@ async def _async_serve(args: argparse.Namespace) -> int:
             and client.capability_vision_screen
         ):
             try:
-                serve_image_urls = await sjon_serve.snapshot()
+                _webcam_policy_serve = grunnr_sjon_serve.webcam.attach_policy
+
+                if _webcam_policy_serve == "webcam_only":
+                    # Webcam-only: ignore screen entirely for this turn.
+                    serve_image_urls = await sjon_serve.snapshot_webcam()
+
+                elif _webcam_policy_serve == "alongside":
+                    # Both: webcam first, then screen.
+                    _wc_urls = await sjon_serve.snapshot_webcam()
+                    _sc_urls = await sjon_serve.snapshot()
+                    serve_image_urls = _wc_urls + _sc_urls
+
+                elif _webcam_policy_serve == "alternate":
+                    # Alternate per ceremony turn: even->webcam, odd->screen.
+                    _turn = serve_ceremony_state["alternate_turn"]
+                    if _turn % 2 == 0:
+                        serve_image_urls = await sjon_serve.snapshot_webcam()
+                    else:
+                        serve_image_urls = await sjon_serve.snapshot()
+                    serve_ceremony_state["alternate_turn"] = _turn + 1
+
+                else:
+                    # "screen_only" (default) or any unknown policy — existing screen path.
+                    _screen_policy_serve = grunnr_sjon_serve.screen.attach_policy
+                    if _screen_policy_serve == "none":
+                        serve_image_urls = []
+                    elif _screen_policy_serve == "all_buffered" and grunnr_sjon_serve.screen.continuous:
+                        serve_image_urls = sjon_serve.recent_frames()
+                    elif _screen_policy_serve == "latest" and grunnr_sjon_serve.screen.continuous:
+                        serve_image_urls = sjon_serve.recent_frames(n=1)
+                        if not serve_image_urls:
+                            serve_image_urls = await sjon_serve.snapshot()
+                    else:
+                        serve_image_urls = await sjon_serve.snapshot()
+
             except Exception as exc:
-                log.warning("Sjón serve snapshot error (text-only): %s", exc)
+                log.warning("Sjón serve vision attach error (text-only): %s", exc)
                 serve_image_urls = []
 
         serve_content: list[dict] = [{"type": "text", "text": text}]
