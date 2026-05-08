@@ -114,3 +114,55 @@ class BrunhandSessionLockedError(SmidjaError):
 
     Forge should translate this to a SENSE_INTERNAL_ERROR with a clear message.
     """
+
+
+# ---------------------------------------------------------------------------
+# Smiðja-specific errors (Forge / Straumur HTTP client)
+# ---------------------------------------------------------------------------
+
+class ForgeError(SmidjaError):
+    """Root error for the Forge half of the Smiðja sense (ForgeHttpClient / Straumur).
+
+    Subclass of SmidjaError so callers catching SmidjaError also catch all
+    Forge failures. All ForgeError subclasses are caught at the SmidjaSense
+    dispatch boundary and translated into structured tool_result error dicts —
+    they are never re-raised to L1 Bifröst.
+
+    The Forge half wraps Seidr-Smidja's Straumur REST bridge (headless Blender
+    pipeline). It is architecturally independent from Brúarhönd: both halves
+    live under the Smiðja sense but open, close, and fail independently.
+    """
+
+
+class ForgeUnreachableError(ForgeError):
+    """The Seidr-Smidja Straumur REST bridge is not reachable at the configured endpoint.
+
+    Possible causes: Seidr-Smidja not running, wrong endpoint URL, firewall.
+    Default Straumur port: 8765 (localhost-only by default).
+
+    Forge should translate this to SENSE_CONTRACTS.md code EXTERNAL_APP_UNAVAILABLE.
+    """
+
+
+class ForgeTimeoutError(ForgeError):
+    """A request to the Straumur REST bridge timed out.
+
+    The request was sent but no response arrived within ForgeConfig.request_timeout_seconds
+    (default 120 s — Blender renders are slow). The Straumur server may still be
+    processing the build.
+
+    Forge should translate this to SENSE_CONTRACTS.md code SENSE_TIMEOUT.
+    """
+
+
+class ForgeValidationError(ForgeError):
+    """The Straumur server rejected the request body (HTTP 422) or the
+    ForgeHttpClient detected an invalid argument before sending.
+
+    Common causes:
+        - loom_spec missing required fields (base_asset_id, etc.)
+        - vrm_path submitted to inspect is outside allow-listed roots (H-004)
+        - vrm_path extension is not .vrm
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """

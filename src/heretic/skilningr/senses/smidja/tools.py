@@ -1,5 +1,5 @@
 """
-Smiðja sense tool definitions — the 6 OpenAI tool schemas for Brúarhönd primitives.
+Smiðja sense tool definitions — OpenAI tool schemas for both Smiðja halves.
 
 SMIDJA_TOOL_DEFINITIONS is a module-level constant. Forge consumes this list verbatim
 when building the tools array passed to the agent at TENGSL. These definitions are the
@@ -8,27 +8,48 @@ authoritative schema contract between the agent and the Smiðja sense.
 Tool naming: two-part format per SENSE_CONTRACTS.md §2 (sealed at v0.0 audit A-2).
     smidja.<action>
 
-Request envelope invariant (per Brúarhönd daemon INTERFACE.md):
-    Every POST to the daemon must include request_id, session_id, agent_id in the
-    body. BrunhandHttpClient generates these automatically — the agent does NOT need
-    to supply them. They are not exposed in the tool parameter schemas below.
+v0.6.0 (Brúarhönd half — 6 tools):
+    smidja.screenshot, smidja.click, smidja.type_text,
+    smidja.hotkey, smidja.vroid_open, smidja.vroid_export
 
-API source of truth:
-    C:/Users/volma/runa/Seidr-Smidja/src/seidr_smidja/brunhand/daemon/INTERFACE.md
-    (Last verified: 2026-05-08, Rúnhild Svartdóttir)
+v0.6.1 (Forge half — 3 new tools; exposed only when ForgeConfig.enabled=True):
+    smidja.forge_build_avatar, smidja.forge_get_avatar, smidja.forge_inspect_avatar
 
-IMPORTANT — discrepancies vs TASK §4 summary:
+ROUTING RULE (implemented in SmidjaSense._route):
+    Tools whose action starts with "forge_" are routed to ForgeHttpClient.
+    All other smidja.* tools are routed to BrunhandHttpClient (Brúarhönd).
+    This rule is determined by the action part (everything after "smidja."):
+        "smidja.screenshot"          → BrunhandHttpClient (action = "screenshot")
+        "smidja.forge_build_avatar"  → ForgeHttpClient    (action starts with "forge_")
+    SmidjaSense.tool_definitions returns both halves when both are enabled;
+    if only one half is enabled, only that half's tools are included.
+
+Brúarhönd request envelope invariant:
+    Every POST to the Brúarhönd daemon must include request_id, session_id, agent_id.
+    BrunhandHttpClient generates these automatically — the agent does NOT supply them.
+    The Forge (Straumur) API does NOT use a request envelope.
+
+API sources of truth:
+    Brúarhönd: Seidr-Smidja/src/seidr_smidja/brunhand/daemon/INTERFACE.md
+    Straumur:  Seidr-Smidja/src/seidr_smidja/bridges/straumur/api.py
+    (Both verified 2026-05-08, Rúnhild Svartdóttir)
+
+IMPORTANT — discrepancies vs TASK §4 (Brúarhönd half):
     1. vroid_open maps to POST /v1/brunhand/vroid/open_project (NOT /v1/brunhand/vroid-open)
     2. vroid_export maps to POST /v1/brunhand/vroid/export_vrm (NOT /v1/brunhand/vroid-export)
     3. Screenshot returns base64 JSON field (png_bytes_b64), not raw bytes over HTTP.
-       BrunhandHttpClient.screenshot() returns the decoded bytes for the caller.
-    4. The real API has additional primitives (move, drag, scroll, find_window,
-       wait_for_window, vroid/save_project) not included in the initial 6-tool set.
-       v0.6.1+ may add smidja.find_window, smidja.wait_for_window, smidja.save_project.
+    4. The real API has additional primitives not in v0.6.0 scope.
 
-Ref: TASK_HERETIC_v0.6_HANDS_AT_FORGE.md §3 (tool naming, auth, format decisions)
+IMPORTANT — discrepancies vs TASK §4 (Straumur / Forge half):
+    1. Health endpoint is /v1/health (NOT /health — lives under /v1/).
+    2. GET /v1/avatars/{id} returns the full Annáll session record, NOT avatar metadata.
+       The {id} is a session_id (uuid4). See ForgeHttpClient.get_avatar() docstring.
+    3. POST /v1/inspect takes {vrm_path, targets} NOT an avatar_id.
+    4. Straumur has no bearer-token auth on localhost (H-005).
+
+Ref: TASK_HERETIC_v0.6_HANDS_AT_FORGE.md §3
+     TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md §3
      docs/architecture/SENSE_CONTRACTS.md §2 (naming convention)
-     Seidr-Smidja daemon INTERFACE.md (endpoint contracts + request bodies)
 """
 
 from __future__ import annotations
@@ -282,13 +303,127 @@ SMIDJA_TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+
+    # ------------------------------------------------------------------
+    # smidja.forge_build_avatar  [v0.6.1 — Forge half]
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "smidja.forge_build_avatar",
+            "description": (
+                "Build a VRM avatar using the Seidr-Smidja headless Blender pipeline "
+                "(Straumur REST bridge). Submits a Loom spec JSON to the forge, "
+                "which runs Blender non-interactively to produce a .vrm output. "
+                "This is a SLOW operation — expect 60–120 seconds for a standard build. "
+                "It is NOT real-time GUI control (use smidja.screenshot/click for that). "
+                "Returns a session_id, vrm_path, render_paths, compliance_passed, "
+                "elapsed_seconds, and any errors. Use smidja.forge_get_avatar to "
+                "retrieve the full session record after the build completes."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "loom_spec": {
+                        "type": "object",
+                        "description": (
+                            "Full Loom spec as a JSON object. Must include at minimum "
+                            "base_asset_id (string identifying the VRoid base asset in "
+                            "the Hoard). Additional fields per the Loom domain schema. "
+                            "Example: {\"base_asset_id\": \"vroid_base_v1\", "
+                            "\"name\": \"MyAvatar\"}. "
+                            "The agent is responsible for providing a valid Loom spec — "
+                            "no validation is performed before submission."
+                        ),
+                        "additionalProperties": True,
+                    },
+                },
+                "required": ["loom_spec"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # smidja.forge_get_avatar  [v0.6.1 — Forge half]
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "smidja.forge_get_avatar",
+            "description": (
+                "Retrieve the full Annáll session record for a prior Forge build. "
+                "The session_id comes from the smidja.forge_build_avatar response. "
+                "Returns the complete audit record including agent_id, bridge_type, "
+                "started_at, ended_at, success, summary, and the full event log. "
+                "Use this to inspect the detailed outcome of a slow Blender build, "
+                "check event-level diagnostics, or confirm a build succeeded."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "avatar_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id (uuid4 string) returned in the "
+                            "smidja.forge_build_avatar response under the key 'session_id'. "
+                            "This is the Annáll session identifier for the build. "
+                            "Example: \"3f2b7a1e-1234-5678-abcd-ef0123456789\""
+                        ),
+                    },
+                },
+                "required": ["avatar_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # smidja.forge_inspect_avatar  [v0.6.1 — Forge half]
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "smidja.forge_inspect_avatar",
+            "description": (
+                "Run a Gate compliance check on a .vrm file on the Seidr-Smidja "
+                "Straumur server. This is a headless Blender Gate check — slower "
+                "than a simple schema validation but authoritative. "
+                "The vrm_path must be a server-side path to a .vrm file within "
+                "Straumur's allowed directories (output/ or data/hoard/bases/). "
+                "Returns passed, targets_checked, elapsed_seconds, and per-target "
+                "results with violation details (rule_id, severity, description). "
+                "Use this to verify a built avatar meets VRChat or VTube Studio "
+                "compliance requirements before distribution."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "avatar_id": {
+                        "type": "string",
+                        "description": (
+                            "Server-side path to the .vrm file to inspect. "
+                            "Must be a .vrm file (by extension) and must be within "
+                            "the Straumur server's allowed output or hoard directories. "
+                            "Paths outside the allow-list will be rejected with an error. "
+                            "Example: \"output/my_avatar_abc123.vrm\""
+                        ),
+                    },
+                },
+                "required": ["avatar_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
-"""The 6 OpenAI tool schemas for the Smiðja sense (Brúarhönd v0.1 surface).
+"""The 9 OpenAI tool schemas for the Smiðja sense (v0.6.1).
+
+v0.6.0 Brúarhönd half (6 tools) + v0.6.1 Forge half (3 tools) = 9 total.
 
 Forge consumes this list verbatim. Do NOT alter tool names — they are stable
 identifiers (per SENSE_CONTRACTS.md §2 rule 4: renaming is a breaking change).
 
-Tool names locked at v0.6.0:
+Tool names locked at v0.6.0 (Brúarhönd half):
     smidja.screenshot
     smidja.click
     smidja.type_text     (note: Python builtin 'type' avoided; two-word action name)
@@ -296,7 +431,15 @@ Tool names locked at v0.6.0:
     smidja.vroid_open
     smidja.vroid_export
 
-v0.6.1+ candidate additions (from real API surface, not in v0.6.0 scope):
+Tool names locked at v0.6.1 (Forge half):
+    smidja.forge_build_avatar
+    smidja.forge_get_avatar
+    smidja.forge_inspect_avatar
+
+Routing rule: tools whose action starts with "forge_" → ForgeHttpClient.
+              all other smidja.* tools → BrunhandHttpClient (Brúarhönd).
+
+v0.6.1+ candidate additions (Brúarhönd real API surface, not in v0.6.x scope):
     smidja.find_window
     smidja.wait_for_window
     smidja.save_project

@@ -2,7 +2,8 @@
 Smiðja sense errors — re-exports from the Skilningr error hierarchy.
 
 This module provides a single import point for Smiðja-specific errors so that
-callers within the smidja subpackage (client.py, sense.py) can write:
+callers within the smidja subpackage (client.py, forge_client.py, sense.py)
+can write:
 
     from heretic.skilningr.senses.smidja.errors import (
         SmidjaError,
@@ -10,6 +11,10 @@ callers within the smidja subpackage (client.py, sense.py) can write:
         BrunhandTimeoutError,
         BrunhandAuthError,
         BrunhandSessionLockedError,
+        ForgeError,
+        ForgeUnreachableError,
+        ForgeTimeoutError,
+        ForgeValidationError,
     )
 
 without reaching up to heretic.skilningr.errors directly. This preserves
@@ -24,6 +29,10 @@ from heretic.skilningr.errors import (  # noqa: F401
     BrunhandSessionLockedError,
     BrunhandTimeoutError,
     BrunhandUnreachableError,
+    ForgeError,
+    ForgeTimeoutError,
+    ForgeUnreachableError,
+    ForgeValidationError,
     SmidjaError,
 )
 
@@ -33,4 +42,8 @@ __all__ = [
     "BrunhandTimeoutError",
     "BrunhandAuthError",
     "BrunhandSessionLockedError",
+    "ForgeError",
+    "ForgeUnreachableError",
+    "ForgeTimeoutError",
+    "ForgeValidationError",
 ]

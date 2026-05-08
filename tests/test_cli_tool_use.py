@@ -32,7 +32,11 @@ from heretic.skilningr.senses.smidja.errors import BrunhandUnreachableError
 # ---------------------------------------------------------------------------
 
 def test_dispatcher_all_tool_definitions_with_smidja_tools():
-    """ToolDispatcher aggregates Smidja tool definitions when registered."""
+    """ToolDispatcher aggregates Smidja tool definitions when registered.
+
+    v0.6.1: SMIDJA_TOOL_DEFINITIONS now contains 9 tools (6 Brúarhönd + 3 Forge).
+    The dispatcher sees all definitions passed by the registered sense object.
+    """
     from heretic.skilningr.senses.smidja.tools import SMIDJA_TOOL_DEFINITIONS
 
     dispatcher = ToolDispatcher()
@@ -41,11 +45,14 @@ def test_dispatcher_all_tool_definitions_with_smidja_tools():
     dispatcher.register_sense("smidja", mock_sense)
 
     defs = dispatcher.all_tool_definitions()
-    assert len(defs) == 6
+    assert len(defs) == 9  # v0.6.1: 6 Brúarhönd + 3 Forge
     tool_names = {d["function"]["name"] for d in defs}
     assert "smidja.screenshot" in tool_names
     assert "smidja.vroid_open" in tool_names
     assert "smidja.vroid_export" in tool_names
+    assert "smidja.forge_build_avatar" in tool_names
+    assert "smidja.forge_get_avatar" in tool_names
+    assert "smidja.forge_inspect_avatar" in tool_names
 
 
 @pytest.mark.asyncio
@@ -118,7 +125,8 @@ async def test_tool_call_round_capped_by_max_rounds():
 @pytest.mark.asyncio
 async def test_smidja_sense_open_gracefully_degrades_on_unreachable():
     """SmidjaSense.open() does not raise when Brúarhönd is unreachable."""
-    from heretic.skilningr.config_model import SmidjaConfig
+    from heretic.skilningr.config_model import ForgeConfig, SmidjaConfig
+    from heretic.skilningr.senses.smidja.forge_client import ForgeHttpClient
     from heretic.skilningr.senses.smidja.sense import SmidjaSense
     from unittest.mock import MagicMock
 
@@ -126,12 +134,17 @@ async def test_smidja_sense_open_gracefully_degrades_on_unreachable():
         enabled=True, host="192.168.99.99", port=9999,
         token_env="BRUNHAND_TOKEN_HERETIC", require_https=False,
         request_timeout_seconds=1, host_name="unreachable",
+        forge=ForgeConfig(enabled=False),
     )
     mock_client = MagicMock()
     mock_client.open = AsyncMock(side_effect=BrunhandUnreachableError("not found"))
     mock_client.close = AsyncMock()
 
-    sense = SmidjaSense(cfg, mock_client)
+    mock_forge = MagicMock(spec=ForgeHttpClient)
+    mock_forge.open = AsyncMock()
+    mock_forge.close = AsyncMock()
+
+    sense = SmidjaSense(cfg, mock_client, mock_forge)
     # Must not raise
     await sense.open()
     assert sense.is_available is False
@@ -210,7 +223,7 @@ def test_tools_array_built_when_dispatcher_and_capability():
         tools_array = dispatcher.all_tool_definitions() or None
 
     assert tools_array is not None
-    assert len(tools_array) == 6
+    assert len(tools_array) == 9  # v0.6.1: 6 Brúarhönd + 3 Forge tools
 
 
 def test_tool_call_record_reshaping():
