@@ -285,7 +285,13 @@ class Sjón:
                     try:
                         png_bytes = await loop.run_in_executor(
                             None,
-                            lambda: self._encoder.encode(raw_bgra, w, h),
+                            lambda: self._encoder.encode(
+                                raw_bgra,
+                                w,
+                                h,
+                                max_width_override=half_w,
+                                max_height_override=half_h,
+                            ),
                         )
                     except FrameEncodingError as exc:
                         self._logger.warning(

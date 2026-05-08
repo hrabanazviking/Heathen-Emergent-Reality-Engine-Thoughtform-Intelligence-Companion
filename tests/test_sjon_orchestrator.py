@@ -222,10 +222,18 @@ class TestSjonSnapshotFailureModes:
 class TestSjonSnapshotOversizeGuard:
     @pytest.mark.asyncio
     async def test_oversized_png_triggers_retry_at_half_resolution(self) -> None:
-        """When encoded PNG exceeds 4 MB, retry with half resolution encoder."""
+        """When encoded PNG exceeds 4 MB, retry encodes with halved max dimensions.
+
+        N-1 fix: previously only asserted call_count == 2, which passed even when
+        the retry used the same (un-halved) dimensions. Now we also verify that
+        the second call carries max_width_override and max_height_override set to
+        exactly half of the configured max_width / max_height.
+        """
         from heretic.sjon.sjon import _OVERSIZE_BYTES
 
-        sjon, _, mock_encoder = _make_sjon()
+        # _make_sjon defaults: max_width=64, max_height=64
+        # So expected half dims: max_width_override=32, max_height_override=32
+        sjon, _, mock_encoder = _make_sjon(max_width=64, max_height=64)
         # First encode: oversized. Second encode (half res): acceptable size.
         oversized_png = b"\x89PNG" + b"\x00" * (_OVERSIZE_BYTES + 1)
         small_png = b"\x89PNG" + b"\x00" * 32
@@ -236,6 +244,19 @@ class TestSjonSnapshotOversizeGuard:
         # Should succeed with the retry result
         assert result == ["data:image/png;base64,RETRY"]
         assert mock_encoder.encode.call_count == 2  # original + retry
+
+        # N-1 fix: verify the SECOND call actually passed halved override dimensions.
+        # call_args_list[0] = first call (no overrides), [1] = retry (with overrides).
+        first_call = mock_encoder.encode.call_args_list[0]
+        retry_call = mock_encoder.encode.call_args_list[1]
+
+        # First call must NOT carry the oversize overrides (clean baseline).
+        assert first_call.kwargs.get("max_width_override") is None
+        assert first_call.kwargs.get("max_height_override") is None
+
+        # Retry call MUST carry exactly half the configured max dimensions.
+        assert retry_call.kwargs.get("max_width_override") == 32   # 64 // 2
+        assert retry_call.kwargs.get("max_height_override") == 32  # 64 // 2
 
     @pytest.mark.asyncio
     async def test_oversized_retry_also_oversized_returns_empty(self) -> None:

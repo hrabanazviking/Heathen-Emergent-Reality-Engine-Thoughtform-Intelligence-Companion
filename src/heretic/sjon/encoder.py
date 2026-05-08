@@ -84,6 +84,8 @@ class FrameEncoder:
         width: int,
         height: int,
         pixel_format: str = "BGRA",
+        max_width_override: int | None = None,
+        max_height_override: int | None = None,
     ) -> bytes:
         """Convert raw pixel bytes to compressed PNG bytes.
 
@@ -92,7 +94,11 @@ class FrameEncoder:
                For BGRA (mss output), use "BGRX" raw mode which reads B,G,R and
                discards the 4th byte — cleanest channel-order fix in one pass.
                For other formats, use frombuffer directly.
-            2. Resize proportionally if larger than max_width x max_height.
+            2. Resize proportionally if larger than the effective max dimensions.
+               max_width_override / max_height_override, when provided, replace
+               self._max_width / self._max_height for this call only.
+               This is used by the Sjón oversize-retry path to force a lower
+               resolution cap without constructing a second encoder instance.
             3. Save to an in-memory BytesIO buffer as PNG with compress_level=6.
             4. Return the raw PNG bytes.
 
@@ -102,6 +108,10 @@ class FrameEncoder:
             height: Frame height in pixels (must match the data in frame_bytes).
             pixel_format: PIL mode string for the raw bytes. Default 'BGRA'
                 (mss raw output). Other values: 'RGB', 'RGBA'.
+            max_width_override: When provided, overrides self._max_width for this
+                call. Useful for the oversize-retry path which passes half_w.
+            max_height_override: When provided, overrides self._max_height for this
+                call. Useful for the oversize-retry path which passes half_h.
 
         Returns:
             Compressed PNG bytes.
@@ -109,6 +119,10 @@ class FrameEncoder:
         Raises:
             FrameEncodingError: if Pillow is not installed or encoding fails.
         """
+        # Resolve effective max dimensions — override wins if supplied.
+        effective_max_w = max_width_override if max_width_override is not None else self._max_width
+        effective_max_h = max_height_override if max_height_override is not None else self._max_height
+
         try:
             from PIL import Image
         except ImportError as exc:
@@ -133,7 +147,7 @@ class FrameEncoder:
                 if img.mode != "RGB":
                     img = img.convert("RGB")
 
-            img = self.resize_if_needed(img)
+            img = self._resize_to_bounds(img, effective_max_w, effective_max_h)
 
             buf = io.BytesIO()
             img.save(buf, format="PNG", compress_level=6)
@@ -146,6 +160,43 @@ class FrameEncoder:
                 f"Frame encoding failed: {exc}"
             ) from exc
 
+    def _resize_to_bounds(self, image: object, max_w: int, max_h: int) -> object:
+        """Internal: downscale a PIL.Image if it exceeds the given bounds.
+
+        Parametric version used by encode() so that both the normal path
+        (self._max_width / self._max_height) and the oversize-retry path
+        (half_w / half_h override) share a single resize implementation.
+
+        Args:
+            image: A PIL.Image object.
+            max_w: Maximum allowed width in pixels.
+            max_h: Maximum allowed height in pixels.
+
+        Returns:
+            A PIL.Image object, possibly downscaled in-place.
+
+        Raises:
+            FrameEncodingError: if resizing fails.
+        """
+        try:
+            from PIL import Image
+            # Type assertion: callers always pass PIL.Image here.
+            img: Image.Image = image  # type: ignore[assignment]
+            w, h = img.size
+            if w <= max_w and h <= max_h:
+                # Within bounds — return as-is, no copy needed.
+                return img
+            # thumbnail() modifies in-place and preserves aspect ratio.
+            # It scales to fit within the given box — exactly what we need.
+            img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
+            return img
+        except FrameEncodingError:
+            raise
+        except Exception as exc:
+            raise FrameEncodingError(
+                f"Frame resize failed: {exc}"
+            ) from exc
+
     def resize_if_needed(self, image: object) -> object:
         """Downscale a PIL.Image if it exceeds max_width or max_height.
 
@@ -155,6 +206,10 @@ class FrameEncoder:
         (no copy, no re-encode).
 
         Uses Image.thumbnail() which modifies in-place and preserves aspect ratio.
+
+        This public method uses the instance's configured max_width/max_height.
+        For a parametric version (used by the oversize-retry path), see
+        _resize_to_bounds().
 
         Args:
             image: A PIL.Image object. Type annotated as object here because
@@ -167,24 +222,7 @@ class FrameEncoder:
         Raises:
             FrameEncodingError: if Pillow is not installed or resizing fails.
         """
-        try:
-            from PIL import Image
-            # Type assertion: callers always pass PIL.Image here.
-            img: Image.Image = image  # type: ignore[assignment]
-            w, h = img.size
-            if w <= self._max_width and h <= self._max_height:
-                # Within bounds — return as-is, no copy needed.
-                return img
-            # thumbnail() modifies in-place and preserves aspect ratio.
-            # It scales to fit within the given box — exactly what we need.
-            img.thumbnail((self._max_width, self._max_height), Image.Resampling.LANCZOS)
-            return img
-        except FrameEncodingError:
-            raise
-        except Exception as exc:
-            raise FrameEncodingError(
-                f"Frame resize failed: {exc}"
-            ) from exc
+        return self._resize_to_bounds(image, self._max_width, self._max_height)
 
     def to_data_url(self, png_bytes: bytes) -> str:
         """Encode PNG bytes as an inline base64 data URL string.

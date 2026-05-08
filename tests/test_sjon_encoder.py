@@ -232,3 +232,91 @@ class TestFrameEncoderImportError:
         encoder = FrameEncoder()
         result = encoder.to_data_url(b"\x89PNG")
         assert result.startswith("data:image/png;base64,")
+
+
+# ---------------------------------------------------------------------------
+# encode() override parameters — verify override dims are honoured
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not _pillow_available(), reason="Pillow not installed")
+class TestFrameEncoderEncodeOverride:
+    """Verify the max_width_override / max_height_override keyword arguments.
+
+    These are used by the Sjón oversize-retry path (S-1 fix) to force a lower
+    resolution cap without constructing a second encoder instance.
+    """
+
+    def _make_bgra_bytes(self, width: int, height: int) -> bytes:
+        """Synthetic BGRA frame: B=x%256, G=y%256, R=0, A=255."""
+        result = bytearray()
+        for y in range(height):
+            for x in range(width):
+                result.extend([x % 256, y % 256, 0, 255])
+        return bytes(result)
+
+    def test_encode_uses_configured_max_when_no_override(self) -> None:
+        """Without override kwargs, encode() respects self._max_width/_max_height."""
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        # Encoder capped at 16x16; source is 32x32 — must be downscaled.
+        encoder = FrameEncoder(max_width=16, max_height=16)
+        bgra = self._make_bgra_bytes(32, 32)
+        png = encoder.encode(bgra, 32, 32, "BGRA")
+        img = Image.open(io.BytesIO(png))
+        # Output must be within the configured cap.
+        assert img.size[0] <= 16
+        assert img.size[1] <= 16
+
+    def test_encode_uses_override_when_provided(self) -> None:
+        """When override kwargs are supplied, encode() respects them over self._max_*.
+
+        Encoder is configured with max 64x64, but override forces 8x8.
+        Source is 32x32, which fits within 64x64 but NOT within 8x8.
+        Override must win — output must be within 8x8.
+        """
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        encoder = FrameEncoder(max_width=64, max_height=64)
+        bgra = self._make_bgra_bytes(32, 32)
+        png = encoder.encode(
+            bgra,
+            32,
+            32,
+            "BGRA",
+            max_width_override=8,
+            max_height_override=8,
+        )
+        img = Image.open(io.BytesIO(png))
+        # Override dims must win over the encoder's configured 64x64.
+        assert img.size[0] <= 8
+        assert img.size[1] <= 8
+
+    def test_encode_override_independent_of_configured_max(self) -> None:
+        """Override dims are fully independent from the encoder's configured max.
+
+        Two encoders with different configured maxes, both called with the same
+        override — should produce identically-sized output (the override wins for
+        both). This confirms the override is not combined with self._max_* in any
+        way (no min(), no max(), just a straight replacement).
+        """
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+
+        bgra = self._make_bgra_bytes(64, 64)
+
+        encoder_a = FrameEncoder(max_width=256, max_height=256)
+        encoder_b = FrameEncoder(max_width=16, max_height=16)
+
+        png_a = encoder_a.encode(bgra, 64, 64, "BGRA", max_width_override=32, max_height_override=32)
+        png_b = encoder_b.encode(bgra, 64, 64, "BGRA", max_width_override=32, max_height_override=32)
+
+        img_a = Image.open(io.BytesIO(png_a))
+        img_b = Image.open(io.BytesIO(png_b))
+
+        # Both must be within the override cap.
+        assert img_a.size[0] <= 32 and img_a.size[1] <= 32
+        assert img_b.size[0] <= 32 and img_b.size[1] <= 32
+        # Both must produce the same output dimensions (override is the only cap in play).
+        assert img_a.size == img_b.size
