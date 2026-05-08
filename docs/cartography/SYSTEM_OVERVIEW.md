@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -87,9 +87,13 @@ inhabits the body. When the ceremony ends, the body sleeps and the shrine endure
        |     → utterance buffer → WhisperEngine lazy load → transcript → CLI display → Bifröst;
        |     full path in DATA_FLOW.md §4.7; component diagram in DATA_FLOW.md §12)
        |
-       |-- [L3] Sjón
-       |    screen capture (OS screenshot API)
-       |    webcam input (optional)
+       |-- [L3] Sjón                                                   [v0.5 — IN PROGRESS]
+       |    screen capture via mss (cross-platform BGRA → PIL RGB → PNG → base64 data URL)
+       |    on-demand per-turn: fires when user sends a message AND sjon.screen.enabled AND ?vision_in
+       |    webcam: declared in config (SjonWebcamConfig) but not implemented in v0.5
+       |    (Sjón sight flow: user message send → MssBackend.capture() → FrameEncoder BGRA→PNG→b64
+       |     → data URL → bifrost.send_message(image_data_urls) → OpenAI image_url content block;
+       |     full path in DATA_FLOW.md §4.10; component diagram in DATA_FLOW.md §15)
        |
        |-- [L4] Vébond
        |    ceremony state machine
@@ -473,7 +477,24 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |    Prerequisite to compile: `winget install Rustlang.Rust.MSVC` (Windows) or rustup-init
         |    See DATA_FLOW.md §4.9 (Tauri shell flow) and §14 (shell wrapper diagram)
         |    PyInstaller bundling deferred to v0.4.1.x — v0.4.1 requires Python 3.10+ on PATH
-  v0.5  First Sight      screen capture     L3 added (Sjón substrate + auga sense)
+  v0.5  First Sight      screen capture     L3 Sjón substrate                       IN PROGRESS (HEAD fed2478 pre-v0.5)
+        |  Sjón path: user message send → SjonOrchestrator.snapshot()
+        |    → MssBackend.capture(monitor=primary) [mss, MIT, cross-platform]
+        |    → FrameEncoder: BGRA → PIL.Image(RGB) → thumbnail(1280×720) → PNG(compress_level=6)
+        |    → base64 → data URL → bifrost.send_message(image_data_urls)
+        |    → OpenAI image_url content block → agent receives inline PNG with user message
+        |  Trigger: on-demand per user-message send (not periodic; interval_ms reserved for v0.5.x)
+        |  Gate: sjon.screen.enabled AND ?vision_in capability AND not throttled (min_interval_ms)
+        |  Privacy: save_frames defaults false; frames exist in memory + HTTP body only
+        |  Failure modes: F-1 mss absent, F-2 macOS permission, F-3 encode fail,
+        |    F-4 oversized (50% rescale retry), F-5 throttle (returns []), F-6 !vision_in
+        |  All failures: lifecycle does not crash; turn proceeds text-only; warning logged
+        |  Capability flag gap: LAYER_INTERFACES.md §L3 uses ?vision_screen (drift artifact);
+        |    canonical name is ?vision_in per §L1 + AGENT_AGNOSTIC_PROTOCOL.md (Architect to fix)
+        |  New deps: mss>=9 (MIT) + Pillow>=10 (HPND/MIT-style) in [vision] extra
+        |  v0.5 does NOT include: L5 Auga sense wrapper (deferred v0.7+), webcam (v0.5.x),
+        |    periodic interval capture (v0.5.x), ring buffer recall (v0.5.x)
+        |  See DATA_FLOW.md §4.10 (sight flow) and §15 (Sjón component diagram)
   v0.6  Hands at the Forge  Blender MCP     L5.5 (blender sense + Seidr-Smidja)
   v0.7  Files & Terminal    FS + terminal   L5.1 + L5.2 (filesystem + terminal senses)
         |  v0.7 also: L5.11 Tunga sense (tunga.speak MCP tool — agent-callable TTS)
@@ -627,6 +648,7 @@ The naming field is not decoration — it is the architecture.
 
 ---
 
-*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07.*
+*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07. Updated 2026-05-08 (v0.5 in-progress).*
 *A body well-mapped is a body that knows itself.*
+*Three senses charted: the mouth speaks (Tunga), the ear hears (Hlust), the eye sees (Sjón).*
 *The spirit can only inhabit what has been named.*

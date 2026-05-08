@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status.
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -548,6 +548,12 @@ Voice. Only the outbound (Tunga / TTS) half is implemented in v0.2. The inbound 
 half is v0.3 First Listening. The L5 Tunga sense wrapper (agent-callable `tunga.speak` tool)
 is v0.7 and later.
 
+> **Three sense rivers:** Tunga is the first sense river — the body speaking outward.
+> Its mirror on the inbound side is §4.7 (Hlust, voice in) and §4.10 (Sjón, image in).
+> Where Tunga converts agent text to audio and sends it out, Sjón converts screen pixels
+> to base64 and sends them in. The asymmetry is intentional: Tunga is continuous-stream;
+> Sjón is on-demand-per-turn. See §4.10 for the full sight flow mapped in v0.5.
+
 **Lifecycle dependency:** Tunga is initialized at Kynding (client warm, no audio yet) and
 first becomes active during Tengsl. It operates fully during Samræður. At Slokna, any queued
 speech is flushed before the queue is closed — the agent may speak its final words before
@@ -792,6 +798,11 @@ pre-v0.2 stub; they are in fact exposed fields. The full canonical schema lives 
 > The L5 Hlust sense (`hlust.listen` MCP tool — agent-callable STT) is **out of scope for v0.3**.
 > v0.3 Hlust is human-facing input only: the CLI captures the user's voice and feeds it through
 > Bifröst as a user-role message. The agent-callable surface comes in a later milestone.
+>
+> **Companion flow — vision in:** Hlust is the first inbound sense river (voice in). Its companion
+> is §4.10 (Sjón, image in). Both are inbound; both are conditional on their respective
+> capability flags (`?voice_in` for Hlust; `?vision_in` for Sjón). Both inject their payload
+> into the user-role message that travels to the spirit via Bifröst.
 
 **Lifecycle dependency:** Hlust initialises at Kynding (mic device probed; VAD wrapper
 instantiated; Whisper engine object created but model weights NOT loaded). The first model load
@@ -2485,3 +2496,490 @@ install message. This is an accepted risk for v0.4.1. Once PyInstaller bundles t
 F-5 is eliminated and F-1 is reduced to the port-busy case only.
 
 ---
+
+### 4.10 Sight Flow (v0.5 — on-demand, outbound vision)
+
+> **Added 2026-05-08 v0.5 (Védis Eikleið).** This section maps the third sense river: the user's
+> screen captured locally, encoded as inline base64 PNG, and injected into the user-role message
+> that travels to the spirit. v0.2 mapped the outbound breath (Tunga, §4.6); v0.3 mapped the
+> inbound voice (Hlust, §4.7); this maps the inbound image (Sjón).
+>
+> **Mirror of Tunga:** Where Tunga is automatic and continuous (every agent text fragment
+> triggers audio), Sjón is on-demand and per-turn (one snapshot per user message send).
+> Tunga: agent text out → audio out. Sjón: user message send → screen in → image in.
+> The body speaks outward without being asked; it shows its eyes when the user speaks.
+>
+> **Scope:** v0.5 ships on-demand screen capture only. Periodic interval capture
+> (the `sjon.screen.interval_ms` config field), ring-buffer recall, multi-monitor support,
+> and webcam are deferred to v0.5.x. The L5 Auga MCP wrapper (`auga.snapshot` tool —
+> agent-callable on-demand capture) is deferred to v0.7+.
+>
+> **Privacy invariant (sealed):** Frames are never written to disk under any default
+> configuration. `sjon.screen.save_frames` defaults to false. Even when the user opts in
+> (`save_frames: true`), frames are written only to an ephemeral session-scoped temp
+> directory that is deleted on Slokna (STATE_SLOKNA cleanup). Frames exist only in memory
+> and in the outbound HTTP request body.
+
+**Lifecycle dependency:** Sjón initialises at Kynding (MssBackend probed; availability
+determined; SjonOrchestrator created; throttle state zeroed). The first actual capture
+happens during Samræður, triggered by the user sending a message.
+
+#### 4.10.1 Trigger — when does Sjón fire?
+
+```
+  SAMRAEDUR — user submits a message via ChatInput or CLI
+
+  [User presses Enter / sends a message]
+       |
+       v
+  [CLI _async_light turn loop  OR  Vébond send_message handler]
+       |
+       |  evaluates sight conditions:
+       |    1. sjon.screen.enabled = true                        (config gate)
+       |    2. bifrost.client.capability_vision_in = true        (agent capability gate)
+       |    3. not throttled by min_interval_ms                  (rate gate)
+       |
+       |  IF all three conditions met:
+       |    --> await sjon.snapshot()                            (see §4.10.2)
+       |    --> image_data_urls: list[str] returned (may be empty on error)
+       |
+       |  IF any condition is false:
+       |    --> image_data_urls = []
+       |    --> proceed with text-only user message (no Sjón activity emitted)
+       |
+       v
+  [image_data_urls passed into bifrost.send_message(text, image_data_urls)]
+       |
+       |  (see §4.10.3 for Bifröst integration)
+```
+
+#### 4.10.2 Capture Pipeline — SjonOrchestrator.snapshot()
+
+```
+  [SjonOrchestrator.snapshot() called]
+       |
+       |  emits: sjon.activity  state="capturing"
+       |           --> L4 Vébond LayerStatusPanel shows Sjón row as "capturing"
+       |           --> color: Sjón-glow blue (#4080b0 / #60a8e0 glow per AESTHETIC.md)
+       |
+       v
+  [MssBackend.capture(monitor="primary")]                        (sync, run_in_executor)
+       |
+       |  calls: mss.mss().grab(monitor)
+       |    monitor: primary screen (index 1 in mss convention)
+       |    returns: raw BGRA bytes + width + height
+       |             (mss returns BGRA, not RGB — conversion step required)
+       |
+       |  wraps sync mss call in asyncio.run_in_executor(None, ...)
+       |    (mss capture is not async-native; run_in_executor keeps event loop free)
+       |
+       v
+  [SjonOrchestrator emits: sjon.activity  state="encoding"]
+       |
+       v
+  [FrameEncoder.encode(bgra_bytes, width, height)]               (sync, run_in_executor)
+       |
+       |  Step 1 — BGRA → PIL.Image (RGB):
+       |    PIL.Image.frombytes("RGBA", (width, height), bgra_bytes)
+       |    .convert("RGB")
+       |    (mss uses BGRA byte order; frombytes with "RGBA" mode + convert handles swap)
+       |
+       |  Step 2 — optional resize (max 1280×720):
+       |    if width > 1280 OR height > 720:
+       |      image.thumbnail((1280, 720), PIL.Image.LANCZOS)
+       |      (thumbnail is in-place; preserves aspect ratio; does not upscale)
+       |    config keys: sjon.screen.width (default 1280), sjon.screen.height (default 720)
+       |
+       |  Step 3 — PNG encode:
+       |    buffer = io.BytesIO()
+       |    image.save(buffer, format="PNG", compress_level=6)
+       |    png_bytes = buffer.getvalue()
+       |    (compress_level 6: good ratio, fast encode; range 0-9)
+       |
+       |  Step 4 — base64 encode:
+       |    b64_str = base64.b64encode(png_bytes).decode("ascii")
+       |
+       |  Step 5 — data URL:
+       |    data_url = f"data:image/png;base64,{b64_str}"
+       |
+       |  returns: data_url (str)
+       |    typical size: 1280x720 screen → ~0.8–1.2 MB as PNG (content-dependent)
+       |
+       v
+  [SjonOrchestrator emits: sjon.activity  state="idle"]
+       |
+       v
+  [SjonOrchestrator returns: [data_url]]
+       |
+       |  throttle bookkeeping:
+       |    last_capture_ts = now()
+       |    (next call within min_interval_ms returns cached frame or [] — see §4.10.4 F-5)
+       |
+       v
+  [CLI / Vébond receives: image_data_urls = [data_url]]
+```
+
+#### 4.10.3 Bifröst Integration — injecting the frame
+
+```
+  [bifrost.send_message(text, image_data_urls=["data:image/png;base64,..."])]
+       |
+       |  constructs OpenAI-compat message content as a typed-parts array:
+       |
+       |    content = [
+       |      {"type": "text", "text": "<user message text>"},
+       |      {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+       |    ]
+       |
+       |  (format sealed in audit C-Q-C3: inline base64, not URL reference;
+       |   the "image_url" type with a data: URI is the OpenAI vision wire format;
+       |   see AUDIT_v0.0_INITIAL_DOC_SET.md C-Q-C3)
+       |
+       |  IF image_data_urls is empty or None:
+       |    content = "<user message text>"   (plain string, not a list)
+       |    (no image content blocks; backward-compatible with non-vision agents)
+       |
+       |  POST <bifrost.endpoint>/v1/chat/completions
+       |  body: {
+       |    "model": "<bifrost.model>",
+       |    "messages": [
+       |      ... conversation history,
+       |      {"role": "user", "content": <content above>}
+       |    ],
+       |    "tools": [<all enabled sense schemas>],
+       |    "stream": true,
+       |    "max_tokens": 127000
+       |  }
+       |
+       v
+  [Pi / Hermes Agent]
+       |
+       |  receives the user message with the inline PNG
+       |  interprets screen content as part of the turn context
+       |  responds with text (and optionally tool calls) as usual
+       |
+       v
+  [response flows back through §4.1 / §4.6 — Tunga speaks the reply]
+```
+
+Session log entry (written by L0 Grunnr):
+```json
+{
+  "event": "sjon_snapshot",
+  "ts": "...",
+  "width": 1280,
+  "height": 720,
+  "png_bytes": 943210,
+  "b64_chars": 1257616,
+  "backend": "mss",
+  "monitor": "primary",
+  "encode_ms": 180,
+  "saved_to_disk": false
+}
+```
+
+#### 4.10.4 Fallback Paths
+
+Six failure modes are defined. In all cases the lifecycle does not crash; the turn proceeds
+without an image; the user is informed via a logged warning (and, in v0.5 with Vébond active,
+an `error` event surfaced as a toast notification).
+
+```
+  F-1: mss library not installed
+    MssBackend.available() returns False at Kynding
+    SjonOrchestrator falls back to NullBackend
+    snapshot() returns []
+    CLI / Vébond proceeds with text-only turn
+    sjon.activity events: NOT emitted (orchestrator knows no capture will occur)
+    log.warn: "mss library not available — Sjón disabled; install heretic[vision]"
+    capability flag ?vision_screen becomes false (note: see §4.10.5 for naming gap)
+
+  F-2: macOS screen recording permission denied
+    MssBackend.capture() raises mss.exception.ScreenShotError (permission variant)
+    SjonOrchestrator catches PermissionDeniedError
+    returns []
+    sjon.activity: state="failed" emitted
+    log.warn: "Screen recording permission denied — grant access in System Settings > Privacy > Screen Recording"
+    user must restart ceremony after granting permission
+    (macOS-specific; Windows and Linux do not require explicit permission grants in typical configurations)
+
+  F-3: PNG encoding fails (Pillow exception)
+    FrameEncoder raises FrameEncodingError (wraps PIL exception)
+    SjonOrchestrator catches; returns []
+    sjon.activity: state="failed" emitted
+    log.warn: "Frame encoding failed — Sjón frame dropped for this turn; <exception detail>"
+    turn proceeds without image
+
+  F-4: oversized result (PNG > 4 MB after compression)
+    SjonOrchestrator checks len(png_bytes) after encode
+    IF > 4 MB:
+      retry at 50% scale (image.thumbnail(width//2, height//2))
+      re-encode
+      IF still > 4 MB: frame dropped; returns []
+      log.warn: "Frame oversized after compression; 50% rescale applied"
+      IF rescale succeeds: normal path resumes with smaller frame
+    (worst case 1280x720 PNG is ~1.2 MB; this path should not trigger under normal conditions;
+     it exists as a safety catch for unusual displays or future higher-resolution capture)
+
+  F-5: throttle reject (called within min_interval_ms of last capture)
+    default min_interval_ms: 1000 ms (1 second)
+    SjonOrchestrator.last_capture_ts compared to now()
+    IF delta < min_interval_ms:
+      BEHAVIOR CHOSEN: returns [] (no cached frame sent)
+      rationale: a cached frame from a prior turn may no longer represent the user's
+                 current screen state; sending stale frames as if current is misleading.
+                 The spirit should receive a current frame or none at all.
+      log.debug: "Sjón throttle active — skipping capture (last: <delta>ms ago)"
+      no sjon.activity events emitted
+    config key: sjon.screen.min_interval_ms (default 1000; operator can reduce to 0 to disable)
+
+  F-6: ?vision_in capability flag not set on connected agent
+    CLI / Vébond evaluates bifrost.client.capability_vision_in = false
+    snapshot() is NEVER CALLED
+    no Sjón activity events emitted
+    image_data_urls = [] passed to send_message (plain text turn)
+    No warning emitted — this is expected behavior for non-vision agents
+```
+
+#### 4.10.5 Capability Flag Naming Gap — Architect Action Required
+
+> **Naming inconsistency identified by Védis Eikleið, 2026-05-08.**
+>
+> Two different names are currently in use for the vision capability flag:
+>
+> | Document | Flag name used | Section |
+> |---|---|---|
+> | `LAYER_INTERFACES.md §L3 Sjón` (Capability flags) | `?vision_screen` | §L3 |
+> | `LAYER_INTERFACES.md §L1 Bifröst` (Capability flags) | `?vision_in` | §L1 |
+> | `AGENT_AGNOSTIC_PROTOCOL.md` | `?vision_in` (everywhere) | §5.1, §5.2, §5.3 |
+> | `TASK_HERETIC_v0.5_FIRST_SIGHT.md §1` | `?vision_in` (as cleaned-up name) | §1 |
+> | This document (§4.10) | `?vision_in` | §4.10 throughout |
+>
+> **Assessment:** `?vision_in` is the v0.4.1 cleaned-up name and the majority position.
+> `?vision_screen` in LAYER_INTERFACES.md §L3 is a drift artifact — it pre-dates the
+> v0.4.1 `?voice_in`/`?voice_out` naming cleanup that canonicalized the inbound/outbound
+> pattern. The correct name is `?vision_in`.
+>
+> **Action required (Architect — Rúnhild Svartdóttir):** Update LAYER_INTERFACES.md §L3
+> Capability flags block to read `?vision_in` (screen capture enabled and permission granted)
+> in place of `?vision_screen`. The `?vision_webcam` flag in §L3 is unambiguous and
+> requires no change.
+>
+> Until the Architect closes this gap, the Forge Worker should implement code using
+> `?vision_in` as the canonical flag name — matching §L1, AGENT_AGNOSTIC_PROTOCOL.md,
+> and this map.
+
+#### 4.10.6 Config Dependencies for the Sight Path
+
+| Config key | Default | Controls |
+|---|---|---|
+| `sjon.screen.enabled` | `true` | Master toggle — `false` means Sjón does not attempt capture; CLI/Vébond never calls snapshot() |
+| `sjon.screen.width` | `1280` | Max output width (pixels); thumbnail() will not upscale below this |
+| `sjon.screen.height` | `720` | Max output height (pixels); thumbnail() preserves aspect ratio |
+| `sjon.screen.save_frames` | `false` | Opt-in disk save; even when true, saves only to ephemeral session-scoped temp dir; deleted on Slokna |
+| `sjon.screen.buffer_depth` | `5` | Ring buffer size (reserved for v0.5.x periodic capture; not used in v0.5 on-demand mode) |
+| `sjon.screen.min_interval_ms` | `1000` | Throttle gate — minimum ms between captures; 0 disables throttle |
+| `bifrost.vision_in` | `true` | Config-level declaration of agent vision support; read as `?vision_in` capability flag (note: v0.1 probe semantics — config-read, not verified round-trip; see LAYER_INTERFACES.md §L1 probe conservatism note) |
+
+Full schema lives in `src/heretic/sjon/config_model.py SjonConfig` and LAYER_INTERFACES.md §L3 Sjón.
+
+---
+
+## 15. L3 Sjón — Internal Component Diagram (v0.5)
+
+> **Added 2026-05-08 v0.5 (Védis Eikleið).** Drawn in the same style as §11 (Tunga) and §12
+> (Hlust). Shows the internal structure of the `src/heretic/sjon/` module as it ships in v0.5:
+> the five source files, their data flow, and sync/async annotations.
+>
+> **Aesthetic note:** Where §11 (Tunga) is the outgoing voice and §12 (Hlust) is the incoming
+> voice, Sjón is the incoming sight. The three together map the body's perceptual surface:
+> mouth (Tunga), ear (Hlust), eye (Sjón). The Sjón-glow blue accent (`#4080b0` / `#60a8e0`
+> per AESTHETIC.md) distinguishes it from the Mál-green of the Rödd senses.
+
+```
+  ============================================================
+  SJÓN MODULE — src/heretic/sjon/    (v0.5 First Sight)
+  ============================================================
+
+  ENTRY: sjon.py — SjonOrchestrator
+  |
+  |  Public method: async snapshot() -> list[str]
+  |    called by CLI _async_light turn loop / Vébond send_message handler
+  |    coordinates throttle, capture, encoding, and activity events
+  |    async at its surface; dispatches sync work via run_in_executor
+  |
+  +-- reads: config_model.py — SjonConfig
+  |     |
+  |     |  SjonConfig
+  |     |    screen: SjonScreenConfig
+  |     |    webcam: SjonWebcamConfig  (declared but not implemented in v0.5)
+  |     |
+  |     |  SjonScreenConfig
+  |     |    enabled: bool              default true
+  |     |    width: int                 default 1280
+  |     |    height: int                default 720
+  |     |    crop: dict | None          default null (full screen)
+  |     |    buffer_depth: int          default 5  (reserved for v0.5.x ring buffer)
+  |     |    save_frames: bool          default false  (privacy invariant)
+  |     |    min_interval_ms: int       default 1000   (throttle)
+  |     |
+  |     |  SjonWebcamConfig
+  |     |    enabled: bool              default false  (declared; not implemented v0.5)
+  |     |    device: str                default "default"
+  |     |    interval_ms: int           default 10000
+  |     |
+  |     Read once at Kynding; passed into SjonOrchestrator at construction.
+  |     Never re-read mid-ceremony (config is immutable for the lifecycle).
+  |
+  +-- raises: errors.py — SjonError hierarchy
+  |     SjonError (base)
+  |     |-- ScreenCaptureError       raised by MssBackend on capture failure
+  |     |-- BackendUnavailableError  raised when best_available() returns NullBackend
+  |     |-- FrameEncodingError       raised by FrameEncoder on Pillow exception
+  |     |-- PermissionDeniedError    raised on macOS screen recording denial
+  |     All caught by SjonOrchestrator.snapshot(); none propagate to caller.
+  |     Orchestrator returns [] on any error; logs warning.
+  |
+  +-- calls: capture.py — ScreenCaptureBackend + MssBackend + NullBackend
+  |     |
+  |     |  ScreenCaptureBackend (ABC)
+  |     |    available() -> bool
+  |     |    capture(monitor: str) -> CaptureResult(bgra_bytes, width, height)
+  |     |
+  |     |  MssBackend (primary)
+  |     |    available(): imports mss; returns True if import succeeds
+  |     |    capture(): calls mss.mss().grab(monitor)
+  |     |               returns BGRA bytes + dimensions
+  |     |               SYNC — must be wrapped in run_in_executor by caller
+  |     |               raises ScreenCaptureError on mss.exception.ScreenShotError
+  |     |               raises PermissionDeniedError on macOS permission denial
+  |     |
+  |     |  NullBackend (fallback)
+  |     |    available(): always False
+  |     |    capture(): raises BackendUnavailableError
+  |     |    used when mss import fails; orchestrator returns [] immediately
+  |     |
+  |     |  best_available() -> ScreenCaptureBackend
+  |     |    factory function:
+  |     |      try MssBackend — if available: return MssBackend()
+  |     |      else: return NullBackend()
+  |     |    called once at SjonOrchestrator.__init__
+  |     |
+  |     SYNC I/O — always call capture() inside run_in_executor.
+  |
+  +-- calls: encoder.py — FrameEncoder
+        |
+        |  FrameEncoder
+        |    encode(bgra_bytes, width, height, max_width, max_height) -> str
+        |      returns data URL ("data:image/png;base64,<...>")
+        |      SYNC — must be wrapped in run_in_executor by caller
+        |
+        |  Internal steps (all sync, all Pillow):
+        |    1. PIL.Image.frombytes("RGBA", (w, h), bgra_bytes).convert("RGB")
+        |         BGRA byte order from mss → "RGBA" frombytes handles channel order
+        |         convert("RGB") strips alpha channel (PNG can carry it, but RGB
+        |         is sufficient and smaller)
+        |    2. if w > max_width or h > max_height:
+        |         image.thumbnail((max_width, max_height), PIL.Image.LANCZOS)
+        |         (in-place; aspect-ratio preserving; never upscales)
+        |    3. buffer = io.BytesIO()
+        |         image.save(buffer, format="PNG", compress_level=6)
+        |         png_bytes = buffer.getvalue()
+        |    4. b64_str = base64.b64encode(png_bytes).decode("ascii")
+        |    5. return f"data:image/png;base64,{b64_str}"
+        |
+        |    FrameEncoder.oversized(png_bytes, limit_mb=4.0) -> bool
+        |      helper: returns True if len(png_bytes) > limit_mb * 1024 * 1024
+        |      called by SjonOrchestrator after encode to check F-4 case
+        |
+        |  Raises FrameEncodingError on any Pillow exception.
+        |  Does not interact with the event bus or config — pure transformation.
+
+  ============================================================
+  SJÓN DATA FLOW — inside sjon.py
+  ============================================================
+
+  [SjonOrchestrator.__init__]
+       |
+       |  config = SjonConfig  (injected from grunnr/config.py)
+       |  backend = best_available()  -> MssBackend or NullBackend
+       |  encoder = FrameEncoder()
+       |  last_capture_ts: float = 0.0  (throttle state)
+       |
+
+  [SjonOrchestrator.snapshot()]  (async)
+       |
+       |  [throttle check]
+       |    if (now() - last_capture_ts) < config.screen.min_interval_ms / 1000:
+       |      return []  (F-5 path)
+       |
+       |  [capability check already done by caller — not repeated here]
+       |
+       |  emit sjon.activity(state="capturing")           --> EventBus
+       |
+       |  [capture — sync wrapped]
+       |    result = await loop.run_in_executor(None, backend.capture, "primary")
+       |    raises: ScreenCaptureError, PermissionDeniedError, BackendUnavailableError
+       |    all caught; on error: emit sjon.activity(state="failed"); return []
+       |
+       |  emit sjon.activity(state="encoding")            --> EventBus
+       |
+       |  [encode — sync wrapped]
+       |    data_url = await loop.run_in_executor(
+       |                  None, encoder.encode,
+       |                  result.bgra_bytes, result.width, result.height,
+       |                  config.screen.width, config.screen.height)
+       |    raises: FrameEncodingError
+       |    caught; on error: emit sjon.activity(state="failed"); return []
+       |
+       |  [F-4 oversized check]
+       |    png_bytes derived from data_url  (strip data URL prefix, b64decode, len)
+       |    if oversized:
+       |      retry at 50% scale
+       |      if still oversized: log.warn; return []
+       |
+       |  last_capture_ts = now()
+       |
+       |  emit sjon.activity(state="idle")                --> EventBus
+       |
+       |  return [data_url]
+       |
+
+  ============================================================
+  SYNC vs ASYNC ANNOTATION
+  ============================================================
+
+  Component            Sync / Async      Notes
+  ---------            -----------       -----
+  SjonOrchestrator     async surface     snapshot() is async; uses await
+  MssBackend.capture   sync (mss)        wrapped in run_in_executor; does not block loop
+  FrameEncoder.encode  sync (Pillow)     wrapped in run_in_executor; does not block loop
+  EventBus.publish     sync              fire-and-forget; no await needed
+  SjonConfig           sync / init-time  read once; no I/O during capture
+  NullBackend          sync              raises immediately; no I/O
+
+  ============================================================
+  INVARIANTS
+  ============================================================
+  - SjonOrchestrator never raises to its caller
+    All exceptions are caught internally; return value is always list[str]
+    (empty on any error path; [data_url] on success)
+  - Frames never touch the filesystem by default
+    save_frames: false is the invariant; disk write only on explicit opt-in
+    Even on opt-in: writes to session-scoped temp dir only; deleted at Slokna
+  - SjonOrchestrator has no knowledge of Bifröst or the agent protocol
+    It only knows about capture, encode, and activity events
+    The data_url it returns is opaque to it; the caller (CLI / Vébond) handles injection
+  - config_model.py has no runtime dependencies
+    Import order: config_model → errors → capture → encoder → sjon
+    No circular imports
+  - MssBackend and FrameEncoder are independently testable
+    Both are pure-function wrappers with no global state
+    Unit tests use mocked mss and mocked PIL to cover all paths without hardware
+```
+
+---
+
+*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-08.*
+*Three sense rivers now flow toward the spirit: Tunga (out, voice), Hlust (in, voice), Sjón (in, image).*
+*The body shows its eyes when the user speaks — not always, not uninvited, but when asked.*
