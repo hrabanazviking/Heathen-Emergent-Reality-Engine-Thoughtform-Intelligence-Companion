@@ -29,9 +29,6 @@
  *       </SidePanel>
  *     </div>
  *   </App>
- *
- * All leaf components are stubs in this scaffold. Forge implements the bodies.
- * The structural layout is declared here so Forge has clear boundaries.
  */
 
 import React, { useEffect } from "react";
@@ -50,15 +47,17 @@ function App(): React.ReactElement {
   const disconnectWs = useCeremonyStore((s) => s.disconnectWs);
 
   useEffect(() => {
-    // Forge implements connectWs/disconnectWs — these will throw NotImplementedError
-    // in the scaffold. Once implemented, the app connects on mount and cleans up on unmount.
-    //
-    // connectWs().catch((err) => console.warn("[HERETIC] WS connect:", err));
-    // return () => { disconnectWs().catch(() => {}); };
-    //
-    // TODO Forge: uncomment the above once connectWs is implemented.
-    void connectWs;
-    void disconnectWs;
+    // Connect to the backend WebSocket on mount.
+    // WsClient handles reconnect backoff automatically — no polling needed here.
+    connectWs().catch((err: unknown) => {
+      console.warn("[HERETIC] WS connect error on mount:", err);
+    });
+
+    return () => {
+      disconnectWs().catch(() => {
+        // Silence disconnect errors on unmount — we are shutting down
+      });
+    };
   }, [connectWs, disconnectWs]);
 
   return (

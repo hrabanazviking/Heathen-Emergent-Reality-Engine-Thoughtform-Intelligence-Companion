@@ -8,8 +8,6 @@
  * Per AESTHETIC.md: "approximately 4 seconds for a full breath cycle.
  * Easing: sinusoidal (ease-in-out). Amplitude: 4-8% luminance change and
  * 1-2px scale change."
- *
- * Forge implements all animation logic. This scaffold returns a placeholder.
  */
 
 import React from "react";
@@ -23,16 +21,33 @@ export function LifecyclePulse(): React.ReactElement {
     lifecycleState === "samraedur" ||
     lifecycleState === "recovering";
 
+  const isDormant = lifecycleState === "hvild" || lifecycleState === "slokna";
+
+  // Ring border color: Eld-amber when active, Hvila-grey when dormant/resting
+  const ringBorderClass = isActive
+    ? "border-eld"
+    : isDormant
+      ? "border-hvila"
+      : "border-hvila"; // kynding, config_error — still Hvila
+
+  // Breathing animation only when actively connected
+  const animationClass = isActive ? "animate-ring-breathe" : "";
+
+  // Outer glow shadow — only when active
+  const glowStyle: React.CSSProperties = isActive
+    ? { boxShadow: "0 0 32px 4px rgba(200, 134, 10, 0.35), 0 0 8px 1px rgba(200, 134, 10, 0.2)" }
+    : { boxShadow: "none" };
+
   return (
     <div
       className={[
-        "absolute inset-0 rounded-full",
-        isActive ? "animate-ring-breathe" : "",
-        /* TODO Forge: apply glow-eld when active, border-hvila when dormant */
+        "absolute inset-0 rounded-full border-2",
+        "transition-colors duration-700",
+        ringBorderClass,
+        animationClass,
       ].join(" ")}
+      style={glowStyle}
       aria-hidden="true"
-    >
-      {/* TODO Forge: implement breathing animation, glow effects, color transitions */}
-    </div>
+    />
   );
 }

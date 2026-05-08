@@ -1,18 +1,11 @@
 /**
- * Placeholder component tests — Vitest + React Testing Library
- *
- * These tests are skip-marked during the scaffold phase. Forge activates them
- * (removes describe.skip / it.skip) when the component bodies are implemented.
+ * Component tests — Vitest + React Testing Library
  *
  * Run with: npm test  (from the frontend/ directory)
- *
- * Note: The App-level smoke test is left as a minimal active test to confirm
- * the React tree renders without crashing. All other tests are skipped.
  */
 
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import React from "react";
+import { describe, it, expect, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
 // Minimal active test — confirms the testing setup works
@@ -26,107 +19,231 @@ describe("scaffold smoke test", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Placeholder tests — Forge activates these
+// Store reset helper
 // ---------------------------------------------------------------------------
 
-describe.skip("App", () => {
-  it("renders without crashing", () => {
-    // Forge: render(<App />) wrapped in the ceremony store context if needed
-    // assert that at least the root div mounts
+async function resetStore() {
+  const { useCeremonyStore } = await import("../src/store/ceremony");
+  useCeremonyStore.setState({
+    lifecycleState: "hvild",
+    bifrostStatus: "closed",
+    bifrostEndpoint: "",
+    bifrostLatencyMs: null,
+    tungaState: "idle",
+    hlustState: "idle",
+    hlustLevelDb: null,
+    chatHistory: [],
+    activeTurnId: null,
+    activeTokenSequence: -1,
+    connectionStatus: "disconnected",
+    toasts: [],
+  });
+}
+
+// ---------------------------------------------------------------------------
+// ConnectionIndicator
+// ---------------------------------------------------------------------------
+
+describe("ConnectionIndicator", () => {
+  beforeEach(() => resetStore());
+
+  it("shows 'Disconnected' when connectionStatus is disconnected", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ConnectionIndicator } = await import("../src/components/ConnectionIndicator");
+    useCeremonyStore.setState({ connectionStatus: "disconnected" });
+    render(<ConnectionIndicator />);
+    expect(screen.getByText("Disconnected")).toBeTruthy();
   });
 
-  it("mounts SummoningCircle", () => {
-    // Forge: assert SummoningCircle is present in the rendered tree
+  it("shows 'Connected' when connectionStatus is connected", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ConnectionIndicator } = await import("../src/components/ConnectionIndicator");
+    useCeremonyStore.setState({ connectionStatus: "connected" });
+    render(<ConnectionIndicator />);
+    expect(screen.getByText("Connected")).toBeTruthy();
   });
 
-  it("mounts ChatPanel", () => {
-    // Forge: assert ChatPanel renders
-  });
-});
-
-describe.skip("SummoningCircle", () => {
-  it("renders with hvild state — shows Hvila styling", () => {
-    // Forge: render <SummoningCircle /> with store in hvild state
-    // assert the ring has Hvila-grey color class
+  it("shows 'Connection error' when connectionStatus is error", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ConnectionIndicator } = await import("../src/components/ConnectionIndicator");
+    useCeremonyStore.setState({ connectionStatus: "error" });
+    render(<ConnectionIndicator />);
+    expect(screen.getByText("Connection error")).toBeTruthy();
   });
 
-  it("renders with samraedur state — shows Eld glow and breathing animation", () => {
-    // Forge: set store lifecycleState to samraedur, render, assert animate-ring-breathe
-  });
-});
-
-describe.skip("LayerStatusItem", () => {
-  it("renders healthy dot in Mal-green", () => {
-    // Forge: render <LayerStatusItem label="Bifrost" status="healthy" />
-    // assert dot has bg-mal-glow class
-  });
-
-  it("renders degraded dot in Varud", () => {
-    // Forge: render <LayerStatusItem label="Bifrost" status="degraded" />
-    // assert dot has bg-varud class
-  });
-});
-
-describe.skip("LightButton", () => {
-  it("is enabled when lifecycle is kynding", () => {
-    // Forge: set store lifecycleState to kynding, render <LightButton />
-    // assert button is not disabled
-  });
-
-  it("is disabled when lifecycle is samraedur", () => {
-    // Forge: set store lifecycleState to samraedur, assert button is disabled
-  });
-});
-
-describe.skip("ExtinguishButton", () => {
-  it("is enabled when lifecycle is samraedur", () => {
-    // Forge: set store lifecycleState to samraedur, assert button is not disabled
-  });
-
-  it("is disabled when lifecycle is hvild", () => {
-    // Forge: set store lifecycleState to hvild, assert button is disabled
-  });
-});
-
-describe.skip("ConnectionIndicator", () => {
-  it("shows Mal-green dot when connected", () => {
-    // Forge: set store connectionStatus to connected, assert green dot
-  });
-
-  it("shows Varud dot when error", () => {
-    // Forge: set store connectionStatus to error, assert varud dot
+  it("shows 'Connecting...' when connectionStatus is connecting", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ConnectionIndicator } = await import("../src/components/ConnectionIndicator");
+    useCeremonyStore.setState({ connectionStatus: "connecting" });
+    render(<ConnectionIndicator />);
+    expect(screen.getByText("Connecting...")).toBeTruthy();
   });
 });
 
-describe.skip("ChatHistory", () => {
-  it("shows placeholder when chatHistory is empty", () => {
-    // Forge: render <ChatHistory /> with empty store
-    // assert "Light the candle" placeholder text is visible
+// ---------------------------------------------------------------------------
+// LayerStatusItem
+// ---------------------------------------------------------------------------
+
+describe("LayerStatusItem", () => {
+  it("renders the label", async () => {
+    const { LayerStatusItem } = await import("../src/components/LayerStatusItem");
+    render(<LayerStatusItem label="Bifrost" status="healthy" />);
+    expect(screen.getByText("Bifrost")).toBeTruthy();
   });
 
-  it("renders user and assistant messages", () => {
-    // Forge: populate chatHistory with a user and assistant message
-    // assert both appear in the rendered output
+  it("renders optional note when provided", async () => {
+    const { LayerStatusItem } = await import("../src/components/LayerStatusItem");
+    render(<LayerStatusItem label="Sjon" status="unavailable" note="v0.5" />);
+    expect(screen.getByText("v0.5")).toBeTruthy();
   });
 
-  it("shows streaming cursor on in-progress assistant message", () => {
-    // Forge: add a ChatMessage with streaming=true
-    // assert the streaming cursor element is present
+  it("renders healthy dot aria-label", async () => {
+    const { LayerStatusItem } = await import("../src/components/LayerStatusItem");
+    render(<LayerStatusItem label="Bifrost" status="healthy" />);
+    expect(screen.getByLabelText("Bifrost: healthy")).toBeTruthy();
+  });
+
+  it("renders degraded dot aria-label", async () => {
+    const { LayerStatusItem } = await import("../src/components/LayerStatusItem");
+    render(<LayerStatusItem label="Bifrost" status="degraded" />);
+    expect(screen.getByLabelText("Bifrost: degraded")).toBeTruthy();
   });
 });
 
-describe.skip("ToastSystem", () => {
-  it("renders nothing when toasts is empty", () => {
-    // Forge: render <ToastSystem /> with empty toasts
-    // assert no toast elements in DOM
+// ---------------------------------------------------------------------------
+// LightButton
+// ---------------------------------------------------------------------------
+
+describe("LightButton", () => {
+  beforeEach(() => resetStore());
+
+  it("is enabled when lifecycle is hvild", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LightButton } = await import("../src/components/LightButton");
+    useCeremonyStore.setState({ lifecycleState: "hvild" });
+    render(<LightButton />);
+    const btn = screen.getByRole("button", { name: /light the candle/i });
+    expect((btn as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("renders warn toast", () => {
-    // Forge: addToast("warn", "bifrost", "Reconnecting...") in store
-    // render <ToastSystem />, assert toast is visible
+  it("is disabled when lifecycle is samraedur", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { LightButton } = await import("../src/components/LightButton");
+    useCeremonyStore.setState({ lifecycleState: "samraedur" });
+    render(<LightButton />);
+    const btn = screen.getByRole("button", { name: /light the candle/i });
+    expect((btn as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ExtinguishButton
+// ---------------------------------------------------------------------------
+
+describe("ExtinguishButton", () => {
+  beforeEach(() => resetStore());
+
+  it("is enabled when lifecycle is samraedur", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ExtinguishButton } = await import("../src/components/ExtinguishButton");
+    useCeremonyStore.setState({ lifecycleState: "samraedur" });
+    render(<ExtinguishButton />);
+    const btn = screen.getByRole("button", { name: /extinguish/i });
+    expect((btn as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("dismisses toast on button click", () => {
-    // Forge: addToast, render, click dismiss button, assert toast removed
+  it("is disabled when lifecycle is hvild", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ExtinguishButton } = await import("../src/components/ExtinguishButton");
+    useCeremonyStore.setState({ lifecycleState: "hvild" });
+    render(<ExtinguishButton />);
+    const btn = screen.getByRole("button", { name: /extinguish/i });
+    expect((btn as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ChatHistory
+// ---------------------------------------------------------------------------
+
+describe("ChatHistory", () => {
+  beforeEach(() => resetStore());
+
+  it("shows placeholder when chatHistory is empty", async () => {
+    const { ChatHistory } = await import("../src/components/ChatHistory");
+    render(<ChatHistory />);
+    // The placeholder text from our implementation
+    expect(screen.getByText(/Light the candle to begin/i)).toBeTruthy();
+  });
+
+  it("renders user message", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ChatHistory } = await import("../src/components/ChatHistory");
+    useCeremonyStore.setState({
+      chatHistory: [{
+        id: "user-1",
+        role: "user",
+        content: "Hello there",
+        streaming: false,
+        timestamp: new Date().toISOString(),
+      }],
+    });
+    render(<ChatHistory />);
+    expect(screen.getByText("Hello there")).toBeTruthy();
+  });
+
+  it("renders assistant message with streaming cursor when streaming=true", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ChatHistory } = await import("../src/components/ChatHistory");
+    useCeremonyStore.setState({
+      chatHistory: [{
+        id: "assistant-turn-1",
+        role: "assistant",
+        content: "In progress...",
+        streaming: true,
+        timestamp: null,
+      }],
+    });
+    const { container } = render(<ChatHistory />);
+    expect(screen.getByText("In progress...")).toBeTruthy();
+    // The streaming cursor span is aria-hidden, check it exists in the DOM
+    const cursors = container.querySelectorAll("[aria-hidden='true']");
+    expect(cursors.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ToastSystem
+// ---------------------------------------------------------------------------
+
+describe("ToastSystem", () => {
+  beforeEach(() => resetStore());
+
+  it("renders nothing when toasts is empty", async () => {
+    const { ToastSystem } = await import("../src/components/ToastSystem");
+    const { container } = render(<ToastSystem />);
+    // Empty fragment renders nothing visible
+    expect(container.firstChild).toBeFalsy();
+  });
+
+  it("renders a warn toast", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ToastSystem } = await import("../src/components/ToastSystem");
+    useCeremonyStore.getState().addToast("warn", "bifrost", "Reconnecting...");
+    render(<ToastSystem />);
+    expect(screen.getByText("Reconnecting...")).toBeTruthy();
+    expect(screen.getByText("bifrost")).toBeTruthy();
+  });
+
+  it("dismisses toast on button click", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const { ToastSystem } = await import("../src/components/ToastSystem");
+    useCeremonyStore.getState().addToast("error", "lifecycle", "Config invalid");
+    render(<ToastSystem />);
+    expect(screen.getByText("Config invalid")).toBeTruthy();
+
+    const dismissBtn = screen.getByRole("button", { name: /dismiss/i });
+    fireEvent.click(dismissBtn);
+    expect(useCeremonyStore.getState().toasts).toHaveLength(0);
   });
 });

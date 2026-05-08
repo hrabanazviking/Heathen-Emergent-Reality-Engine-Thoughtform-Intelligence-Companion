@@ -1,11 +1,8 @@
 /**
  * ExtinguishButton — the "Extinguish" shutdown action.
  *
- * Sends ExtinguishCommand to the backend. Only enabled when lifecycle is active
- * (tengsl, samraedur, recovering).
- *
- * If VebondConfig.ceremony_button_confirm is true (default), the button shows
- * a confirmation step before sending — the backend does not confirm again.
+ * Sends ExtinguishCommand to the backend via the ceremony store's sendCommand action.
+ * Only enabled when lifecycle is active (tengsl, samraedur, recovering).
  *
  * Visual:
  *   - Idle (enabled): Varud (burnt sienna) fill, subdued
@@ -15,8 +12,8 @@
  * Per AESTHETIC.md: "the sound that recedes rather than arrives" — the visual
  * should mirror that quality. Not alarming; intentional closure.
  *
- * Forge implements full behavior including confirmation dialog. This scaffold
- * renders a functional placeholder without confirmation.
+ * Note: ceremony_button_confirm (VebondConfig) is a v0.4.x feature.
+ * In v0.4.0 the command is sent directly without a confirmation dialog.
  */
 
 import React from "react";
@@ -24,6 +21,7 @@ import { useCeremonyStore } from "../store/ceremony";
 
 export function ExtinguishButton(): React.ReactElement {
   const lifecycleState = useCeremonyStore((s) => s.lifecycleState);
+  const sendCommand = useCeremonyStore((s) => s.sendCommand);
 
   const isEnabled =
     lifecycleState === "tengsl" ||
@@ -32,11 +30,7 @@ export function ExtinguishButton(): React.ReactElement {
 
   const handleClick = (): void => {
     if (!isEnabled) return;
-    // TODO Forge: show confirmation dialog if ceremony_button_confirm is true
-    // TODO Forge: call wsClient.send({ type: "extinguish" }) via store or context
-    throw new Error(
-      "Forge will implement: show confirmation if needed, then send ExtinguishCommand: { type: 'extinguish' }"
-    );
+    sendCommand({ type: "extinguish" });
   };
 
   return (

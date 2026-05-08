@@ -13,18 +13,27 @@
  *   - Appears with animate-error-once (single pulse per AESTHETIC.md)
  *   - Auto-dismissed after 6 seconds for "warn" level
  *   - Remains until manually dismissed for "error" level
- *   - Dismiss button visible on hover
- *
- * Forge implements auto-dismiss timer and full visual. This scaffold renders
- * the list structure with basic toast cards.
+ *   - Dismiss button visible always
  */
 
-import React from "react";
+import React, { useEffect } from "react";
 import clsx from "clsx";
 import { useCeremonyStore, type Toast } from "../store/ceremony";
 
+/** Auto-dismiss timeout for warn-level toasts (milliseconds). */
+const WARN_AUTO_DISMISS_MS = 6000;
+
 function ToastCard({ toast }: { toast: Toast }): React.ReactElement {
   const dismissToast = useCeremonyStore((s) => s.dismissToast);
+
+  // Auto-dismiss warn-level toasts after 6 seconds
+  useEffect(() => {
+    if (toast.level !== "warn") return;
+    const timer = window.setTimeout(() => {
+      dismissToast(toast.id);
+    }, WARN_AUTO_DISMISS_MS);
+    return () => window.clearTimeout(timer);
+  }, [toast.id, toast.level, dismissToast]);
 
   return (
     <div
@@ -49,7 +58,7 @@ function ToastCard({ toast }: { toast: Toast }): React.ReactElement {
         className="shrink-0 text-text-ghost hover:text-text-primary transition-colors"
         aria-label="Dismiss notification"
       >
-        x
+        &#x2715;
       </button>
     </div>
   );
@@ -68,7 +77,6 @@ export function ToastSystem(): React.ReactElement {
       {toasts.map((toast) => (
         <ToastCard key={toast.id} toast={toast} />
       ))}
-      {/* TODO Forge: implement auto-dismiss timer (6s for warn, persistent for error) */}
     </div>
   );
 }

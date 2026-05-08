@@ -1,7 +1,7 @@
 /**
  * ChatInput — text entry field for user messages.
  *
- * Sends SendMessageCommand via the WsClient (through the store's connectWs binding).
+ * Sends SendMessageCommand via the ceremony store's sendCommand action.
  * Disabled when lifecycle is not "samraedur" or "tengsl", or when an agent turn
  * is in progress (activeTurnId is not null).
  *
@@ -9,8 +9,6 @@
  * visual cue indicating the agent is listening via voice.
  *
  * Keyboard: Enter sends (Shift+Enter inserts newline).
- *
- * Forge implements the full component. This scaffold renders a basic input.
  */
 
 import React, { useState } from "react";
@@ -23,6 +21,7 @@ export function ChatInput(): React.ReactElement {
   const activeTurnId = useCeremonyStore((s) => s.activeTurnId);
   const hlustState = useCeremonyStore((s) => s.hlustState);
   const addUserMessage = useCeremonyStore((s) => s.addUserMessage);
+  const sendCommand = useCeremonyStore((s) => s.sendCommand);
 
   const isListening = hlustState === "listening" || hlustState === "transcribing";
   const canSend =
@@ -33,13 +32,10 @@ export function ChatInput(): React.ReactElement {
   const handleSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!canSend) return;
-    addUserMessage(text.trim());
+    const trimmed = text.trim();
+    addUserMessage(trimmed);
     setText("");
-    // TODO Forge: call wsClient.send({ type: "send_message", text: text.trim() })
-    throw new Error(
-      "Forge will implement: retrieve wsClient from store or context, " +
-      "call wsClient.send({ type: 'send_message', text: text.trim() })"
-    );
+    sendCommand({ type: "send_message", text: trimmed });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {

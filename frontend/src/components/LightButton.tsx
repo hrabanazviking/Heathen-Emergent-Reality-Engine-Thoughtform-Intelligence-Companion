@@ -1,8 +1,8 @@
 /**
  * LightButton — the "Light the Candle" primary action.
  *
- * Sends LightCommand to the backend. Only enabled when lifecycleState is
- * "kynding" (READY sub-state — Bifrost not yet open).
+ * Sends LightCommand to the backend via the ceremony store's sendCommand action.
+ * Only enabled when lifecycleState is "hvild" or "kynding".
  *
  * Visual:
  *   - Idle (enabled): Eld-amber fill, Cinzel font
@@ -11,8 +11,6 @@
  *   - Disabled: Hvila-grey, muted
  *
  * Per AESTHETIC.md: the transition "should feel like fire catching" (1.8s bloom).
- *
- * Forge implements full behavior. This scaffold renders a functional placeholder.
  */
 
 import React from "react";
@@ -20,15 +18,13 @@ import { useCeremonyStore } from "../store/ceremony";
 
 export function LightButton(): React.ReactElement {
   const lifecycleState = useCeremonyStore((s) => s.lifecycleState);
+  const sendCommand = useCeremonyStore((s) => s.sendCommand);
 
   const isEnabled = lifecycleState === "kynding" || lifecycleState === "hvild";
 
   const handleClick = (): void => {
     if (!isEnabled) return;
-    // TODO Forge: call wsClient.send({ type: "light" }) via store or context
-    throw new Error(
-      "Forge will implement: send LightCommand via WsClient: { type: 'light' }"
-    );
+    sendCommand({ type: "light" });
   };
 
   return (

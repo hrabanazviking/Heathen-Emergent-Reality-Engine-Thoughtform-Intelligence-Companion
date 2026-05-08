@@ -1,8 +1,8 @@
 /**
- * Placeholder ceremony store tests — Vitest
+ * Ceremony store tests — Vitest
  *
- * These tests are skip-marked during the scaffold phase. Forge activates them
- * when the Zustand store actions are fully implemented.
+ * Tests for the Zustand ceremony store actions and initial state.
+ * Uses useCeremonyStore.getState() directly (no React hooks needed for pure state tests).
  *
  * Run with: npm test  (from the frontend/ directory)
  */
@@ -21,71 +21,202 @@ describe("ceremony store — import smoke test", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Placeholder action tests — Forge activates
+// Store action tests
 // ---------------------------------------------------------------------------
 
-describe.skip("ceremony store — initial state", () => {
-  it("starts with lifecycleState 'hvild'", () => {
-    // Forge: const store = useCeremonyStore.getState()
-    // assert store.lifecycleState === 'hvild'
+describe("ceremony store — initial state", () => {
+  it("starts with lifecycleState 'hvild'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const store = useCeremonyStore.getState();
+    expect(store.lifecycleState).toBe("hvild");
   });
 
-  it("starts with connectionStatus 'disconnected'", () => {
-    // Forge: assert store.connectionStatus === 'disconnected'
+  it("starts with connectionStatus 'disconnected'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const store = useCeremonyStore.getState();
+    expect(store.connectionStatus).toBe("disconnected");
   });
 
-  it("starts with empty chatHistory", () => {
-    // Forge: assert store.chatHistory.length === 0
+  it("starts with empty chatHistory", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const store = useCeremonyStore.getState();
+    expect(store.chatHistory).toHaveLength(0);
   });
 
-  it("starts with empty toasts", () => {
-    // Forge: assert store.toasts.length === 0
-  });
-});
-
-describe.skip("ceremony store — setLifecycleState", () => {
-  it("transitions from hvild to kynding", () => {
-    // Forge: useCeremonyStore.getState().setLifecycleState('kynding')
-    // assert useCeremonyStore.getState().lifecycleState === 'kynding'
+  it("starts with empty toasts", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const store = useCeremonyStore.getState();
+    expect(store.toasts).toHaveLength(0);
   });
 
-  it("can transition through all valid states", () => {
-    // Forge: iterate through all LifecycleState values and assert each sets correctly
-  });
-});
-
-describe.skip("ceremony store — addToast / dismissToast", () => {
-  it("addToast pushes a toast", () => {
-    // Forge: call addToast('warn', 'bifrost', 'message')
-    // assert toasts.length === 1
+  it("starts with bifrostStatus 'closed'", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const store = useCeremonyStore.getState();
+    expect(store.bifrostStatus).toBe("closed");
   });
 
-  it("dismissToast removes by id", () => {
-    // Forge: addToast, get the id, dismissToast(id), assert toasts.length === 0
+  it("starts with activeTurnId null", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const store = useCeremonyStore.getState();
+    expect(store.activeTurnId).toBeNull();
   });
 });
 
-describe.skip("ceremony store — addUserMessage", () => {
-  it("pushes a user ChatMessage to chatHistory", () => {
-    // Forge: addUserMessage('hello'), assert chatHistory.length === 1
-    // assert chatHistory[0].role === 'user'
-    // assert chatHistory[0].content === 'hello'
+describe("ceremony store — setLifecycleState", () => {
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setLifecycleState("hvild");
+  });
+
+  it("transitions from hvild to kynding", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setLifecycleState("kynding");
+    expect(useCeremonyStore.getState().lifecycleState).toBe("kynding");
+  });
+
+  it("can transition through all valid states", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    const states = ["hvild", "kynding", "tengsl", "samraedur", "recovering", "slokna", "config_error"] as const;
+    for (const s of states) {
+      useCeremonyStore.getState().setLifecycleState(s);
+      expect(useCeremonyStore.getState().lifecycleState).toBe(s);
+    }
   });
 });
 
-describe.skip("ceremony store — setBifrostHealth", () => {
-  it("updates bifrostStatus, endpoint, and latency", () => {
-    // Forge: setBifrostHealth('open', 'http://example.com/v1', 120)
-    // assert store.bifrostStatus === 'open'
-    // assert store.bifrostEndpoint === 'http://example.com/v1'
-    // assert store.bifrostLatencyMs === 120
+describe("ceremony store — addToast / dismissToast", () => {
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    // Clear toasts
+    useCeremonyStore.setState({ toasts: [] });
+  });
+
+  it("addToast pushes a toast with correct fields", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().addToast("warn", "bifrost", "Reconnecting...");
+    const toasts = useCeremonyStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].level).toBe("warn");
+    expect(toasts[0].source).toBe("bifrost");
+    expect(toasts[0].message).toBe("Reconnecting...");
+    expect(typeof toasts[0].id).toBe("string");
+    expect(toasts[0].id.length).toBeGreaterThan(0);
+  });
+
+  it("dismissToast removes by id", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().addToast("error", "lifecycle", "Config invalid");
+    const id = useCeremonyStore.getState().toasts[0].id;
+    useCeremonyStore.getState().dismissToast(id);
+    expect(useCeremonyStore.getState().toasts).toHaveLength(0);
+  });
+
+  it("dismissToast with unknown id is a no-op", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().addToast("warn", "vebond", "test");
+    useCeremonyStore.getState().dismissToast("nonexistent-id");
+    expect(useCeremonyStore.getState().toasts).toHaveLength(1);
   });
 });
 
-describe.skip("ceremony store — finalizeAgentTurn", () => {
-  it("marks the streaming message as complete", () => {
-    // Forge: inject a streaming ChatMessage, call finalizeAgentTurn(turn_id, 'stop')
-    // assert the message streaming === false
-    // assert activeTurnId === null
+describe("ceremony store — addUserMessage", () => {
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({ chatHistory: [] });
+  });
+
+  it("pushes a user ChatMessage to chatHistory", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().addUserMessage("hello");
+    const history = useCeremonyStore.getState().chatHistory;
+    expect(history).toHaveLength(1);
+    expect(history[0].role).toBe("user");
+    expect(history[0].content).toBe("hello");
+    expect(history[0].streaming).toBe(false);
+    expect(history[0].timestamp).not.toBeNull();
+  });
+
+  it("appends multiple messages in order", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().addUserMessage("first");
+    useCeremonyStore.getState().addUserMessage("second");
+    const history = useCeremonyStore.getState().chatHistory;
+    expect(history).toHaveLength(2);
+    expect(history[0].content).toBe("first");
+    expect(history[1].content).toBe("second");
+  });
+});
+
+describe("ceremony store — setBifrostHealth", () => {
+  it("updates bifrostStatus, endpoint, and latency", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setBifrostHealth("open", "http://example.com/v1", 120);
+    const state = useCeremonyStore.getState();
+    expect(state.bifrostStatus).toBe("open");
+    expect(state.bifrostEndpoint).toBe("http://example.com/v1");
+    expect(state.bifrostLatencyMs).toBe(120);
+  });
+
+  it("accepts null latency", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().setBifrostHealth("closed", "", null);
+    expect(useCeremonyStore.getState().bifrostLatencyMs).toBeNull();
+  });
+});
+
+describe("ceremony store — appendAgentToken / finalizeAgentTurn", () => {
+  beforeEach(async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({
+      chatHistory: [],
+      activeTurnId: null,
+      activeTokenSequence: -1,
+    });
+  });
+
+  it("appendAgentToken creates a new streaming message for a new turn", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({ activeTurnId: null });
+    useCeremonyStore.getState().appendAgentToken("Hello", 0, "turn-001");
+    const history = useCeremonyStore.getState().chatHistory;
+    expect(history).toHaveLength(1);
+    expect(history[0].role).toBe("assistant");
+    expect(history[0].content).toBe("Hello");
+    expect(history[0].streaming).toBe(true);
+    expect(useCeremonyStore.getState().activeTurnId).toBe("turn-001");
+  });
+
+  it("appendAgentToken appends to existing streaming message", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({ activeTurnId: null });
+    useCeremonyStore.getState().appendAgentToken("Hello", 0, "turn-002");
+    useCeremonyStore.getState().appendAgentToken(" world", 1, "turn-002");
+    const history = useCeremonyStore.getState().chatHistory;
+    expect(history).toHaveLength(1);
+    expect(history[0].content).toBe("Hello world");
+  });
+
+  it("finalizeAgentTurn marks streaming message as complete", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.setState({ activeTurnId: null });
+    useCeremonyStore.getState().appendAgentToken("Response", 0, "turn-003");
+    useCeremonyStore.getState().finalizeAgentTurn("turn-003", "stop");
+    const history = useCeremonyStore.getState().chatHistory;
+    expect(history[0].streaming).toBe(false);
+    expect(history[0].timestamp).not.toBeNull();
+    expect(useCeremonyStore.getState().activeTurnId).toBeNull();
+  });
+});
+
+describe("ceremony store — clearChatHistory", () => {
+  it("clears history and resets turn state", async () => {
+    const { useCeremonyStore } = await import("../src/store/ceremony");
+    useCeremonyStore.getState().addUserMessage("hi");
+    useCeremonyStore.setState({ activeTurnId: "turn-x", activeTokenSequence: 5 });
+    useCeremonyStore.getState().clearChatHistory();
+    const state = useCeremonyStore.getState();
+    expect(state.chatHistory).toHaveLength(0);
+    expect(state.activeTurnId).toBeNull();
+    expect(state.activeTokenSequence).toBe(-1);
   });
 });
