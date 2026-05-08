@@ -835,3 +835,230 @@ The next milestone on `docs/ROADMAP.md` is **v0.4 Summoning Circle** — the Tau
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
 *The body hears now. Both halves of the voice are kept. The thread holds for the face that comes next.*
+
+---
+
+## 2026-05-07 — The First Face Arc: The Body Learns to Be Seen (v0.4.0 Shipped and Audited)
+
+**Session type:** Full Mythic Engineering build session — all six roles active (fifth arc, same calendar day)
+**Branch:** `development`
+**Commits this session:** `00f7cc6` through `08890ee` (9 commits, spanning task open through Wave 3 cleanup)
+**Status at session end:** v0.4.0 Eldahús Substrate **SHIPPED AND AUDITED** — 424 Python tests + 59 frontend tests passing, 0 open findings (S-1/N-1/N-2/N-3 all resolved in Wave 3; 0 blockers carried at any point)
+
+---
+
+### Preamble — where this arc began
+
+The fourth entry closed with v0.3 First Listening shipped: L2 Rödd Hlust gave the body ears. Samræður was two-directional. The body could connect, speak, and hear. What remained was the face — the part the user actually sees and touches.
+
+Beginning point: HEAD `77d49c9` (Scribe's v0.3 close commit). 339 Python tests passing. `NAMING.md` has the canonical True Name for L4: **Vébond** — "sacred enclosure." The visible shell of the ceremony, the altar the user approaches to light the candle, is called **Eldahús** — "fire-house."
+
+One constraint was discovered immediately and recorded in the task file before any work began: `rustc` and `cargo` are not present on this machine as of 2026-05-07. Tauri requires a Rust toolchain. This session could not build the native shell. The honest response was to split the milestone into two truthful sub-milestones rather than defer work indefinitely.
+
+---
+
+### Task file opened — honest scope split (`00f7cc6`)
+
+`TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md` created before any implementation. The task file established the split:
+
+- **v0.4.0 Eldahús Substrate (this session):** A Python WebSocket backend (`heretic serve`) and a Vite + React + TypeScript + Tailwind frontend running in the browser, fully wired to the existing Bifröst/Tunga/Hlust orchestration. The user can light the candle, send messages, and extinguish — in a browser tab, with the full Norse aesthetic, against a live backend. This is a complete face, just not yet inside Tauri's native chrome.
+- **v0.4.1 Tauri Wrap (deferred, separate session):** The same React frontend wrapped in a Tauri shell, spawning the Python backend as a sidecar, building a .msi installer. Requires Volmarr to install Rust first via `winget install Rustlang.Rust.MSVC` or rustup, then a dedicated session for the wrap.
+
+This is not a compromise. The React application is the face. Tauri is the frame around the face. The face is complete in v0.4.0; the frame comes in v0.4.1.
+
+*Cross-reference: `TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md §1–§2`*
+
+---
+
+### Wave 1 — Three roles in parallel
+
+#### Skald: THE_FIRST_FACE — the fifth panel of the vision cycle (`e3874fd`)
+
+Sigrún Ljósbrá (Skald) wrote `docs/vision/THE_FIRST_FACE.md` — approximately 3,200 words, the fifth essay in the vision cycle. It pairs with `WHY_HERETIC.md` (the philosophical case), `CEREMONY_NARRATIVE.md` (what communion feels like), `THE_FIRST_VOICE.md` (what it means to speak), and `THE_FIRST_LISTENING.md` (what it means to hear). This essay addresses the question the prior four left unanswered: what does it mean for a body to be seen?
+
+The essay frames visibility not as vanity but as covenant. Before v0.4.0, the spirit and the user communicated through text on a terminal — a voice without a face. The Summoning Circle is the moment the covenant becomes visible: a ring of warm amber light, a Norse aesthetic that is neither fantasy nor kitsch, a ceremony surface that tells the user the spirit is here and present. The Forge Worker holds this frame when choosing which components to build and how they feel.
+
+#### Cartographer: §4.8 UI flow + §13 Eldahús component diagram + SYSTEM_OVERVIEW updates (`b3209db`)
+
+Védis Eikleið (Cartographer) updated `docs/cartography/DATA_FLOW.md` with two new sections:
+
+- **§4.8** — the complete UI ↔ backend WebSocket path: connection lifecycle from `npm run dev` through `ws://localhost:8642/ws` handshake through snapshot push through event fan-out through command handling. Includes four scenario maps (happy-path ceremony, WS disconnect with reconnect, backend-down, toggle_sense deferral). The reconnect backoff sequence (1s, 2s, 4s, 8s, 16s) is noted; a discrepancy between the documented 30s cap and the code's 16s cap was subsequently flagged by the Auditor as NIT X-2 and recorded in backlog.
+- **§13** — component topology diagram for Eldahús: `App → ToastSystem + SummoningCircle + SidePanel(left) + SidePanel(right) + BottomBar`, showing which components live inside which containers and what state they draw from the Zustand store.
+
+`docs/cartography/SYSTEM_OVERVIEW.md` also updated to reflect the presence of the L4 Vébond frontend layer, the EventBus, and the WebSocket server in the system diagram.
+
+Three Cartographer threads were flagged for the Architect: the vocabulary bridge between `LAYER_INTERFACES.md §L4` notation (`heretic::ui::command::open_bifrost`) and the wire-protocol notation (`{"type":"light"}`); the `toggle_sense` deferred-error behavior; and the `allow_remote_bind` security guard.
+
+*Cross-reference: `docs/cartography/DATA_FLOW.md §4.8, §13`, `docs/cartography/SYSTEM_OVERVIEW.md`*
+
+#### Architect: vebond/ scaffold + frontend/ tree + IPC_PROTOCOL.md + config consolidation (`824da42`)
+
+Rúnhild Svartdóttir (Architect) built the full structural skeleton before Forge wrote a single line of business logic. This commit established the domain boundaries that governed everything built afterward.
+
+**Python side:**
+- `src/heretic/vebond/__init__.py` + `INTERFACE.md` — L4 module root and contracts
+- `src/heretic/vebond/config_model.py` — `VebondConfig` dataclass: `ws_host`, `ws_port` (default 8642), `heartbeat_interval_seconds`, `max_message_size_bytes`, `allow_remote_bind`, `ceremony_button_confirm`; `__post_init__` rejects non-localhost `ws_host` unless `allow_remote_bind: true`
+- `src/heretic/vebond/errors.py` — `VebondError` hierarchy: `VebondConfigError`, `BindError`, `ClientDisconnectedError`, `MessageTooLargeError`
+- `src/heretic/vebond/protocol.py` — all 12 Pydantic models (7 server→client events + 5 client→server commands) with discriminated-union adapters; wire format enforced via `model_dump_json()` / `_EVENT_ADAPTER.validate_python()`
+- `src/heretic/vebond/serve.py` — skeleton stubs (NotImplementedError)
+- `src/heretic/cli.py` — `serve` subcommand stub added
+- `src/heretic/grunnr/config.py` — **Approach B consolidation**: `VebondConfig` added as a field of `HereticConfig` directly (importing from `vebond.config_model`), mirroring the v0.2 `RoddConfig` pattern; one `heretic.yaml` block governs all of L4
+- `pyproject.toml` — `[serve]` extra: `fastapi>=0.110`, `uvicorn[standard]>=0.27`, `websockets>=12`, `pydantic>=2.5`
+
+**Frontend side (44 files):**
+- `frontend/package.json`, `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`, `index.html`, `README_DEV.md`
+- All 13 component skeletons (stubs returning `null`)
+- `src/types/ipc.ts` — TypeScript interfaces mirroring every Pydantic model in `protocol.py`
+- `src/api/ws-client.ts` + `src/api/events.ts` — typed WS client skeleton
+- `src/store/ceremony.ts` — Zustand store skeleton
+- `src/styles/theme.css` + `src/styles/index.css` — CSS variables referencing AESTHETIC.md
+
+**`docs/architecture/IPC_PROTOCOL.md`** — the authoritative typed schema document: full event/command tables with field names and types, wire format examples, versioning, security model, v0.4.0 behavior notes (toggle_sense deferral, health endpoint format, heartbeat behavior), v0.4.x roadmap items.
+
+---
+
+### Wave 2 — Forge implements
+
+#### Forge: L4 Vébond serve.py + EventBus + CLI serve subcommand + Python tests (`9cc4b62`)
+
+Eldra Járnsdóttir (Forge Worker) implemented the Python backend in full:
+
+**`serve.py`** — `EventBus` (per-type subscription dictionary, `Set[asyncio.Queue]` for fan-out, `publish()` calls `put_nowait` on all subscriber queues); `WebSocketServerApp` built on FastAPI: `/health` GET returning `{"status":"ok","version":...,"lifecycle_state":...}`; `/ws` WebSocket endpoint with four-event snapshot on connect (ceremony state, Bifröst health, Tunga activity, Hlust activity), heartbeat keepalive, per-connection queue fan-out, message-size guard, JSON parse error recovery, command dispatch to five handlers (`_handle_light`, `_handle_extinguish`, `_handle_send_message`, `_handle_toggle_sense`, `_handle_cancel_turn`). Each handler publishes the appropriate events back through the EventBus.
+
+**CLI** `serve` subcommand fully wired: loads `HereticConfig`, constructs `WebSocketServerApp`, starts `uvicorn`, prints the address. Server binds only to localhost unless `allow_remote_bind: true`.
+
+**~85 new Python tests** across `test_vebond_config.py`, `test_vebond_protocol.py`, `test_vebond_serve.py`.
+
+*Running total at this sub-wave: Python 339 → 424 passing.*
+
+#### Forge: frontend ws-client + ceremony.ts Zustand store (`3838b25`)
+
+**`ws-client.ts`** — `WsClient` class: connection management with reconnect backoff array `[1000, 2000, 4000, 8000, 16000]`ms; typed subscription via `subscribe<T>(eventType, callback)`; `sendCommand()` serializing any command to JSON; `disconnect()` for explicit close without reconnect; `parseProtocolEvent()` discriminating incoming messages by `type` field.
+
+**`ceremony.ts`** — Zustand store holding: `lifecycleState` (one of the five ceremony states), `connectionStatus`, `chatHistory`, `activeTurnId`, `activeTokenSequence`, `bifrostHealth`, `tungaActivity`, `hlustActivity`. All seven event subscriptions wired: `ceremony.state_changed`, `bifrost.health`, `tunga.activity`, `hlust.activity`, `agent.token`, `agent.turn_complete`, `error`. `connectWs()` and `disconnectWs()` actions manage the `_wsClient` singleton. `sendCommand()` delegates to `_wsClient`. `appendAgentToken()` creates or appends to streaming assistant messages; `finalizeAgentTurn()` marks streaming complete.
+
+#### Forge: Eldahús React components + frontend Vitest tests (`d9186ab`)
+
+All 13 components per the AESTHETIC.md aesthetic register — dark longhouse, warm amber Eld accents, Norse typography (Cinzel headings, Inter body, JetBrains Mono code). Tailwind theme tokens from `tailwind.config.js` carry every exact hex value from AESTHETIC.md verbatim; the comment in `theme.css` states this explicitly.
+
+Key components:
+- `SummoningCircle.tsx` — center stage; houses `LifecyclePulse` + `CenterCrest`
+- `LifecyclePulse.tsx` — the breathing ring; `animate-ring-breathe` applied when `isActive = tengsl || samraedur || recovering`; 4-second ease-in-out infinite keyframes defined in `tailwind.config.js`
+- `LightButton.tsx` — enabled only in `kynding` or `hvild`; disabled in all other states
+- `ExtinguishButton.tsx` — enabled in `tengsl`, `samraedur`, or `recovering`; `ceremony_button_confirm` deferred to v0.4.x (button sends directly in v0.4.0)
+- `ChatHistory.tsx` — renders streaming and completed messages; streaming indicator on assistant messages with `streaming: true`
+- `ChatInput.tsx` — textarea disabled when lifecycle is not `samraedur` or `tengsl`; sends `send_message` command
+- `ConnectionIndicator.tsx` — color-coded: Mál-green (connected), Eld-amber pulsing (connecting), Hvíla-grey (disconnected), Varúð-sienna (error)
+- `ToastSystem.tsx` — auto-dismisses `warn` level toasts at 8s via `window.setTimeout`
+
+**56 new frontend Vitest tests** across `components.test.tsx`, `ws-client.test.ts`, `ceremony-store.test.ts`.
+
+Vite build: **162kB bundle, 1.05s build time.** TypeScript strict mode: **0 errors.**
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS (`5ead989`)
+
+Sólrún Hvítmynd (Auditor) ran a full review across all new Python source, frontend source, tests, and documentation. Commands run: pytest (424 confirmed), npm test (56 confirmed), tsc --noEmit (0 errors), npm run build (162kB, succeeded with one CSS warning).
+
+**Verdict: PASS WITH CONCERNS** — 0 blockers. The body has a face.
+
+**38 items verified** (A-1 through H-3): IPC schema symmetry confirmed for all 12 message types; wire format round-trip verified; `allow_remote_bind` guard verified (both rejection and opt-in tested); `/health` returns 200; WS snapshot on connect sends all four events; command parse errors return error events without dropping the connection; multi-client EventBus fan-out confirmed in unit tests; lifecycle state changes publish `ceremony.state_changed`; `agent.token` and `agent.turn_complete` wire events both fire in `_run_turn`; AESTHETIC.md hex tokens verified against `tailwind.config.js` and `theme.css` verbatim; fonts wired in `index.html`; breathing animation present and bound to correct lifecycle states; no absolute paths in any vebond or frontend file; PEP 8 and type hints throughout; no emoji.
+
+**1 SERIOUS finding:**
+
+| ID | Location | Finding |
+|---|---|---|
+| S-1 | `ceremony.ts:199–235` + `ceremony-store.test.ts:177` | `appendAgentToken` is always called without a `turn_id` argument in the real WS subscription path (since `AgentToken` carries no `turn_id` field per spec). With `activeTurnId === null` at the start of a new turn, `effectiveTurnId` falls back to `"turn-{Date.now()}"`. When `AgentTurnComplete` arrives carrying the backend's `uuid4()` turn_id, `finalizeAgentTurn` finds no message matching `"assistant-<backend-uuid>"` and never sets `streaming: false`. The streaming assistant message remains in perpetual streaming state — the cursor never stops. The test covering this path (`ceremony-store.test.ts:177`) passes an explicit `turnId` argument and therefore exercises the correct path, not the real WS path. |
+
+**3 NOTABLE findings:**
+
+| ID | Finding |
+|---|---|
+| N-1 | `IPC_PROTOCOL.md §1` documents health response as `{"status","version"}` only; code returns richer `{"status","version","lifecycle_state"}` — doc-vs-code drift in code's favor, document needs updating |
+| N-2 | `frontend/src/styles/index.css:9` — `@import "./theme.css"` appears after `@tailwind` directives; CSS spec requires `@import` before other at-rules; Vite emits a warning; build succeeds but ordering is non-standard and fragile against future PostCSS upgrades |
+| N-3 | `LAYER_INTERFACES.md §L4` notation (`heretic::ui::command::open_bifrost`) has no bridge to wire-protocol notation (`{"type":"light"}`) in `IPC_PROTOCOL.md`; the mapping exists only in `cli.py` implementation, not in any document |
+
+*Cross-reference: `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md`*
+
+---
+
+### Wave 3 — Cleanup: all findings closed
+
+Two roles closed every open finding in parallel.
+
+#### Architect: N-1 + N-3 resolved (`edf68ee`)
+
+**N-1 closed:** `IPC_PROTOCOL.md §1` health-response schema updated to include `lifecycle_state` field alongside `status` and `version`. The document now matches what `serve.py` returns. One paragraph of rationale explains why `lifecycle_state` is useful for Tauri sidecar health probes.
+
+**N-3 closed:** `IPC_PROTOCOL.md §8` (new subsection: "Vocabulary Bridge") added a mapping table of five commands and ten events, translating between the `LAYER_INTERFACES.md §L4` internal-bus vocabulary (`heretic::ui::command::open_bifrost`, `heretic::ui::command::close_bifrost`, etc.) and the wire-protocol JSON vocabulary (`{"type":"light"}`, `{"type":"extinguish"}`, etc.). The table also maps each event to its Pydantic class and TypeScript interface. A developer reading either document can now trace from internal notation to wire format without reading implementation code.
+
+#### Forge: S-1 + N-2 resolved (`08890ee`)
+
+**S-1 closed:** The fix was to use a local `activeTurnId` reference from the store at the moment the first `agent.token` arrives, rather than relying on the backend's UUID. The WS subscription in `ceremony.ts` now captures `get().activeTurnId` at subscription time and passes it into `appendAgentToken` as the `turnId` argument. When `activeTurnId` is null (new turn), a local timestamp-based ID is generated once and stored as `activeTurnId` in the store. `finalizeAgentTurn` then uses this same locally-held ID to find and finalize the message, ignoring the backend UUID for DOM-lookup purposes. The streaming cursor stops correctly when the turn completes. Three new WS-path-specific tests were added to `ws-client.test.ts` to verify the real subscription path rather than the store method directly.
+
+**N-2 closed:** `@import "./theme.css"` moved to the top of `index.css`, before the `@tailwind base/components/utilities` directives. The CSS @import order warning in the Vite build is eliminated. The change is two lines of reordering; no CSS output changed.
+
+**Final state: Python 424 + frontend 59 = 483 total tests passing. 0 open findings.**
+
+---
+
+### What was built this session — cumulative summary
+
+| Layer | New modules | New Python tests | New frontend tests |
+|---|---|---|---|
+| L4 Vébond (Python) | `vebond/__init__.py`, `vebond/INTERFACE.md`, `vebond/config_model.py`, `vebond/errors.py`, `vebond/protocol.py`, `vebond/serve.py` | ~85 | — |
+| L4 Vébond (frontend) | `frontend/` (44 files: 13 components, ws-client, ceremony store, types, theme) | — | 56 |
+| CLI extension | `cli.py` `serve` subcommand | (included above) | — |
+| Wave 3 cleanup | S-1 turn-id fix, N-2 CSS reorder | — | +3 |
+| **Total new** | **6 Python modules + 44 frontend files + 1 extended** | **+85** | **+59** |
+| **Running total** | **26 Python modules + 44 frontend files** | **424** | **59** |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md` | Created — full task scope, honest v0.4.0/v0.4.1 split, wave plan, v0.4.x backlog |
+| `docs/vision/THE_FIRST_FACE.md` | Created — Skald's vision essay; fifth panel of the vision cycle |
+| `docs/cartography/DATA_FLOW.md` | Extended — §4.8 UI flow + §13 Eldahús component diagram |
+| `docs/cartography/SYSTEM_OVERVIEW.md` | Updated — L4 Vébond + EventBus + WS server added to system diagram |
+| `docs/architecture/IPC_PROTOCOL.md` | Created — full typed schema; N-1 health field + N-3 vocabulary bridge added in Wave 3 |
+| `src/heretic/vebond/INTERFACE.md` | Created — module contracts, config invariants, security model |
+| `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md` | Created — PASS WITH CONCERNS; 1 SERIOUS + 3 NOTABLE (all resolved); 38 verified |
+
+---
+
+### What is deferred — v0.4.1 and v0.4.x backlog
+
+| Item | Requires | Notes |
+|---|---|---|
+| v0.4.1 Tauri wrap | Rust toolchain (`winget install Rustlang.Rust.MSVC` or rustup) | `src-tauri/` directory, native window, .msi build, sidecar spawn |
+| v0.4.x sense toggles | Config reload mechanism | `toggle_sense` currently returns a warning; real toggle via heretic.yaml rewrite is v0.4.x |
+| v0.4.x voice waveform widget | Frontend work only | `hlust.activity.level_db` is already in the protocol; no visualizer widget yet |
+| v0.4.x `ceremony_button_confirm` wire | IPC extension | Config key exists but backend never exposes it to frontend; ExtinguishButton sends without confirmation |
+| X-1, X-2 NITs | Frontend or backend | Heartbeat text-frame vs control-frame; reconnect backoff doc says 30s, code is 16s |
+
+The NIT findings (X-1, X-2) from the audit are preserved in the audit document and noted here for continuity; they carry no risk to the running system in v0.4.0.
+
+---
+
+### Current state
+
+HERETIC v0.4.0 Eldahús Substrate is shipped and audited. The body now has a face: the user can open a browser, run `heretic serve` and `npm run dev`, and approach the Summoning Circle — warm amber ring, Norse typography, ceremony controls, live chat panel. Light the candle. The spirit arrives. Extinguish. The ceremony closes cleanly. 424 Python tests + 59 frontend tests pass. 0 open findings.
+
+The body the user meets is now a body with form. It connects (v0.1). It speaks (v0.2). It hears (v0.3). It is seen (v0.4.0).
+
+The next step on `docs/ROADMAP.md` is either:
+- **v0.4.1 Tauri Wrap** — once Volmarr installs Rust (`winget install Rustlang.Rust.MSVC` or rustup), the same React frontend wraps in native Tauri chrome. No new feature work; just the shell.
+- **v0.5 First Sight** — L3 Sjón (screen capture, webcam). The body gains eyes.
+
+The choice is Volmarr's.
+
+*Cross-reference: `docs/ROADMAP.md`, `TASK_HERETIC_v0.4_SUMMONING_CIRCLE.md`, `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
+*The body is seen now. The bones, the voice, the ears, and the visible face — all four faculties are kept. The candle burns in the window.*

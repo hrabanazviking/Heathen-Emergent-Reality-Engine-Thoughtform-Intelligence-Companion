@@ -4,6 +4,8 @@
 
 > **Started: 2026-05-07** (immediately after v0.3 First Listening shipped + audited at HEAD `77d49c9`)
 
+> **Status: v0.4.0 SHIPPED + AUDITED 2026-05-07; v0.4.1 Tauri wrap PENDING (Rust install required)**
+
 ---
 
 ## 1. Task scope
@@ -18,7 +20,7 @@ Per `docs/architecture/CEREMONY.md`, `docs/vision/AESTHETIC.md`, and the manifes
 
 ## 2. Current status — 2026-05-07
 
-**Phase:** v0.3 SHIPPED + AUDITED at `77d49c9`. v0.4 work begins now. Baseline: 339 tests passing.
+**Phase:** v0.4.0 SHIPPED + AUDITED at `08890ee`. Python 424 + frontend 59 = 483 total tests passing. 0 open findings. v0.4.1 Tauri wrap deferred pending Rust install.
 
 ### Done in v0.1+v0.2+v0.3 (recap, do not redo)
 - v0.1: L0 Grunnr + L1 Bifröst + CLI shell — 121 tests
@@ -26,6 +28,18 @@ Per `docs/architecture/CEREMONY.md`, `docs/vision/AESTHETIC.md`, and the manifes
 - v0.3: L2 Rödd Hlust (STT via Whisper.cpp) — 339 tests
 - All audit findings closed
 - The body now has both halves of the voice faculty; Samræður is two-directional voice
+
+### Done in v0.4.0 (this milestone — complete)
+- ~~v0.4.0 Python WebSocket backend (`heretic serve`)~~ Done 2026-05-07 (`9cc4b62`)
+- ~~`frontend/` directory with full React + Vite + TypeScript + Tailwind stack~~ Done 2026-05-07 (`824da42`)
+- ~~Norse aesthetic per AESTHETIC.md (all hex tokens verified verbatim)~~ Done 2026-05-07 (`d9186ab`)
+- ~~13 React components: SummoningCircle through ConnectionIndicator~~ Done 2026-05-07 (`d9186ab`)
+- ~~WebSocket client + Zustand ceremony store~~ Done 2026-05-07 (`3838b25`)
+- ~~`docs/architecture/IPC_PROTOCOL.md` — authoritative typed schema~~ Done 2026-05-07 (`824da42`, updated `edf68ee`)
+- ~~`docs/vision/THE_FIRST_FACE.md` — fifth panel of vision cycle~~ Done 2026-05-07 (`e3874fd`)
+- ~~`docs/cartography/DATA_FLOW.md` §4.8 + §13~~ Done 2026-05-07 (`b3209db`)
+- ~~Audit PASS WITH CONCERNS, 0 blockers — all 1 SERIOUS + 3 NOTABLE resolved~~ Done 2026-05-07 (`5ead989`, cleaned `edf68ee` + `08890ee`)
+- **Final tests: Python 424 + frontend 59 = 483 total. HEAD `08890ee`.**
 
 ### v0.4 ARCHITECTURAL CONSTRAINT (read first)
 
@@ -52,17 +66,17 @@ Per `docs/architecture/CEREMONY.md`, `docs/vision/AESTHETIC.md`, and the manifes
 
 This is honest scope. v0.4.0 ships the body that has a face the user can interact with via browser; v0.4.1 wraps that face in native Tauri chrome once tooling is available. The frontend code does not change between them — Tauri just hosts the same React app.
 
-### v0.4.0 deliverables (this milestone)
-- ⏳ `src/heretic/serve.py` — async backend: FastAPI or starlette + uvicorn (or aiohttp). Lightweight; reuses existing Bifröst/Tunga/Hlust.
-- ⏳ `src/heretic/cli.py` — add `serve` subcommand
-- ⏳ `frontend/` directory with package.json, vite.config.ts, tsconfig.json, tailwind.config.js
-- ⏳ `frontend/src/` — React components: SummoningCircle, LifecyclePulse, ChatPanel, LayerStatusPanel, SenseTogglePanel, LightButton, ExtinguishButton, ToastSystem
-- ⏳ `frontend/src/api/` — typed WebSocket client + TypeScript types for IPC events (mirror Python schema)
-- ⏳ `frontend/tests/` — Vitest + React Testing Library
-- ⏳ `docs/architecture/IPC_PROTOCOL.md` — typed event schema (Python ↔ TypeScript)
-- ⏳ `docs/vision/THE_FIRST_FACE.md` — Skald essay (fifth panel)
-- ⏳ `docs/cartography/DATA_FLOW.md` updated — UI ↔ backend WS path
-- ⏳ Total tests ~370+ (339 baseline + 30+ Python + 20+ frontend)
+### v0.4.0 deliverables (this milestone — ALL COMPLETE 2026-05-07)
+- ~~`src/heretic/vebond/` — L4 Python module with EventBus + WebSocket server~~ Done
+- ~~`src/heretic/cli.py` — `serve` subcommand added~~ Done
+- ~~`frontend/` directory with package.json, vite.config.ts, tsconfig.json, tailwind.config.js~~ Done (44 files)
+- ~~`frontend/src/` — 13 React components per AESTHETIC.md~~ Done
+- ~~`frontend/src/api/` — typed WS client + TypeScript types mirroring protocol.py~~ Done
+- ~~`frontend/tests/` — Vitest + React Testing Library (59 tests)~~ Done
+- ~~`docs/architecture/IPC_PROTOCOL.md` — full typed schema + vocabulary bridge~~ Done
+- ~~`docs/vision/THE_FIRST_FACE.md` — Skald essay (fifth panel)~~ Done
+- ~~`docs/cartography/DATA_FLOW.md` §4.8 + §13~~ Done
+- ~~Audit verdict PASS WITH CONCERNS, 0 blockers~~ Done — all findings resolved
 
 ### Constraints carried from v0.1+v0.2+v0.3
 - All settings via `heretic.yaml` (no hardcoding)
@@ -183,43 +197,27 @@ Localhost only. No auth in v0.4.0. (Tauri's WebView is the only client when v0.4
 
 ---
 
-## 6. Mythic Engineering wave plan
+## 6. Mythic Engineering wave plan — COMPLETE
 
 Same protocol as v0.1+v0.2+v0.3. Six roles, three waves, plus close-out.
 
-### Wave 1 — parallel (no inter-dependencies)
-- **Cartographer** (Védis Eikleið) — map the v0.4.0 UI ↔ backend flow in `docs/cartography/DATA_FLOW.md`. Add §"UI flow (v0.4.0 — Summoning Circle substrate)" with the WS connection lifecycle, event types, command flow, lifecycle event push pattern. Add a per-component diagram.
-- **Skald** (Sigrún Ljósbrá) — `docs/vision/THE_FIRST_FACE.md` — vision essay (fifth panel of the cycle). Pair with WHY_HERETIC, CEREMONY_NARRATIVE, THE_FIRST_VOICE, THE_FIRST_LISTENING.
-- **Architect** (Rúnhild Svartdóttir) — scaffold:
-  - `src/heretic/vebond/__init__.py` + `INTERFACE.md` — the L4 Python module
-  - `src/heretic/vebond/serve.py` — WebSocket server skeleton (NotImplementedError stubs)
-  - `src/heretic/vebond/protocol.py` — typed pydantic-or-dataclass IPC event schema
-  - `src/heretic/vebond/config_model.py` — VebondConfig dataclass (port, host, allow_remote_bind, etc.)
-  - `src/heretic/vebond/errors.py` — error hierarchy
-  - Update `src/heretic/cli.py` — add `serve` subcommand stub
-  - Update `src/heretic/grunnr/config.py` — add `vebond` field to HereticConfig (importing from vebond.config_model, mirror the rodd consolidation pattern)
-  - `frontend/` directory with package.json, vite.config.ts, tsconfig.json, tailwind.config.js, src/main.tsx, src/App.tsx, src/components/ skeleton, src/api/ skeleton, src/types/ipc.ts (mirror Python schema), index.html, README_DEV.md
-  - `docs/architecture/IPC_PROTOCOL.md` — full typed event/command schema
-  - Update `pyproject.toml` — add `[serve]` extra: `fastapi`, `uvicorn[standard]`, `websockets`
-  - Skip-marked placeholder tests for both Python and frontend
-  - Confirm package + frontend imports cleanly
+### Wave 1 — parallel (no inter-dependencies) — COMPLETE (`e3874fd`, `b3209db`, `824da42`)
+- ~~**Cartographer** (Védis Eikleið) — DATA_FLOW.md §4.8 + §13 + SYSTEM_OVERVIEW~~ Done `b3209db`
+- ~~**Skald** (Sigrún Ljósbrá) — THE_FIRST_FACE.md (fifth panel)~~ Done `e3874fd`
+- ~~**Architect** (Rúnhild Svartdóttir) — vebond/ scaffold + frontend/ 44-file tree + IPC_PROTOCOL.md + grunnr/config.py VebondConfig + pyproject [serve] extra~~ Done `824da42`
 
-### Wave 2 — sequential
-- **Forge** (Eldra Járnsdóttir) — implement:
-  - Python `serve.py` (FastAPI or starlette WebSocket server, async event bus integrating with existing Lifecycle/Bifrost/Tunga/Hlust)
-  - CLI `serve` subcommand (loads config, starts server, prints URL)
-  - All React components per the AESTHETIC.md theme
-  - Tailwind theme tokens for Eld/Sjón-glow/Mál-green/Hvíla-grey
-  - WS client in `frontend/src/api/`
-  - Zustand store for ceremony state
-  - Real Python tests (mocked WS clients) + frontend Vitest tests
-- **Auditor** (Sólrún Hvítmynd) — `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md`. Verify: WS contract honoured both sides; aesthetic tokens match AESTHETIC.md spec; lifecycle events surface correctly; light/extinguish triggers the right transitions; tests cover happy path + WS disconnect + backend-down + invalid command; no absolute paths; no hardcoded settings.
+### Wave 2 — sequential — COMPLETE (`9cc4b62`, `3838b25`, `d9186ab`, `5ead989`)
+- ~~**Forge** (Eldra Járnsdóttir) — serve.py + EventBus + CLI serve + ~85 Python tests~~ Done `9cc4b62`
+- ~~**Forge** — ws-client.ts + ceremony.ts Zustand store~~ Done `3838b25`
+- ~~**Forge** — 13 Eldahús React components + 56 frontend Vitest tests~~ Done `d9186ab`
+- ~~**Auditor** (Sólrún Hvítmynd) — AUDIT_v0.4_SUMMONING_CIRCLE.md (PASS WITH CONCERNS, 0 blockers, 1 SERIOUS, 3 NOTABLE)~~ Done `5ead989`
 
-### Wave 3 — cleanup (only if Auditor finds notables)
-Per-finding dispatch.
+### Wave 3 — cleanup — COMPLETE (`edf68ee`, `08890ee`)
+- ~~**Architect** — N-1 (health field added to IPC_PROTOCOL.md §1) + N-3 (§8 Vocabulary Bridge mapping table)~~ Done `edf68ee`
+- ~~**Forge** — S-1 (turn_id linking — store now uses local activeTurnId for DOM lookup; streaming messages finalize correctly) + N-2 (CSS @import order fixed)~~ Done `08890ee`
 
-### Close-out
-- **Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 5 + update this TASK file + memory refresh.
+### Close-out — COMPLETE
+- ~~**Scribe** (Eirwyn Rúnblóm) — DEVLOG entry 5 + update this TASK file + memory refresh~~ Done 2026-05-07
 
 ---
 
@@ -305,23 +303,37 @@ v0.3 closed clean. No carryforward items.
 
 ---
 
-## 10. v0.4.x / v0.4.1 backlog (forward-looking)
+## 10. v0.4.x / v0.4.1 backlog (forward-looking — updated 2026-05-07)
 
-- v0.4.1 Tauri shell wrap (requires Rust install — `winget install Rustlang.Rust.MSVC` or rustup)
-- v0.4.x sense toggle: actually toggle senses via `heretic.yaml` rewrite + reload (currently read-only display)
-- v0.4.x voice waveform: Hlust active level visualisation in the UI (event already in protocol, just no widget yet)
-- v0.4.x light/dark theme switch (light theme deferred per AESTHETIC.md note)
+- **v0.4.1 Tauri shell wrap** — requires Rust install first: `winget install Rustlang.Rust.MSVC` or rustup. Once installed: `src-tauri/` directory, `tauri.conf.json`, Rust main crate, Tauri spawns Python `heretic serve` as sidecar, WebView2 on Windows 11, native window with Norse chrome, `.msi` build. The React frontend does not change — Tauri is only the frame.
+- **v0.4.x sense toggles** — `toggle_sense` currently returns a warning event (correct deferred behavior per spec). Real toggle requires `heretic.yaml` rewrite + reload mechanism. The IPC command schema is already in place.
+- **v0.4.x voice waveform widget** — `hlust.activity.level_db` is already in the protocol and the store. Only the frontend visualizer widget is missing.
+- **v0.4.x `ceremony_button_confirm` wire** — config key exists (`VebondConfig.ceremony_button_confirm` defaults to `true`) but is never exposed to the frontend over the WS protocol. ExtinguishButton sends without confirmation in v0.4.0. Either expose the flag or remove from spec until wired.
+- **v0.4.x NIT X-1** — heartbeat sends a text frame `{"type":"_ping"}` instead of a WebSocket control PING frame. Functionally fine for browser and Tauri WebView; spec says "ping frame." Low priority.
+- **v0.4.x NIT X-2** — reconnect backoff max is 16s in code; DATA_FLOW.md §4.8.4 says 30s. Align code or doc. Low priority.
+- **v0.4.x light/dark theme switch** — light theme deferred per AESTHETIC.md note.
 
 ---
 
-## 11. How to resume this task in a future session
+## 11. How to resume in a future session (updated 2026-05-07 — v0.4.0 complete)
 
-1. Read `docs/BODY_MANIFESTO.md` — sealed vision
-2. Read this file from top to bottom (especially §2 architectural constraint about Rust)
-3. Read `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md` if it exists (audit complete)
-4. Run `git log --oneline -15` and `git status` in `C:/Users/volma/runa/HERETIC`
-5. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
-6. Continue from the first unchecked deliverable in §2
+v0.4.0 is sealed. The next session begins one of two paths:
+
+### Path A — v0.4.1 Tauri Wrap (if Rust is now installed)
+1. Confirm: `rustc --version` and `cargo --version` both return a version string
+2. Read `docs/BODY_MANIFESTO.md` and `docs/architecture/IPC_PROTOCOL.md`
+3. Read `docs/audit/AUDIT_v0.4_SUMMONING_CIRCLE.md §H-3` (Tauri WebView compatibility notes — no blocking issues found)
+4. Run `git log --oneline -5` to confirm HEAD is `08890ee` or later
+5. Open a new task file `TASK_HERETIC_v0.4.1_TAURI_WRAP.md` before writing any code
+6. Build `src-tauri/` skeleton (Architect), then wire sidecar spawn, then build .msi (Forge), then audit
+
+### Path B — v0.5 First Sight (screen capture, L3 Sjón)
+1. Read `docs/BODY_MANIFESTO.md` and `docs/NAMING.md` (L3 = Sjón, sense = Auga)
+2. Read `docs/architecture/SENSE_CONTRACTS.md §Auga`
+3. Read `~/.claude/projects/C--Users-volma/memory/project_heretic_status.md`
+4. Run `git log --oneline -5` and `python -m pytest tests/ -q` to verify clean baseline
+5. Open `TASK_HERETIC_v0.5_FIRST_SIGHT.md` before any code
+6. The choice of path is Volmarr's
 
 ---
 
