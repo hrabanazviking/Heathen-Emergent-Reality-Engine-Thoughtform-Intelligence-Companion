@@ -364,79 +364,158 @@ class Sjón:
     async def start_continuous_capture(self) -> None:
         """Start the background periodic capture task (v0.5.1).
 
-        Raises:
-            NotImplementedError: Forge will implement this method.
+        Spawns an asyncio.Task that loops at config.screen.interval_ms, captures one
+        frame per tick, encodes it, and appends the resulting data URL to the ring buffer.
 
-        Forge implementation notes:
-            - Create an asyncio.Task that loops with asyncio.sleep(interval_ms/1000)
-              between iterations.
-            - Each iteration: call snapshot() (captures + encodes); if a data URL is
-              returned, append it to self._buffer under self._get_buffer_lock().
-            - Backpressure-skip: if the previous iteration's capture is still in flight
-              (detected via an in-flight flag), skip the current tick rather than queuing.
-            - Throttle is still enforced: snapshot() already enforces min_interval_ms.
-            - Emit SjonActivity(state=CONTINUOUS_RUNNING) after the task starts.
-            - Store the task in self._continuous_task for cancellation by
-              stop_continuous_capture().
-            - Idempotent: if a task is already running, log a warning and return.
+        Backpressure: if the previous tick's capture+encode is still in flight, the
+        current tick is SKIPPED (not queued) so we never pile up outstanding captures
+        under system load.
+
+        Throttle: snapshot() enforces min_interval_ms even inside the continuous loop,
+        guarding against the edge case where interval_ms < min_interval_ms.
+
+        Idempotent: a second call while a task is already running logs a debug message
+        and returns without spawning a second task.
+
+        Emits SjonActivity(state=CONTINUOUS_RUNNING) once the task is scheduled.
         """
-        raise NotImplementedError(
-            "Forge will implement: background asyncio.Task that loops with "
-            "asyncio.sleep(interval_ms/1000), calls capture+encode via snapshot(), "
-            "appends data URLs to self._buffer under _get_buffer_lock(); "
-            "backpressure-skip if previous tick is still in flight; "
-            "throttle still enforced via snapshot(); "
-            "emits SjonActivity CONTINUOUS_RUNNING on start; "
-            "stores task in self._continuous_task; idempotent."
+        if self._continuous_task is not None and not self._continuous_task.done():
+            self._logger.debug(
+                "Sjon.start_continuous_capture(): task already running — no-op."
+            )
+            return
+
+        self._logger.info(
+            "Sjon: starting continuous capture (interval_ms=%d, buffer_depth=%d).",
+            self._config.screen.interval_ms,
+            self._config.screen.buffer_depth,
         )
+        self._continuous_task = asyncio.create_task(self._continuous_loop())
+        self._emit("continuous_running")
+
+    async def _continuous_loop(self) -> None:
+        """Background continuous capture loop — runs at interval_ms per tick.
+
+        Lifecycle:
+            - Sleeps for interval_ms at the start of each iteration so the first
+              capture fires after one interval (not immediately at start).
+            - On each tick: checks backpressure, captures + encodes, pushes to buffer.
+            - On capture or encode failure: logs a warning and emits FAILED for that
+              tick, then continues the loop (never crashes).
+            - On asyncio.CancelledError: exits cleanly (task was stopped).
+
+        Privacy: data URLs are written only to self._buffer (in-memory deque).
+                 They are never written to disk. Buffer is cleared on close().
+        """
+        _capture_in_flight: bool = False
+        _last_buffer_full_emitted: bool = False
+
+        interval_s = self._config.screen.interval_ms / 1000.0
+
+        try:
+            while True:
+                await asyncio.sleep(interval_s)
+
+                # Backpressure check: skip this tick if previous capture still running.
+                # Prevents capture queuing under sustained system load.
+                if _capture_in_flight:
+                    self._logger.debug(
+                        "Sjon continuous loop: backpressure skip (previous capture in flight)."
+                    )
+                    continue
+
+                _capture_in_flight = True
+                try:
+                    # snapshot() enforces min_interval_ms throttle and never raises.
+                    # It returns [] on throttle, error, or unavailability — all safe.
+                    urls = await self.snapshot()
+                    if urls:
+                        # Push to ring buffer under lock for write ordering.
+                        lock = self._get_buffer_lock()
+                        async with lock:
+                            # Check if we're about to fill the buffer.
+                            at_capacity = len(self._buffer) >= self._buffer.maxlen  # type: ignore[arg-type]
+                            self._buffer.append(urls[0])
+                            # Emit BUFFER_FULL once per fill cycle to avoid event flooding.
+                            if at_capacity and not _last_buffer_full_emitted:
+                                self._emit("buffer_full")
+                                _last_buffer_full_emitted = True
+                            elif not at_capacity:
+                                # Reset the flag once the buffer has room again.
+                                _last_buffer_full_emitted = False
+                    else:
+                        # snapshot() returned [] — capture failed or was throttled.
+                        # snapshot() already emitted FAILED if it was a capture error.
+                        self._logger.debug(
+                            "Sjon continuous loop: snapshot returned empty (throttled or failed)."
+                        )
+                finally:
+                    _capture_in_flight = False
+
+        except asyncio.CancelledError:
+            # Clean exit — stop_continuous_capture() cancelled us.
+            self._logger.debug("Sjon continuous loop: cancelled cleanly.")
+            raise
+        except Exception as exc:
+            # Unexpected error in the loop itself — log and let the loop die.
+            # The ceremony continues; the eye goes dark but does not crash the process.
+            self._logger.warning(
+                "Sjon continuous loop: unexpected error (loop terminated): %s", exc, exc_info=True
+            )
 
     async def stop_continuous_capture(self) -> None:
         """Stop the background periodic capture task cleanly (v0.5.1).
 
-        Raises:
-            NotImplementedError: Forge will implement this method.
+        Cancels self._continuous_task, awaits its completion (absorbing CancelledError),
+        then sets the slot to None and emits CONTINUOUS_STOPPED.
 
-        Forge implementation notes:
-            - Cancel self._continuous_task if it is not None.
-            - Await the task with asyncio.shield or try/except CancelledError so that
-              the task is fully finished before this coroutine returns.
-            - Set self._continuous_task = None.
-            - Emit SjonActivity(state=CONTINUOUS_STOPPED).
-            - Idempotent: if no task is running, return without error.
+        Idempotent: a call when no task is running is a safe no-op.
         """
-        raise NotImplementedError(
-            "Forge will implement: cancel self._continuous_task; await task completion; "
-            "set self._continuous_task = None; emit SjonActivity CONTINUOUS_STOPPED; "
-            "idempotent (no-op if no task running)."
-        )
+        if self._continuous_task is None:
+            return
+
+        task = self._continuous_task
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception) as exc:
+                self._logger.debug(
+                    "Sjon.stop_continuous_capture(): task finished (expected): %s", exc
+                )
+
+        self._continuous_task = None
+        self._emit("continuous_stopped")
+        self._logger.info("Sjon: continuous capture stopped.")
 
     def recent_frames(self, n: int | None = None) -> list[str]:
         """Return the most recent N data URL strings from the ring buffer (v0.5.1).
 
-        Raises:
-            NotImplementedError: Forge will implement this method.
+        Synchronous read — takes a snapshot of the deque contents which is safe because:
+        - The deque is only appended to from within the asyncio event loop's continuous
+          task, which cannot run concurrently with a synchronous call.
+        - The buffer lock guards WRITE ordering between the continuous task and any
+          future concurrent async writers; this sync reader just needs the snapshot.
 
-        Forge implementation notes:
-            - If n is None, return all frames currently in self._buffer (oldest first).
-            - If n is specified, return the last n frames (most-recently appended),
-              oldest first within the returned slice.
-            - This method is synchronous — callers in the turn loop do not need to
-              await it. Buffer access is guarded by self._get_buffer_lock() in async
-              contexts; this sync accessor takes a snapshot of the deque safely via
-              list(self._buffer) (thread-safe for reads; asyncio.Lock prevents
-              concurrent modification in the event loop).
-            - Returns [] if the buffer is empty or continuous mode has never run.
+        Ordering: oldest frame first, most recent frame last (natural deque order).
 
         Args:
-            n: Maximum number of frames to return. None = return all buffered frames.
+            n: Maximum number of frames to return.
+               None -> return all frames currently in the buffer.
+               0    -> return [] (defensive; None vs 0 ambiguity guard).
+               > buffer_depth -> returns up to buffer contents with no padding.
 
         Returns:
-            List of inline base64 PNG data URL strings, ordered oldest-to-newest.
+            List of inline base64 PNG data URL strings. Empty list if buffer is empty
+            or continuous mode has never run.
         """
-        raise NotImplementedError(
-            "Forge will implement: return list(self._buffer)[-n:] if n else "
-            "list(self._buffer); ordered oldest-to-newest; returns [] if buffer empty."
-        )
+        if n == 0:
+            return []
+        snapshot = list(self._buffer)
+        if n is None:
+            return snapshot
+        # Return last n frames (most recently appended), preserving oldest-first order.
+        return snapshot[-n:] if len(snapshot) > n else snapshot
 
     async def close(self) -> None:
         """Release all resources held by Sjón (backend + encoder).
@@ -444,21 +523,22 @@ class Sjón:
         Called during ceremony shutdown (Slokna) before the process exits.
         Must be idempotent. Must not raise.
 
-        v0.5.1 additions: cancels the continuous capture task if one is running
-        (privacy invariant — no frames may persist past Slokna); clears self._buffer.
+        v0.5.1: delegates continuous task teardown to stop_continuous_capture()
+        (which emits CONTINUOUS_STOPPED and awaits full cancellation), then clears
+        the ring buffer to satisfy the privacy invariant: no frames persist past Slokna.
+
+        Privacy invariant: buffered frames are NEVER written to disk; they live in
+        self._buffer (a deque) and are explicitly cleared here at ceremony end.
+        Ref: TASK_HERETIC_v0.5.1_PERIODIC_SIGHT §7.
         """
-        # Stop continuous capture task if running (v0.5.1 — Forge wires this in Wave 2).
-        # Until Forge implements stop_continuous_capture(), we cancel the task slot
-        # directly to satisfy the privacy invariant: no frames persist past close().
-        if self._continuous_task is not None and not self._continuous_task.done():
-            self._continuous_task.cancel()
-            try:
-                await self._continuous_task
-            except (asyncio.CancelledError, Exception) as exc:
-                self._logger.debug(
-                    "Sjón.close(): continuous task cancelled (expected): %s", exc
-                )
-            self._continuous_task = None
+        # Stop continuous capture task cleanly via the named method.
+        # stop_continuous_capture() is idempotent — safe to call when no task running.
+        try:
+            await self.stop_continuous_capture()
+        except Exception as exc:
+            self._logger.warning(
+                "Sjon.close(): error stopping continuous task (ignored): %s", exc
+            )
 
         # Clear ring buffer — privacy invariant: buffered frames must not persist
         # past ceremony end (Slokna). Ref: TASK_HERETIC_v0.5.1_PERIODIC_SIGHT §7.
@@ -468,7 +548,7 @@ class Sjón:
             self._backend.close()
         except Exception as exc:
             self._logger.warning(
-                "Sjón.close(): error closing capture backend (ignored): %s", exc
+                "Sjon.close(): error closing capture backend (ignored): %s", exc
             )
         self._last_capture_ts = 0.0
-        self._logger.info("Sjón closed.")
+        self._logger.info("Sjon closed.")

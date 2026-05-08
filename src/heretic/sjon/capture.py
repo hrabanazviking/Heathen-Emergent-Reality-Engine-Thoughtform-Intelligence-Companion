@@ -46,6 +46,42 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
+# Monitor index mapping helper (v0.5.1)
+# ---------------------------------------------------------------------------
+
+def _resolve_mss_monitor_index(continuous: bool, config_index: int) -> int:
+    """Resolve config monitor_index to mss monitor index per v0.5.1 mapping asymmetry.
+
+    On-demand mode (continuous=False):
+        config 0 -> mss 1 (primary single screen).
+    Continuous mode (continuous=True):
+        config 0 -> mss 0 (all-monitors composite virtual screen).
+    Both modes:
+        config N >= 1 -> mss N (individual screen N, direct pass-through).
+
+    Rationale:
+        In continuous mode the operator opts in to composite capture (index 0 = all screens).
+        In on-demand mode the historical default is primary-monitor capture (mss index 1).
+        This asymmetry is intentional and documented as a known design decision.
+
+    See docs/cartography/DATA_FLOW.md §4.10.10 and
+        src/heretic/sjon/INTERFACE.md §Continuous mode mapping table.
+
+    Args:
+        continuous: True if Sjon is running in continuous periodic-capture mode.
+        config_index: The operator-configured monitor_index from SjonScreenConfig.
+
+    Returns:
+        The mss monitor list index to use for the grab call.
+    """
+    if continuous and config_index == 0:
+        return 0   # composite all-monitors virtual (continuous mode special case)
+    if config_index == 0:
+        return 1   # primary single monitor (on-demand default)
+    return config_index  # direct pass-through for explicit secondary monitors
+
+
+# ---------------------------------------------------------------------------
 # Abstract base class
 # ---------------------------------------------------------------------------
 
@@ -261,10 +297,15 @@ class MssBackend(ScreenCaptureBackend):
 
                 # monitors[0] = virtual "all monitors" bounding box.
                 # monitors[1] = primary monitor.
-                # config.monitor_index is 0-based where 0 = primary (mss index 1).
+                # v0.5.1 mapping asymmetry: continuous mode index 0 -> mss 0 (composite);
+                # on-demand mode index 0 -> mss 1 (primary single screen).
+                # See docs/cartography/DATA_FLOW.md §4.10.10 and
+                # src/heretic/sjon/INTERFACE.md §Continuous mode mapping table.
                 monitors = sct.monitors
-                # Map config index -> mss index: config 0 -> mss 1 (primary)
-                mss_index = self._config.monitor_index + 1
+                mss_index = _resolve_mss_monitor_index(
+                    continuous=getattr(self._config, "continuous", False),
+                    config_index=self._config.monitor_index,
+                )
                 max_mss_index = len(monitors) - 1  # last real monitor index
 
                 if mss_index > max_mss_index:
@@ -316,36 +357,45 @@ class MssBackend(ScreenCaptureBackend):
     def list_monitors(self) -> list[dict]:
         """Return the list of monitors reported by mss (v0.5.1).
 
-        Raises:
-            NotImplementedError: Forge will implement this method.
+        Opens a fresh mss.mss() context (does NOT reuse self._mss_instance to
+        avoid interference with ongoing capture() calls). Returns the raw
+        sct.monitors list as plain Python dicts.
 
-        Forge implementation notes:
-            - Open a fresh mss.mss() context (do NOT reuse self._mss_instance to
-              avoid interference with ongoing capture() calls).
-            - Read sct.monitors and return it as a list of plain dicts.
-            - mss.monitors[0]: virtual all-monitors composite bounding box.
-            - mss.monitors[1+]: individual physical screens.
-            - Each dict has at minimum: {"top": int, "left": int,
-              "width": int, "height": int}.
-            - If mss is not installed, raise BackendUnavailableError.
-            - If the probe fails for any other reason, raise ScreenCaptureError.
-            - This method is synchronous (mirrors capture()) — callers run it in
-              a thread pool executor if they need non-blocking behaviour.
+        mss.monitors layout:
+            index 0  — virtual all-monitors composite bounding box
+            index 1+ — individual physical screens
+
+        Each dict has at minimum: {"top": int, "left": int, "width": int, "height": int}.
+
+        Pure introspection — does NOT cache. mss monitor state may change at runtime
+        (monitor hot-plug) so callers that need fresh data must call this each time.
 
         Returns:
             List of monitor geometry dicts. Index 0 = composite virtual monitor;
             indices 1+ = individual physical monitors.
 
         Raises:
-            BackendUnavailableError: mss is not installed.
-            ScreenCaptureError: mss failed to enumerate monitors.
+            BackendUnavailableError: mss is not installed (ImportError at call time).
+            ScreenCaptureError: mss failed to enumerate monitors for any other reason.
         """
-        raise NotImplementedError(
-            "Forge will implement: open fresh mss.mss() context; return sct.monitors "
-            "as list[dict]; index 0 = all-monitors composite; 1+ = individual screens; "
-            "raise BackendUnavailableError if mss not installed; "
-            "raise ScreenCaptureError on any other failure."
-        )
+        try:
+            import mss
+        except ImportError as exc:
+            raise BackendUnavailableError(
+                "mss is not installed. Install heretic[vision] to enable monitor enumeration."
+            ) from exc
+
+        try:
+            with mss.mss() as sct:
+                # Return as plain list[dict] — sct.monitors elements may be
+                # internal mss types; copy to plain dicts for safety.
+                return [dict(m) for m in sct.monitors]
+        except BackendUnavailableError:
+            raise  # re-raise typed errors as-is
+        except Exception as exc:
+            raise ScreenCaptureError(
+                f"Failed to enumerate monitors via mss: {exc}"
+            ) from exc
 
     def close(self) -> None:
         """Close the mss context manager if one is held open, releasing OS resources.

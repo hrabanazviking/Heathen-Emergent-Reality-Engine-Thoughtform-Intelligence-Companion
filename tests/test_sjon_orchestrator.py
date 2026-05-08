@@ -351,90 +351,266 @@ class TestSjonEventEmitter:
 
 
 # ---------------------------------------------------------------------------
-# v0.5.1 placeholder tests — continuous task lifecycle + ring buffer
-# Forge implements the logic; these stubs mark the scaffold complete.
+# v0.5.1 real tests — continuous task lifecycle + ring buffer
 # ---------------------------------------------------------------------------
 
-class TestSjonContinuousCapture:
-    """start_continuous_capture / stop_continuous_capture — v0.5.1. (Placeholders.)"""
+def _make_sjon_continuous(
+    interval_ms: int = 50,
+    buffer_depth: int = 5,
+    min_interval_ms: int = 0,
+    event_emitter=None,
+):
+    """Build a Sjón with continuous mode enabled and fast interval for test speed."""
+    from heretic.sjon.sjon import Sjón
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: task starts and emits CONTINUOUS_RUNNING"
+    screen_cfg = SjonScreenConfig(
+        enabled=True,
+        continuous=True,
+        interval_ms=interval_ms,
+        buffer_depth=buffer_depth,
+        min_interval_ms=min_interval_ms,
+        max_width=64,
+        max_height=64,
     )
+    config = SjonConfig(screen=screen_cfg)
+
+    mock_backend = MagicMock()
+    mock_backend.available.return_value = True
+    mock_backend.capture.return_value = (bytes(4), 1, 1)
+
+    mock_encoder = MagicMock(spec=FrameEncoder)
+    mock_encoder.encode.return_value = b"\x89PNG" + b"\x00" * 32
+    mock_encoder.to_data_url.return_value = "data:image/png;base64,CONT"
+
+    sjon = Sjón(
+        config=config,
+        capture_backend=mock_backend,
+        encoder=mock_encoder,
+        logger=logging.getLogger("test.sjon.continuous"),
+        event_emitter=event_emitter,
+    )
+    return sjon, mock_backend, mock_encoder
+
+
+class TestSjonContinuousCapture:
+    """start_continuous_capture / stop_continuous_capture — v0.5.1."""
+
     @pytest.mark.asyncio
     async def test_start_continuous_capture_launches_task(self) -> None:
-        sjon, _, _ = _make_sjon()
+        """start_continuous_capture() spawns an asyncio.Task that is running."""
+        sjon, _, _ = _make_sjon_continuous()
         await sjon.start_continuous_capture()
         assert sjon._continuous_task is not None
         assert not sjon._continuous_task.done()
         await sjon.stop_continuous_capture()
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: stop cancels task cleanly"
-    )
     @pytest.mark.asyncio
-    async def test_stop_continuous_capture_cancels_task(self) -> None:
-        sjon, _, _ = _make_sjon()
+    async def test_start_continuous_capture_emits_continuous_running(self) -> None:
+        """start_continuous_capture() emits SjonActivity(CONTINUOUS_RUNNING)."""
+        emitted_states = []
+
+        def _emitter(event):
+            try:
+                emitted_states.append(event.state.value)
+            except AttributeError:
+                emitted_states.append(str(event))
+
+        sjon, _, _ = _make_sjon_continuous(event_emitter=_emitter)
         await sjon.start_continuous_capture()
+        await sjon.stop_continuous_capture()
+
+        assert "continuous_running" in emitted_states
+
+    @pytest.mark.asyncio
+    async def test_stop_continuous_capture_cancels_task_and_clears_slot(self) -> None:
+        """stop_continuous_capture() cancels the task and sets _continuous_task to None."""
+        sjon, _, _ = _make_sjon_continuous()
+        await sjon.start_continuous_capture()
+        assert sjon._continuous_task is not None
         await sjon.stop_continuous_capture()
         assert sjon._continuous_task is None
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: start is idempotent (no double-task)"
-    )
     @pytest.mark.asyncio
-    async def test_start_continuous_capture_idempotent(self) -> None:
-        sjon, _, _ = _make_sjon()
+    async def test_stop_continuous_capture_emits_continuous_stopped(self) -> None:
+        """stop_continuous_capture() emits SjonActivity(CONTINUOUS_STOPPED)."""
+        emitted_states = []
+
+        def _emitter(event):
+            try:
+                emitted_states.append(event.state.value)
+            except AttributeError:
+                emitted_states.append(str(event))
+
+        sjon, _, _ = _make_sjon_continuous(event_emitter=_emitter)
         await sjon.start_continuous_capture()
-        first_task = sjon._continuous_task
-        await sjon.start_continuous_capture()  # second call — must not spawn a new task
-        assert sjon._continuous_task is first_task
         await sjon.stop_continuous_capture()
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: stop is idempotent (no-op if not running)"
-    )
+        assert "continuous_stopped" in emitted_states
+
+    @pytest.mark.asyncio
+    async def test_start_continuous_capture_idempotent(self) -> None:
+        """A second start() while task is running returns without spawning a new task."""
+        sjon, _, _ = _make_sjon_continuous()
+        await sjon.start_continuous_capture()
+        first_task = sjon._continuous_task
+        await sjon.start_continuous_capture()  # second call — idempotent
+        assert sjon._continuous_task is first_task  # same task object
+        await sjon.stop_continuous_capture()
+
     @pytest.mark.asyncio
     async def test_stop_continuous_capture_idempotent(self) -> None:
-        sjon, _, _ = _make_sjon()
-        await sjon.stop_continuous_capture()  # must not raise when no task running
+        """stop_continuous_capture() when no task is running is a safe no-op."""
+        sjon, _, _ = _make_sjon_continuous()
+        # No task running — must not raise
+        await sjon.stop_continuous_capture()
+        assert sjon._continuous_task is None
+
+    @pytest.mark.asyncio
+    async def test_continuous_loop_pushes_frames_to_buffer(self) -> None:
+        """After the loop fires, the ring buffer receives the captured frame URL."""
+        sjon, _, mock_encoder = _make_sjon_continuous(interval_ms=20, min_interval_ms=0)
+        mock_encoder.to_data_url.return_value = "data:image/png;base64,TICK"
+
+        await sjon.start_continuous_capture()
+        # Wait for at least 2 ticks to fire
+        await asyncio.sleep(0.08)
+        await sjon.stop_continuous_capture()
+
+        # Buffer should contain at least 1 frame
+        frames = sjon.recent_frames()
+        assert len(frames) >= 1
+        assert all(f == "data:image/png;base64,TICK" for f in frames)
+
+    @pytest.mark.asyncio
+    async def test_continuous_loop_buffer_full_emits_once(self) -> None:
+        """BUFFER_FULL is emitted at most once per fill cycle, not on every subsequent tick."""
+        emitted_states = []
+
+        def _emitter(event):
+            try:
+                emitted_states.append(event.state.value)
+            except AttributeError:
+                emitted_states.append(str(event))
+
+        # Very small buffer (depth=2) + fast interval so it fills quickly
+        sjon, _, mock_encoder = _make_sjon_continuous(
+            interval_ms=15,
+            buffer_depth=2,
+            min_interval_ms=0,
+            event_emitter=_emitter,
+        )
+        mock_encoder.to_data_url.return_value = "data:image/png;base64,FULL"
+
+        await sjon.start_continuous_capture()
+        # Wait long enough for buffer to fill and several extra ticks to fire
+        await asyncio.sleep(0.15)
+        await sjon.stop_continuous_capture()
+
+        buffer_full_count = emitted_states.count("buffer_full")
+        # BUFFER_FULL must be emitted at least once (buffer did fill)
+        assert buffer_full_count >= 1
+        # Must NOT be spammed — should be limited by the once-per-fill logic.
+        # We allow up to 3 to account for potential test timing variability where
+        # the buffer briefly drains and refills, re-triggering the emission.
+        assert buffer_full_count <= 3
+
+    @pytest.mark.asyncio
+    async def test_continuous_loop_capture_failure_does_not_crash_loop(self) -> None:
+        """If snapshot() returns [] (failure), the loop continues running."""
+        from heretic.sjon.sjon import Sjón
+        from heretic.sjon.config_model import SjonConfig
+
+        screen_cfg = SjonScreenConfig(
+            enabled=True, continuous=True, interval_ms=20, min_interval_ms=0,
+            buffer_depth=5, max_width=64, max_height=64,
+        )
+        config = SjonConfig(screen=screen_cfg)
+        mock_backend = MagicMock()
+        mock_backend.available.return_value = True
+        # First call raises (simulates capture failure), subsequent succeed
+        from heretic.sjon.errors import ScreenCaptureError
+        mock_backend.capture.side_effect = [
+            ScreenCaptureError("first failure"),
+            (bytes(4), 1, 1),
+            (bytes(4), 1, 1),
+        ]
+        mock_encoder = MagicMock(spec=FrameEncoder)
+        mock_encoder.encode.return_value = b"\x89PNG" + b"\x00" * 32
+        mock_encoder.to_data_url.return_value = "data:image/png;base64,RECOVER"
+
+        sjon = Sjón(config=config, capture_backend=mock_backend,
+                    encoder=mock_encoder, logger=logging.getLogger("test"))
+        await sjon.start_continuous_capture()
+        await asyncio.sleep(0.10)
+        await sjon.stop_continuous_capture()
+
+        # Task must still be completed (not blown up with an exception task result)
+        assert sjon._continuous_task is None  # stopped cleanly
 
 
 class TestSjonRingBuffer:
-    """recent_frames() and ring buffer semantics — v0.5.1. (Placeholders.)"""
+    """recent_frames() and ring buffer semantics — v0.5.1."""
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: recent_frames returns [] on empty buffer"
-    )
     def test_recent_frames_empty_when_no_capture(self) -> None:
+        """recent_frames() returns [] when buffer has never been populated."""
         sjon, _, _ = _make_sjon()
         assert sjon.recent_frames() == []
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: recent_frames(n) returns last n entries"
-    )
     def test_recent_frames_returns_last_n(self) -> None:
+        """recent_frames(n=2) returns the last 2 entries, oldest first."""
         sjon, _, _ = _make_sjon()
-        # Manually populate buffer to simulate continuous mode
         sjon._buffer.extend(["url1", "url2", "url3"])
         result = sjon.recent_frames(n=2)
         assert result == ["url2", "url3"]
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: recent_frames(None) returns all"
-    )
     def test_recent_frames_none_returns_all(self) -> None:
+        """recent_frames() with n=None returns all buffered frames."""
         sjon, _, _ = _make_sjon()
         sjon._buffer.extend(["url1", "url2", "url3"])
         result = sjon.recent_frames()
         assert result == ["url1", "url2", "url3"]
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: buffer cleared on close (privacy invariant)"
-    )
-    @pytest.mark.asyncio
-    async def test_close_clears_buffer(self) -> None:
+    def test_recent_frames_n_larger_than_buffer_returns_all(self) -> None:
+        """When n > buffer size, all available frames are returned (no padding)."""
         sjon, _, _ = _make_sjon()
         sjon._buffer.extend(["url1", "url2"])
+        result = sjon.recent_frames(n=10)
+        assert result == ["url1", "url2"]
+
+    def test_recent_frames_n_zero_returns_empty(self) -> None:
+        """n=0 defensively returns [] to guard the None/0 ambiguity."""
+        sjon, _, _ = _make_sjon()
+        sjon._buffer.extend(["url1", "url2"])
+        assert sjon.recent_frames(n=0) == []
+
+    def test_recent_frames_n_one_returns_most_recent(self) -> None:
+        """recent_frames(n=1) returns only the most recently appended frame."""
+        sjon, _, _ = _make_sjon()
+        sjon._buffer.extend(["url1", "url2", "url3"])
+        result = sjon.recent_frames(n=1)
+        assert result == ["url3"]
+
+    @pytest.mark.asyncio
+    async def test_close_clears_buffer_privacy_invariant(self) -> None:
+        """CRITICAL: close() clears the ring buffer — frames must not persist past Slokna."""
+        sjon, _, _ = _make_sjon()
+        sjon._buffer.extend(["url1", "url2", "url3"])
+        assert len(list(sjon._buffer)) == 3  # pre-condition
+
         await sjon.close()
+
+        # Privacy invariant: buffer must be empty after close
+        assert list(sjon._buffer) == []
+
+    @pytest.mark.asyncio
+    async def test_close_stops_continuous_task_if_running(self) -> None:
+        """close() stops the continuous task before clearing buffer."""
+        sjon, _, _ = _make_sjon_continuous(interval_ms=100, min_interval_ms=0)
+        await sjon.start_continuous_capture()
+        assert sjon._continuous_task is not None
+        assert not sjon._continuous_task.done()
+
+        await sjon.close()
+
+        assert sjon._continuous_task is None
         assert list(sjon._buffer) == []

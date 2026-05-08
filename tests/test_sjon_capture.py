@@ -308,55 +308,228 @@ class TestMssBackendCapture:
 
 
 # ---------------------------------------------------------------------------
-# v0.5.1 placeholder tests — MssBackend.list_monitors
-# Forge implements the logic; these stubs mark the scaffold complete.
+# v0.5.1 tests — MssBackend.list_monitors + capture mapping asymmetry
 # ---------------------------------------------------------------------------
 
 class TestMssBackendListMonitors:
-    """MssBackend.list_monitors() — v0.5.1. (Placeholders: Forge implements.)"""
+    """MssBackend.list_monitors() — v0.5.1 real tests."""
 
-    @pytest.mark.skip(
-        reason="v0.5.1 placeholder — Forge implements: list_monitors returns mss.monitors list"
-    )
+    def _make_mock_mss_context(
+        self, monitor_list: list[dict] | None = None
+    ) -> tuple[MagicMock, MagicMock]:
+        """Return (mock_mss_module, mock_sct) with a given monitor list."""
+        if monitor_list is None:
+            monitor_list = [
+                {"left": 0, "top": 0, "width": 3840, "height": 2160},  # virtual composite
+                {"left": 0, "top": 0, "width": 1920, "height": 1080},  # primary
+            ]
+        mock_sct = MagicMock()
+        mock_sct.monitors = monitor_list
+        mock_sct.__enter__ = MagicMock(return_value=mock_sct)
+        mock_sct.__exit__ = MagicMock(return_value=False)
+
+        mock_mss_module = MagicMock()
+        mock_mss_module.mss.return_value = mock_sct
+        return mock_mss_module, mock_sct
+
     def test_list_monitors_returns_list_of_dicts(self) -> None:
+        """list_monitors() returns a list of dicts with width/height keys."""
         from heretic.sjon.capture import MssBackend
+
         cfg = SjonScreenConfig()
         log = logging.getLogger("test")
         backend = MssBackend(cfg, log)
-        monitors = backend.list_monitors()
+
+        mock_mss_module, _ = self._make_mock_mss_context()
+        with patch.dict("sys.modules", {"mss": mock_mss_module}):
+            monitors = backend.list_monitors()
+
         assert isinstance(monitors, list)
-        assert len(monitors) >= 1
+        assert len(monitors) == 2
         for m in monitors:
+            assert isinstance(m, dict)
             assert "width" in m
             assert "height" in m
+            assert "left" in m
+            assert "top" in m
 
-    @pytest.mark.skip(
-        reason=(
-            "v0.5.1 placeholder — Forge implements: list_monitors index 0 = composite virtual"
-        )
-    )
     def test_list_monitors_index_0_is_composite(self) -> None:
+        """list_monitors()[0] is the virtual all-monitors composite (width >= any individual)."""
         from heretic.sjon.capture import MssBackend
-        cfg = SjonScreenConfig()
-        log = logging.getLogger("test")
-        backend = MssBackend(cfg, log)
-        monitors = backend.list_monitors()
-        # Index 0 is the virtual all-monitors composite — width >= any individual screen
-        assert monitors[0]["width"] >= max(m["width"] for m in monitors[1:] or [{"width": 0}])
 
-    @pytest.mark.skip(
-        reason=(
-            "v0.5.1 placeholder — Forge implements: list_monitors raises "
-            "BackendUnavailableError when mss not installed"
-        )
-    )
-    def test_list_monitors_raises_when_mss_not_installed(self) -> None:
-        from heretic.sjon.capture import MssBackend
         cfg = SjonScreenConfig()
         log = logging.getLogger("test")
         backend = MssBackend(cfg, log)
-        with pytest.raises(BackendUnavailableError):
-            backend.list_monitors()
+
+        monitor_list = [
+            {"left": 0, "top": 0, "width": 3840, "height": 2160},  # virtual composite
+            {"left": 0, "top": 0, "width": 1920, "height": 1080},  # screen 1
+            {"left": 1920, "top": 0, "width": 1920, "height": 1080},  # screen 2
+        ]
+        mock_mss_module, _ = self._make_mock_mss_context(monitor_list)
+        with patch.dict("sys.modules", {"mss": mock_mss_module}):
+            monitors = backend.list_monitors()
+
+        # Index 0 must have width >= max of individual screens
+        individual_widths = [m["width"] for m in monitors[1:]]
+        assert monitors[0]["width"] >= max(individual_widths)
+
+    def test_list_monitors_raises_when_mss_not_installed(self) -> None:
+        """list_monitors() raises BackendUnavailableError when mss cannot be imported."""
+        from heretic.sjon.capture import MssBackend
+
+        cfg = SjonScreenConfig()
+        log = logging.getLogger("test")
+        backend = MssBackend(cfg, log)
+
+        with patch("builtins.__import__", side_effect=ImportError("mss not installed")):
+            with pytest.raises(BackendUnavailableError):
+                backend.list_monitors()
+
+    def test_list_monitors_raises_screen_capture_error_on_mss_failure(self) -> None:
+        """list_monitors() raises ScreenCaptureError when mss.mss() raises unexpectedly."""
+        from heretic.sjon.capture import MssBackend
+
+        cfg = SjonScreenConfig()
+        log = logging.getLogger("test")
+        backend = MssBackend(cfg, log)
+
+        mock_mss_module = MagicMock()
+        mock_mss_module.mss.side_effect = RuntimeError("display not available")
+        with patch.dict("sys.modules", {"mss": mock_mss_module}):
+            with pytest.raises(ScreenCaptureError):
+                backend.list_monitors()
+
+    def test_list_monitors_opens_fresh_context_not_reusing_instance(self) -> None:
+        """list_monitors() opens its own fresh mss context, never reuses capture's instance."""
+        from heretic.sjon.capture import MssBackend
+
+        cfg = SjonScreenConfig()
+        log = logging.getLogger("test")
+        backend = MssBackend(cfg, log)
+
+        # Pre-populate _mss_instance to verify list_monitors ignores it.
+        backend._mss_instance = MagicMock()
+
+        mock_mss_module, mock_sct = self._make_mock_mss_context()
+        with patch.dict("sys.modules", {"mss": mock_mss_module}):
+            monitors = backend.list_monitors()
+
+        # The fresh context was opened (mss.mss() called once)
+        mock_mss_module.mss.assert_called_once()
+        # The pre-existing _mss_instance was not touched
+        assert backend._mss_instance is not None  # still the pre-populated mock
+
+
+class TestMssMonitorIndexMappingAsymmetry:
+    """v0.5.1 mapping asymmetry: continuous vs on-demand monitor index resolution."""
+
+    def _make_backend_with_mss(
+        self,
+        monitor_index: int = 0,
+        continuous: bool = False,
+        monitor_list: list[dict] | None = None,
+    ) -> tuple["MssBackend", MagicMock, MagicMock]:
+        """Build MssBackend + mock mss capturing the grab call."""
+        from heretic.sjon.capture import MssBackend
+
+        if monitor_list is None:
+            monitor_list = [
+                {"left": 0, "top": 0, "width": 3840, "height": 2160},   # virtual index 0
+                {"left": 0, "top": 0, "width": 1920, "height": 1080},   # primary index 1
+                {"left": 1920, "top": 0, "width": 1920, "height": 1080}, # secondary index 2
+            ]
+
+        cfg = SjonScreenConfig(monitor_index=monitor_index, continuous=continuous)
+        log = logging.getLogger("test")
+        backend = MssBackend(cfg, log)
+
+        mock_sct_img = MagicMock()
+        mock_sct_img.bgra = bytes(1920 * 1080 * 4)
+        mock_sct_img.width = 1920
+        mock_sct_img.height = 1080
+
+        mock_instance = MagicMock()
+        mock_instance.monitors = monitor_list
+        mock_instance.grab.return_value = mock_sct_img
+        mock_instance.__enter__ = MagicMock(return_value=mock_instance)
+        mock_instance.__exit__ = MagicMock(return_value=False)
+
+        MockSSE = type("ScreenShotError", (Exception,), {})
+        mock_mss_module = MagicMock()
+        mock_mss_module.mss.return_value = mock_instance
+        mock_mss_module.exception.ScreenShotError = MockSSE
+
+        return backend, mock_instance, mock_mss_module
+
+    def test_capture_continuous_index_0_uses_mss_0_composite(self) -> None:
+        """In continuous mode with monitor_index=0, grab is called with monitors[0] (composite)."""
+        backend, mock_instance, mock_mss_module = self._make_backend_with_mss(
+            monitor_index=0, continuous=True
+        )
+        expected_monitor = mock_instance.monitors[0]  # composite virtual
+
+        with patch.dict("sys.modules", {
+            "mss": mock_mss_module,
+            "mss.exception": mock_mss_module.exception,
+        }):
+            backend.capture()
+
+        mock_instance.grab.assert_called_once_with(expected_monitor)
+
+    def test_capture_on_demand_index_0_uses_mss_1_primary(self) -> None:
+        """In on-demand mode with monitor_index=0, grab is called with monitors[1] (primary)."""
+        backend, mock_instance, mock_mss_module = self._make_backend_with_mss(
+            monitor_index=0, continuous=False
+        )
+        expected_monitor = mock_instance.monitors[1]  # primary single monitor
+
+        with patch.dict("sys.modules", {
+            "mss": mock_mss_module,
+            "mss.exception": mock_mss_module.exception,
+        }):
+            backend.capture()
+
+        mock_instance.grab.assert_called_once_with(expected_monitor)
+
+    def test_capture_index_n_passes_through_in_both_modes(self) -> None:
+        """monitor_index=2 maps to mss index 2 in both continuous and on-demand modes."""
+        for continuous in (True, False):
+            backend, mock_instance, mock_mss_module = self._make_backend_with_mss(
+                monitor_index=2, continuous=continuous
+            )
+            mock_instance.grab.reset_mock()
+            expected_monitor = mock_instance.monitors[2]
+
+            with patch.dict("sys.modules", {
+                "mss": mock_mss_module,
+                "mss.exception": mock_mss_module.exception,
+            }):
+                backend.capture()
+
+            mock_instance.grab.assert_called_once_with(expected_monitor)
+
+
+class TestResolveMonitorIndex:
+    """Unit tests for the _resolve_mss_monitor_index helper function."""
+
+    def test_continuous_true_index_0_returns_0(self) -> None:
+        from heretic.sjon.capture import _resolve_mss_monitor_index
+        assert _resolve_mss_monitor_index(continuous=True, config_index=0) == 0
+
+    def test_continuous_false_index_0_returns_1(self) -> None:
+        from heretic.sjon.capture import _resolve_mss_monitor_index
+        assert _resolve_mss_monitor_index(continuous=False, config_index=0) == 1
+
+    def test_index_1_returns_1_regardless_of_mode(self) -> None:
+        from heretic.sjon.capture import _resolve_mss_monitor_index
+        assert _resolve_mss_monitor_index(continuous=True, config_index=1) == 1
+        assert _resolve_mss_monitor_index(continuous=False, config_index=1) == 1
+
+    def test_index_2_returns_2_regardless_of_mode(self) -> None:
+        from heretic.sjon.capture import _resolve_mss_monitor_index
+        assert _resolve_mss_monitor_index(continuous=True, config_index=2) == 2
+        assert _resolve_mss_monitor_index(continuous=False, config_index=2) == 2
 
 
 # ---------------------------------------------------------------------------
