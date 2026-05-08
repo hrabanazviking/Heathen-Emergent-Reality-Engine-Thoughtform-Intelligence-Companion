@@ -493,3 +493,196 @@ class TestAttachPolicyLogic:
         # The fallback snapshot must be used so the message is not frameless.
         assert image_data_urls == ["data:image/png;base64,fallback_snap"]
         sjon.snapshot.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# v0.5.2 webcam attach_policy dispatch tests
+# ---------------------------------------------------------------------------
+
+class TestWebcamAttachPolicyDispatch:
+    """Tests for the v0.5.2 webcam attach_policy layer in the CLI turn loop.
+
+    These tests exercise the NEW webcam dispatch logic added in v0.5.2.
+    They mirror the TestAttachPolicyLogic pattern above but focus on the
+    webcam_policy dispatch that wraps around the existing screen dispatch.
+    """
+
+    def _make_sjon_with_webcam(
+        self,
+        screen_snap_result: list[str],
+        webcam_snap_result: list[str],
+    ) -> "MagicMock":
+        """Build a mock Sjón with both snapshot() and snapshot_webcam() as AsyncMocks."""
+        from unittest.mock import AsyncMock
+        mock_sjon = MagicMock()
+        mock_sjon.is_available = True
+        mock_sjon.snapshot = AsyncMock(return_value=screen_snap_result)
+        mock_sjon.snapshot_webcam = AsyncMock(return_value=webcam_snap_result)
+        mock_sjon.recent_frames = MagicMock(return_value=[])
+        return mock_sjon
+
+    def _make_webcam_config(self, attach_policy: str) -> "MagicMock":
+        """Build a minimal webcam config stub."""
+        cfg = MagicMock()
+        cfg.attach_policy = attach_policy
+        return cfg
+
+    def _make_screen_config(self, attach_policy: str = "latest") -> "MagicMock":
+        """Build a minimal screen config stub."""
+        cfg = MagicMock()
+        cfg.attach_policy = attach_policy
+        cfg.continuous = False
+        return cfg
+
+    async def _dispatch(
+        self,
+        sjon: "MagicMock",
+        webcam_cfg: "MagicMock",
+        screen_cfg: "MagicMock",
+        ceremony_state: "dict",
+    ) -> list[str]:
+        """Replicate the CLI v0.5.2 attach_policy dispatch block."""
+        image_data_urls: list[str] = []
+        webcam_policy = webcam_cfg.attach_policy
+
+        if webcam_policy == "webcam_only":
+            image_data_urls = await sjon.snapshot_webcam()
+        elif webcam_policy == "alongside":
+            webcam_urls = await sjon.snapshot_webcam()
+            screen_urls = await sjon.snapshot()
+            image_data_urls = webcam_urls + screen_urls
+        elif webcam_policy == "alternate":
+            turn = ceremony_state["alternate_turn"]
+            if turn % 2 == 0:
+                image_data_urls = await sjon.snapshot_webcam()
+            else:
+                image_data_urls = await sjon.snapshot()
+            ceremony_state["alternate_turn"] = turn + 1
+        else:
+            # screen_only or unknown — use existing screen logic
+            screen_policy = screen_cfg.attach_policy
+            if screen_policy == "none":
+                image_data_urls = []
+            elif screen_policy == "all_buffered" and screen_cfg.continuous:
+                image_data_urls = sjon.recent_frames()
+            elif screen_policy == "latest" and screen_cfg.continuous:
+                image_data_urls = sjon.recent_frames(n=1)
+                if not image_data_urls:
+                    image_data_urls = await sjon.snapshot()
+            else:
+                image_data_urls = await sjon.snapshot()
+
+        return image_data_urls
+
+    @pytest.mark.asyncio
+    async def test_screen_only_calls_snapshot_not_snapshot_webcam(self) -> None:
+        """webcam attach_policy='screen_only' uses snapshot() only, never snapshot_webcam()."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("screen_only")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 0}
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        assert result == ["data:image/png;base64,screen"]
+        sjon.snapshot.assert_awaited_once()
+        sjon.snapshot_webcam.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_webcam_only_calls_snapshot_webcam_not_snapshot(self) -> None:
+        """webcam attach_policy='webcam_only' uses snapshot_webcam() only, never snapshot()."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("webcam_only")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 0}
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        assert result == ["data:image/jpeg;base64,webcam"]
+        sjon.snapshot_webcam.assert_awaited_once()
+        sjon.snapshot.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_alongside_calls_both_webcam_first(self) -> None:
+        """webcam attach_policy='alongside' returns webcam+screen ordered webcam-first."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("alongside")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 0}
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        # Webcam URL comes first, then screen URL
+        assert result == [
+            "data:image/jpeg;base64,webcam",
+            "data:image/png;base64,screen",
+        ]
+        sjon.snapshot_webcam.assert_awaited_once()
+        sjon.snapshot.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_alternate_even_turn_uses_webcam(self) -> None:
+        """webcam attach_policy='alternate' — even turn (0) uses webcam frame."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("alternate")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 0}  # even → webcam
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        assert result == ["data:image/jpeg;base64,webcam"]
+        sjon.snapshot_webcam.assert_awaited_once()
+        sjon.snapshot.assert_not_called()
+        assert state["alternate_turn"] == 1  # counter incremented
+
+    @pytest.mark.asyncio
+    async def test_alternate_odd_turn_uses_screen(self) -> None:
+        """webcam attach_policy='alternate' — odd turn (1) uses screen frame."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("alternate")
+        screen_cfg = self._make_screen_config("latest")
+        state: dict = {"alternate_turn": 1}  # odd → screen
+
+        result = await self._dispatch(sjon, webcam_cfg, screen_cfg, state)
+
+        assert result == ["data:image/png;base64,screen"]
+        sjon.snapshot.assert_awaited_once()
+        sjon.snapshot_webcam.assert_not_called()
+        assert state["alternate_turn"] == 2  # counter incremented
+
+    @pytest.mark.asyncio
+    async def test_alternate_counter_resets_per_ceremony(self) -> None:
+        """Alternate counter is per-ceremony: a fresh state dict starts at 0 each ceremony."""
+        sjon = self._make_sjon_with_webcam(
+            screen_snap_result=["data:image/png;base64,screen"],
+            webcam_snap_result=["data:image/jpeg;base64,webcam"],
+        )
+        webcam_cfg = self._make_webcam_config("alternate")
+        screen_cfg = self._make_screen_config("latest")
+
+        # Simulate a fresh ceremony — counter initialised to 0 at TENGSL
+        ceremony_state: dict = {"alternate_turn": 0}
+
+        # Turn 0 (even → webcam)
+        result_0 = await self._dispatch(sjon, webcam_cfg, screen_cfg, ceremony_state)
+        assert result_0 == ["data:image/jpeg;base64,webcam"]
+
+        # New ceremony — counter resets to 0
+        new_ceremony_state: dict = {"alternate_turn": 0}
+        result_new = await self._dispatch(sjon, webcam_cfg, screen_cfg, new_ceremony_state)
+        assert result_new == ["data:image/jpeg;base64,webcam"]  # even again → webcam

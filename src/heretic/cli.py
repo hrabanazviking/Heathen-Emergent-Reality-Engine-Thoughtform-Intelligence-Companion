@@ -275,6 +275,33 @@ async def _async_light(args: argparse.Namespace) -> int:
             )
             sjon = None
 
+    # --- Sjón webcam (v0.5.2): initialise webcam backend if enabled ---
+    # Runs after screen Sjón init; errors are non-fatal — ceremony continues
+    # with screen-only or no vision if webcam cannot initialise.
+    if sjon is not None and grunnr_sjon.webcam.enabled:
+        try:
+            from heretic.sjon.webcam import best_available as webcam_best_available
+            from heretic.sjon.webcam import WebcamNullBackend
+            webcam_backend = webcam_best_available(log, grunnr_sjon.webcam)
+            if not webcam_backend.available():
+                log.warning(
+                    "Webcam configured but unavailable — "
+                    "cv2 not installed or no device at index %d. "
+                    "Degrading to WebcamNullBackend.",
+                    grunnr_sjon.webcam.device_index,
+                )
+                webcam_backend = WebcamNullBackend()
+            sjon._webcam_backend = webcam_backend
+            log.info(
+                "Sjón webcam backend wired (attach_policy=%s, device=%d).",
+                grunnr_sjon.webcam.attach_policy,
+                grunnr_sjon.webcam.device_index,
+            )
+        except Exception as exc:
+            log.warning(
+                "Sjón webcam init failed — ceremony continues without webcam: %s", exc
+            )
+
     # --- Sjón continuous capture: kick off at TENGSL if configured ---
     # Only starts when sjon is available AND continuous mode is enabled in config.
     # On-demand mode (continuous=False) uses snapshot() per turn — no background task.
@@ -309,6 +336,12 @@ async def _async_light(args: argparse.Namespace) -> int:
     # --- Samræður: turn loop ---
     lc.transition(LifecycleState.SAMRAEDUR)
     messages: list[dict] = []
+
+    # Per-ceremony alternate-turn counter for webcam attach_policy="alternate".
+    # Resets at TENGSL (here) — scope is per-ceremony, not global.
+    # Even turns → webcam frame; odd turns → screen frame.
+    # Cartographer invariant: counter is per-ceremony, not per-process.
+    ceremony_state: dict[str, int] = {"alternate_turn": 0}
 
     try:
         while True:
@@ -347,16 +380,23 @@ async def _async_light(args: argparse.Namespace) -> int:
             if user_text.strip().lower() == "/quit":
                 break
 
-            # --- Vision attach (v0.5.1): per-turn frame attach with attach_policy.
+            # --- Vision attach (v0.5.2): per-turn frame attach with attach_policy.
             # Both capability flags must be True:
             #   ?vision_in     — agent capability (from probe): accepts image content.
             #   ?vision_screen — body state (from Sjón init): screen capture available.
             # Frames are only injected when the spirit can receive AND the eye can see.
-            # attach_policy governs which frames to attach in continuous mode:
+            #
+            # Screen attach_policy (sjon.screen.attach_policy):
             #   "none"         — no frames attached (continuous runs but silent)
             #   "latest"       — attach the single most-recent frame from buffer
             #                    (or on-demand snapshot if buffer empty / not continuous)
             #   "all_buffered" — attach all frames currently in ring buffer
+            #
+            # Webcam attach_policy (sjon.webcam.attach_policy, v0.5.2):
+            #   "screen_only"  — webcam suppressed; screen-only (default, backward compat)
+            #   "webcam_only"  — webcam frame only; screen suppressed even if enabled
+            #   "alongside"    — both webcam + screen frames in one turn (highest token cost)
+            #   "alternate"    — even turns webcam, odd turns screen; per-ceremony counter
             image_data_urls: list[str] = []
             if (
                 sjon is not None
@@ -364,22 +404,47 @@ async def _async_light(args: argparse.Namespace) -> int:
                 and client.capability_vision_screen
             ):
                 try:
-                    policy = grunnr_sjon.screen.attach_policy
-                    if policy == "none":
-                        image_data_urls = []
-                    elif policy == "all_buffered" and grunnr_sjon.screen.continuous:
-                        # Return all buffered frames (up to buffer_depth).
-                        image_data_urls = sjon.recent_frames()
-                    elif policy == "latest" and grunnr_sjon.screen.continuous:
-                        # Return the single most-recent buffered frame.
-                        # If the buffer is empty (first tick not yet fired), fall back
-                        # to an on-demand snapshot so the turn is never frameless.
-                        image_data_urls = sjon.recent_frames(n=1)
-                        if not image_data_urls:
+                    webcam_policy = grunnr_sjon.webcam.attach_policy
+
+                    if webcam_policy == "webcam_only":
+                        # Webcam-only: ignore screen entirely for this turn.
+                        image_data_urls = await sjon.snapshot_webcam()
+
+                    elif webcam_policy == "alongside":
+                        # Both: webcam first, then screen.
+                        webcam_urls = await sjon.snapshot_webcam()
+                        screen_urls = await sjon.snapshot()
+                        image_data_urls = webcam_urls + screen_urls
+
+                    elif webcam_policy == "alternate":
+                        # Alternate per ceremony turn: even→webcam, odd→screen.
+                        turn = ceremony_state["alternate_turn"]
+                        if turn % 2 == 0:
+                            image_data_urls = await sjon.snapshot_webcam()
+                        else:
                             image_data_urls = await sjon.snapshot()
+                        ceremony_state["alternate_turn"] = turn + 1
+
                     else:
-                        # On-demand mode (continuous=False) — existing v0.5 path.
-                        image_data_urls = await sjon.snapshot()
+                        # "screen_only" (default) or any unknown policy:
+                        # use the existing screen attach_policy logic (v0.5/v0.5.1 path).
+                        screen_policy = grunnr_sjon.screen.attach_policy
+                        if screen_policy == "none":
+                            image_data_urls = []
+                        elif screen_policy == "all_buffered" and grunnr_sjon.screen.continuous:
+                            # Return all buffered frames (up to buffer_depth).
+                            image_data_urls = sjon.recent_frames()
+                        elif screen_policy == "latest" and grunnr_sjon.screen.continuous:
+                            # Return the single most-recent buffered frame.
+                            # If the buffer is empty (first tick not yet fired), fall back
+                            # to an on-demand snapshot so the turn is never frameless.
+                            image_data_urls = sjon.recent_frames(n=1)
+                            if not image_data_urls:
+                                image_data_urls = await sjon.snapshot()
+                        else:
+                            # On-demand mode (continuous=False) — existing v0.5 path.
+                            image_data_urls = await sjon.snapshot()
+
                 except Exception as exc:
                     # Wrap defensively — snapshot() and recent_frames() never raise
                     # by contract, but we guard the whole block to be safe.
@@ -585,8 +650,14 @@ async def _async_light(args: argparse.Namespace) -> int:
         except Exception as exc:
             log.warning("Error closing Tunga: %s", exc)
 
-    # Close Sjón — release screen capture resources
+    # Close Sjón — release screen + webcam capture resources
     if sjon is not None:
+        # Close webcam backend first (releases OS device handle before Sjón closes)
+        if sjon._webcam_backend is not None:
+            try:
+                sjon._webcam_backend.close()
+            except Exception as exc:
+                log.warning("Error closing Sjón webcam backend: %s", exc)
         try:
             await sjon.close()
         except Exception as exc:
