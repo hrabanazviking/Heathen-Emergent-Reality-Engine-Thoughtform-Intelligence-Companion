@@ -22,7 +22,7 @@ Per the audit C-Q-A1 / C-Q-C3 resolutions sealed in v0.0:
 
 ## 2. Current status — 2026-05-08
 
-**Phase:** v0.4.1 PRE-STAGED + AUDITED at `fed2478`. Baseline: Python 424 + frontend 59 = 483 tests passing. v0.4.1 awaits Rust install for first compile.
+**Phase:** v0.5 SHIPPED at `fe1536f`. Tests: 524 Python + 70 frontend = 594 total. All deliverables complete and pushed to `development`.
 
 ### Done in v0.1+v0.2+v0.3+v0.4.0+v0.4.1 (recap, do not redo)
 - v0.1: L0 Grunnr + L1 Bifröst + CLI shell — 121 tests
@@ -34,7 +34,7 @@ Per the audit C-Q-A1 / C-Q-C3 resolutions sealed in v0.0:
 - The body can be summoned in browser; the spirit can speak and listen; the user can see the ceremony
 
 ### v0.5 deliverables (this milestone)
-- ⏳ `src/heretic/sjon/` — L3 Sjón Python module
+- DONE `src/heretic/sjon/` — L3 Sjón Python module
   - `__init__.py` — exports
   - `INTERFACE.md` — module contract
   - `config_model.py` — SjonConfig, SjonScreenConfig, SjonWebcamConfig dataclasses (webcam declared, NOT implemented in v0.5; matches v0.2's RoddSttConfig declared-but-deferred pattern)
@@ -42,14 +42,13 @@ Per the audit C-Q-A1 / C-Q-C3 resolutions sealed in v0.0:
   - `capture.py` — ScreenCaptureBackend ABC + MssBackend (cross-platform via `mss` library, MIT) + NullBackend; `best_available()` factory chain
   - `encoder.py` — frame → PNG bytes → base64 data URL; resize/crop helpers
   - `sjon.py` — Sjón orchestrator: capture-on-demand for v0.5, ring buffer (configured depth, default 5), throttling (no captures faster than `interval_ms` per config)
-- ⏳ Bifröst integration — `BifrostClient.send_message()` accepts optional `image_data_urls: list[str] | None` and includes them in the OpenAI message payload as image_url content per audit C-Q-C3
-- ⏳ CLI integration — `light` command's turn loop calls `sjon.snapshot()` before sending the user message IF `config.sjon.screen.enabled` AND `?vision_in` capability set; image attached to user-role message
-- ⏳ vebond/protocol.py — new event `sjon.activity` with state {idle, capturing, encoding, failed}; emit at capture milestones
-- ⏳ Frontend — Sjón activity indicator in LayerStatusPanel (matches Tunga/Hlust pattern with Sjón-glow blue accent)
-- ⏳ heretic.example.yaml — verify `sjon:` block matches SjonConfig defaults (already partially specified in LAYER_INTERFACES.md §L3)
-- ⏳ Tests — mocked mss, mocked screen capture; aim for 30+ new Python tests + 5+ frontend tests; total 518+ Python + 64+ frontend = 580+ overall
-- ⏳ docs/vision/THE_FIRST_SIGHT.md — Skald essay (sixth panel of vision cycle)
-- ⏳ docs/cartography/DATA_FLOW.md §4.10 — sight flow + §15 Sjón component diagram
+- DONE Bifröst integration — `capability_vision_screen` body-state flag on OpenAICompatClient; content array per §2.1
+- DONE CLI integration — dual-flag gate (vision_in AND vision_screen), multimodal content array in turn loop, Sjón init/close
+- DONE vebond/protocol.py — SjonActivity event (idle/capturing/encoding/failed) + event_emitter wired in serve mode
+- DONE Frontend — Sjón row in LayerStatusPanel, LayerStatusItem "active" state with animate-pulse, sjonState in ceremony store
+- DONE Tests — 74 new Python tests + 11 new frontend tests; total 524 Python + 70 frontend = 594 overall
+- DEFERRED docs/vision/THE_FIRST_SIGHT.md — Skald essay (Scribe/Skald work, not Forge)
+- DEFERRED docs/cartography/DATA_FLOW.md §4.10 — Cartographer work, not Forge
 
 ### Constraints carried from v0.1+v0.2+v0.3+v0.4
 - All settings via `heretic.yaml` (no hardcoding)

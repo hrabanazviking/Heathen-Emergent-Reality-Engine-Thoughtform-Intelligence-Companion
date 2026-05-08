@@ -1307,3 +1307,16 @@ The choice is Volmarr's. Either path begins from a clean working tree and 483 pa
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-07.*
 *The cabin is cut to fit. The carpenter has not yet arrived. The record holds in the meantime.*
+
+---
+
+## 2026-05-08 — v0.5 First Sight: L3 Sjón shipped (Eldra Járnsdóttir, Forge Worker)
+
+**Session type:** Pure implementation — Forge Worker executing Architect's v0.5 plan  
+**Branch:** `development`  
+**Commits this session:** `6ec4198` (substrate), `2e6b4ad` (Bifröst+CLI), `fe1536f` (frontend)  
+**Tests before / after:** 483 (424 Python + 59 frontend) → 594 (524 Python + 70 frontend) — +111 new tests
+
+Hammer-mark: L3 Sjón is live. The body can see.
+
+*Cross-reference: `TASK_HERETIC_v0.5_FIRST_SIGHT.md`*
