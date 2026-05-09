@@ -10,7 +10,7 @@ Covers:
     - Each source has a non-empty id, title, url, license
     - All URLs are HTTPS (no HTTP)
     - expected_size_bytes is a positive integer for each source
-    - sha256 is None (placeholder) for all sources at scaffold time
+    - sha256 is a sealed 64-character hex string for all sources (locked 2026-05-08)
     - source_ids are unique (no duplicates)
     - get_source() returns the correct LibrarySource or None
     - NorseStarterPackManifest is frozen (immutable)
@@ -20,6 +20,8 @@ Ref: src/heretic/skilningr/mimisbrunnr/manifest.py
 """
 
 from __future__ import annotations
+
+import re
 
 import pytest
 
@@ -94,15 +96,29 @@ class TestNorseStarterPackManifest:
         assert isinstance(source.expected_size_bytes, int)
         assert source.expected_size_bytes > 0
 
+    _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+
     @pytest.mark.parametrize("source_id", EXPECTED_SOURCE_IDS)
-    def test_sha256_is_none_at_scaffold(self, source_id: str) -> None:
-        """SHA-256 hashes are None at scaffold time (Forge fills them after download)."""
+    def test_sha256_is_sealed_hex_string(self, source_id: str) -> None:
+        """SHA-256 hashes are sealed 64-char lowercase hex strings (locked 2026-05-08).
+
+        The manifest was originally scaffolded with sha256=None. Forge computed
+        and locked the hashes from real downloads on 2026-05-08 via
+        scripts/lock_hashes.py. All five hashes must now be present and valid.
+
+        If you see this test fail after a URL replacement: re-run
+        scripts/lock_hashes.py, capture the new digests, update manifest.py,
+        and update the expected values below.
+        """
         source = NORSE_STARTER_PACK.get_source(source_id)
         assert source is not None
-        assert source.sha256 is None, (
-            f"Source {source_id!r} sha256 expected None at scaffold time; "
-            f"got {source.sha256!r}. "
-            "Forge must compute and lock the hash after first verified download."
+        assert source.sha256 is not None, (
+            f"Source {source_id!r} sha256 is None — manifest hashes should be "
+            "locked. Run scripts/lock_hashes.py and update manifest.py."
+        )
+        assert self._SHA256_PATTERN.match(source.sha256), (
+            f"Source {source_id!r} sha256 {source.sha256!r} does not match "
+            "the expected format ^[0-9a-f]{64}$."
         )
 
     def test_get_source_returns_none_for_unknown(self) -> None:

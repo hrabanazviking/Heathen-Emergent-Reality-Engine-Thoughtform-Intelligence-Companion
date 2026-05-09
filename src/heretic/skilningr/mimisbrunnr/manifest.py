@@ -133,7 +133,7 @@ NORSE_STARTER_PACK: NorseStarterPackManifest = NorseStarterPackManifest(
             url="https://www.gutenberg.org/files/18947/18947-0.txt",
             license="Project Gutenberg License — public domain in the USA",
             expected_size_bytes=387_653,
-            sha256=None,  # PLACEHOLDER — Forge fills after first verified download
+            sha256="a46fb8abc9e96c4bf757571f25cf55a1d2999d780271765b9dd54f09f70f8f32",  # locked 2026-05-08
         ),
 
         # ----------------------------------------------------------------
@@ -146,7 +146,7 @@ NORSE_STARTER_PACK: NorseStarterPackManifest = NorseStarterPackManifest(
             url="https://www.gutenberg.org/ebooks/73533.txt.utf-8",
             license="Project Gutenberg License — public domain in the USA",
             expected_size_bytes=977_831,
-            sha256=None,  # PLACEHOLDER — Forge fills after first verified download
+            sha256="50710042c87eb3075c74a9f36cd7dd0ffdc7bd7ba3bb7d5dee0f62db88b28e3c",  # locked 2026-05-08
         ),
 
         # ----------------------------------------------------------------
@@ -159,7 +159,7 @@ NORSE_STARTER_PACK: NorseStarterPackManifest = NorseStarterPackManifest(
             url="https://www.gutenberg.org/ebooks/598.txt.utf-8",
             license="Project Gutenberg License — public domain in the USA",
             expected_size_bytes=1_748_862,
-            sha256=None,  # PLACEHOLDER — Forge fills after first verified download
+            sha256="dc794ff1dbaf88a9fee5172e5594adcb3de79316c4f281508fc3b8a6dd83d6a1",  # locked 2026-05-08
         ),
 
         # ----------------------------------------------------------------
@@ -171,7 +171,7 @@ NORSE_STARTER_PACK: NorseStarterPackManifest = NorseStarterPackManifest(
             url="https://www.gutenberg.org/files/1152/1152-0.txt",
             license="Project Gutenberg License — public domain in the USA",
             expected_size_bytes=330_843,
-            sha256=None,  # PLACEHOLDER — Forge fills after first verified download
+            sha256="b6ecaf400f47608c7497465fe5029268fb57c1a456c5bb99a1633fd6fc04053b",  # locked 2026-05-08
         ),
 
         # ----------------------------------------------------------------
@@ -183,7 +183,7 @@ NORSE_STARTER_PACK: NorseStarterPackManifest = NorseStarterPackManifest(
             url="https://www.gutenberg.org/files/17946/17946-0.txt",
             license="Project Gutenberg License — public domain in the USA",
             expected_size_bytes=79_340,
-            sha256=None,  # PLACEHOLDER — Forge fills after first verified download
+            sha256="6232afa6e0c384eb51d8a32df92fce7ba25cc15382cc9df45e2b0b2edb2b9c42",  # locked 2026-05-08
         ),
     ]
 )
