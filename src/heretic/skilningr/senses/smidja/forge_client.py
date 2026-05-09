@@ -51,6 +51,7 @@ from typing import Any
 from heretic.skilningr.config_model import ForgeConfig
 from heretic.skilningr.senses.smidja.errors import (
     ForgeError,
+    ForgeServerError,
     ForgeTimeoutError,
     ForgeUnreachableError,
     ForgeValidationError,
@@ -228,7 +229,7 @@ class ForgeHttpClient:
             ForgeUnreachableError: on connection failure.
             ForgeTimeoutError: on timeout.
             ForgeValidationError: on HTTP 4xx.
-            ForgeError: on HTTP 5xx.
+            ForgeServerError: on HTTP 5xx.
         """
         assert self._http is not None  # _assert_open() already checked
         try:
@@ -261,7 +262,7 @@ class ForgeHttpClient:
             ForgeUnreachableError: on connection failure.
             ForgeTimeoutError: on timeout.
             ForgeValidationError: on HTTP 4xx.
-            ForgeError: on HTTP 5xx.
+            ForgeServerError: on HTTP 5xx.
         """
         assert self._http is not None
         try:
@@ -474,7 +475,7 @@ def _handle_response(response: "httpx.Response", path: str) -> dict | list:
         - ConnectError → ForgeUnreachableError (raised before we reach here)
         - TimeoutException → ForgeTimeoutError (raised before we reach here)
         - HTTP 4xx → ForgeValidationError
-        - HTTP 5xx → ForgeError("render_failed")
+        - HTTP 5xx → ForgeServerError("render_failed")
         - HTTP 200 → return parsed JSON
 
     Args:
@@ -486,7 +487,7 @@ def _handle_response(response: "httpx.Response", path: str) -> dict | list:
 
     Raises:
         ForgeValidationError: on HTTP 4xx.
-        ForgeError: on HTTP 5xx.
+        ForgeServerError: on HTTP 5xx.
     """
     if response.is_success:
         try:
@@ -511,7 +512,7 @@ def _handle_response(response: "httpx.Response", path: str) -> dict | list:
             f"Straumur rejected request to {path} (HTTP {response.status_code}): {detail}"
         )
 
-    # HTTP 5xx
-    raise ForgeError(
+    # HTTP 5xx — Blender render or pipeline failure on the Forge side
+    raise ForgeServerError(
         f"Straumur render_failed — {path} returned HTTP {response.status_code}: {detail}"
     )

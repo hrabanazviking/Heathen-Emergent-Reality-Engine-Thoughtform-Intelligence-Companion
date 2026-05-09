@@ -27,6 +27,9 @@ from heretic.skilningr.senses.smidja.errors import (
     BrunhandAuthError,
     BrunhandTimeoutError,
     BrunhandUnreachableError,
+    ForgeTimeoutError,
+    ForgeUnreachableError,
+    ForgeValidationError,
 )
 from heretic.skilningr.senses.smidja.tools import SMIDJA_TOOL_DEFINITIONS
 
@@ -426,20 +429,35 @@ async def test_forge_tool_when_forge_not_open_returns_sense_unavailable():
 
 
 @pytest.mark.asyncio
-async def test_forge_tool_when_forge_open_returns_not_implemented_error():
-    """smidja.forge_* tools return SENSE_INTERNAL_ERROR (NotImplementedError) in Wave 1."""
+async def test_forge_build_avatar_routes_to_forge_client_and_returns_session_id():
+    """smidja.forge_build_avatar routes to forge_client.build_avatar and returns session_id."""
     cfg = make_config(enabled=True, forge_enabled=True)
-    sense = make_sense(cfg)
+    fc = make_mock_forge_client()
+    fc.build_avatar = AsyncMock(return_value={
+        "success": True,
+        "session_id": "abc-123-uuid",
+        "request_id": "req-uuid",
+        "vrm_path": None,
+        "render_paths": {},
+        "compliance_passed": None,
+        "elapsed_seconds": 42.0,
+        "errors": [],
+    })
+    sense = make_sense(cfg, forge_client=fc)
     sense._brunhand_open = True
-    sense._forge_open = True  # Forge open but method is still a stub
+    sense._forge_open = True
 
     tc = make_tool_call("smidja.forge_build_avatar", {"loom_spec": {"base_asset_id": "test"}})
     result = await sense.dispatch_tool_call(tc)
 
-    # dispatch_tool_call NEVER raises — NotImplementedError is caught as unexpected exception
+    # dispatch_tool_call NEVER raises — result must be a valid tool_result
     assert result["role"] == "tool"
     content = json.loads(result["content"])
-    assert content["error"] is True
+    # Success path: no error key, session_id present
+    assert "error" not in content or content.get("error") is not True
+    assert content["session_id"] == "abc-123-uuid"
+    # Verify forge_client.build_avatar was actually called with the correct loom_spec
+    fc.build_avatar.assert_called_once_with(loom_spec={"base_asset_id": "test"})
 
 
 # ---------------------------------------------------------------------------
@@ -613,3 +631,244 @@ async def test_dispatch_without_event_emitter_does_not_raise():
     tc = make_tool_call("smidja.screenshot", {})
     result = await sense.dispatch_tool_call(tc)
     assert result["role"] == "tool"
+
+
+# ---------------------------------------------------------------------------
+# Forge routing — S-1 tests (Wave 3 salvage gap plugs)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_smidja_sense_forge_build_avatar_routes_to_forge_client():
+    """forge_build_avatar dispatches to forge_client.build_avatar with correct loom_spec."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    fc = make_mock_forge_client()
+    fc.build_avatar = AsyncMock(return_value={
+        "success": True,
+        "session_id": "sess-uuid-1",
+        "request_id": "req-uuid-1",
+        "vrm_path": None,
+        "render_paths": {},
+        "compliance_passed": None,
+        "elapsed_seconds": 10.0,
+        "errors": [],
+    })
+    sense = make_sense(cfg, forge_client=fc)
+    sense._brunhand_open = True
+    sense._forge_open = True
+
+    tc = make_tool_call("smidja.forge_build_avatar", {"loom_spec": {"base_asset_id": "vroid_base"}})
+    result = await sense.dispatch_tool_call(tc)
+
+    assert result["role"] == "tool"
+    content = json.loads(result["content"])
+    assert content.get("error") is not True
+    assert content["session_id"] == "sess-uuid-1"
+    fc.build_avatar.assert_called_once_with(loom_spec={"base_asset_id": "vroid_base"})
+
+
+@pytest.mark.asyncio
+async def test_smidja_sense_forge_get_avatar_maps_avatar_id_to_session_id():
+    """forge_get_avatar maps tool param 'avatar_id' to forge_client.get_avatar(session_id=...)."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    fc = make_mock_forge_client()
+    fc.get_avatar = AsyncMock(return_value={
+        "session_id": "abc-123",
+        "agent_id": "rest_client",
+        "bridge_type": "straumur",
+        "started_at": None,
+        "ended_at": None,
+        "success": True,
+        "summary": "done",
+        "events": [],
+    })
+    sense = make_sense(cfg, forge_client=fc)
+    sense._brunhand_open = True
+    sense._forge_open = True
+
+    tc = make_tool_call("smidja.forge_get_avatar", {"avatar_id": "abc-123"})
+    result = await sense.dispatch_tool_call(tc)
+
+    assert result["role"] == "tool"
+    content = json.loads(result["content"])
+    assert content.get("error") is not True
+    assert content["session_id"] == "abc-123"
+    fc.get_avatar.assert_called_once_with(session_id="abc-123")
+
+
+@pytest.mark.asyncio
+async def test_smidja_sense_forge_inspect_avatar_maps_avatar_id_to_vrm_path():
+    """forge_inspect_avatar maps tool param 'avatar_id' to forge_client.inspect_avatar(vrm_path=...)."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    fc = make_mock_forge_client()
+    fc.inspect_avatar = AsyncMock(return_value={
+        "passed": True,
+        "vrm_path": "output/x.vrm",
+        "targets_checked": [],
+        "elapsed_seconds": 1.5,
+        "results": {},
+    })
+    sense = make_sense(cfg, forge_client=fc)
+    sense._brunhand_open = True
+    sense._forge_open = True
+
+    tc = make_tool_call("smidja.forge_inspect_avatar", {"avatar_id": "output/x.vrm"})
+    result = await sense.dispatch_tool_call(tc)
+
+    assert result["role"] == "tool"
+    content = json.loads(result["content"])
+    assert content.get("error") is not True
+    assert content["passed"] is True
+    fc.inspect_avatar.assert_called_once_with(vrm_path="output/x.vrm", targets=None)
+
+
+@pytest.mark.asyncio
+async def test_smidja_sense_forge_unreachable_error_returns_external_unavailable_code():
+    """ForgeUnreachableError from forge_client maps to EXTERNAL_APP_UNAVAILABLE error code."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    fc = make_mock_forge_client()
+    fc.build_avatar = AsyncMock(side_effect=ForgeUnreachableError("Straumur down"))
+    sense = make_sense(cfg, forge_client=fc)
+    sense._brunhand_open = True
+    sense._forge_open = True
+
+    tc = make_tool_call("smidja.forge_build_avatar", {"loom_spec": {"base_asset_id": "x"}})
+    result = await sense.dispatch_tool_call(tc)
+
+    assert result["role"] == "tool"
+    content = json.loads(result["content"])
+    assert content["error"] is True
+    assert content["code"] == "EXTERNAL_APP_UNAVAILABLE"
+
+
+@pytest.mark.asyncio
+async def test_smidja_sense_forge_timeout_returns_sense_timeout_code():
+    """ForgeTimeoutError from forge_client maps to SENSE_TIMEOUT error code."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    fc = make_mock_forge_client()
+    fc.build_avatar = AsyncMock(side_effect=ForgeTimeoutError("render timed out"))
+    sense = make_sense(cfg, forge_client=fc)
+    sense._brunhand_open = True
+    sense._forge_open = True
+
+    tc = make_tool_call("smidja.forge_build_avatar", {"loom_spec": {"base_asset_id": "x"}})
+    result = await sense.dispatch_tool_call(tc)
+
+    content = json.loads(result["content"])
+    assert content["error"] is True
+    assert content["code"] == "SENSE_TIMEOUT"
+
+
+@pytest.mark.asyncio
+async def test_smidja_sense_forge_validation_error_returns_invalid_arguments_code():
+    """ForgeValidationError from forge_client maps to INVALID_ARGUMENTS error code."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    fc = make_mock_forge_client()
+    fc.build_avatar = AsyncMock(side_effect=ForgeValidationError("spec missing base_asset_id"))
+    sense = make_sense(cfg, forge_client=fc)
+    sense._brunhand_open = True
+    sense._forge_open = True
+
+    tc = make_tool_call("smidja.forge_build_avatar", {"loom_spec": {}})
+    result = await sense.dispatch_tool_call(tc)
+
+    content = json.loads(result["content"])
+    assert content["error"] is True
+    assert content["code"] == "INVALID_ARGUMENTS"
+
+
+# ---------------------------------------------------------------------------
+# Dual-half availability and lifecycle — S-1 tests
+# ---------------------------------------------------------------------------
+
+def test_smidja_sense_dual_half_both_open_is_available():
+    """is_available is True when both halves are open."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    sense = make_sense(cfg)
+    sense._brunhand_open = True
+    sense._forge_open = True
+    assert sense.is_available is True
+    assert sense.brunhand_available is True
+    assert sense.forge_available is True
+
+
+def test_smidja_sense_dual_half_forge_only_open_is_available():
+    """is_available is True when only Forge half is open."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    sense = make_sense(cfg)
+    sense._brunhand_open = False
+    sense._forge_open = True
+    assert sense.is_available is True
+    assert sense.brunhand_available is False
+    assert sense.forge_available is True
+
+
+def test_smidja_sense_dual_half_brunhand_only_open_is_available():
+    """is_available is True when only Brúarhönd half is open."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    sense = make_sense(cfg)
+    sense._brunhand_open = True
+    sense._forge_open = False
+    assert sense.is_available is True
+    assert sense.brunhand_available is True
+    assert sense.forge_available is False
+
+
+def test_smidja_sense_dual_half_neither_open_not_available():
+    """is_available is False when neither half is open."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    sense = make_sense(cfg)
+    sense._brunhand_open = False
+    sense._forge_open = False
+    assert sense.is_available is False
+
+
+@pytest.mark.asyncio
+async def test_smidja_sense_close_is_idempotent_for_both_halves():
+    """close() can be called twice without raising; both flags are False after."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    sense = make_sense(cfg)
+    # Simulate both halves having been opened
+    sense._brunhand_open = True
+    sense._forge_open = True
+
+    await sense.close()
+    assert sense._brunhand_open is False
+    assert sense._forge_open is False
+
+    # Second close — no error
+    await sense.close()
+    assert sense._brunhand_open is False
+    assert sense._forge_open is False
+
+
+@pytest.mark.asyncio
+async def test_smidja_sense_forge_tool_brunhand_only_open_returns_sense_unavailable():
+    """Forge tool returns SENSE_UNAVAILABLE when only Brúarhönd half is open."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    sense = make_sense(cfg)
+    sense._brunhand_open = True
+    sense._forge_open = False  # Forge half not open
+
+    tc = make_tool_call("smidja.forge_build_avatar", {"loom_spec": {"base_asset_id": "x"}})
+    result = await sense.dispatch_tool_call(tc)
+
+    content = json.loads(result["content"])
+    assert content["error"] is True
+    assert content["code"] == "SENSE_UNAVAILABLE"
+
+
+@pytest.mark.asyncio
+async def test_smidja_sense_brunhand_tool_forge_only_open_returns_sense_unavailable():
+    """Brúarhönd tool returns SENSE_UNAVAILABLE when only Forge half is open."""
+    cfg = make_config(enabled=True, forge_enabled=True)
+    sense = make_sense(cfg)
+    sense._brunhand_open = False  # Brúarhönd half not open
+    sense._forge_open = True
+
+    tc = make_tool_call("smidja.screenshot", {})
+    result = await sense.dispatch_tool_call(tc)
+
+    content = json.loads(result["content"])
+    assert content["error"] is True
+    # SENSE_UNAVAILABLE or a relevant error code
+    assert content["code"] in ("SENSE_UNAVAILABLE", "EXTERNAL_APP_UNAVAILABLE", "SENSE_INTERNAL_ERROR")

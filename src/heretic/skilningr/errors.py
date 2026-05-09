@@ -166,3 +166,18 @@ class ForgeValidationError(ForgeError):
 
     Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
     """
+
+
+class ForgeServerError(ForgeError):
+    """HTTP 5xx response from the Straumur REST bridge — Blender render or pipeline
+    failure on the Forge (Seidr-Smidja) side.
+
+    This is a more specific subclass of ForgeError that distinguishes a server-side
+    failure (pipeline crash, render error, Blender exception) from an unreachable
+    host or a client validation error.
+
+    Raised by ForgeHttpClient._handle_response when response.status_code >= 500.
+
+    Forge should translate this to SENSE_CONTRACTS.md code SENSE_INTERNAL_ERROR.
+    Ref: docs/cartography/DATA_FLOW.md §4.11.9 F-4
+    """
