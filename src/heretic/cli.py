@@ -115,6 +115,10 @@ async def _async_light(args: argparse.Namespace) -> int:
 
     dispatcher: ToolDispatcher | None = None
     smidja_sense: SmidjaSense | None = None
+    # v0.6.2 senses — initialised below at TENGSL if enabled
+    minni_sense: "MinniSense | None" = None  # type: ignore[name-defined]
+    skepja_sense: "SkepjaSense | None" = None  # type: ignore[name-defined]
+    leid_sense: "LeidSense | None" = None  # type: ignore[name-defined]
 
     grunnr_skilningr = cfg.skilningr
     grunnr_smidja = grunnr_skilningr.smidja
@@ -160,6 +164,123 @@ async def _async_light(args: argparse.Namespace) -> int:
             )
             smidja_sense = None
             dispatcher = None
+
+    # --- Skilningr (L5): Minni, Skepja, Leið sense init (v0.6.2) ---
+    # Each sense is initialised independently at TENGSL. Failure of one does not
+    # affect the others or the ceremony. All default enabled=False — operator must
+    # explicitly enable each in heretic.yaml.
+    # If dispatcher is None (Smiðja not enabled), create it here so the new senses
+    # can still register their tools with the agent.
+    from heretic.skilningr.senses.minni.client import MinniClient
+    from heretic.skilningr.senses.minni.sense import MinniSense
+    from heretic.skilningr.senses.skepja.client import SkepjaClient
+    from heretic.skilningr.senses.skepja.sense import SkepjaSense
+    from heretic.skilningr.senses.leid.client import LeidClient
+    from heretic.skilningr.senses.leid.sense import LeidSense
+    from heretic.skilningr.config_model import MinniConfig, SkepjaConfig, LeidConfig
+
+    grunnr_minni = grunnr_skilningr.minni
+    grunnr_skepja = grunnr_skilningr.skepja
+    grunnr_leid = grunnr_skilningr.leid
+
+    # Minni — sandboxed filesystem sense
+    if grunnr_minni.enabled:
+        try:
+            _minni_config = MinniConfig(
+                enabled=grunnr_minni.enabled,
+                allowed_roots=list(grunnr_minni.allowed_roots),
+                max_read_bytes=grunnr_minni.max_read_bytes,
+                max_write_bytes=grunnr_minni.max_write_bytes,
+                follow_symlinks=grunnr_minni.follow_symlinks,
+            )
+            _minni_client = MinniClient(_minni_config, log)
+            minni_sense = MinniSense(_minni_config, _minni_client, log, event_emitter=None)
+            await minni_sense.open()
+            if minni_sense.is_available:
+                if dispatcher is None:
+                    dispatcher = ToolDispatcher()
+                    client._capability_tool_use = True
+                dispatcher.register_sense("minni", minni_sense)
+                log.info(
+                    "Minni sense ready — %d filesystem tools registered.",
+                    len(minni_sense.tool_definitions),
+                )
+            else:
+                log.warning(
+                    "Minni sense enabled but is_available=False after open() — "
+                    "ceremony continues without filesystem tools."
+                )
+        except Exception as exc:
+            log.warning(
+                "Minni init failed — ceremony continues without filesystem tools: %s", exc
+            )
+
+    # Skepja — allowlisted terminal sense
+    if grunnr_skepja.enabled:
+        try:
+            _skepja_config = SkepjaConfig(
+                enabled=grunnr_skepja.enabled,
+                command_allowlist=list(grunnr_skepja.command_allowlist),
+                working_directory=grunnr_skepja.working_directory,
+                timeout_seconds=grunnr_skepja.timeout_seconds,
+                inherit_env=grunnr_skepja.inherit_env,
+                max_output_bytes=grunnr_skepja.max_output_bytes,
+            )
+            _skepja_client = SkepjaClient(_skepja_config, log)
+            skepja_sense = SkepjaSense(_skepja_config, _skepja_client, log, event_emitter=None)
+            await skepja_sense.open()
+            if skepja_sense.is_available:
+                if dispatcher is None:
+                    dispatcher = ToolDispatcher()
+                    client._capability_tool_use = True
+                dispatcher.register_sense("skepja", skepja_sense)
+                log.info(
+                    "Skepja sense ready — %d terminal tools registered.",
+                    len(skepja_sense.tool_definitions),
+                )
+            else:
+                log.warning(
+                    "Skepja sense enabled but is_available=False after open() — "
+                    "ceremony continues without terminal tools."
+                )
+        except Exception as exc:
+            log.warning(
+                "Skepja init failed — ceremony continues without terminal tools: %s", exc
+            )
+
+    # Leið — URL-allowlisted HTTP fetch sense
+    if grunnr_leid.enabled:
+        try:
+            _leid_config = LeidConfig(
+                enabled=grunnr_leid.enabled,
+                url_allowlist_patterns=list(grunnr_leid.url_allowlist_patterns),
+                timeout_seconds=grunnr_leid.timeout_seconds,
+                max_redirects=grunnr_leid.max_redirects,
+                max_response_bytes=grunnr_leid.max_response_bytes,
+                user_agent=grunnr_leid.user_agent,
+                allow_http=grunnr_leid.allow_http,
+            )
+            _leid_client = LeidClient(_leid_config, log)
+            leid_sense = LeidSense(_leid_config, _leid_client, log, event_emitter=None)
+            await leid_sense.open()
+            if leid_sense.is_available:
+                if dispatcher is None:
+                    dispatcher = ToolDispatcher()
+                    client._capability_tool_use = True
+                dispatcher.register_sense("leid", leid_sense)
+                log.info(
+                    "Leið sense ready — %d HTTP fetch tools registered.",
+                    len(leid_sense.tool_definitions),
+                )
+            else:
+                log.warning(
+                    "Leið sense enabled but is_available=False after open() — "
+                    "ceremony continues without HTTP fetch tools."
+                )
+        except Exception as exc:
+            log.warning(
+                "Leið init failed — ceremony continues without HTTP fetch tools: %s", exc
+            )
 
     # --- Tunga: initialise TTS voice if enabled ---
     # Build a full RoddTtsConfig bridging from the grunnr-layer config snapshot.
@@ -635,6 +756,23 @@ async def _async_light(args: argparse.Namespace) -> int:
             await smidja_sense.close()
         except Exception as exc:
             log.warning("Error closing Smiðja sense: %s", exc)
+
+    # Close Minni, Skepja, Leið senses (v0.6.2) — no persistent connections, but be consistent
+    if minni_sense is not None:
+        try:
+            await minni_sense.close()
+        except Exception as exc:
+            log.warning("Error closing Minni sense: %s", exc)
+    if skepja_sense is not None:
+        try:
+            await skepja_sense.close()
+        except Exception as exc:
+            log.warning("Error closing Skepja sense: %s", exc)
+    if leid_sense is not None:
+        try:
+            await leid_sense.close()
+        except Exception as exc:
+            log.warning("Error closing Leið sense: %s", exc)
 
     # Close Hlust first — stop mic capture before we close TTS
     if hlust is not None:
