@@ -22,7 +22,7 @@ The library is **opt-in**. A user who never enables it never downloads a byte. P
 
 **Phase:** v0.7 **SHIPPED + AUDITED + CLEANED** at `d555397` (Wave 3 SHA-256 lock) + Scribe seal commit.
 
-**HEAD (development):** *(Scribe seal commit — see git log)*
+**HEAD (development):** `27568cd`
 **Test count:** Python 1231 passed + 7 skipped + 91 frontend = **1329 total. 0 failures. 0 open findings.**
 
 ### v0.7 deliverables — all complete
