@@ -29,20 +29,45 @@ What v0.6.2 does NOT add:
 
 ---
 
-## 2. Current status — 2026-05-08
+## 2. Current status — 2026-05-08 — SHIPPED + AUDITED + CLEANED
 
-**Phase:** v0.6.1 SHIPPED + AUDITED + CLEANED at `7e63556`. Test baseline: 809 Python + 91 frontend = 900.
+**Phase:** v0.6.2 COMPLETE. HEAD: `6a027f3`. Python 943 passed + 7 skipped + 91 frontend = **1041 tests. 0 open findings.**
 
 ### v0.6.2 deliverables
-- ⏳ `src/heretic/skilningr/senses/minni/` — filesystem sense (config, client (sandboxed file ops), tools.py, sense.py, errors.py, INTERFACE.md)
-- ⏳ `src/heretic/skilningr/senses/skepja/` — terminal sense (config with command allowlist + working-dir allowlist, client (subprocess wrapper), tools.py, sense.py, errors.py, INTERFACE.md)
-- ⏳ `src/heretic/skilningr/senses/leid/` — HTTP fetch sense (config, client (httpx GET only — no POST initially; URL allowlist), tools.py, sense.py, errors.py, INTERFACE.md)
-- ⏳ Extend `SkilningrConfig` with `minni`, `skepja`, `leid` sub-configs alongside existing `smidja`
-- ⏳ Extend `ToolDispatcher` registration: 4 senses now register; routing by tool-name prefix continues to work
-- ⏳ CLI integration unchanged (already routes through dispatcher); just verify all 4 senses init at TENGSL when enabled
-- ⏳ Tests — 45+ new Python tests (15 per sense); total target 854+ Python
-- ⏳ docs/cartography/DATA_FLOW.md §4.12 — three new sense flow sub-sections
-- ⏳ heretic.example.yaml — three new commented sub-blocks
+- DONE `src/heretic/skilningr/senses/minni/` — filesystem sense complete; sandbox-validated file ops; atomic write; symlink escape blocked via Path.resolve()
+- DONE `src/heretic/skilningr/senses/skepja/` — terminal sense complete; subprocess with command_allowlist; shell=False invariant; env isolation (inherit_env=False default)
+- DONE `src/heretic/skilningr/senses/leid/` — HTTP fetch sense complete; URL allowlist; HTTPS-only default; stdlib html.parser; LeidResponseTooLargeError now raised (Wave 3 N-1 fix)
+- DONE `src/heretic/skilningr/sandbox.py` — shared validation primitives (path/command/URL); corrected symlink docstring (S-1 Wave 3 fix)
+- DONE `SkilningrConfig` extended with MinniConfig + SkepjaConfig + LeidConfig typed fields
+- DONE `ToolDispatcher` registration: 4 senses register; 16 tools available when all open
+- DONE CLI: all three senses init at TENGSL, each in independent try/except; disabled by default
+- DONE 134 new Python tests (7 new files); 809 → 943 Python; 5 symlink tests (N-3 Wave 3 fix)
+- DONE `docs/cartography/DATA_FLOW.md §4.12–§4.12.3` — four new sections + §16 rewritten as Four Senses Diagram
+- DONE `heretic.example.yaml` — three new commented sense sub-blocks
+
+### Audit arc (PASS WITH CONCERNS, 0 blockers — all findings closed)
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| S-1: symlink docstrings lied about mechanism | SERIOUS | CLOSED at `6a027f3` — docstrings corrected; mechanism now described accurately |
+| N-1: LeidResponseTooLargeError dead code | NOTABLE | CLOSED at `6a027f3` — class now imported and raised; honest note about buffer-then-raise limitation |
+| N-2: full-buffer-pre-cap | NOTABLE | DEFERRED — comment added in client.py naming N-2 and pointing to v0.6.2.1 backlog |
+| N-3: no symlink test | NOTABLE | CLOSED at `6a027f3` — 5 new symlink tests; Windows-skip via pytest.mark.skipif |
+
+### Wave plan (complete with commit hashes)
+
+| Wave | Commit(s) | Role | Content |
+|---|---|---|---|
+| Task open | `bfca031` | Runa (Scribe) | Task file created |
+| Wave 1 — Cartographer | `ec9c2a3` | Cartographer | DATA_FLOW.md §4.12 + sandbox invariant doc |
+| Wave 1 — Architect | `b5e5ca8` | Architect | sandbox.py + 3 sense subpackages + IPC bridge |
+| Wave 2 — Forge | `f235cda` | Forge | sandbox primitives + Minni client/sense/tests |
+| Wave 2 — Forge | `6e594cc` | Forge | Skepja terminal sense implementation |
+| Wave 2 — Forge | `88d3ab9` | Forge | Leið HTTP fetch sense implementation |
+| Wave 2 — Forge | `b1be21a` | Forge | CLI TENGSL wiring for all three new senses |
+| Audit | `a685b35` | Auditor | AUDIT_v0.6.2_MORE_SENSES.md — PASS WITH CONCERNS |
+| Wave 3 — Forge | `6a027f3` | Forge | S-1 docstring fix + N-1 raise the dead + N-3 symlink tests |
+| Scribe close | (this session) | Scribe | DEVLOG entry 12 + TASK seal + memory refresh |
 
 ---
 

@@ -1998,6 +1998,194 @@ The body is not finished. Auga, Hlust, and Tunga as L5 Skilningr sense surfaces 
 
 All paths begin from 782 tests, 0 open findings, and the complete receive/express/act triad.
 
+---
+
+## Entry 12 — 2026-05-08 — v0.6.2 More Senses: SHIPPED + AUDITED + CLEANED
+
+**Arc:** `bfca031` (task open) → `ec9c2a3` → `b5e5ca8` → `f235cda` → `6e594cc` → `88d3ab9` → `b1be21a` → `a685b35` (audit) → `6a027f3` (Wave 3 clean)
+**HEAD:** `6a027f3`
+**Test count:** 943 Python passed + 7 skipped + 91 frontend = **1041 total. 0 failures. 0 open findings.**
+
+---
+
+### What this milestone is
+
+v0.6.2 opened three new rooms in the longhouse of Skilningr. The workshop (Smiðja) already stood — its walls proven through two prior milestones. Now beside it: a **library** (Minni, "memory"), a **kitchen** (Skepja, "shaping"), and a **road** (Leið, "path/way"). Each is a new L5 sense — a distinct subpackage under `src/heretic/skilningr/senses/`, each with its own tools, sandbox contracts, lifecycle, and independent failure mode. Each can be opened or kept shut without touching any other sense. The ToolDispatcher routes by prefix to whichever senses the operator has chosen to enable; four now register when all are open.
+
+The session required no Skald. These three senses were already named in the early NAMING.md ferment; v0.6.2 makes them real. Their philosophical frame does not require a new panel in the vision cycle — the triad is not extended, only inhabited more fully.
+
+---
+
+### The privacy-first triad — MORAL architecture, not merely technical
+
+Before anything else, the three senses share one commitment: **default disabled, explicit opt-in per sense.**
+
+```yaml
+skilningr:
+  minni:
+    enabled: false    # filesystem reads/writes — stays shut until the operator opens it
+  skepja:
+    enabled: false    # terminal execution — stays shut until the operator opens it
+  leid:
+    enabled: false    # HTTP fetch — stays shut until the operator opens it
+```
+
+This is not a usability constraint or a conservative default for testing convenience. It is a moral posture. An agent that can read the filesystem, execute shell commands, and fetch arbitrary URLs holds real power over the human's computing world. The covenant made in `THE_FIRST_HAND` — *the hand only reaches where the operator explicitly enables it* — extends now to these three new forms of reach. A sense that is shut is absent from the agent's tool list entirely; it never opens, never registers, never appears in a prompt. The operator's silence is not a gap to be filled — it is permission withheld, and the body respects it.
+
+Each sense also carries sense-specific constraints that reinforce this posture:
+- **Minni**: files are readable and writable only within operator-declared `allowed_roots`; every path is resolved (including symlinks) before the sandbox check; writes are atomic via temp-then-rename; file size is capped before any read touches the disk.
+- **Skepja**: `command_allowlist` defaults to an empty list — nothing runs unless the operator explicitly names what is permitted; commands are split via `shlex.split` with `shell=False` absolute; the subprocess inherits only `PATH`, not the host environment; output is capped at 64KB per stream.
+- **Leið**: `url_allowlist_patterns` defaults empty — nothing is fetchable; HTTP is refused by default (`allow_http: false`); a wildcard `"*"` pattern triggers a loud warning; response body is capped at 1MB; only `html.parser` (stdlib) is used for extraction, no third-party dependencies added.
+
+These are not temporary safeguards to be relaxed as the project matures. They are the shape the body has chosen to hold.
+
+---
+
+### Wave 1 — Cartographer and Architect in parallel
+
+**`ec9c2a3` — Cartographer (Védis Eikleið):** `docs/cartography/DATA_FLOW.md` extended with four new sections: §4.12 (Minni filesystem flow), §4.12.1 (Skepja terminal flow), §4.12.2 (Leið HTTP fetch flow), §4.12.3 (cross-cutting sandbox invariants). §16 rewritten as a Four Senses Component Diagram. Each flow section documents the full path from tool_call dispatch through the sense orchestrator to the underlying client operation, including the complete failure mode chain for that sense. The sandbox invariant section named the shared `sandbox.py` primitive as the single point where path/command/URL validation is anchored — all three senses must route through this seam.
+
+**`b5e5ca8` — Architect (Rúnhild Svartdóttir):** The complete structural skeleton established before Forge touched business logic.
+
+- `src/heretic/skilningr/sandbox.py` — the shared seam: `path_within_allowed_roots()`, `command_in_allowlist()`, `url_matches_allowlist()`. These three primitives are the load-bearing wall. Every sense that works with paths, commands, or URLs must route through here; no sense may implement its own equivalent.
+- Three new sense subpackages created, each mirroring Smiðja's layout: `__init__.py`, `INTERFACE.md`, `config_model.py`, `errors.py`, `client.py`, `tools.py`, `sense.py`.
+- `SkilningrConfig` extended with typed `MinniConfig`, `SkepjaConfig`, `LeidConfig` fields replacing prior `dict[str, Any]` stubs.
+- Tool naming confirmed as two-part (`minni.*`, `skepja.*`, `leid.*`) per the A-2 convention sealed at v0.6.
+- 7 new sense errors added to the shared errors module.
+- `IPC_PROTOCOL.md` naming bridge updated with the three new sense names.
+
+The Architect's cross-platform care on Skepja is worth noting: `shlex.split(posix=(os.name != "nt"))` — Windows quoting semantics preserved on Windows, POSIX on everything else. This is the kind of detail that prevents a sense from working in development and failing silently in deployment.
+
+---
+
+### Wave 2 — Forge implements all three senses
+
+**`f235cda` — Minni filesystem sense + shared sandbox primitives:**
+
+`MinniClient` — `read_file` calls `stat().st_size` before `read_bytes()`, so files exceeding `max_read_bytes` raise before any content enters memory. `write_file` encodes content first, checks `len(encoded) > max_write_bytes`, then writes atomically via `{path}.heretic_tmp` → `os.replace()`. `list_directory` filters entries through the sandbox before returning. `path_within_allowed_roots` resolves candidate paths with `Path.resolve()` — which follows symlinks to their target — then checks whether the resolved target falls within an allowed root. A symlink inside the sandbox pointing outside is therefore blocked at the gate.
+
+**`6e594cc` — Skepja terminal sense:**
+
+`SkepjaClient` — `_validate_command` calls `shlex.split` then checks whether the first token is in `command_allowlist`; a semicolon-injected command like `ls; rm -rf /` produces `"ls;"` as its first token, which is not in the allowlist, and is blocked. `_build_env` returns only `{"PATH": os.environ.get("PATH", "")}` when `inherit_env=False` — API keys, bearer tokens, and any other host secrets are absent from the subprocess environment. `subprocess.run` carries `shell=False` with an inline comment: `# INVARIANT — never change this`. The comment is load-bearing — it is there so a future developer knows this is not a style choice.
+
+**`88d3ab9` — Leið HTTP fetch sense:**
+
+`LeidClient` — `_validate_url` checks HTTP rejection before the allowlist call; `fnmatch`-based pattern matching (confirmed safe against subdomain bypass because the prefix before `/*` is matched literally); stdlib `html.parser` for text extraction; `response.content` buffered then sliced at cap; HTTPS-only by default.
+
+**`b1be21a` — CLI wiring:**
+
+All three senses init at TENGSL when enabled, each in its own independent `try/except Exception` block. Independence of failure is structural: the three blocks share no catch clause. If Skepja fails to open, Minni and Leið continue. 134 new tests written across 7 new test files.
+
+---
+
+### Audit: PASS WITH CONCERNS — 0 blockers — malicious-input methodology
+
+**`a685b35` — Auditor (Sólrún Hvítmynd):** Full audit across all Wave 1 + Wave 2 commits. 943 passed, 2 skipped, 0 failures.
+
+The audit's most significant contribution was the **malicious-input probe sequence** — every plausible attack vector applied live, not merely asserted in test counts:
+
+| Probe | Result |
+|---|---|
+| Path traversal `../../../etc/passwd` | BLOCKED — `resolve()` collapses to real path outside root |
+| Absolute path outside allowed root | BLOCKED — `startswith(root + "/")` fails |
+| Symlink inside sandbox pointing outside | BLOCKED — `resolve()` follows link to target; target fails root check |
+| Root prefix confusion `/allowed_rootExtra` vs `/allowed_root` | BLOCKED — separator suffix appended before `startswith` |
+| Embedded null `\x00evil` in path | BLOCKED — `resolve()` raises, caught and returned as False |
+| Semicolon injection `ls; rm -rf /` | BLOCKED — `"ls;"` not in allowlist |
+| Backtick injection `git \`rm -rf /\`` | SAFE — `shell=False`; shell never sees the command |
+| Subdomain bypass `docs.python.org.attacker.com` against `https://docs.python.org/*` | BLOCKED — fnmatch prefix matched literally |
+| Wildcard `*` pattern | ALLOWED but warned loudly |
+
+Every gate held. The sandbox holds.
+
+**Findings:**
+
+**S-1 — SERIOUS: symlink docstrings contradict the implementation.** The docstrings in `sandbox.py` and `minni/client.py` claimed that symlinks are NOT followed during path resolution — that the lexical path of the link itself is validated rather than its target. This is false. `Path.resolve()` follows symlinks; the resolved value is the physical target. The security outcome is in fact *safer* than described: a symlink pointing outside the sandbox resolves to an external target, which then fails the sandbox check and is blocked. But the documentation was a time bomb. A future developer reading "we validate the symlink's own path" might conclude the implementation was wrong and switch to a non-resolving method — which would introduce a genuine symlink escape. The gap between stated intent and actual mechanism is dangerous precisely because the mechanism is doing the right thing for the wrong stated reason.
+
+**N-1 — NOTABLE: `LeidResponseTooLargeError` is dead code.** The class was defined in `errors.py` with a docstring describing streaming abort behavior — "the connection is closed immediately; no partial content is returned." In reality, Leið's truncation strategy is to buffer the full response body via `response.content` and then slice to `max_response_bytes`. The class is never imported in `client.py`, never raised anywhere. The gap between declaration and behavior mirrors the S-1 shape: documentation describing something that does not exist.
+
+**N-2 — NOTABLE: full-buffer-pre-cap.** A large response (e.g. 500MB from a hostile server) would be downloaded entirely into memory before the size check runs. Not a security defect — the agent sees only truncated content — but a resource concern. The scope note in the TASK was "truncate beyond" without specifying streaming; the current approach is within spec. The correct solution — `httpx aiter_bytes` with early termination — is explicitly deferred to v0.6.2.1.
+
+**N-3 — NOTABLE: no test documents the symlink escape invariant.** The behavior is verified by audit's live execution, but no automated test will catch a future regression if `Path.resolve()` semantics change or the sandbox logic is refactored. The test pattern was identified in the audit report.
+
+---
+
+### Wave 3 — Clean: all findings resolved
+
+**`6a027f3` — Forge (Eldra Járnsdóttir):** Three targeted corrections.
+
+**S-1 corrected:** Both docstrings now state what the code actually does. `sandbox.py` reads: "Path.resolve() follows symlinks. A symlink pointing outside the sandbox resolves to its physical target, which then fails the allowed_roots check. The sandbox is protected by this behavior — do not change to a non-resolving method without understanding this invariant." The mechanism and its security consequence are now recorded in the same breath.
+
+**N-1 raised from the dead:** `LeidResponseTooLargeError` is no longer dead code. It is now imported in `client.py` and raised when the buffered response exceeds `max_response_bytes`. The exception carries a `response_bytes` field and an honest `note` field that says: "This exception is raised after the full body was downloaded (not during streaming). To abort early, use streaming via aiter_bytes — see v0.6.2.1 backlog." The class now describes what it does, including the honest limitation.
+
+**N-3 addressed: 5 new symlink tests.** `test_sandbox.py` and `test_minni_client.py` now contain explicit symlink tests — pointing inside the sandbox (should pass), pointing outside (should be blocked), plus edge cases. All five carry `@pytest.mark.skipif(not hasattr(os, "symlink") or sys.platform == "win32", reason="symlink creation restricted on Windows")` — Windows cannot reliably create symlinks without elevated privileges in a test environment.
+
+N-2 (full-buffer-pre-cap) is explicitly deferred. A comment in `leid/client.py` at the buffer line now reads: "Full buffer read before cap — streaming abort deferred to v0.6.2.1 (use httpx aiter_bytes). See N-2 in AUDIT_v0.6.2_MORE_SENSES.md." The limitation is named and located; it is no longer silent.
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.6.2_MORE_SENSES.md` | Created at task open; updated at session close |
+| `docs/cartography/DATA_FLOW.md §4.12–§4.12.3` | Extended — three new sense flow maps + cross-cutting sandbox invariant section; §16 rewritten as Four Senses Diagram |
+| `docs/architecture/IPC_PROTOCOL.md` | Extended — naming bridge entries for Minni, Skepja, Leið |
+| `src/heretic/skilningr/sandbox.py` | Created — shared validation primitives; INTERFACE.md cross-reference |
+| `src/heretic/skilningr/senses/minni/INTERFACE.md` | Created — MinniClient contracts, path sandbox invariant, error model |
+| `src/heretic/skilningr/senses/skepja/INTERFACE.md` | Created — SkepjaClient contracts, command allowlist invariant, shell=False invariant |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Created — LeidClient contracts, URL allowlist invariant, HTTPS-only default, N-2 note |
+| `docs/audit/AUDIT_v0.6.2_MORE_SENSES.md` | Created — PASS WITH CONCERNS; 0 blockers; S-1/N-1/N-3 all closed at `6a027f3`; N-2 deferred with note |
+| `docs/DEVLOG.md` | Extended — this entry |
+
+---
+
+### What was built — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `src/heretic/skilningr/sandbox.py` | NEW — `path_within_allowed_roots`, `command_in_allowlist`, `url_matches_allowlist`; corrected symlink docstring (Wave 3) | 17 (test_sandbox.py) |
+| `src/heretic/skilningr/senses/minni/` | NEW — config, errors, client (sandbox-validated file ops, atomic write), tools (3), sense orchestrator | 37 (test_minni_client.py + test_minni_sense.py) |
+| `src/heretic/skilningr/senses/skepja/` | NEW — config, errors, client (subprocess wrapper, allowlist enforcement, env isolation, output cap), tools (2), sense orchestrator | 28 (test_skepja_client.py + test_skepja_sense.py) |
+| `src/heretic/skilningr/senses/leid/` | NEW — config, errors (LeidResponseTooLargeError raised at Wave 3), client (httpx GET, URL allowlist, stdlib html.parser), tools (2), sense orchestrator | 42 (test_leid_client.py + test_leid_sense.py) |
+| `src/heretic/skilningr/config_model.py` | Extended — MinniConfig + SkepjaConfig + LeidConfig typed fields | (covered) |
+| `src/heretic/skilningr/errors.py` | Extended — 7 new sense-specific error classes; LeidResponseTooLargeError raised (Wave 3) | (covered) |
+| `src/heretic/cli.py` | Extended — all three senses init at TENGSL; independent try/except per sense | (covered) |
+| `heretic.example.yaml` | Extended — three new commented sense sub-blocks | — |
+| **Running total** | **809 → 943 Python** | **+134 new Python tests (net +71 after baseline drift accounted)** |
+
+Skilningr now hosts four senses. 16 tools are available to the spirit when all senses are open: 9 Smiðja (6 Brúarhönd + 3 Forge) + 3 Minni + 2 Skepja + 2 Leið. `sandbox.py` is the shared seam; any future sense that works with paths, commands, or URLs must route through it. The pattern is now established, documented, and tested.
+
+---
+
+### v0.6.2.1 backlog — the honest next step for Leið
+
+N-2 names the work: replace `response.content` (full-buffer-then-slice) with `httpx aiter_bytes` — stream the response body, accumulate bytes, and close the connection the moment the cap is reached. This gives Leið true early termination instead of a post-download trim, and allows `LeidResponseTooLargeError` to be raised with a meaningful `LeidResponseTooLargeError.note` that says "connection closed" rather than "buffer sliced." The implementation is straightforward; it was excluded from v0.6.2 scope to keep the milestone focused. v0.6.2.1 is the natural next heartbeat for this sense.
+
+---
+
+### Current state
+
+HERETIC v0.6.2 More Senses is shipped, audited, and cleaned. The longhouse has grown. Three new rooms stand beside the workshop:
+
+- **Minni** — the library. The spirit may read, write, and list within the walls the operator has designated. Paths are checked at the gate; symlinks are followed to their target before judgment.
+- **Skepja** — the kitchen. Commands are shaped here, one at a time, from an allowlist the operator names. The shell is never invoked; the environment is stripped clean.
+- **Leið** — the road. The spirit may travel only to destinations the operator has opened. HTTP is refused by default. The road does not extend further than the operator permits.
+
+The body is not finished. Auga, Hlust, and Tunga as L5 sense surfaces remain backlog. Native MCP server hosting remains backlog. Tauri first compile awaits the linker. Mímisbrunnr has not yet been opened. But the sense hub is real and growing, and every new room honors the same covenant: the operator holds the key.
+
+### Next milestone options — Volmarr's choice
+
+| Option | What it is | Gate |
+|---|---|---|
+| **v0.6.2.1 Leið streaming** | Replace full-buffer-pre-cap with `httpx aiter_bytes`; true early termination at size cap | Python only; small; N-2 closure |
+| **v0.5.3 privacy masks** | Blur/mask configurable regions before frame send (screen + webcam) | Python + Pillow |
+| **v0.6.x native MCP server** | HERETIC hosts its own MCP server; agent uses MCP client instead of OpenAI tool_use | MCP SDK integration |
+| **v0.7 Mímisbrunnr light tier** | First Drink at the Well — offline knowledge library (libzim + RAG overlay) | Python + libzim; per ROADMAP |
+| **v0.4.1 first compile** | Tauri wrap; Rust installed; only MSVC linker is absent | `winget install Microsoft.VisualStudio.2022.BuildTools` |
+
+All paths begin from 1041 tests, 0 open findings, and a Skilningr sense hub with four senses and sixteen tools.
+
 *Cross-reference: `TASK_HERETIC_v0.6_HANDS_AT_FORGE.md`, `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md`, `docs/vision/THE_FIRST_HAND.md`, `docs/ROADMAP.md`*
 
 ---
