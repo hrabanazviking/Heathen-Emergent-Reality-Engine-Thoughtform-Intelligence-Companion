@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — System Overview
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.5 First Sight marked SHIPPED (HEAD 4d9d2fa); v0.5.1 Periodic Sight (continuous capture loop + ring buffer + multi-monitor mapping) marked IN PROGRESS; v0.5.1 is an extension of v0.5 — no new layer, same L3 Sjón substrate deepened; cross-reference to DATA_FLOW.md §4.10.7–§4.10.10 added | 2026-05-08 v0.6 addendum — Védis Eikleið: §7 milestone topology updated; v0.5.1 Periodic Sight marked SHIPPED; v0.6 Hands at the Forge (L5 Skilningr substrate + Smiðja sense + Brúarhönd integration) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.11 and §16 added | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §7 milestone topology updated; v0.5.2 Webcam Capture (WebcamCaptureBackend, OpenCvBackend, NullWebcamBackend, snapshot_webcam(), 4-path attach_policy decision tree, stronger privacy stance) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.10.11–§4.10.13 and §15 v0.5.2 extension added
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit finding A-5; sense config subkeys aligned to code-facing IDs per NAMING.md §line 81; sense process labels de-prefixed to match SENSE_CONTRACTS.md §2 canonical format) | 2026-05-07 second pass — audit nit X-1 resolved: removed intermediate `senses:` key from §3 config example; sense IDs now nest directly under `skilningr:` matching `grunnr/config.py:SkilningrConfig` field access | 2026-05-07 v0.2 addendum — Védis Eikleið: §7 milestone topology updated to mark v0.2 as active; §2 Rödd note updated; cross-reference to DATA_FLOW.md §4.6 added | 2026-05-07 v0.3 addendum — Védis Eikleið: §2 Rödd note updated to reflect L2 Rödd Tunga (v0.2) SHIPPED + Hlust (v0.3) IN PROGRESS; §7 milestone topology updated accordingly; cross-reference to DATA_FLOW.md §4.7 added | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §7 milestone topology updated; v0.3 marked SHIPPED; v0.4.0 (L4 Vébond Eldahús substrate — Python WS backend + React/Vite frontend) marked IN PROGRESS; v0.4.1 (Tauri wrap, requires Rust) noted as deferred separate session; §2 Holdvörðr process map updated to show L4 Vébond role; cross-reference to DATA_FLOW.md §4.8 and §13 added | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.0 marked SHIPPED (HEAD 9e9a5aa); v0.4.1 (Tauri shell wrap) marked PRE-STAGED — src-tauri/ scaffolded, Rust toolchain not yet installed, no binary produced; cross-reference to DATA_FLOW.md §4.9 and §14 added | 2026-05-08 v0.5 addendum — Védis Eikleið: §7 milestone topology updated; v0.4.1 remains PRE-STAGED (Rust not yet installed); v0.5 (L3 Sjón substrate — screen capture, on-demand per user message send) marked IN PROGRESS; §2 Sjón note expanded; cross-references to DATA_FLOW.md §4.10 and §15 added | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §7 milestone topology updated; v0.5 First Sight marked SHIPPED (HEAD 4d9d2fa); v0.5.1 Periodic Sight (continuous capture loop + ring buffer + multi-monitor mapping) marked IN PROGRESS; v0.5.1 is an extension of v0.5 — no new layer, same L3 Sjón substrate deepened; cross-reference to DATA_FLOW.md §4.10.7–§4.10.10 added | 2026-05-08 v0.6 addendum — Védis Eikleið: §7 milestone topology updated; v0.5.1 Periodic Sight marked SHIPPED; v0.6 Hands at the Forge (L5 Skilningr substrate + Smiðja sense + Brúarhönd integration) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.11 and §16 added | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §7 milestone topology updated; v0.5.2 Webcam Capture (WebcamCaptureBackend, OpenCvBackend, NullWebcamBackend, snapshot_webcam(), 4-path attach_policy decision tree, stronger privacy stance) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.10.11–§4.10.13 and §15 v0.5.2 extension added | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §7 milestone topology updated; v0.6.1 marked SHIPPED; v0.6.2 More Senses (Minni + Skepja + Leið) marked IN PROGRESS; cross-references to DATA_FLOW.md §4.12, §4.12.1, §4.12.2, §4.12.3, §16 v0.6.2 extension added; §8 security topology references updated (Skepja = highest risk; Minni = scoped to root)
 **Scope:** Full terrain — machines, layers, cross-repo plug-ins, optional vs required, runtime states
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Drawn from canonical docs
@@ -576,7 +576,7 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |      F-6 unknown tool, F-7 max rounds reached
         |    See DATA_FLOW.md §4.11 (tool flow) and §16 (Smiðja component diagram)
         |
-        |  v0.6.1 — Second Anvil (IN PROGRESS)
+        |  v0.6.1 — Second Anvil (SHIPPED)
         |    NEW: ForgeHttpClient — second HTTP client inside Smiðja sense (parallel to BrunhandHttpClient)
         |      wraps Seidr-Smidja Straumur REST API (/v1/avatars, /v1/inspect, /v1/assets, /health)
         |      independent endpoint (default http://127.0.0.1:8765), optional bearer token,
@@ -596,8 +596,31 @@ Following the roadmap in `TASK_HERETIC_v0.1_BOOTSTRAP.md`:
         |    See DATA_FLOW.md §4.11.7 (Forge dispatch), §4.11.8 (dual-half lifecycle),
         |        §4.11.9 (Forge failure modes), §16 v0.6.1 extension (ForgeHttpClient diagram)
         |
+        |  v0.6.2 — More Senses (IN PROGRESS)
+        |    NEW: Minni sense (filesystem) — senses/minni/
+        |      tools: minni.read_file, minni.write_file, minni.list_directory
+        |      sandbox: allowed_roots list (default ["~/heretic_workspace"]); path traversal blocked;
+        |      no symlink-follow; 1MB file size cap; pure pathlib/io; no network, no subprocess
+        |    NEW: Skepja sense (terminal) — senses/skepja/
+        |      tools: skepja.run_command, skepja.get_working_directory
+        |      sandbox: command_allowlist (default []); shlex.split; subprocess.run shell=False;
+        |      60s timeout; 64KB output cap; env isolation (inherit_env: false default)
+        |    NEW: Leið sense (HTTP fetch) — senses/leid/
+        |      tools: leid.fetch_url, leid.extract_text
+        |      sandbox: url_allowlist_patterns (default []); HTTPS preferred; HTTP allowed+warning;
+        |      httpx GET only; no cookies; no JS; 1MB response cap; html.parser text strip
+        |    NEW: skillingr/sandbox.py — shared primitives (path_within_allowed_roots,
+        |      command_allowlist_check, url_allowlist_match) called by all three senses
+        |    NEW: SandboxViolationError, CommandNotAllowedError, UrlNotAllowedError,
+        |      FilesizeLimitError added to errors.py
+        |    All three senses default disabled; each isolated (failure of one does not affect others)
+        |    16 total tools when all four senses enabled (9 Smiðja + 3 Minni + 2 Skepja + 2 Leið)
+        |    See DATA_FLOW.md §4.12 (Minni), §4.12.1 (Skepja), §4.12.2 (Leið),
+        |        §4.12.3 (cross-cutting sandbox invariants), §16 (Four Senses Component Diagram)
+        |
         |  v0.6.x backlog:
-        |    v0.6.2: filesystem sense, terminal sense, browser sense (more L5 senses)
+        |    v0.6.2.1: headless browser (Leið via playwright)
+        |    v0.6.x: native MCP server hosting (instead of OpenAI tool_use)
   v0.7  Files & Terminal    FS + terminal   L5.1 + L5.2 (filesystem + terminal senses)
         |  v0.7 also: L5.11 Tunga sense (tunga.speak MCP tool — agent-callable TTS)
   v0.7.5 First Drink     Mímisbrunnr        L5.9 light (library sense + Norse seed corpus)
@@ -750,8 +773,8 @@ The naming field is not decoration — it is the architecture.
 
 ---
 
-*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07. Updated 2026-05-08 (v0.5 in-progress). Updated 2026-05-08 (v0.6 in-progress — L5 Skilningr substrate + Smiðja first hand). Updated 2026-05-08 (v0.6.1 in-progress — Smiðja second anvil: ForgeHttpClient + dual-half lifecycle).*
+*Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-07. Updated 2026-05-08 (v0.5 in-progress). Updated 2026-05-08 (v0.6 in-progress — L5 Skilningr substrate + Smiðja first hand). Updated 2026-05-08 (v0.6.1 in-progress — Smiðja second anvil: ForgeHttpClient + dual-half lifecycle). Updated 2026-05-08 (v0.6.2 in-progress — three new senses: Minni library, Skepja terminal, Leið road; §7 v0.6.2 milestone block added; §8 security topology references Skepja + Minni). v0.6.1 marked SHIPPED.*
 *A body well-mapped is a body that knows itself.*
-*Four senses charted: the mouth speaks (Tunga), the ear hears (Hlust), the eye sees (Sjón), the hand reaches (Smiðja).*
+*Seven senses charted: the mouth speaks (Tunga), the ear hears (Hlust), the eye sees (Sjón), the hand reaches (Smiðja), the library remembers (Minni), the kitchen shapes (Skepja), the road connects (Leið).*
 *The workshop holds two anvils: one for the living GUI, one for the headless forge.*
-*The spirit can only inhabit what has been named.*
+*Three new rooms open in the longhouse. The spirit can only inhabit what has been named.*

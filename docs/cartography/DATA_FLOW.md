@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS.
+**Last updated:** 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -4823,6 +4823,756 @@ is empty and tool calls can never arrive.
 
 ---
 
+---
+
+#### 4.12 Minni filesystem flow (v0.6.2)
+
+> **Added 2026-05-08 v0.6.2 (Védis Eikleið).** The library opens beside the workshop.
+> Minni ("memory") is HERETIC's filesystem sense — it lets the agent read, write, and list
+> files within operator-configured roots without touching any path outside them.
+> Minni is a sibling sense to Smiðja inside L5 Skilningr; it registers with the same
+> ToolDispatcher under the prefix "minni". All three operations are synchronous stdlib only
+> (pathlib + io) — no network, no subprocess, no external dependency beyond Python itself.
+
+```
+  MINNI FILESYSTEM FLOW
+
+  Step 1 — tool_call arrives at ToolDispatcher
+    tool_call.name begins with "minni." (e.g., "minni.read_file")
+    ToolDispatcher.dispatch() → routes to MinniSense.dispatch_tool_call(tool_call)
+    (same two-part prefix routing used by Smiðja)
+
+  Step 2 — argument parse
+    MinniSense parses tool_call.arguments_json
+    e.g., { "path": "reports/summary.md" } for read_file
+    e.g., { "path": "notes/draft.txt", "content": "..." } for write_file
+    e.g., { "path": "reports/" } for list_directory
+
+  Step 3 — sandbox check (path_within_allowed_roots)
+    Called from skillingr/sandbox.py; shared across all senses.
+
+    def path_within_allowed_roots(raw_path: str, allowed_roots: list[str]) -> Path:
+      p = Path(raw_path).expanduser().resolve()
+      for root in allowed_roots:
+        r = Path(root).expanduser().resolve()
+        IF p == r OR r in p.parents:
+          RETURN p
+      RAISE SandboxViolationError(f"Path {raw_path!r} is outside all allowed roots")
+
+    Invariants enforced during this step:
+      (a) Path traversal blocked: `../` sequences collapse during .resolve() and the
+          post-resolution check catches any attempt to escape the root tree.
+      (b) Absolute paths outside allowed_roots are rejected at the root-membership check.
+      (c) Symlink non-follow: validation uses the raw resolved path of the SYMLINK itself,
+          not the target it points to. A symlink inside an allowed root that points outside
+          the root is caught because Path.resolve() follows the link and the resulting
+          target path will fail the root-membership check. The inverse is also safe: a
+          symlink outside an allowed root pointing inside is rejected because the symlink's
+          own resolved path is outside the root. In both cases, validation is against the
+          path supplied by the caller, resolved without trusting its symlink destination to
+          stay inside the root boundary.
+      (d) allowed_roots default ["~/heretic_workspace"] — operator must explicitly extend.
+
+  Step 4 — IO operation
+    read_file:
+      f = validated_path.open("r", encoding="utf-8")
+      data = f.read(max_bytes + 1)    # max_bytes = 1_048_576 (1 MB default)
+      IF len(data) > max_bytes:
+        data = data[:max_bytes]
+        truncated = True
+      RETURN {"content": data, "truncated": truncated}
+
+    write_file:
+      validated_path.parent.mkdir(parents=True, exist_ok=True)
+      f = validated_path.open("w", encoding="utf-8")
+      IF len(content_bytes) > max_bytes:  RAISE FilesizeLimitError
+      f.write(content)
+      RETURN {"written": True, "path": str(validated_path)}
+
+    list_directory:
+      entries = [
+        {"name": e.name, "type": "file" | "dir", "size_bytes": e.stat().st_size}
+        for e in validated_path.iterdir()
+      ]
+      RETURN {"entries": entries, "count": len(entries)}
+
+  Step 5 — encoded result returned to ToolDispatcher
+    MinniSense wraps the IO result in a ToolResult:
+      content = json.dumps(result_dict)
+    ToolResult is always returned — MinniSense never raises to ToolDispatcher.
+    On any MinniError subclass: ToolResult with error JSON content; turn continues.
+```
+
+```
+  MINNI CONFIG (MinniConfig — sub-block of SkilningrConfig)
+
+    skilningr:
+      minni:
+        enabled: false              # opt-in; default false
+        allowed_roots:
+          - "~/heretic_workspace"   # default single root; operator extends
+        max_file_size_bytes: 1048576  # 1 MB; applies to both read and write
+```
+
+```
+  PRIVACY INVARIANTS — MINNI
+
+  I-1 Disabled by default
+    enabled: false until operator explicitly sets enabled: true in heretic.yaml.
+    If disabled: MinniSense is not mounted; ToolDispatcher has no "minni" key;
+    agent receives no minni.* tool definitions.
+
+  I-2 allowed_roots is the hard boundary
+    No file operation is performed on any path that fails path_within_allowed_roots().
+    The check runs BEFORE any file handle opens. There is no code path that reads or
+    writes outside the allowed roots, even on a resolved symlink target outside the tree.
+
+  I-3 No symlink target trust
+    Validation is against the path as supplied (resolved), not against the symlink target.
+    A symlink inside an allowed root pointing outside the root is rejected at the
+    target-resolution stage. (See Step 3(c) above.)
+
+  I-4 File size cap
+    read_file: truncates at 1 MB and returns {"truncated": true}; no crash, no hang.
+    write_file: refuses payloads > 1 MB with FilesizeLimitError tool_result.
+    This prevents token-blowup from large file reads and rogue write payloads.
+
+  I-5 No execute permission touched
+    Minni never sets executable bits on any file it creates or modifies.
+    chmod is not called; file mode is the OS default (typically 0o644 on Unix).
+
+  I-6 No network, no subprocess
+    Minni client is pure stdlib (pathlib, io). No httpx. No subprocess. No shell.
+    It cannot be used to proxy a network request or spawn a process.
+```
+
+---
+
+#### 4.12.1 Skepja terminal flow (v0.6.2)
+
+> **Added 2026-05-08 v0.6.2 (Védis Eikleið).** The kitchen opens — fire and knives, but
+> the knives are numbered and the door is locked from the outside.
+> Skepja ("shaping") is HERETIC's terminal sense — it lets the agent run shell commands
+> within an explicit operator-defined allowlist, in a controlled working directory, with a
+> hard output cap. Each invocation is a fresh, isolated subprocess. No persistent session.
+> Skepja is the highest-risk sense in v0.6.2; the allowlist is the primary defense.
+
+```
+  SKEPJA TERMINAL FLOW
+
+  Step 1 — tool_call arrives at ToolDispatcher
+    tool_call.name begins with "skepja." (e.g., "skepja.run_command")
+    ToolDispatcher.dispatch() → routes to SkepjaSense.dispatch_tool_call(tool_call)
+
+  Step 2 — command parse
+    Raw command string from tool_call.arguments_json:
+      { "command": "git log --oneline -10" }
+
+    shlex.split(command) → token list
+    e.g., ["git", "log", "--oneline", "-10"]
+
+    WHY shlex.split:
+      Splits on shell word boundaries without invoking a shell.
+      Handles quoted arguments correctly.
+      The result is passed directly to subprocess.run with shell=False,
+      so no shell metacharacters (;, |, &&, >, $(...), etc.) are interpreted.
+      Shell injection is structurally impossible when shell=False is used with
+      a pre-split token list.
+
+  Step 3 — allowlist check (command_allowlist_check)
+    Called from skillingr/sandbox.py; shared primitive.
+
+    def command_allowlist_check(tokens: list[str], allowlist: list[str]) -> None:
+      first_token = tokens[0]
+      IF first_token not in allowlist:
+        RAISE CommandNotAllowedError(
+          f"Command {first_token!r} is not in the Skepja allowlist")
+      (Pattern matching: first token only. Full-command pattern matching is a v0.6.x extension.)
+
+    Default allowlist: [] (empty — nothing runs until operator adds entries).
+    Operator adds entries in heretic.yaml:
+      skillingr.skepja.command_allowlist: ["git", "python", "ls", "cat"]
+
+  Step 4 — subprocess.run (shell=False)
+    env = {} (empty) unless skepja.inherit_env = true in config
+      IF inherit_env = true: env = os.environ.copy()
+      (default false — subprocess does not inherit HERETIC's environment;
+      prevents leaking API keys, token env vars, or other sensitive values
+      that HERETIC holds in its own process environment)
+
+    result = subprocess.run(
+      tokens,                        # pre-split by shlex.split — no shell string
+      shell=False,                   # structural shell injection prevention
+      cwd=working_directory,         # default ~/heretic_workspace
+      capture_output=True,
+      text=True,
+      timeout=timeout_seconds,       # default 60; raises subprocess.TimeoutExpired
+      env=env,
+    )
+
+  Step 5 — output capture and truncation
+    raw_stdout = result.stdout
+    raw_stderr = result.stderr
+    MAX_OUTPUT = 65_536  # 64 KB
+
+    stdout = raw_stdout[:MAX_OUTPUT]
+    stderr = raw_stderr[:MAX_OUTPUT]
+    stdout_truncated = len(raw_stdout) > MAX_OUTPUT
+    stderr_truncated = len(raw_stderr) > MAX_OUTPUT
+
+    RETURN {
+      "returncode": result.returncode,
+      "stdout": stdout,
+      "stderr": stderr,
+      "stdout_truncated": stdout_truncated,
+      "stderr_truncated": stderr_truncated,
+    }
+
+    Truncation policy:
+      Output is truncated to 64 KB to prevent token-blowup. The agent receives
+      {"stdout_truncated": true} so it can inform the user or request a narrower command.
+      No error is raised on truncation — it is a normal condition for long outputs.
+
+  Step 6 — result returned
+    SkepjaSense wraps result dict in ToolResult (json.dumps).
+    On any SkepjaError subclass: ToolResult with error JSON content; turn continues.
+```
+
+```
+  SKEPJA CONFIG (SkepjaConfig — sub-block of SkilningrConfig)
+
+    skillingr:
+      skepja:
+        enabled: false                # opt-in; default false
+        command_allowlist: []         # default empty — nothing runs until operator adds entries
+        working_directory: "~/heretic_workspace"
+        inherit_env: false            # default false — subprocess does not inherit HERETIC env
+        timeout_seconds: 60           # subprocess hard timeout; raises TimeoutExpired on breach
+        max_output_bytes: 65536       # 64 KB output cap; applied independently to stdout and stderr
+```
+
+```
+  CROSS-PLATFORM SEMANTICS — WINDOWS VS UNIX
+
+  shlex.split behavior:
+    On Unix: shlex.split("git log --oneline") → ["git", "log", "--oneline"]
+    On Windows: shlex.split behaves identically for simple commands because shlex
+      uses POSIX mode by default. For Windows-specific quoting (e.g., paths with
+      backslashes), the operator should use forward slashes in command strings.
+    HERETIC passes the split token list to subprocess.run with shell=False on all
+    platforms — the OS selects the executable by name lookup on PATH.
+
+  Executable resolution:
+    On Unix: first token "git" → resolved via PATH lookup; subprocess.run finds /usr/bin/git.
+    On Windows: first token "git" → resolved via PATH; typically C:\Program Files\Git\cmd\git.exe.
+    The allowlist checks the first token string only (e.g., "git"), not the full resolved path.
+    This means "git" in the allowlist permits git regardless of its installation path.
+
+  Working directory:
+    ~/heretic_workspace expands via Path.expanduser() which is cross-platform.
+    On Windows: ~ expands to C:\Users\<username>.
+    On Unix: ~ expands to /home/<username> or /Users/<username>.
+
+  No shell=True anywhere:
+    subprocess.run is always called with shell=False on all platforms.
+    This means no cmd.exe invocation on Windows, no /bin/sh on Unix.
+    Shell built-ins (cd, echo, etc.) are NOT available to the agent via Skepja.
+    If the operator needs them, they must wrap them in a script and allowlist the script.
+
+  Timeout:
+    subprocess.TimeoutExpired is raised after timeout_seconds on all platforms.
+    HERETIC catches this and returns a tool_result error with {"error": "skepja_timeout"}.
+    The subprocess is killed (process.kill()) after timeout on both Unix and Windows.
+```
+
+```
+  SKEPJA FAILURE MODES
+
+  F-1: Command not in allowlist
+    Cause: agent calls skepja.run_command with a first-token not in command_allowlist.
+    SkepjaSense raises CommandNotAllowedError (from sandbox.py).
+    tool_result: {"error": "command_not_allowed",
+                  "command": "<first token>",
+                  "hint": "operator must add this command to skillingr.skepja.command_allowlist"}
+    Turn continues. Agent may explain the restriction.
+
+  F-2: Subprocess timeout
+    Cause: command runs longer than timeout_seconds (default 60).
+    subprocess.TimeoutExpired is caught by SkepjaSense.
+    tool_result: {"error": "skepja_timeout",
+                  "timeout_seconds": <configured value>,
+                  "hint": "raise skillingr.skepja.timeout_seconds or use a faster command"}
+    Turn continues.
+
+  F-3: Working directory not found
+    Cause: working_directory path does not exist or is outside allowed scope.
+    FileNotFoundError or NotADirectoryError caught by SkepjaSense.
+    tool_result: {"error": "skepja_bad_working_dir",
+                  "working_directory": "<configured path>"}
+    Turn continues.
+
+  F-4: Non-zero returncode
+    Cause: command exits with non-zero status (e.g., git command fails, script errors).
+    This is NOT an error at the Skepja level — it is a normal command result.
+    tool_result includes returncode and stderr. Agent interprets and responds accordingly.
+    No exception raised; no SkepjaError. The agent sees the real output.
+
+  F-5: Output oversize (truncated)
+    Cause: stdout or stderr exceeds 64 KB.
+    Output is silently truncated; {"stdout_truncated": true} or {"stderr_truncated": true}
+    flags are set in the result. No error; no exception. Turn continues.
+```
+
+---
+
+#### 4.12.2 Leið HTTP fetch flow (v0.6.2)
+
+> **Added 2026-05-08 v0.6.2 (Védis Eikleið).** The road opens — but only to destinations
+> the operator has named. Leið ("path/way") is HERETIC's HTTP fetch sense — it lets the
+> agent retrieve text content from URLs matching an operator-defined pattern allowlist.
+> This is a read-only, stateless fetch: no cookies, no JS, no POST, no playwright.
+> Headless browser (Leið via playwright) is deferred to v0.6.2.1.
+> Transport: httpx (already a HERETIC dependency). No new external library added.
+
+```
+  LEIÐ HTTP FETCH FLOW
+
+  Step 1 — tool_call arrives at ToolDispatcher
+    tool_call.name begins with "leid." (e.g., "leid.fetch_url")
+    ToolDispatcher.dispatch() → routes to LeidSense.dispatch_tool_call(tool_call)
+
+  Step 2 — URL parse and allowlist match
+    URL from tool_call.arguments_json:
+      { "url": "https://docs.python.org/3/library/pathlib.html" }
+
+    Called from skillingr/sandbox.py:
+
+    def url_allowlist_match(url: str, patterns: list[str]) -> None:
+      parsed = urllib.parse.urlparse(url)
+      IF parsed.scheme not in ("http", "https"):
+        RAISE UrlNotAllowedError("Only http and https schemes are permitted")
+      FOR pattern in patterns:
+        IF fnmatch.fnmatch(url, pattern):
+          RETURN     # URL is allowed
+      RAISE UrlNotAllowedError(
+        f"URL {url!r} does not match any pattern in leid.url_allowlist_patterns")
+
+    Default patterns: [] (empty — nothing fetchable until operator adds patterns).
+    Operator adds in heretic.yaml:
+      skillingr.leid.url_allowlist_patterns:
+        - "https://docs.python.org/*"
+        - "https://en.wikipedia.org/wiki/*"
+        (or "*" for unrestricted — a warning is logged when wildcard is present)
+
+    HTTPS preference:
+      HTTPS URLs pass silently.
+      HTTP URLs (scheme = "http") are allowed but trigger:
+        log.warning("Leið: fetching plain HTTP URL — no transport encryption: <url>")
+      This is advisory, not blocking. Operators who need HTTP (e.g., local dev servers)
+      can allowlist http:// patterns; they receive the warning as intended.
+
+  Step 3 — httpx GET with limits
+    async with httpx.AsyncClient(
+      follow_redirects=True,
+      max_redirects=5,              # default; operator can override
+      timeout=30.0,                 # default 30s
+      headers={"User-Agent": "HERETIC/0.6.2 (heretic-summoning-circle)"},
+      cookies=None,                 # no cookie jar — stateless fetch
+    ) as client:
+      response = await client.get(url)
+
+    No cookies: httpx.AsyncClient is constructed without a CookieJar; cookies
+      sent in Set-Cookie response headers are not stored and not sent on subsequent requests.
+    No JS: no browser engine, no DOM, no event loop. Pure HTTP text response.
+    No POST in v0.6.2: only GET. POST requires explicit leid.post_url tool (deferred to v0.6.x).
+    Redirect cap: max 5 redirects. A redirect chain longer than 5 raises TooManyRedirects.
+    Timeout: 30s end-to-end (connection + response). httpx.TimeoutException raised on breach.
+
+  Step 4 — response body size cap
+    MAX_RESPONSE = 1_048_576   # 1 MB
+    body = await response.aread()
+    IF len(body) > MAX_RESPONSE:
+      body = body[:MAX_RESPONSE]
+      truncated = True
+    ELSE:
+      truncated = False
+
+    This cap prevents a large response (e.g., a 50 MB HTML page) from consuming agent context.
+    Truncation is noted in the tool_result; agent can report to user.
+
+  Step 5 — text extraction (leid.fetch_url returns raw decoded text)
+    text = body.decode(response.encoding or "utf-8", errors="replace")
+
+    leid.fetch_url returns the raw decoded text (HTML or plain text).
+    leid.extract_text (second tool) runs html.parser stripping:
+
+    import html.parser
+
+    class _TagStripper(html.parser.HTMLParser):
+      def __init__(self):
+        super().__init__()
+        self._parts = []
+      def handle_data(self, data):
+        self._parts.append(data)
+      def get_text(self) -> str:
+        return " ".join(self._parts)
+
+    WHY html.parser only (no lxml, no BeautifulSoup):
+      html.parser is stdlib; zero new dependencies.
+      It strips tags and returns text content — sufficient for most documentation pages.
+      Full HTML parsing with CSS selector queries deferred to v0.6.2.1 (headless browser).
+      No JS execution — pages that render content dynamically via JS return empty text.
+      This is a known limitation, documented explicitly.
+
+  Step 6 — result returned
+    LeidSense wraps result dict in ToolResult:
+      leid.fetch_url result:
+        { "url": url, "status_code": N, "content_type": "text/html; charset=utf-8",
+          "text": "<decoded body>", "truncated": bool }
+      leid.extract_text result:
+        { "url": url, "text": "<stripped plain text>", "truncated": bool }
+    ToolResult always returned — LeidSense never raises to ToolDispatcher.
+    On any LeidError: error JSON tool_result; turn continues.
+```
+
+```
+  LEIÐ CONFIG (LeidConfig — sub-block of SkilningrConfig)
+
+    skillingr:
+      leid:
+        enabled: false                    # opt-in; default false
+        url_allowlist_patterns: []        # default empty — nothing fetchable until operator adds
+        max_response_bytes: 1048576       # 1 MB response cap
+        timeout_seconds: 30              # end-to-end HTTP timeout
+        max_redirects: 5                 # redirect chain cap
+        # Note: user_agent is not configurable; always "HERETIC/0.6.2 (heretic-summoning-circle)"
+```
+
+```
+  LEIÐ FAILURE MODES
+
+  F-1: URL not in allowlist
+    Cause: agent calls leid.fetch_url with URL not matching any allowlist pattern.
+    LeidSense raises UrlNotAllowedError (from sandbox.py).
+    tool_result: {"error": "url_not_allowed",
+                  "url": "<url>",
+                  "hint": "operator must add a pattern matching this URL to
+                           skillingr.leid.url_allowlist_patterns"}
+    Turn continues.
+
+  F-2: HTTP timeout
+    Cause: server does not respond within timeout_seconds (default 30s).
+    httpx.TimeoutException caught by LeidSense.
+    tool_result: {"error": "leid_timeout",
+                  "url": "<url>",
+                  "timeout_seconds": <configured value>}
+    Turn continues.
+
+  F-3: Too many redirects
+    Cause: redirect chain exceeds max_redirects (default 5).
+    httpx.TooManyRedirects caught by LeidSense.
+    tool_result: {"error": "leid_too_many_redirects",
+                  "url": "<url>",
+                  "max_redirects": <configured value>}
+    Turn continues.
+
+  F-4: HTTP error status (4xx / 5xx)
+    Cause: server returns a non-2xx response (e.g., 404 Not Found, 403 Forbidden, 500).
+    This is NOT a Leið error — the response is returned with status_code in the tool_result.
+    tool_result: {"url": "<url>", "status_code": 404, "text": "<body if any>", ...}
+    Agent interprets the status code and responds accordingly.
+
+  F-5: Connection error (host unreachable, DNS failure)
+    Cause: httpx.ConnectError — DNS resolution fails, host is down, network unreachable.
+    tool_result: {"error": "leid_connect_error",
+                  "url": "<url>",
+                  "detail": "<exception message>"}
+    Turn continues.
+
+  F-6: Response body oversize (truncated)
+    Cause: response body exceeds 1 MB.
+    Body silently truncated; {"truncated": true} in result. No error. Turn continues.
+
+  NOTE: No cookie leakage is possible. LeidSense uses a fresh httpx.AsyncClient per call
+    with no persistent CookieJar. Each fetch_url call is fully stateless.
+```
+
+---
+
+#### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
+
+> **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
+> v0.6.2 senses and to any future sense added to L5 Skilningr. They are implemented once
+> in `skillingr/sandbox.py` and called by each sense's client. They are enforced before
+> any IO operation, subprocess invocation, or network request begins.
+
+```
+  CROSS-CUTTING SANDBOX INVARIANTS
+
+  I-1: All three senses default disabled
+    enabled: false for minni, skepja, and leid in all configuration paths.
+    If a sense is not enabled:
+      - it is not mounted in ToolDispatcher at TENGSL
+      - agent receives no tool definitions for that sense
+      - no tool_call with that prefix can be dispatched
+    An operator must explicitly set enabled: true for each sense they want active.
+
+  I-2: Path traversal blocked (Minni)
+    path_within_allowed_roots() resolves the supplied path and verifies it lives
+    within at least one allowed root. The check runs before any file handle opens.
+    Traversal via `../`, absolute paths outside the root, and symlinks whose resolved
+    targets fall outside the root are all caught and raise SandboxViolationError.
+    SandboxViolationError is caught by MinniSense and returned as error ToolResult.
+
+  I-3: Command allowlist enforced (Skepja)
+    command_allowlist_check() verifies the first token of the split command list against
+    the operator-defined allowlist before subprocess.run is called.
+    An empty allowlist (the default) means NO command can run.
+    CommandNotAllowedError is caught by SkepjaSense and returned as error ToolResult.
+    shell=False is structurally enforced — shell metacharacters are never interpreted.
+
+  I-4: URL pattern allowlist enforced (Leið)
+    url_allowlist_match() tests the URL against each pattern using fnmatch before httpx
+    opens any connection. An empty pattern list (the default) means NO URL can be fetched.
+    UrlNotAllowedError is caught by LeidSense and returned as error ToolResult.
+    Only "http" and "https" schemes are permitted; any other scheme raises UrlNotAllowedError.
+
+  I-5: Sense isolation — one sense's failure does not affect others
+    Each sense (Minni, Skepja, Leið, Smiðja) is mounted independently in ToolDispatcher.
+    Each sense's open() and close() runs in its own try/except at TENGSL and SLOKNA.
+    If Minni fails to open (e.g., bad config), Skepja, Leið, and Smiðja continue normally.
+    If Skepja's client raises during a tool_call, it returns an error ToolResult — the
+    error is contained within SkepjaSense and does not affect Minni, Leið, or Smiðja.
+    ToolDispatcher.dispatch() is the seam: it routes and catches per-sense errors.
+    No cross-sense state. Each sense owns its config, its client, its errors.
+
+  I-6: No sense can be promoted to a higher trust level mid-ceremony
+    Config is loaded once at Kynding (ceremony start). Config values are immutable
+    during the ceremony. An agent cannot modify allowed_roots, command_allowlist, or
+    url_allowlist_patterns by calling a tool — these live in the operator config layer,
+    outside the agent's reach.
+
+  I-7: sandbox.py is the single implementation
+    path_within_allowed_roots, command_allowlist_check, url_allowlist_match are defined
+    once in skillingr/sandbox.py. No sense re-implements these primitives locally.
+    This prevents divergent implementations that could introduce gaps.
+
+  SANDBOX ERROR HIERARCHY (all extend SkilningrError):
+    SkilningrError (base)
+      |-- SandboxViolationError    (Minni: path outside allowed roots)
+      |-- CommandNotAllowedError   (Skepja: first token not in allowlist)
+      |-- UrlNotAllowedError       (Leið: URL does not match allowlist patterns)
+      |-- FilesizeLimitError       (Minni: write payload exceeds max_file_size_bytes)
+    Each is caught within the sense that raises it.
+    None propagate to ToolDispatcher or CLI.
+```
+
+---
+
+## 16. L5 Skilningr — Four Senses Component Diagram (v0.6.2)
+
+> **Added 2026-05-08 v0.6 (Védis Eikleið). Extended 2026-05-08 v0.6.1 (Védis Eikleið).
+> Extended 2026-05-08 v0.6.2 (Védis Eikleið).**
+> Maps the internal structure of the `skillingr/` module and all four sense subpackages
+> as of v0.6.2: Smiðja (workshop — v0.6 + v0.6.1), Minni (library — v0.6.2), Skepja
+> (terminal — v0.6.2), Leið (road — v0.6.2). In v0.6 the longhouse held one room.
+> In v0.6.1 the workshop gained a second anvil. In v0.6.2 three new rooms open beside it.
+>
+> **Position in the body:** Skilningr is the discernment layer — the organ that decides
+> which sense to invoke when the agent reaches. In v0.6.2, four senses are mounted.
+> Each sense is a separate subpackage with its own client, tools, config, errors, and
+> sense.py orchestrator. ToolDispatcher routes by tool-name prefix to the correct sense.
+
+```
+  ============================================================
+  SKILNINGR MODULE — src/heretic/skilningr/    (v0.6.2 Four Senses)
+  ============================================================
+
+  skillingr/
+  |
+  ├── config_model.py    SkilningrConfig
+  │                      |  smidja:  SmidjaConfig     (v0.6 + v0.6.1)
+  │                      |    brunhand: BrunhandConfig
+  │                      |    forge:    ForgeConfig
+  │                      |  minni:   MinniConfig      (v0.6.2)
+  │                      |    enabled: bool                       default false
+  │                      |    allowed_roots: list[str]            default ["~/heretic_workspace"]
+  │                      |    max_file_size_bytes: int            default 1_048_576
+  │                      |  skepja:  SkepjaConfig     (v0.6.2)
+  │                      |    enabled: bool                       default false
+  │                      |    command_allowlist: list[str]        default []
+  │                      |    working_directory: str              default "~/heretic_workspace"
+  │                      |    inherit_env: bool                   default false
+  │                      |    timeout_seconds: int                default 60
+  │                      |    max_output_bytes: int               default 65_536
+  │                      |  leid:    LeidConfig        (v0.6.2)
+  │                      |    enabled: bool                       default false
+  │                      |    url_allowlist_patterns: list[str]   default []
+  │                      |    max_response_bytes: int             default 1_048_576
+  │                      |    timeout_seconds: int                default 30
+  │                      |    max_redirects: int                  default 5
+  │
+  ├── errors.py          SkilningrError (base)
+  │                      |-- SenseUnavailableError
+  │                      |-- ToolDispatchError
+  │                      |-- SandboxViolationError   (v0.6.2)
+  │                      |-- CommandNotAllowedError  (v0.6.2)
+  │                      |-- UrlNotAllowedError      (v0.6.2)
+  │                      |-- FilesizeLimitError      (v0.6.2)
+  │
+  ├── sandbox.py         Shared validation primitives (v0.6.2 NEW)
+  │                      |  path_within_allowed_roots(raw_path, allowed_roots) -> Path
+  │                      |  command_allowlist_check(tokens, allowlist) -> None
+  │                      |  url_allowlist_match(url, patterns) -> None
+  │                      |
+  │                      Single implementation; called by Minni, Skepja, Leið clients.
+  │                      Never re-implemented per-sense.
+  │
+  ├── dispatcher.py      ToolDispatcher  (unchanged routing logic — four senses now registered)
+  │                      |  async dispatch(tool_call) -> ToolResult
+  │                      |    "smidja.*" → SmidjaSense
+  │                      |    "minni.*"  → MinniSense     (v0.6.2)
+  │                      |    "skepja.*" → SkepjaSense    (v0.6.2)
+  │                      |    "leid.*"   → LeidSense      (v0.6.2)
+  │                      |    unknown   → error ToolResult (F-6)
+  │
+  └── senses/
+      |
+      ├── smidja/        Smiðja — the workshop (v0.6 + v0.6.1)
+      │   ├── errors.py      SmidjaError hierarchy (Brúarhönd + Forge arms)
+      │   ├── tools.py       9 tools (6 Brúarhönd + 3 Forge)
+      │   ├── client.py      BrunhandHttpClient (live GUI control → Seidr-Smidja)
+      │   ├── forge_client.py ForgeHttpClient (headless Blender → Straumur REST)
+      │   └── sense.py       SmidjaSense (dual-half lifecycle; see §4.11)
+      │
+      ├── minni/         Minni — the library (v0.6.2 NEW)
+      │   ├── INTERFACE.md   sense contract (allowed_roots, tools, invariants)
+      │   ├── config_model.py MinniConfig
+      │   ├── errors.py      MinniError hierarchy
+      │   │                  |-- MinniError (base, extends SkilningrError)
+      │   │                  |     |-- FileNotFoundError (sense-wrapped)
+      │   │                  |     |-- FilesizeLimitError (read or write exceeds cap)
+      │   │                  |     |-- SandboxViolationError (path outside allowed roots)
+      │   │                  |     |-- DirectoryListError (list_directory IO failure)
+      │   ├── client.py      MinniClient — sandbox-validated file ops (pure pathlib/io)
+      │   │                  |  read_file(path) -> dict
+      │   │                  |  write_file(path, content) -> dict
+      │   │                  |  list_directory(path) -> dict
+      │   │                  All operations call path_within_allowed_roots() first.
+      │   ├── tools.py       3 tool definitions
+      │   │                  |  minni.read_file      { path: str }
+      │   │                  |  minni.write_file     { path: str, content: str }
+      │   │                  |  minni.list_directory { path: str }
+      │   └── sense.py       MinniSense
+      │                      |  open() -> None   (validates allowed_roots exist; logs)
+      │                      |  close() -> None  (no-op; no persistent resource)
+      │                      |  dispatch_tool_call(tool_call) -> ToolResult
+      │
+      ├── skepja/        Skepja — the terminal (v0.6.2 NEW)
+      │   ├── INTERFACE.md   sense contract (allowlist, working_dir, shell=False invariant)
+      │   ├── config_model.py SkepjaConfig
+      │   ├── errors.py      SkepjaError hierarchy
+      │   │                  |-- SkepjaError (base, extends SkilningrError)
+      │   │                  |     |-- CommandNotAllowedError (first token not in allowlist)
+      │   │                  |     |-- SkepjaTimeoutError     (subprocess timeout)
+      │   │                  |     |-- SkepjaBadWorkingDir    (working_directory not found)
+      │   ├── client.py      SkepjaClient — subprocess wrapper
+      │   │                  |  run_command(command: str) -> dict
+      │   │                  |    shlex.split → allowlist_check → subprocess.run(shell=False)
+      │   │                  |    → output capture + truncation → return dict
+      │   │                  |  get_working_directory() -> dict
+      │   │                  |    returns {"working_directory": str(resolved_path)}
+      │   ├── tools.py       2 tool definitions
+      │   │                  |  skepja.run_command       { command: str }
+      │   │                  |  skepja.get_working_directory  {}
+      │   └── sense.py       SkepjaSense
+      │                      |  open() -> None   (validates working_directory exists; logs allowlist)
+      │                      |  close() -> None  (no-op)
+      │                      |  dispatch_tool_call(tool_call) -> ToolResult
+      │
+      └── leid/          Leið — the road (v0.6.2 NEW)
+          ├── INTERFACE.md   sense contract (url allowlist, no cookies, no JS, HTTPS pref)
+          ├── config_model.py LeidConfig
+          ├── errors.py      LeidError hierarchy
+          │                  |-- LeidError (base, extends SkilningrError)
+          │                  |     |-- UrlNotAllowedError    (URL not in patterns)
+          │                  |     |-- LeidTimeoutError      (httpx timeout)
+          │                  |     |-- LeidTooManyRedirects  (redirect chain exceeded)
+          │                  |     |-- LeidConnectError      (host unreachable)
+          ├── client.py      LeidClient — httpx GET wrapper
+          │                  |  async fetch_url(url: str) -> dict
+          │                  |    url_allowlist_match → GET with limits → size cap → return
+          │                  |  async extract_text(url: str) -> dict
+          │                  |    fetch_url → html.parser tag-strip → return plain text
+          │                  |  Each call: fresh httpx.AsyncClient; no persistent session.
+          │                  |  No cookies stored between calls.
+          ├── tools.py       2 tool definitions
+          │                  |  leid.fetch_url    { url: str }
+          │                  |  leid.extract_text { url: str }
+          └── sense.py       LeidSense
+                             |  open() -> None   (validates url_allowlist_patterns; logs warning
+                             |                    if wildcard "*" pattern present)
+                             |  close() -> None  (no-op; httpx clients are per-call)
+                             |  dispatch_tool_call(tool_call) -> ToolResult
+
+
+  ============================================================
+  TOOL COUNT SUMMARY — v0.6.2
+  ============================================================
+
+  Sense      Prefix    Tools (v0.6.2)
+  ---------  --------  ------------------------------------------
+  Smiðja     smidja    9  (6 Brúarhönd + 3 Forge — unchanged from v0.6.1)
+  Minni      minni     3  (read_file, write_file, list_directory)
+  Skepja     skepja    2  (run_command, get_working_directory)
+  Leið       leid      2  (fetch_url, extract_text)
+  ---------  --------  ------------------------------------------
+  TOTAL                16 tools available when all four senses are enabled
+                       (agent only receives tools for enabled senses)
+
+
+  ============================================================
+  FOUR-SENSE LIFECYCLE AT TENGSL (ceremony open)
+  ============================================================
+
+  CLI.TENGSL():
+    ToolDispatcher._senses = {}
+    IF smidja.enabled (brunhand or forge):
+      SmidjaSense.open()     → dual-half probe (Brúarhönd + Forge independently)
+      _senses["smidja"] = SmidjaSense
+    IF minni.enabled:
+      MinniSense.open()      → validates allowed_roots paths exist
+      _senses["minni"] = MinniSense
+    IF skepja.enabled:
+      SkepjaSense.open()     → validates working_directory; logs allowlist size
+      _senses["skepja"] = SkepjaSense
+    IF leid.enabled:
+      LeidSense.open()       → logs url_allowlist_patterns; warns if wildcard
+      _senses["leid"] = LeidSense
+
+    Each open() is wrapped in independent try/except.
+    Failure of any one sense does not abort the others.
+    A failed sense is not added to _senses; its tools are not offered to the agent.
+
+
+  ============================================================
+  FOUR-SENSE LIFECYCLE AT SLOKNA (ceremony close)
+  ============================================================
+
+  CLI.SLOKNA():
+    FOR sense_id, sense in _senses.items():
+      try:
+        await sense.close()
+      except Exception:
+        log.warning(f"Sense {sense_id!r} failed to close cleanly — ignoring")
+
+    Each close() is isolated. All four senses are attempted regardless of prior failures.
+    Minni, Skepja, Leið have no-op close() (no persistent resource to release).
+    Smiðja close() shuts down both httpx.AsyncClient instances (Brúarhönd + Forge arms).
+```
+
+---
+
 *Drawn by Védis Eikleið, Cartographer for Vibe Coding, 2026-05-08.*
 *Three sense rivers now flow toward the spirit: Tunga (out, voice), Hlust (in, voice), Sjón (in, image).*
 *The body shows its eyes when the user speaks — not always, not uninvited, but when asked.*
@@ -4832,4 +5582,6 @@ is empty and tool calls can never arrive.
 *v0.5.2: the eye gains a second source. The screen shows the work; the webcam shows the worker.*
 *Only when invited — stronger gate, stronger consent, the camera's light goes off when the ceremony ends.*
 *v0.6.1: the workshop holds two anvils. Brúarhönd tends the living GUI; Forge drives headless Blender.*
+*v0.6.2: three new rooms open in the longhouse — the library (Minni), the kitchen (Skepja), the road (Leið).*
+*Seven senses mapped. The body is learning to read, to act, and to travel.*
 *One arm reaches for the screen. The other reaches into the render. Both belong to the same hand.*
