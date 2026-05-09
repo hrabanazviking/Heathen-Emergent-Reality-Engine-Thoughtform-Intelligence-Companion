@@ -1752,16 +1752,169 @@ def _cmd_mcp(args: argparse.Namespace) -> int:
     Ref: src/heretic/skilningr/mcp_server.py
          docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
     """
-    raise NotImplementedError(
-        "heretic mcp — Forge implements: "
-        "(1) load config via load_config(args.config); "
-        "(2) resolve transport: args.transport or cfg.skilningr.mcp_server.transport; "
-        "(3) if not cfg.skilningr.mcp_server.enabled: warn + return 1; "
-        "(4) build ToolDispatcher and register all enabled senses (mirrors _async_light path); "
-        "(5) construct McpServer(config=cfg.skilningr.mcp_server, dispatcher=dispatcher, logger=log); "
-        "(6) anyio.run(server.start, transport) — blocks until client disconnects or SIGINT; "
-        "(7) on SIGINT: cancel anyio task group, close senses, return 0."
+    import anyio
+    from heretic.grunnr.config import load_config, ConfigLoadError
+    from heretic.grunnr.logger import configure_logging, get_logger
+    from heretic.skilningr.mcp_server import McpServer
+    from heretic.skilningr.dispatcher import ToolDispatcher
+    from heretic.skilningr.errors import TransportError, McpAuthError
+
+    # (1) Load config and logging
+    try:
+        cfg = load_config(args.config)
+    except ConfigLoadError as exc:
+        print(f"[HERETIC] Config error: {exc}", file=sys.stderr)
+        return 1
+
+    configure_logging(cfg.grunnr.log_level, cfg.grunnr.log_file)
+    log = get_logger("heretic.mcp")
+
+    mcp_cfg = cfg.skilningr.mcp_server
+
+    # (2) Resolve transport — CLI --transport flag overrides yaml value
+    transport: str = getattr(args, "transport", None) or mcp_cfg.transport
+
+    # (3) Guard: mcp_server must be enabled in config
+    if not mcp_cfg.enabled:
+        log.warning(
+            "heretic mcp: skilningr.mcp_server.enabled is False in heretic.yaml. "
+            "Set mcp_server.enabled: true to start the MCP transport."
+        )
+        print(
+            "[HERETIC] MCP server is disabled in heretic.yaml. "
+            "Set skilningr.mcp_server.enabled: true to enable it.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # (4) Build ToolDispatcher and register all enabled senses.
+    # This mirrors the TENGSL phase of _async_light — same senses, same order,
+    # no Bifröst client (MCP does not use the chat-completions path).
+    dispatcher = ToolDispatcher()
+
+    grunnr_skilningr = cfg.skilningr
+
+    # Smiðja sense (Brúarhönd half + Forge half)
+    if grunnr_skilningr.smidja.enabled:
+        try:
+            from heretic.skilningr.config_model import SmidjaConfig
+            from heretic.skilningr.senses.smidja.client import BrunhandHttpClient
+            from heretic.skilningr.senses.smidja.sense import SmidjaSense
+
+            smidja_config = SmidjaConfig(
+                enabled=grunnr_skilningr.smidja.enabled,
+                host=grunnr_skilningr.smidja.host,
+                port=grunnr_skilningr.smidja.port,
+                token_env=grunnr_skilningr.smidja.token_env,
+                request_timeout_seconds=grunnr_skilningr.smidja.request_timeout_seconds,
+                require_https=grunnr_skilningr.smidja.require_https,
+                host_name=grunnr_skilningr.smidja.host_name,
+            )
+            smidja_client = BrunhandHttpClient(smidja_config, log)
+            smidja_sense = SmidjaSense(smidja_config, smidja_client, log, event_emitter=None)
+            # open() is async — run via anyio below; for now just register the sense
+            # and let it become available once the event loop starts.
+            dispatcher.register_sense("smidja", smidja_sense)
+            log.info("MCP: Smiðja sense registered.")
+        except Exception as exc:
+            log.warning("MCP: Smiðja init failed — continuing without Smiðja: %s", exc)
+
+    # Minni sense (filesystem)
+    if grunnr_skilningr.minni.enabled:
+        try:
+            from heretic.skilningr.config_model import MinniConfig
+            from heretic.skilningr.senses.minni.client import MinniClient
+            from heretic.skilningr.senses.minni.sense import MinniSense
+
+            minni_config = MinniConfig(
+                enabled=grunnr_skilningr.minni.enabled,
+                allowed_roots=list(grunnr_skilningr.minni.allowed_roots),
+                max_read_bytes=grunnr_skilningr.minni.max_read_bytes,
+                max_write_bytes=grunnr_skilningr.minni.max_write_bytes,
+                follow_symlinks=grunnr_skilningr.minni.follow_symlinks,
+            )
+            minni_client = MinniClient(minni_config, log)
+            minni_sense = MinniSense(minni_config, minni_client, log, event_emitter=None)
+            dispatcher.register_sense("minni", minni_sense)
+            log.info("MCP: Minni sense registered.")
+        except Exception as exc:
+            log.warning("MCP: Minni init failed — continuing without Minni: %s", exc)
+
+    # Skepja sense (terminal)
+    if grunnr_skilningr.skepja.enabled:
+        try:
+            from heretic.skilningr.config_model import SkepjaConfig
+            from heretic.skilningr.senses.skepja.client import SkepjaClient
+            from heretic.skilningr.senses.skepja.sense import SkepjaSense
+
+            skepja_config = SkepjaConfig(
+                enabled=grunnr_skilningr.skepja.enabled,
+                command_allowlist=list(grunnr_skilningr.skepja.command_allowlist),
+                working_directory=grunnr_skilningr.skepja.working_directory,
+                timeout_seconds=grunnr_skilningr.skepja.timeout_seconds,
+                inherit_env=grunnr_skilningr.skepja.inherit_env,
+                max_output_bytes=grunnr_skilningr.skepja.max_output_bytes,
+            )
+            skepja_client = SkepjaClient(skepja_config, log)
+            skepja_sense = SkepjaSense(skepja_config, skepja_client, log, event_emitter=None)
+            dispatcher.register_sense("skepja", skepja_sense)
+            log.info("MCP: Skepja sense registered.")
+        except Exception as exc:
+            log.warning("MCP: Skepja init failed — continuing without Skepja: %s", exc)
+
+    # Leið sense (HTTP fetch)
+    if grunnr_skilningr.leid.enabled:
+        try:
+            from heretic.skilningr.config_model import LeidConfig
+            from heretic.skilningr.senses.leid.client import LeidClient
+            from heretic.skilningr.senses.leid.sense import LeidSense
+
+            leid_config = LeidConfig(
+                enabled=grunnr_skilningr.leid.enabled,
+                url_allowlist_patterns=list(grunnr_skilningr.leid.url_allowlist_patterns),
+                timeout_seconds=grunnr_skilningr.leid.timeout_seconds,
+                max_redirects=grunnr_skilningr.leid.max_redirects,
+                max_response_bytes=grunnr_skilningr.leid.max_response_bytes,
+                user_agent=grunnr_skilningr.leid.user_agent,
+                allow_http=grunnr_skilningr.leid.allow_http,
+            )
+            leid_client = LeidClient(leid_config, log)
+            leid_sense = LeidSense(leid_config, leid_client, log, event_emitter=None)
+            dispatcher.register_sense("leid", leid_sense)
+            log.info("MCP: Leið sense registered.")
+        except Exception as exc:
+            log.warning("MCP: Leið init failed — continuing without Leið: %s", exc)
+
+    # (5) Construct McpServer
+    server = McpServer(config=mcp_cfg, dispatcher=dispatcher, logger=log)
+
+    log.info(
+        "heretic mcp: starting MCP server (transport=%r, tools=%d).",
+        transport,
+        len(dispatcher.all_tool_definitions()),
     )
+
+    # (6) Run the MCP server — anyio.run drives the async event loop.
+    # The mcp SDK uses anyio internally; anyio.run with asyncio backend is compatible.
+    try:
+        anyio.run(server.start, transport, backend="asyncio")
+    except KeyboardInterrupt:
+        # (7) SIGINT — clean shutdown; the anyio event loop has already been cancelled.
+        log.info("heretic mcp: MCP server shut down (SIGINT).")
+    except (TransportError, McpAuthError) as exc:
+        log.error("heretic mcp: Transport error — %s", exc)
+        print(f"[HERETIC] MCP transport error: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        log.error("heretic mcp: unexpected error — %s", exc, exc_info=True)
+        if getattr(args, "debug", False):
+            import traceback
+            traceback.print_exc()
+        else:
+            print(f"[HERETIC] MCP server error: {exc}", file=sys.stderr)
+        return 1
+
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
