@@ -25,22 +25,24 @@ What v0.6.x does NOT add:
 
 ---
 
-## 2. Current status — 2026-05-08
+## 2. Current status — 2026-05-08 — SHIPPED + AUDITED + CLEANED
 
-**Phase:** v0.6.2 SHIPPED + AUDITED + CLEANED at `63fdf38`. Test baseline: 943 Python + 7 skipped + 91 frontend = 1041.
+**Phase:** v0.6.x SHIPPED + AUDITED + CLEANED at `f7a85b5`.  
+**Test count:** Python 1012 passed + 7 skipped + 91 frontend = **1110 total. 0 failures. 0 open findings.**
 
-### v0.6.x deliverables
-- ⏳ `src/heretic/skilningr/mcp_server.py` — MCP server adapter using official `mcp` Python SDK
-- ⏳ `src/heretic/cli.py` — new `mcp` subcommand: `heretic mcp [--transport stdio|http]` launches the MCP server
-- ⏳ `SkilningrConfig` extension — `mcp_server: McpServerConfig` (enabled, transport, host, port, allow_remote_bind)
-- ⏳ MCP transport backends: stdio (Claude Desktop convention) AND HTTP/SSE (parallel to vebond WS pattern)
-- ⏳ `tools/list` — returns the 16 tool definitions from registered senses
-- ⏳ `tools/call` — routes through existing ToolDispatcher (one execution backend; two transport paths)
-- ⏳ `pyproject.toml` — add `mcp>=0.1` to a new `[mcp]` extra
-- ⏳ `heretic.example.yaml` — new `skilningr.mcp_server:` block
-- ⏳ `docs/cartography/DATA_FLOW.md §4.13` — MCP transport flow
-- ⏳ `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md` — note MCP as alternative agent-connection path
-- ⏳ Tests — 30+ new Python tests (transport, tools/list, tools/call, error mapping); total target 973+
+### v0.6.x deliverables — ALL COMPLETE
+- ✅ `src/heretic/skilningr/mcp_server.py` — McpServer, McpServerConfig, convert_to_mcp_tool, _parse_error_envelope; stdio + HTTP/SSE transports; allow_remote_bind two-gate; IPv4 + IPv6 loopback symmetry
+- ✅ `src/heretic/cli.py` — `heretic mcp [--transport stdio|http]` subcommand fully wired (`041457f`)
+- ✅ `McpServerConfig` dataclass — `enabled`, `transport`, `host`, `port`, `allow_remote_bind`; two-gate validation in `__post_init__` and at startup
+- ✅ MCP stdio transport — `mcp.stdio_server()` context manager; Claude Desktop convention
+- ✅ MCP HTTP/SSE transport — `mcp.sse_server()` at configurable host:port; `allow_remote_bind` gates non-localhost binding
+- ✅ `tools/list` — returns all 16 converted tool definitions from registered senses (`ddee2b5`)
+- ✅ `tools/call` — routes through existing ToolDispatcher; result mapped via `_parse_error_envelope` (`f7a85b5`)
+- ✅ `pyproject.toml` — `[mcp]` extra: `mcp>=1.0` (`ddee2b5`)
+- ✅ `heretic.example.yaml` — `skilningr.mcp_server:` block (`ddee2b5`)
+- ✅ `docs/cartography/DATA_FLOW.md §4.13` — MCP transport flow (`06a7a15`)
+- ✅ `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §11` — MCP as alternative agent-connection path (`06a7a15` + `ddee2b5`)
+- ✅ Tests — 60 new Python tests (transport, tools/list, tools/call, schema conversion, isError mapping, allow_remote_bind gate, loopback set); total: 943 → 1012
 
 ### What v0.6.x carries forward
 - Same 4 senses (Smiðja, Minni, Skepja, Leið)
@@ -123,10 +125,14 @@ Architect's job: write a `convert_to_mcp_tool(openai_tool: dict) -> dict` helper
 - **Forge**: implement MCP server (initialize handshake, tools/list returning converted tools, tools/call routing through ToolDispatcher); both transports (stdio + HTTP/SSE); CLI `heretic mcp` subcommand fully wired; tests with mocked MCP client; total 30+ new tests
 - **Auditor**: AUDIT_v0.6.x_MCP_SERVER.md; verify dispatch reuse (ToolDispatcher unchanged; same execution path); transport correctness (stdio + HTTP/SSE both work; no shared-state bugs); tool schema conversion (round-trip OpenAI ↔ MCP); auth invariant (token from env carries forward); concurrent operation (mcp + serve in same process possible); failure modes (transport disconnect, malformed tools/call, unknown tool name)
 
-### Wave 3 — cleanup if needed
+### Wave 3 — COMPLETE at `f7a85b5`
 
-### Close-out
-- **Scribe**: DEVLOG entry 13 + TASK update + memory refresh
+- F-1 (SERIOUS): `configure_logging()` global side-effect in `_cmd_mcp` broke 3 Sjón caplog tests — resolved with a test-harness no-op patch. Lesson: regression-vs-pre-existing claims need stash-baseline verification before assertion.
+- F-2 (NOTABLE): `_parse_error_envelope()` extracted as a private helper; tested directly in 8 focused unit tests. More robust than testing through SDK closure internals.
+- F-3 (NOTABLE): `"::1"` added to loopback set; IPv4 + IPv6 symmetry restored.
+
+### Close-out — COMPLETE at Scribe commit
+- **Scribe**: DEVLOG entry 13 ✅ + TASK update ✅ + memory refresh ✅
 
 ---
 
@@ -183,5 +189,26 @@ docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md MCP alternative-path note
 
 ---
 
+---
+
+## 10. Wave commit record — complete
+
+| Hash | Commit | Role |
+|---|---|---|
+| `453e217` | chore: open v0.6.x MCP Server task file | Runa |
+| `06a7a15` | cartographer: map v0.6.x MCP transport flow + three-door coexistence (Védis Eikleið) | Cartographer |
+| `ddee2b5` | architect: scaffold v0.6.x mcp_server + McpServerConfig + tool schema converter (Rúnhild Svartdóttir) | Architect |
+| `6550809` | feat(mcp): implement McpServer.start() stdio + HTTP transports | Forge |
+| `fb0d138` | test(mcp): replace 22 skip-marked transport tests with real passing tests | Forge |
+| `041457f` | feat(mcp): implement _cmd_mcp CLI body — heretic mcp subcommand fully wired | Forge |
+| `e05890b` | audit: AUDIT_v0.6.x_MCP_SERVER — PASS WITH CONCERNS (Sólrún Hvítmynd) | Auditor |
+| `f7a85b5` | forge: clean v0.6.x audit — F-1 caplog patch + F-2 closure test + F-3 ::1 loopback (Eldra Járnsdóttir) | Forge (Wave 3) |
+
+**Python 943 → 1012 (+69 net). Frontend 91 unchanged. 7 skipped. Total 1110. 0 open findings.**
+
+---
+
+**STATUS: SHIPPED + AUDITED + CLEANED — 2026-05-08 — HEAD `f7a85b5`**
+
 *Task file authored by Runa Gridweaver Freyjasdottir, 2026-05-08.*
-*v0.6.x — when the workshop opens a second door.*
+*v0.6.x — three doors now stand. The workshop is one.*
