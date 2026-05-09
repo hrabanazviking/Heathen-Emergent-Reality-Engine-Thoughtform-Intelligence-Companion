@@ -247,6 +247,44 @@ class McpServer:
         self._log.debug("McpServer: mcp.server.lowlevel.Server instance created.")
 
     # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_error_envelope(content_str: str) -> tuple[bool, str, str]:
+        """Parse a ToolDispatcher content string and detect the error-envelope pattern.
+
+        ToolDispatcher.dispatch() never raises — when a tool call fails it
+        returns a result whose ``content`` field is a JSON object with
+        ``"error": True``.  This helper centralises the detection logic so that
+        both the live ``_handle_call_tool`` closure (registered in start()) and
+        the test suite can verify the same code path without coupling tests to
+        SDK internals.
+
+        Args:
+            content_str: The raw ``content`` string from a ToolDispatcher result.
+
+        Returns:
+            (is_error, error_code, error_msg) where ``is_error`` is True when the
+            content is a JSON error envelope.  If not an error envelope, returns
+            (False, "", "").
+
+        F-2: This method is extracted so tests can verify the error-detection
+        logic directly, without needing to reach into the SDK's registered
+        call_tool closure.
+        """
+        try:
+            payload = json.loads(content_str)
+            if isinstance(payload, dict) and payload.get("error") is True:
+                error_msg = payload.get("message", "Tool dispatch failed")
+                error_code = payload.get("code", "TOOL_ERROR")
+                return True, error_code, error_msg
+        except (json.JSONDecodeError, AttributeError):
+            # Non-JSON content is not an error envelope — treat as raw text.
+            pass
+        return False, "", ""
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
@@ -361,28 +399,22 @@ class McpServer:
             # tool_result shape: {"tool_call_id": ..., "role": "tool", "content": "<json>"}
             content_str: str = tool_result.get("content", "{}")
 
-            # Detect error envelope — ToolDispatcher.dispatch() returns error JSON
-            # with "error": True when dispatch fails (unknown tool, sense unavailable,
-            # internal error).  Surface these as a raised exception so the SDK sets
-            # isError=true on the CallToolResult per the MCP protocol spec.
-            try:
-                payload = json.loads(content_str)
-                if isinstance(payload, dict) and payload.get("error") is True:
-                    error_msg = payload.get("message", "Tool dispatch failed")
-                    error_code = payload.get("code", "TOOL_ERROR")
-                    self._log.warning(
-                        "McpServer: tool %r returned error envelope: [%s] %s",
-                        name, error_code, error_msg,
-                    )
-                    # Raise so SDK maps this to isError=true in the CallToolResult
-                    from mcp import McpError
-                    from mcp.types import ErrorData, INTERNAL_ERROR
-                    raise McpError(
-                        ErrorData(code=INTERNAL_ERROR, message=f"[{error_code}] {error_msg}")
-                    )
-            except (json.JSONDecodeError, AttributeError):
-                # content_str is not JSON — treat as raw text; not an error envelope
-                pass
+            # Detect error envelope via the extracted helper (_parse_error_envelope).
+            # ToolDispatcher.dispatch() returns error JSON with "error": True when
+            # dispatch fails (unknown tool, sense unavailable, internal error).
+            # Surface these as a raised McpError so the SDK sets isError=true on
+            # the CallToolResult per the MCP protocol spec.
+            is_error, error_code, error_msg = McpServer._parse_error_envelope(content_str)
+            if is_error:
+                self._log.warning(
+                    "McpServer: tool %r returned error envelope: [%s] %s",
+                    name, error_code, error_msg,
+                )
+                from mcp import McpError
+                from mcp.types import ErrorData, INTERNAL_ERROR
+                raise McpError(
+                    ErrorData(code=INTERNAL_ERROR, message=f"[{error_code}] {error_msg}")
+                )
 
             return [TextContent(type="text", text=content_str)]
 

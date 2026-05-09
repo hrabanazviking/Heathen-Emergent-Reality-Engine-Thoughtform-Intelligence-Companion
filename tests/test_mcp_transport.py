@@ -433,7 +433,14 @@ class TestCliMcpSubcommand:
         parser = build_parser()
         args = parser.parse_args(["mcp"])
 
-        with patch("heretic.grunnr.config.load_config", return_value=mock_cfg):
+        # F-1: patch configure_logging to prevent it from setting
+        # logging.getLogger("heretic").propagate = False for the remainder of
+        # the test session.  That side effect breaks caplog-based tests in
+        # test_sjon_config.py and test_sjon_webcam.py when this test runs first.
+        with (
+            patch("heretic.grunnr.config.load_config", return_value=mock_cfg),
+            patch("heretic.grunnr.logger.configure_logging"),
+        ):
             from heretic.cli import _cmd_mcp
             result = _cmd_mcp(args)
 

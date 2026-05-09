@@ -662,7 +662,12 @@ class McpServerConfig:
                 f"got {self.request_timeout_seconds!r}."
             )
         # Remote bind safety gate — identical pattern to Vébond ws_host validation.
-        if self.transport == "http" and self.host not in ("127.0.0.1", "localhost"):
+        # F-3: include "::1" (IPv6 loopback) in the loopback set to match the
+        # identical set used by _start_http at runtime.  Without this, an operator
+        # who sets host: "::1" is incorrectly required to also set allow_remote_bind,
+        # creating an asymmetry between construction-time and runtime checks.
+        _loopback_hosts = {"127.0.0.1", "localhost", "::1"}
+        if self.transport == "http" and self.host not in _loopback_hosts:
             if not self.allow_remote_bind:
                 raise ValueError(
                     f"McpServerConfig: host {self.host!r} is not loopback but "
