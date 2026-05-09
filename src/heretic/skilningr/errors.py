@@ -181,3 +181,189 @@ class ForgeServerError(ForgeError):
     Forge should translate this to SENSE_CONTRACTS.md code SENSE_INTERNAL_ERROR.
     Ref: docs/cartography/DATA_FLOW.md §4.11.9 F-4
     """
+
+
+# ---------------------------------------------------------------------------
+# Minni-specific errors (filesystem sense) [v0.6.2]
+# ---------------------------------------------------------------------------
+
+class MinniError(SkilningrError):
+    """Root error for the Minni sense — local filesystem read/write.
+
+    All errors raised within Minni are subclasses of this. Callers catching
+    SkilningrError also catch MinniError. All MinniError subclasses are caught
+    at the MinniSense dispatch boundary and translated into structured
+    tool_result error dicts — they are never re-raised to L1 Bifröst.
+
+    Corresponds to SENSE_CONTRACTS.md sense: "minni".
+    """
+
+
+class MinniSandboxViolation(MinniError):
+    """A path submitted to Minni lies outside all configured allowed_roots.
+
+    This covers path traversal (../), absolute paths to system locations,
+    symlink targets that escape the sandbox, and paths that resolve to outside
+    every entry in MinniConfig.allowed_roots.
+
+    Forge should translate this to SENSE_CONTRACTS.md code PERMISSION_DENIED.
+    """
+
+
+class MinniFileNotFoundError(MinniError):
+    """The requested file or directory does not exist at the validated path.
+
+    Raised by Minni read_file and list_directory when the target is absent.
+    Distinct from a sandbox violation — the path IS within allowed_roots, but
+    the filesystem object does not exist.
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """
+
+
+class MinniFileTooLargeError(MinniError):
+    """A file operation was refused because the file or content exceeds the
+    configured size limit (MinniConfig.max_read_bytes or max_write_bytes).
+
+    Raised before any I/O begins so that no partial read/write occurs.
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """
+
+
+class MinniPermissionError(MinniError):
+    """The OS refused a filesystem operation due to permission restrictions.
+
+    Raised when PermissionError / OSError is caught from pathlib operations
+    after sandbox validation has already passed. The path is within allowed_roots
+    but the OS user running HERETIC lacks the necessary permissions.
+
+    Forge should translate this to SENSE_CONTRACTS.md code PERMISSION_DENIED.
+    """
+
+
+# ---------------------------------------------------------------------------
+# Skepja-specific errors (terminal sense) [v0.6.2]
+# ---------------------------------------------------------------------------
+
+class SkepjaError(SkilningrError):
+    """Root error for the Skepja sense — sandboxed shell command execution.
+
+    All errors raised within Skepja are subclasses of this. Callers catching
+    SkilningrError also catch SkepjaError. All SkepjaError subclasses are caught
+    at the SkepjaSense dispatch boundary and translated into structured
+    tool_result error dicts — they are never re-raised to L1 Bifröst.
+
+    Corresponds to SENSE_CONTRACTS.md sense: "skepja".
+    """
+
+
+class CommandNotAllowedError(SkepjaError):
+    """The requested command's executable is not in the operator allowlist.
+
+    Raised when sandbox.command_in_allowlist() returns False. The command was
+    rejected before any subprocess was spawned — no execution occurred.
+
+    Forge should translate this to SENSE_CONTRACTS.md code PERMISSION_DENIED.
+    """
+
+
+class CommandParseError(SkepjaError):
+    """The command string could not be parsed by shlex.split().
+
+    Raised when the command string contains malformed shell quoting or other
+    syntax that shlex rejects. No execution occurred.
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """
+
+
+class CommandTimeoutError(SkepjaError):
+    """A subprocess invocation timed out before completing.
+
+    The subprocess was started but did not finish within SkepjaConfig.timeout_seconds.
+    The process is terminated after timeout. Partial output up to the timeout
+    may be available in the error detail.
+
+    Forge should translate this to SENSE_CONTRACTS.md code SENSE_TIMEOUT.
+    """
+
+
+class CommandExecutionError(SkepjaError):
+    """A subprocess completed but returned a non-zero exit code.
+
+    Raised when subprocess.run() completes (not a timeout) and the exit code
+    indicates failure. The error detail includes the exit code, stdout, and stderr
+    up to the configured max_output_bytes cap.
+
+    Forge should translate this to SENSE_CONTRACTS.md code SENSE_INTERNAL_ERROR.
+    """
+
+
+# ---------------------------------------------------------------------------
+# Leið-specific errors (HTTP fetch sense) [v0.6.2]
+# ---------------------------------------------------------------------------
+
+class LeidError(SkilningrError):
+    """Root error for the Leið sense — sandboxed HTTP fetch.
+
+    All errors raised within Leið are subclasses of this. Callers catching
+    SkilningrError also catch LeidError. All LeidError subclasses are caught
+    at the LeidSense dispatch boundary and translated into structured
+    tool_result error dicts — they are never re-raised to L1 Bifröst.
+
+    Corresponds to SENSE_CONTRACTS.md sense: "leid".
+    """
+
+
+class UrlNotAllowedError(LeidError):
+    """The requested URL does not match any pattern in url_allowlist_patterns.
+
+    Raised when sandbox.url_matches_allowlist() returns False. No HTTP request
+    was sent — the URL was rejected at the allowlist gate.
+
+    Forge should translate this to SENSE_CONTRACTS.md code PERMISSION_DENIED.
+    """
+
+
+class LeidTimeoutError(LeidError):
+    """An HTTP request timed out before a response was received.
+
+    The connection or response did not complete within LeidConfig.timeout_seconds.
+    The remote host may still be processing the request.
+
+    Forge should translate this to SENSE_CONTRACTS.md code SENSE_TIMEOUT.
+    """
+
+
+class LeidResponseTooLargeError(LeidError):
+    """The HTTP response body exceeds LeidConfig.max_response_bytes.
+
+    Raised when the response Content-Length header or streaming body size
+    exceeds the configured cap. The connection is closed immediately; no
+    partial content is returned to the agent.
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """
+
+
+class LeidHttpError(LeidError):
+    """The HTTP response carried a 4xx or 5xx status code.
+
+    Raised by the Leið client when the fetch succeeds at the transport level
+    but the server indicates an application-level failure. The status code and
+    response body (truncated to max_response_bytes) are available in the detail.
+
+    Forge should translate 4xx to INVALID_ARGUMENTS and 5xx to SENSE_INTERNAL_ERROR.
+    """
+
+
+class LeidConnectionError(LeidError):
+    """A network-level error prevented the HTTP request from being sent or received.
+
+    Covers DNS resolution failure, TCP connection refused, TLS handshake failure,
+    and any other transport-level error that is not a timeout. The underlying
+    exception message is included in the error detail.
+
+    Forge should translate this to SENSE_CONTRACTS.md code EXTERNAL_APP_UNAVAILABLE.
+    """
