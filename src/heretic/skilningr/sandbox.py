@@ -59,9 +59,18 @@ def path_within_allowed_roots(
 
     The check is performed on the fully-resolved, absolute form of both the
     candidate path and each allowed root. Path traversal sequences (../) are
-    neutralised by Path.resolve(). Symlinks in the candidate path are NOT
-    followed during resolution on platforms that support it — the lexical
-    path is resolved, not the physical target.
+    neutralised by Path.resolve(), which is called on both the candidate and
+    each root.
+
+    SYMLINK BEHAVIOUR — Path.resolve() FOLLOWS symlinks to their physical
+    target. This is deliberate: a symlink inside allowed_roots that points
+    outside (e.g. allowed_root/evil_link -> /etc/passwd) will resolve to the
+    outside path, fail the prefix check, and be rejected. The earlier wording
+    in this docstring ("lexical path is resolved, not the physical target")
+    was incorrect — Path.resolve() is not strict=True/lexical; it calls the
+    OS to dereference symlinks. Both the sandbox rejection of outside-pointing
+    symlinks AND the stat-time follow_symlinks=False flag in MinniClient
+    cooperate to enforce the full invariant; they operate at different layers.
 
     Raises nothing. Returns a two-element tuple:
         (True,  resolved_path_str)   — path is within an allowed root

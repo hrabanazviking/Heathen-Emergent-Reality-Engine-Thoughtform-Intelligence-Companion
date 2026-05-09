@@ -5,7 +5,7 @@ Covers:
     - URL gateway (_validate_url): allowlist accept/reject, HTTPS-only default,
                                    HTTP allowed when configured
     - fetch_url: happy path, URL rejection, timeout, HTTP error (4xx/5xx),
-                 size truncation, connection error, redirect error
+                 response-too-large (raises LeidResponseTooLargeError), connection error, redirect error
     - extract_text: HTML stripping, title extraction, non-HTML passthrough
 
 All HTTP calls are mocked via unittest.mock — no real network requests.
@@ -26,6 +26,7 @@ from heretic.skilningr.senses.leid.client import LeidClient, _extract_text_from_
 from heretic.skilningr.senses.leid.errors import (
     LeidConnectionError,
     LeidHttpError,
+    LeidResponseTooLargeError,
     LeidTimeoutError,
     UrlNotAllowedError,
 )
@@ -130,8 +131,8 @@ class TestLeidClientFetchUrl:
 
         assert result["status_code"] == 200
         assert "Hello" in result["body"]
-        assert result["truncated"] is False
         assert result["url"] == "https://example.com/page"
+        # v0.6.2: no 'truncated' key — oversized bodies raise LeidResponseTooLargeError
 
     @pytest.mark.asyncio
     async def test_fetch_url_not_allowed_raises(self):
@@ -172,8 +173,13 @@ class TestLeidClientFetchUrl:
                 await client.fetch_url("https://example.com/missing")
 
     @pytest.mark.asyncio
-    async def test_fetch_url_response_truncated_at_cap(self):
-        """fetch_url truncates response body at max_response_bytes."""
+    async def test_fetch_url_response_too_large_raises(self):
+        """fetch_url raises LeidResponseTooLargeError when body exceeds max_response_bytes.
+
+        v0.6.2: full body is buffered then the size check fires. No partial
+        content is returned — the agent receives a clear error instead of a
+        silently truncated body. v0.6.2.1 will add streaming early termination.
+        """
         config = LeidConfig(
             url_allowlist_patterns=["https://example.com/*"],
             max_response_bytes=10,
@@ -188,11 +194,12 @@ class TestLeidClientFetchUrl:
         mock_context.__aexit__ = AsyncMock(return_value=None)
 
         with patch("httpx.AsyncClient", return_value=mock_context):
-            result = await client.fetch_url("https://example.com/big")
+            with pytest.raises(LeidResponseTooLargeError) as exc_info:
+                await client.fetch_url("https://example.com/big")
 
-        assert result["truncated"] is True
-        assert len(result["body"]) <= 10
-        assert result["size_bytes"] == 1000
+        # Error message must name the actual size and the cap
+        assert "1000" in str(exc_info.value)
+        assert "10" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_fetch_url_connection_error_raises(self):

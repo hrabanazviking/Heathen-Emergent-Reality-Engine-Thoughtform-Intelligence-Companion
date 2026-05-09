@@ -180,6 +180,10 @@ docs/architecture/IPC_PROTOCOL.md extend — naming bridge new entries
 ## 9. Backlog forward
 - v0.5.3 frontend Sjón webcam sub-badge (carry from v0.5.2)
 - v0.5.x periodic webcam, multi-camera, privacy masks
+- v0.6.2.1 Leið streaming via aiter_bytes: early termination at size cap,
+  replacing v0.6.2's full-buffer-then-check pattern; avoids materialising
+  oversized bodies in memory; adds true "connection closed early" behaviour
+  that the LeidResponseTooLargeError docstring anticipates.
 - v0.6.2.1 headless browser (Leið via playwright)
 - v0.6.x native MCP server hosting (instead of OpenAI tool_use)
 - v0.7 Mímisbrunnr starter pack — NEXT after v0.6.2

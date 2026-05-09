@@ -20,17 +20,25 @@ Design:
     - write_file uses atomic rename (write to .tmp, then os.replace) so partial
       writes cannot leave a corrupt file.
 
-Symlink handling:
-    Validation uses os.path.abspath(os.path.expanduser(path)) — the lexical
-    canonical form WITHOUT following symlinks. This means a symlink inside
-    allowed_roots pointing outside is still allowed by the path check (the
-    symlink's own path is inside the sandbox). The MinniConfig.follow_symlinks
-    flag is used during I/O operations (open/stat) to decide whether to
-    dereference the symlink.
+Symlink handling (two-layer model):
+    LAYER 1 — path validation (sandbox.path_within_allowed_roots):
+        Uses Path.resolve(), which FOLLOWS symlinks to their physical target.
+        A symlink inside allowed_roots pointing outside (e.g. allowed_root/
+        evil_link -> /etc/passwd) will resolve to the outside path, fail the
+        prefix check, and raise MinniSandboxViolation. This is the primary
+        containment gate: outside-pointing symlinks are rejected before any
+        I/O is attempted.
 
-    This matches the §4.12 Step 3(c) Cartographer invariant: validate the
-    symlink's own path, not its target. DO NOT simplify this comment — it is
-    load-bearing documentation of a deliberate security decision.
+    LAYER 2 — I/O stat operations (read_file, list_directory):
+        Uses os.stat(follow_symlinks=self._config.follow_symlinks). When
+        follow_symlinks=False (the default), stat inspects the symlink's own
+        metadata rather than the target's. This is downstream of Layer 1 and
+        handles symlinks that point inside allowed_roots (which Layer 1 passes).
+
+    Both layers cooperate. The earlier docstring claim that validation used
+    "the lexical canonical form WITHOUT following symlinks" was incorrect —
+    Path.resolve() does follow symlinks. DO NOT revert this correction; it is
+    the accurate description of the actual security model.
 
 Ref: src/heretic/skilningr/senses/minni/INTERFACE.md
      src/heretic/skilningr/sandbox.py (path_within_allowed_roots)

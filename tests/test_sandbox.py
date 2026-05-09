@@ -14,6 +14,9 @@ Ref: src/heretic/skilningr/sandbox.py
 
 from __future__ import annotations
 
+import os
+import sys
+
 import pytest
 
 from heretic.skilningr.sandbox import (
@@ -68,6 +71,82 @@ class TestPathWithinAllowedRoots:
     def test_empty_path_rejected(self, tmp_path):
         """An empty path string is rejected."""
         ok, reason = path_within_allowed_roots("", [str(tmp_path)])
+        assert ok is False
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="symlink creation requires elevated permissions on Windows",
+    )
+    def test_path_within_allowed_roots_symlink_inside_root_pointing_inside_is_ok(self, tmp_path):
+        """A symlink that lives inside allowed_roots AND points to a target inside
+        allowed_roots is accepted.
+
+        Path.resolve() follows the symlink to its target. Since both the symlink
+        and its target reside within allowed_roots the prefix check passes.
+        """
+        target_file = tmp_path / "real_file.txt"
+        target_file.write_text("content", encoding="utf-8")
+        link_path = tmp_path / "link_to_inside.txt"
+        try:
+            os.symlink(str(target_file), str(link_path))
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation failed on this platform/configuration")
+
+        ok, result = path_within_allowed_roots(str(link_path), [str(tmp_path)])
+        assert ok is True
+        assert result is not None
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="symlink creation requires elevated permissions on Windows",
+    )
+    def test_path_within_allowed_roots_symlink_inside_root_pointing_outside_is_rejected(self, tmp_path):
+        """A symlink that lives inside allowed_roots but points OUTSIDE is rejected.
+
+        Path.resolve() follows the symlink to its physical target. The target
+        is outside allowed_roots, so the prefix check fails and the path is
+        rejected. This is the primary defence against sandbox escape via symlinks.
+        """
+        outside_dir = tmp_path.parent / "outside_sandbox"
+        outside_dir.mkdir(exist_ok=True)
+        outside_file = outside_dir / "secret.txt"
+        outside_file.write_text("secret", encoding="utf-8")
+
+        link_path = tmp_path / "evil_link.txt"
+        try:
+            os.symlink(str(outside_file), str(link_path))
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation failed on this platform/configuration")
+
+        ok, reason = path_within_allowed_roots(str(link_path), [str(tmp_path)])
+        assert ok is False
+        assert "denied" in reason.lower() or "not within" in reason.lower()
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="symlink creation requires elevated permissions on Windows",
+    )
+    def test_path_within_allowed_roots_symlink_chain_resolves_to_outside_is_rejected(self, tmp_path):
+        """A chain of symlinks where the final target is outside allowed_roots is rejected.
+
+        Path.resolve() fully dereferences symlink chains. Even a two-hop chain
+        that escapes the sandbox is caught.
+        """
+        outside_dir = tmp_path.parent / "outside_sandbox_chain"
+        outside_dir.mkdir(exist_ok=True)
+        outside_file = outside_dir / "deep_secret.txt"
+        outside_file.write_text("deep secret", encoding="utf-8")
+
+        # Two-hop chain: link2 -> link1 -> outside_file
+        link1 = tmp_path / "hop1.txt"
+        link2 = tmp_path / "hop2.txt"
+        try:
+            os.symlink(str(outside_file), str(link1))
+            os.symlink(str(link1), str(link2))
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation failed on this platform/configuration")
+
+        ok, reason = path_within_allowed_roots(str(link2), [str(tmp_path)])
         assert ok is False
 
 

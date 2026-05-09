@@ -15,8 +15,9 @@ PROTOCOL INVARIANTS:
       matching allowlist pattern. HTTP URLs are always logged as warnings.
     - No cookies stored, sent, or accepted (stateless; httpx client cookies not set).
     - No JavaScript execution (httpx only; playwright = v0.6.2.1+).
-    - Response body is capped at LeidConfig.max_response_bytes — reading stops at cap;
-      "truncated" flag is set in the result dict.
+    - Response body is capped at LeidConfig.max_response_bytes — v0.6.2: full body
+      is buffered then LeidResponseTooLargeError is raised if it exceeds the cap;
+      no partial content is returned. v0.6.2.1 will add streaming early termination.
     - Redirects followed up to LeidConfig.max_redirects (default 5).
     - Custom User-Agent: LeidConfig.user_agent.
 
@@ -49,6 +50,7 @@ from heretic.skilningr.sandbox import url_matches_allowlist
 from heretic.skilningr.senses.leid.errors import (
     LeidConnectionError,
     LeidHttpError,
+    LeidResponseTooLargeError,
     LeidTimeoutError,
     UrlNotAllowedError,
 )
@@ -200,6 +202,17 @@ class LeidClient:
     async def fetch_url(self, url: str) -> dict[str, Any]:
         """Fetch the raw content of a URL via HTTP GET.
 
+        Size-cap behaviour (v0.6.2):
+            The full response body is buffered into memory via response.content,
+            then its length is checked against LeidConfig.max_response_bytes.
+            If the body exceeds the cap, LeidResponseTooLargeError is raised —
+            the agent receives a structured error instead of a silently truncated
+            body. No partial content is returned.
+
+            v0.6.2.1 will replace this full-buffer-then-check pattern with true
+            streaming via aiter_bytes and early termination at the size cap,
+            which avoids materialising oversized bodies in memory at all.
+
         Args:
             url: URL to fetch. Must match url_allowlist_patterns.
 
@@ -209,14 +222,14 @@ class LeidClient:
                 status_code (int): HTTP response status code
                 content_type (str): Content-Type header value (or "")
                 body (str): response body as UTF-8 string (errors="replace")
-                size_bytes (int): actual bytes read (before truncation)
-                truncated (bool): True if body was capped at max_response_bytes
+                size_bytes (int): actual bytes read
 
         Raises:
             UrlNotAllowedError: URL not in allowlist or HTTP rejected.
             LeidTimeoutError: request timed out.
             LeidHttpError: 4xx or 5xx response status.
             LeidConnectionError: network-level error (DNS, TLS, TCP refused).
+            LeidResponseTooLargeError: response body exceeds max_response_bytes.
         """
         # Gate — allowlist and HTTPS policy
         normalised_url = self._validate_url(url)
@@ -266,26 +279,30 @@ class LeidClient:
 
         content_type = response.headers.get("content-type", "")
 
-        # Read and cap the response body
+        # Buffer the full response body then check size.
+        # v0.6.2: full buffering then check; v0.6.2.1: streaming via aiter_bytes.
         raw_bytes = response.content
         size_bytes = len(raw_bytes)
         max_bytes = self._config.max_response_bytes
-        truncated = size_bytes > max_bytes
 
-        if truncated:
-            raw_bytes = raw_bytes[:max_bytes]
+        if size_bytes > max_bytes:
             self._log.warning(
-                "Leið fetch_url: response from %s truncated at %d bytes "
-                "(full size: %d bytes)",
-                normalised_url, max_bytes, size_bytes,
+                "Leið fetch_url: response from %s is %d bytes, exceeds "
+                "max_response_bytes=%d — raising LeidResponseTooLargeError",
+                normalised_url, size_bytes, max_bytes,
+            )
+            raise LeidResponseTooLargeError(
+                f"Response from {normalised_url!r} is {size_bytes} bytes, "
+                f"which exceeds max_response_bytes={max_bytes}. "
+                f"Increase LeidConfig.max_response_bytes or fetch a smaller resource."
             )
 
         # Decode as UTF-8 with replacement for non-decodable bytes
         body = raw_bytes.decode("utf-8", errors="replace")
 
         self._log.debug(
-            "Leið fetch_url: %s -> status=%d, size=%d, truncated=%s",
-            normalised_url, response.status_code, size_bytes, truncated,
+            "Leið fetch_url: %s -> status=%d, size=%d",
+            normalised_url, response.status_code, size_bytes,
         )
 
         return {
@@ -294,7 +311,6 @@ class LeidClient:
             "content_type": content_type,
             "body": body,
             "size_bytes": size_bytes,
-            "truncated": truncated,
         }
 
     async def extract_text(self, url: str) -> dict[str, Any]:
@@ -316,21 +332,21 @@ class LeidClient:
                 text (str): extracted plain text content
                 title (str | None): page title if HTML and detectable
                 source_size_bytes (int): size of original response body in bytes
-                truncated (bool): True if content was truncated
 
         Raises:
             UrlNotAllowedError: URL not in allowlist or HTTP rejected.
             LeidTimeoutError: request timed out.
             LeidHttpError: 4xx or 5xx response status.
             LeidConnectionError: network-level error.
+            LeidResponseTooLargeError: response body exceeds max_response_bytes.
         """
-        # Re-use fetch_url for transport and sandbox validation
+        # Re-use fetch_url for transport and sandbox validation.
+        # LeidResponseTooLargeError propagates unmodified if body exceeds cap.
         fetch_result = await self.fetch_url(url)
 
         body = fetch_result["body"]
         content_type = fetch_result["content_type"]
         source_size_bytes = fetch_result["size_bytes"]
-        truncated = fetch_result["truncated"]
 
         # Extract text from HTML if applicable; return raw body otherwise
         if self._is_html_content_type(content_type):
@@ -350,5 +366,4 @@ class LeidClient:
             "text": text,
             "title": title,
             "source_size_bytes": source_size_bytes,
-            "truncated": truncated,
         }

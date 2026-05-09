@@ -339,9 +339,18 @@ class LeidTimeoutError(LeidError):
 class LeidResponseTooLargeError(LeidError):
     """The HTTP response body exceeds LeidConfig.max_response_bytes.
 
-    Raised when the response Content-Length header or streaming body size
-    exceeds the configured cap. The connection is closed immediately; no
-    partial content is returned to the agent.
+    v0.6.2: raised after the full response body has been buffered into memory
+    and its length found to exceed max_response_bytes. No partial content is
+    returned to the agent — the agent receives a structured error tool_result
+    instead of a silently truncated body.
+
+    Note: in v0.6.2 the body IS fully buffered before the check. The earlier
+    docstring claim that "the connection is closed immediately" was incorrect
+    for this implementation. v0.6.2.1 will introduce true streaming via
+    aiter_bytes with early termination at the size cap, which will make that
+    claim accurate.
+
+    The error message includes the actual body size and the configured cap.
 
     Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
     """

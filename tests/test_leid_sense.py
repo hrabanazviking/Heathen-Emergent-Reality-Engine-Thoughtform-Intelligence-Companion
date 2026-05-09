@@ -173,7 +173,6 @@ class TestLeidSenseDispatch:
             "content_type": "text/html",
             "body": "<html><body>Hello</body></html>",
             "size_bytes": 30,
-            "truncated": False,
         })
         sense = LeidSense(config, mock_client)
         await sense.open()
@@ -182,7 +181,8 @@ class TestLeidSenseDispatch:
         assert result["role"] == "tool"
         parsed = json.loads(result["content"])
         assert parsed["status_code"] == 200
-        assert parsed["truncated"] is False
+        # v0.6.2: no 'truncated' key — oversized bodies raise LeidResponseTooLargeError
+        assert "truncated" not in parsed
 
     @pytest.mark.asyncio
     async def test_extract_text_dispatch_success(self):
@@ -197,7 +197,6 @@ class TestLeidSenseDispatch:
             "text": "Hello World",
             "title": "Example",
             "source_size_bytes": 100,
-            "truncated": False,
         })
         sense = LeidSense(config, mock_client)
         await sense.open()

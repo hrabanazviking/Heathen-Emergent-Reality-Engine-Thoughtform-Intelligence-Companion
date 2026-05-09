@@ -17,6 +17,7 @@ Ref: src/heretic/skilningr/senses/minni/client.py
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -304,3 +305,59 @@ class TestMinniClientListDirectory:
         entry_map = {e["name"]: e for e in result["entries"]}
         assert entry_map["sized.txt"]["size_bytes"] == len(content.encode("utf-8"))
         assert entry_map["subdir"]["size_bytes"] is None
+
+
+# ---------------------------------------------------------------------------
+# Symlink sandbox tests
+# ---------------------------------------------------------------------------
+
+class TestMinniClientSymlinks:
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="symlink creation requires elevated permissions on Windows",
+    )
+    def test_minni_read_file_via_symlink_to_outside_root_is_rejected(self, tmp_path):
+        """read_file rejects a symlink inside allowed_roots that points outside.
+
+        Layer 1 (path_within_allowed_roots via Path.resolve()) follows the symlink
+        to its physical target. The target is outside allowed_roots, so
+        MinniSandboxViolation is raised before any I/O is attempted.
+        """
+        outside_dir = tmp_path.parent / "outside_minni_sandbox"
+        outside_dir.mkdir(exist_ok=True)
+        outside_file = outside_dir / "private.txt"
+        outside_file.write_text("private content", encoding="utf-8")
+
+        link_path = tmp_path / "escape_link.txt"
+        try:
+            os.symlink(str(outside_file), str(link_path))
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation failed on this platform/configuration")
+
+        client = make_client(tmp_path)
+        with pytest.raises(MinniSandboxViolation):
+            client.read_file(str(link_path))
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="symlink creation requires elevated permissions on Windows",
+    )
+    def test_minni_read_file_via_symlink_to_inside_root_succeeds(self, tmp_path):
+        """read_file succeeds for a symlink that lives inside AND points inside allowed_roots.
+
+        Both the symlink's path and its resolved physical target are within
+        allowed_roots, so the sandbox check passes and the file is read normally.
+        """
+        real_file = tmp_path / "real.txt"
+        real_file.write_text("real content", encoding="utf-8")
+
+        link_path = tmp_path / "link_to_real.txt"
+        try:
+            os.symlink(str(real_file), str(link_path))
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation failed on this platform/configuration")
+
+        client = make_client(tmp_path)
+        result = client.read_file(str(link_path))
+        assert result["content"] == "real content"
