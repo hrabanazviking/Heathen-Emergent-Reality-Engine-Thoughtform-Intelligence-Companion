@@ -1,6 +1,6 @@
 # HERETIC — Agent-Agnostic Protocol (Bifröst Contract)
 
-**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, canonicalizing tool-name format reference, confirming screen frame format) | 2026-05-07 H-1 corrective pass — Rúnhild Svartdóttir: `?voice_in` and `?voice_out` capability flags added to §5.1 and §5.2. Both flags are HERETIC-internal: they are set from `rodd` layer state at Tengsl and delivered to the agent in the senses manifest, not derived from the agent capability probe. Audit finding H-1 (AUDIT_v0.3_FIRST_LISTENING.md §H-1) closed.
+**Last updated:** 2026-05-08 v0.6.x addendum — Rúnhild Svartdóttir: MCP server transport documented in §11. | 2026-05-07 (corrective pass — Rúnhild Svartdóttir, canonicalizing tool-name format reference, confirming screen frame format) | 2026-05-07 H-1 corrective pass — Rúnhild Svartdóttir: `?voice_in` and `?voice_out` capability flags added to §5.1 and §5.2. Both flags are HERETIC-internal: they are set from `rodd` layer state at Tengsl and delivered to the agent in the senses manifest, not derived from the agent capability probe. Audit finding H-1 (AUDIT_v0.3_FIRST_LISTENING.md §H-1) closed.
 **Scope:** The exact protocol any inhabiting agent must speak; what HERETIC promises; what HERETIC requires; authentication; routing; capability negotiation; tool call format; lifecycle messages mapped to True Names.
 **Authority:** Derives from `ARCHITECTURE.md` (L1 Bifröst domain).
 **Owner:** Architect (Rúnhild Svartdóttir)
@@ -525,6 +525,79 @@ These are the minimum obligations any inhabiting spirit must meet.
 6. **Does not require HERETIC-specific headers.** Bifröst sends only `Authorization: Bearer` and `Content-Type: application/json`. No proprietary headers.
 
 7. **Signals end of response.** The agent must terminate streaming with `data: [DONE]` and set `finish_reason` in the final chunk. Streams that do not terminate are killed after `bifrost.stream_timeout_seconds` (default 120 s).
+
+---
+
+## 11. MCP Server Transport  [v0.6.x addendum]
+
+**v0.6.x adds MCP server hosting as an alternative agent-connection transport.**
+
+Agents that speak the Model Context Protocol — Claude Desktop, Continue, a future
+OpenClaw with an MCP client — can connect directly to HERETIC's MCP server.
+They do not need to use the OpenAI `/v1/chat/completions` path.
+
+**The 16+ tools exposed via OpenAI `tool_use` are also exposed via MCP.
+Same dispatcher. Same sandboxes. Same auth invariants.**
+
+### 11.1 What changes with MCP transport
+
+| Aspect | OpenAI tool_call path (L1 Bifröst) | MCP transport (L5 McpServer) |
+|---|---|---|
+| Agent speaks | `POST /v1/chat/completions` | `initialize` / `tools/list` / `tools/call` (JSON-RPC over stdio or HTTP) |
+| Tool schemas | OpenAI `{"type":"function","function":{...}}` | MCP `{"name":...,"description":...,"inputSchema":{...}}` |
+| Tool execution | ToolDispatcher.dispatch(tool_call dict) | ToolDispatcher.dispatch(tool_call dict) — identical |
+| Auth (http) | API key on Bifröst endpoint | Bearer token middleware on MCP HTTP transport |
+| Auth (stdio) | N/A (no socket) | Implicit — MCP client owns the subprocess |
+| Result format | OpenAI `tool_result` dict | MCP `TextContent` (JSON-serialised tool_result) |
+
+### 11.2 Transport options
+
+**stdio** (default): HERETIC is launched as a subprocess by the MCP client.
+Communication happens over stdin/stdout.  No network socket is opened.
+No auth configuration required — process ownership is the auth boundary.
+
+```
+heretic mcp --transport stdio
+```
+
+**http** (Starlette/uvicorn): HERETIC binds an HTTP server at the configured
+`mcp_server.host:mcp_server.port` (default `127.0.0.1:8643`).  Non-loopback
+binds require `mcp_server.allow_remote_bind: true` in heretic.yaml.
+
+```
+heretic mcp --transport http
+```
+
+### 11.3 Config key
+
+```yaml
+skilningr:
+  mcp_server:
+    enabled: false        # opt-in
+    transport: stdio      # stdio | http
+    host: 127.0.0.1       # http only; non-loopback requires allow_remote_bind: true
+    port: 8643            # http only
+    allow_remote_bind: false
+    request_timeout_seconds: 60
+```
+
+### 11.4 SDK (mcp==1.27.0)
+
+The MCP Python SDK is Anthropic's reference implementation (MIT).  HERETIC uses
+`mcp.server.lowlevel.Server` with `@list_tools()` and `@call_tool()` decorators.
+stdio transport: `mcp.server.stdio.stdio_server()`.
+HTTP transport: `mcp.server.streamable_http_manager.StreamableHTTPSessionManager`.
+
+Extra: `pip install heretic[mcp]`
+
+### 11.5 Scaffold status (v0.6.x)
+
+`McpServer.start()`, `handle_tools_list()`, and `handle_tools_call()` are
+scaffolded with `NotImplementedError` and precise Forge instructions in their
+docstrings.  `convert_to_mcp_tool()` (pure dict reshape) is fully implemented.
+`McpServerConfig` is fully implemented with `__post_init__` validation.
+
+Forge implements the bodies in the v0.6.x implementation pass.
 
 ---
 

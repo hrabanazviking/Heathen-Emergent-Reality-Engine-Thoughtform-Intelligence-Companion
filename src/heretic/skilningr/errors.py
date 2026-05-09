@@ -376,3 +376,71 @@ class LeidConnectionError(LeidError):
 
     Forge should translate this to SENSE_CONTRACTS.md code EXTERNAL_APP_UNAVAILABLE.
     """
+
+
+# ---------------------------------------------------------------------------
+# MCP server errors  [v0.6.x]
+# ---------------------------------------------------------------------------
+
+class McpServerError(SkilningrError):
+    """Root error for the Skilningr MCP server subsystem.
+
+    All errors raised within the McpServer class and its transport helpers are
+    subclasses of this. Callers catching SkilningrError also catch McpServerError.
+
+    The MCP server is an alternative agent-connection transport — it exposes the
+    same tool surface as the OpenAI tool_call path, via the Model Context Protocol.
+    Same dispatcher.  Same sandboxes.  Same auth invariants.
+
+    Corresponds to: src/heretic/skilningr/mcp_server.py
+    Ref: docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
+         src/heretic/skilningr/INTERFACE.md §MCP Server
+    """
+
+
+class TransportError(McpServerError):
+    """The MCP transport layer failed to open, write, or read correctly.
+
+    Raised when the stdio streams cannot be acquired (e.g. stdin is closed before
+    the server initialises) or when the HTTP/uvicorn server fails to bind.
+
+    Common causes:
+        - stdio: stdin EOF before mcp handshake completes.
+        - http: port already in use; bind address permission denied.
+        - http: non-loopback bind attempted with allow_remote_bind==False.
+
+    Forge should surface this as a startup error with exit code 1, not as a
+    structured tool_result — the transport is not yet serving requests when this
+    fires.
+    """
+
+
+class ProtocolError(McpServerError):
+    """An MCP protocol-level error was detected during handler execution.
+
+    Raised when the incoming MCP message is structurally valid JSON-RPC but
+    violates the MCP application protocol (e.g. unknown method, malformed params,
+    invalid tool schema round-trip).
+
+    In the mcp 1.27.0 SDK, most protocol violations are caught internally and
+    returned to the client as JSON-RPC error responses (code INVALID_REQUEST or
+    METHOD_NOT_FOUND).  ProtocolError is raised by HERETIC's own handler code
+    when a violation is detected before the SDK layer sees it.
+
+    Forge should log the error and, where possible, return an MCP error response
+    rather than crashing the server process.
+    """
+
+
+class McpAuthError(McpServerError):
+    """Authentication was required but the MCP client did not provide valid credentials.
+
+    Applies to the HTTP transport only — stdio transport auth is implicit (the
+    MCP client controls the process's stdin/stdout).
+
+    Raised when the HTTP transport middleware rejects the bearer token or API key
+    presented in the Authorization header.
+
+    Ref: McpServerConfig.allow_remote_bind (non-loopback binds imply auth is needed)
+         The auth middleware is a Forge responsibility — the scaffold stubs this.
+    """

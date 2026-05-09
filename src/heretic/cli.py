@@ -1722,6 +1722,48 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     return asyncio.run(_async_serve(args))
 
 
+def _cmd_mcp(args: argparse.Namespace) -> int:
+    """Start the Skilningr MCP server — exposes HERETIC's tool surface via MCP transport.
+
+    Loads heretic.yaml (or the config at --config PATH), resolves the transport
+    (--transport overrides skilningr.mcp_server.transport in heretic.yaml), then
+    opens the MCP transport and enters the request–response loop.
+
+    Transport "stdio" (default):
+        HERETIC communicates over stdin/stdout.  Claude Desktop, Continue, and
+        other MCP-compatible clients launch HERETIC as a subprocess.  No port is
+        opened.  Auth is implicit (process ownership by the MCP client).
+
+    Transport "http":
+        HERETIC binds a Starlette/uvicorn HTTP server at the configured host:port
+        (default 127.0.0.1:8643).  Non-loopback binds require
+        mcp_server.allow_remote_bind: true in heretic.yaml.
+
+    The same tools served by OpenAI tool_call are served here.  Same dispatcher.
+    Same sandboxes.  Same auth invariants.  Ctrl-C (SIGINT) triggers graceful shutdown.
+
+    Usage:
+        heretic mcp
+        heretic mcp --transport stdio
+        heretic mcp --transport http
+        heretic mcp --config /path/to/heretic.yaml
+
+    Requires: pip install heretic[mcp]
+    Ref: src/heretic/skilningr/mcp_server.py
+         docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
+    """
+    raise NotImplementedError(
+        "heretic mcp — Forge implements: "
+        "(1) load config via load_config(args.config); "
+        "(2) resolve transport: args.transport or cfg.skilningr.mcp_server.transport; "
+        "(3) if not cfg.skilningr.mcp_server.enabled: warn + return 1; "
+        "(4) build ToolDispatcher and register all enabled senses (mirrors _async_light path); "
+        "(5) construct McpServer(config=cfg.skilningr.mcp_server, dispatcher=dispatcher, logger=log); "
+        "(6) anyio.run(server.start, transport) — blocks until client disconnects or SIGINT; "
+        "(7) on SIGINT: cancel anyio task group, close senses, return 0."
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct and return the top-level argument parser.
 
@@ -1813,6 +1855,29 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_serve.set_defaults(func=_cmd_serve)
+
+    # mcp  [v0.6.x]
+    p_mcp = subparsers.add_parser(
+        "mcp",
+        help=(
+            "Start the Skilningr MCP server — exposes HERETIC tools via Model "
+            "Context Protocol transport (stdio or http). "
+            "Requires: pip install heretic[mcp]"
+        ),
+    )
+    p_mcp.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default=None,
+        metavar="TRANSPORT",
+        help=(
+            "MCP transport to open: 'stdio' (default) or 'http'. "
+            "Overrides skilningr.mcp_server.transport in heretic.yaml. "
+            "stdio: communicate over stdin/stdout (subprocess mode). "
+            "http: bind Starlette/uvicorn at mcp_server.host:mcp_server.port."
+        ),
+    )
+    p_mcp.set_defaults(func=_cmd_mcp)
 
     return parser
 

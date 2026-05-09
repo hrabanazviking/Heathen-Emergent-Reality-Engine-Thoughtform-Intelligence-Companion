@@ -75,6 +75,24 @@ serve = [
     "pydantic>=2.5",
 ]
 
+# MCP server transport — install when operating HERETIC as an MCP server host.
+# mcp>=1.27 is Anthropic's Python SDK (MIT).  anyio is its required async runtime
+# (already a hard dep of mcp itself, pinned here for clarity).
+# starlette + uvicorn are required for the "http" transport variant; they are
+# optional for the "stdio" variant but included in [mcp] for simplicity.
+# Verified: mcp==1.27.0 requires anyio, starlette, uvicorn (via its own deps).
+# ``pip install heretic[mcp]`` activates:
+#   - McpServer      (src/heretic/skilningr/mcp_server.py)
+#   - heretic mcp    (CLI subcommand)
+# The [mcp] extra is NOT required for the OpenAI tool_call path — mcp is entirely
+# optional.  Operators using only Hermes or other OpenAI-compat agents do not need it.
+mcp = [
+    "mcp>=1.27",
+    "anyio>=4.0",
+    "starlette>=0.37",
+    "uvicorn[standard]>=0.27",
+]
+
 [project.scripts]
 heretic = "heretic.cli:main"
 

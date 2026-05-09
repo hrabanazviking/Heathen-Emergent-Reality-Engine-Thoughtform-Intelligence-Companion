@@ -555,6 +555,126 @@ class LeidConfig:
 
 
 # ---------------------------------------------------------------------------
+# L5.0 MCP Server config  [v0.6.x]
+# ---------------------------------------------------------------------------
+
+@dataclass
+class McpServerConfig:
+    """Configuration for HERETIC's MCP server transport.
+
+    When enabled, McpServer opens an MCP-protocol transport alongside (or instead
+    of) the OpenAI tool_call path.  MCP-compatible agents — Claude Desktop,
+    Continue, future OpenClaw with an MCP client — can connect directly to
+    HERETIC without requiring an OpenAI-compatible intermediary.
+
+    The same tools, the same dispatcher, the same sandboxes, and the same auth
+    invariants apply regardless of which transport the agent uses.
+
+    Transport options
+    -----------------
+    stdio   — The process communicates over stdin/stdout.  The MCP client
+              (e.g. Claude Desktop) launches HERETIC as a subprocess.  No bind
+              address or port is needed.  Auth is implicit (process ownership).
+
+    http    — HERETIC launches a Starlette/uvicorn HTTP server at host:port.
+              Non-loopback bind addresses require allow_remote_bind==True.
+              Auth for remote binds is a Forge responsibility (middleware).
+
+    KEY INVARIANTS (DO NOT BREAK):
+        - enabled defaults False.  The MCP transport is not opened until the
+          operator explicitly opts in.
+        - Non-loopback host requires allow_remote_bind==True (mirrors Vébond and
+          Brúarhönd patterns throughout HERETIC).  __post_init__ enforces this.
+        - port must be in valid range 1–65535.
+        - transport must be "stdio" or "http".
+        - request_timeout_seconds must be > 0.
+
+    Heretic.yaml key: skilningr.mcp_server.*
+    Ref: src/heretic/skilningr/mcp_server.py
+         src/heretic/skilningr/INTERFACE.md §MCP Server
+         docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
+    """
+
+    enabled: bool = False
+    """Opt-in.  Must be explicitly set to true to open an MCP transport.
+    Default false: HERETIC does not expose an MCP surface until the operator
+    consciously enables it.  This is consistent with all other HERETIC sense
+    and transport opt-ins."""
+
+    transport: str = "stdio"
+    """Which MCP transport to open.  Must be "stdio" or "http".
+    Default "stdio": the safest and most portable choice.  Claude Desktop, for
+    example, launches HERETIC as an stdio MCP server subprocess.
+    Use "http" when remote agents (on other machines or containers) need to
+    connect to HERETIC's MCP surface over the network."""
+
+    host: str = "127.0.0.1"
+    """Bind address for the HTTP transport.  Ignored when transport="stdio".
+    Default 127.0.0.1 (loopback only — safe).  For cross-machine use, set to a
+    Tailscale IP or MagicDNS name.
+    INVARIANT: non-loopback host requires allow_remote_bind==True."""
+
+    port: int = 8643
+    """TCP port for the HTTP transport.  Ignored when transport="stdio".
+    Default 8643 — matches the Hermes endpoint port in heretic.example.yaml for
+    conceptual consistency.  Must be in valid range 1–65535.
+    IMPORTANT: ensure this port does not conflict with other HERETIC services
+    (Vébond WebSocket defaults to 8642)."""
+
+    allow_remote_bind: bool = False
+    """Whether to allow the HTTP transport to bind to a non-loopback address.
+    Default False.  When False, __post_init__ rejects any host other than
+    127.0.0.1 with a ValueError — protecting operators from accidentally
+    exposing the MCP surface to the network without consciously opting in.
+    Set to True only when you intend cross-machine MCP agent connections AND
+    you have configured appropriate authentication (bearer token middleware).
+    Ref: Vébond allow_remote_bind pattern (same invariant across all HERETIC
+    transports)."""
+
+    request_timeout_seconds: int = 60
+    """Per-request timeout in seconds applied by the MCP server to tool call
+    execution.  Default 60.  Increase for senses with slow operations (e.g.
+    Forge/Blender builds).  Must be > 0."""
+
+    def __post_init__(self) -> None:
+        """Validate config fields at construction time.
+
+        Raises:
+            ValueError: if transport is not "stdio" or "http";
+                        if port is out of range 1–65535;
+                        if request_timeout_seconds <= 0;
+                        if host is not 127.0.0.1 and allow_remote_bind is False
+                        (remote bind safety gate — mirrors Vébond/Brúarhönd pattern).
+        """
+        _valid_transports = {"stdio", "http"}
+        if self.transport not in _valid_transports:
+            raise ValueError(
+                f"McpServerConfig.transport {self.transport!r} is not valid. "
+                f"Must be one of {sorted(_valid_transports)}."
+            )
+        if not (1 <= self.port <= 65535):
+            raise ValueError(
+                f"McpServerConfig.port {self.port!r} is out of valid range 1–65535."
+            )
+        if self.request_timeout_seconds <= 0:
+            raise ValueError(
+                f"McpServerConfig.request_timeout_seconds must be > 0, "
+                f"got {self.request_timeout_seconds!r}."
+            )
+        # Remote bind safety gate — identical pattern to Vébond ws_host validation.
+        if self.transport == "http" and self.host not in ("127.0.0.1", "localhost"):
+            if not self.allow_remote_bind:
+                raise ValueError(
+                    f"McpServerConfig: host {self.host!r} is not loopback but "
+                    f"allow_remote_bind is False. "
+                    f"Set mcp_server.allow_remote_bind: true in heretic.yaml to "
+                    f"permit binding to non-loopback addresses. "
+                    f"Ensure you have also configured authentication middleware "
+                    f"before enabling remote MCP access."
+                )
+
+
+# ---------------------------------------------------------------------------
 # L5 Skilningr root config
 # ---------------------------------------------------------------------------
 
@@ -627,3 +747,19 @@ class SkilningrConfig:
 
     library: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
     """L5.9 Mímisbrunnr — Library sense stub. Forge expands in v0.7+."""
+
+    mcp_server: "McpServerConfig" = field(default_factory=lambda: McpServerConfig())
+    """v0.6.x — MCP server configuration.
+
+    When enabled, HERETIC opens an MCP transport (stdio or http) so that
+    MCP-compatible agents (Claude Desktop, Continue, future OpenClaw with MCP
+    client) can connect directly and call HERETIC's tools.
+
+    The same 16+ tools exposed via OpenAI tool_use are also exposed here.
+    Same dispatcher.  Same sandboxes.  Same auth invariants.
+
+    Heretic.yaml key: skilningr.mcp_server.*
+    Ref: src/heretic/skilningr/mcp_server.py
+         docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
+         src/heretic/skilningr/INTERFACE.md §MCP Server
+    """
