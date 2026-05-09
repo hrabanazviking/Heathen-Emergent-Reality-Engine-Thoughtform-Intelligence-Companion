@@ -1,9 +1,13 @@
 """
-Placeholder tests for MinniSense — L5.1 filesystem sense orchestrator.
+Tests for MinniSense — L5.1 filesystem sense orchestrator.
 
-These tests verify sense lifecycle and dispatch routing. Client implementation
-is a Wave 2 Forge task — client method calls raise NotImplementedError until
-then.
+Covers:
+    - Config validation
+    - Sense lifecycle (open/close/is_available)
+    - Tool definitions
+    - dispatch_tool_call routing (mocked client)
+    - Error handling (sandbox violations, file not found, etc. mapped to tool_result)
+    - JSON argument parsing errors
 
 Ref: src/heretic/skilningr/senses/minni/sense.py
      TASK_HERETIC_v0.6.2_MORE_SENSES.md
@@ -11,13 +15,24 @@ Ref: src/heretic/skilningr/senses/minni/sense.py
 
 from __future__ import annotations
 
+import json
+from unittest.mock import MagicMock
+
 import pytest
 
 from heretic.skilningr.config_model import MinniConfig
 from heretic.skilningr.senses.minni.client import MinniClient
+from heretic.skilningr.senses.minni.errors import (
+    MinniFileNotFoundError,
+    MinniSandboxViolation,
+)
 from heretic.skilningr.senses.minni.sense import MinniSense
 from heretic.skilningr.senses.minni.tools import MINNI_TOOL_DEFINITIONS
 
+
+# ---------------------------------------------------------------------------
+# Config validation
+# ---------------------------------------------------------------------------
 
 class TestMinniSenseConfig:
 
@@ -42,6 +57,10 @@ class TestMinniSenseConfig:
         with pytest.raises(ValueError, match="max_write_bytes"):
             MinniConfig(max_write_bytes=-1)
 
+
+# ---------------------------------------------------------------------------
+# Sense lifecycle
+# ---------------------------------------------------------------------------
 
 class TestMinniSenseLifecycle:
 
@@ -74,6 +93,10 @@ class TestMinniSenseLifecycle:
         assert sense.is_available is False
 
 
+# ---------------------------------------------------------------------------
+# Tool definitions
+# ---------------------------------------------------------------------------
+
 class TestMinniSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
@@ -100,20 +123,136 @@ class TestMinniSenseToolDefinitions:
         assert "minni.list_directory" in names
 
 
-@pytest.mark.skip(reason="Wave 2 — MinniClient not yet implemented by Forge")
+# ---------------------------------------------------------------------------
+# dispatch_tool_call — happy path (mocked client)
+# ---------------------------------------------------------------------------
+
 class TestMinniSenseDispatch:
 
-    @pytest.mark.asyncio
-    async def test_read_file_dispatch(self, tmp_path):
-        """read_file dispatches to client and returns structured result."""
-        pass
+    def _make_tool_call(self, name: str, args: dict) -> dict:
+        return {
+            "id": "call_001",
+            "function": {
+                "name": name,
+                "arguments": json.dumps(args),
+            },
+        }
 
     @pytest.mark.asyncio
-    async def test_write_file_dispatch(self, tmp_path):
-        """write_file dispatches to client and returns structured result."""
-        pass
+    async def test_read_file_dispatch_success(self, tmp_path):
+        """dispatch_tool_call routes minni.read_file to client and returns result."""
+        config = MinniConfig(enabled=True, allowed_roots=[str(tmp_path)])
+        mock_client = MagicMock(spec=MinniClient)
+        mock_client.read_file.return_value = {
+            "path": str(tmp_path / "notes.md"),
+            "content": "hello",
+            "size_bytes": 5,
+            "encoding": "utf-8",
+        }
+        sense = MinniSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("minni.read_file", {"path": str(tmp_path / "notes.md")})
+        result = await sense.dispatch_tool_call(tool_call)
+        assert result["role"] == "tool"
+        parsed = json.loads(result["content"])
+        assert parsed["content"] == "hello"
 
     @pytest.mark.asyncio
-    async def test_list_directory_dispatch(self, tmp_path):
-        """list_directory dispatches to client and returns structured result."""
-        pass
+    async def test_write_file_dispatch_success(self, tmp_path):
+        """dispatch_tool_call routes minni.write_file to client and returns result."""
+        config = MinniConfig(enabled=True, allowed_roots=[str(tmp_path)])
+        mock_client = MagicMock(spec=MinniClient)
+        mock_client.write_file.return_value = {
+            "path": str(tmp_path / "out.txt"),
+            "bytes_written": 5,
+            "created": True,
+        }
+        sense = MinniSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "minni.write_file",
+            {"path": str(tmp_path / "out.txt"), "content": "hello"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        assert result["role"] == "tool"
+        parsed = json.loads(result["content"])
+        assert parsed["created"] is True
+
+    @pytest.mark.asyncio
+    async def test_list_directory_dispatch_success(self, tmp_path):
+        """dispatch_tool_call routes minni.list_directory to client and returns result."""
+        config = MinniConfig(enabled=True, allowed_roots=[str(tmp_path)])
+        mock_client = MagicMock(spec=MinniClient)
+        mock_client.list_directory.return_value = {
+            "path": str(tmp_path),
+            "entries": [],
+            "recurse": False,
+            "total_entries": 0,
+        }
+        sense = MinniSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("minni.list_directory", {"path": str(tmp_path)})
+        result = await sense.dispatch_tool_call(tool_call)
+        assert result["role"] == "tool"
+        parsed = json.loads(result["content"])
+        assert parsed["total_entries"] == 0
+
+    @pytest.mark.asyncio
+    async def test_sandbox_violation_returns_error_result(self, tmp_path):
+        """dispatch_tool_call returns error tool_result on MinniSandboxViolation."""
+        config = MinniConfig(enabled=True, allowed_roots=[str(tmp_path)])
+        mock_client = MagicMock(spec=MinniClient)
+        mock_client.read_file.side_effect = MinniSandboxViolation("access denied")
+        sense = MinniSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("minni.read_file", {"path": "/etc/passwd"})
+        result = await sense.dispatch_tool_call(tool_call)
+        assert result["role"] == "tool"
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "PERMISSION_DENIED"
+
+    @pytest.mark.asyncio
+    async def test_file_not_found_returns_error_result(self, tmp_path):
+        """dispatch_tool_call returns error tool_result on MinniFileNotFoundError."""
+        config = MinniConfig(enabled=True, allowed_roots=[str(tmp_path)])
+        mock_client = MagicMock(spec=MinniClient)
+        mock_client.read_file.side_effect = MinniFileNotFoundError("not found")
+        sense = MinniSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("minni.read_file", {"path": str(tmp_path / "missing.txt")})
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert "sense" in parsed
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_args_returns_error_result(self):
+        """dispatch_tool_call returns error result when arguments are invalid JSON."""
+        config = MinniConfig(enabled=True)
+        mock_client = MagicMock(spec=MinniClient)
+        sense = MinniSense(config, mock_client)
+        await sense.open()
+        bad_call = {
+            "id": "call_bad",
+            "function": {"name": "minni.read_file", "arguments": "{not valid json"},
+        }
+        result = await sense.dispatch_tool_call(bad_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "INVALID_ARGUMENTS"
+
+    @pytest.mark.asyncio
+    async def test_unknown_tool_name_returns_error_result(self):
+        """dispatch_tool_call returns error result for unknown tool names."""
+        config = MinniConfig(enabled=True)
+        mock_client = MagicMock(spec=MinniClient)
+        sense = MinniSense(config, mock_client)
+        await sense.open()
+        tool_call = {
+            "id": "call_x",
+            "function": {"name": "minni.nonexistent_tool", "arguments": "{}"},
+        }
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
