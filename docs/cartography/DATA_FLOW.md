@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
+**Last updated:** 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -5879,23 +5879,495 @@ The MCP server carries forward the same auth model as the existing REST surfaces
 
 ---
 
-## 16. L5 Skilningr — Four Senses + MCP Server Component Diagram (v0.6.x)
+### 4.14 Library Flow (v0.7 — Mímisbrunnr light tier)
+
+> **Added 2026-05-08 v0.7 (Védis Eikleið).** The well opens for the first time.
+> Mímisbrunnr is HERETIC's optional offline knowledge subsystem — a bookshelf in the
+> longhouse. It plugs into L5 Skilningr as a fifth sense (LibrarySense), registered under
+> the prefix "library". The agent never touches the corpus directly; it calls one of three
+> tools, and LibrarySense delegates through LibraryClient to the mimisbrunnr/ backend.
+>
+> v0.7 ships the LIGHT TIER ONLY: file-index keyword search over plain-text corpora.
+> No vector search (v0.9). No ZIM / Wikipedia (v0.8). The corpus is the Norse starter pack
+> (~2.7 MB of public-domain Eddas and sagas). The network is never reached during a query.
+
+```
+  THREE AGENT TOOL PATHS
+
+  PATH A — library.search  (keyword search across all downloaded sources)
+  -----------------------------------------------------------------------
+
+  [Agent — tool_call: library.search]
+       |
+       |  arguments_json:
+       |    { "query": "Odin sacrifices his eye", "max_results": 5 }
+       |
+       v
+  [ToolDispatcher.dispatch(tool_call)]
+       |
+       |  prefix = "library" --> LibrarySense
+       |
+       v
+  [LibrarySense.dispatch_tool_call(tool_call)]
+       |
+       |  IF NOT library.enabled --> return error ToolResult (F-4 or config error)
+       |
+       v
+  [LibraryClient.search(query, max_results)]
+       |
+       |  FOR each source_id in local manifest where status = "downloaded":
+       |    index.py: load line-offset index for source
+       |    re.search(pattern, line) for each line in sources/<source_id>/text.txt
+       |    collect Match(source_id, line_number, context_text)
+       |  rank by match count / position
+       |  return top max_results matches
+       |
+       v
+  [LibrarySense encodes -> ToolResult]
+       |
+       |  content = json.dumps({
+       |    "results": [
+       |      {
+       |        "source_id":    "prose_edda",
+       |        "line_number":  1423,
+       |        "context_text": "...the eye that Odin gave for wisdom...",
+       |        "source_title": "Prose Edda (Brodeur translation)"
+       |      },
+       |      ...
+       |    ],
+       |    "query": "Odin sacrifices his eye",
+       |    "total_searched_sources": 3
+       |  })
+       |
+       v
+  [CLI appends tool_result to messages; resumes agent loop]
+
+
+  PATH B — library.get_text  (retrieve a passage by source + line range)
+  ------------------------------------------------------------------------
+
+  [Agent — tool_call: library.get_text]
+       |
+       |  arguments_json:
+       |    { "source_id": "prose_edda", "start_line": 1420, "end_line": 1430 }
+       |
+       v
+  [ToolDispatcher] --> LibrarySense --> LibraryClient.get_text(source_id, start, end)
+       |
+       |  store.py: resolve path = <data_dir>/library/sources/<source_id>/text.txt
+       |  validate path does not escape library root (store.resolve_source_path)
+       |  open file, seek to start_line offset (from pre-built line index)
+       |  read lines start_line..end_line inclusive
+       |
+       v
+  [LibrarySense encodes -> ToolResult]
+       |
+       |  content = json.dumps({
+       |    "source_id":    "prose_edda",
+       |    "source_title": "Prose Edda (Brodeur translation)",
+       |    "start_line":   1420,
+       |    "end_line":     1430,
+       |    "text":         "...passage text...",
+       |    "license":      "Public Domain"
+       |  })
+       v
+  [CLI appends tool_result; agent may cite and quote]
+
+
+  PATH C — library.list_sources  (enumerate available + downloaded sources)
+  --------------------------------------------------------------------------
+
+  [Agent — tool_call: library.list_sources]
+       |
+       |  arguments_json: {}  (no arguments)
+       |
+       v
+  [ToolDispatcher] --> LibrarySense --> LibraryClient.list_sources()
+       |
+       |  manifest.py: load manifest.yaml from library root (or starter manifest
+       |               shipped with HERETIC if operator has not downloaded anything)
+       |  for each source entry:
+       |    check store.py: does sources/<source_id>/text.txt exist on disk?
+       |    add "downloaded": true/false to each entry
+       |
+       v
+  [LibrarySense encodes -> ToolResult]
+       |
+       |  content = json.dumps({
+       |    "sources": [
+       |      {
+       |        "source_id":    "prose_edda",
+       |        "title":        "Prose Edda (Brodeur translation)",
+       |        "license":      "Public Domain",
+       |        "approx_size":  "280 KB",
+       |        "downloaded":   true
+       |      },
+       |      {
+       |        "source_id":    "poetic_edda",
+       |        "title":        "Poetic Edda (Bellows translation)",
+       |        "license":      "Public Domain",
+       |        "approx_size":  "600 KB",
+       |        "downloaded":   false
+       |      },
+       |      ...
+       |    ]
+       |  })
+       v
+  [Agent can inform user which sources are available but not yet downloaded]
+```
+
+---
+
+#### 4.14.1 Download Flow (operator-driven)
+
+> **Added 2026-05-08 v0.7 (Védis Eikleið).** The operator tends the well — the agent
+> never reaches the network. Downloads are an explicit operator-side ritual: invoke the
+> CLI, read the consent prompt, confirm, and Mímisbrunnr fetches and verifies.
+
+```
+  OPERATOR-DRIVEN DOWNLOAD PIPELINE
+
+  [Operator runs: heretic library download <source_id>]
+  e.g., heretic library download prose_edda
+       |
+       v
+  [CLI library subcommand: library_cmd.download(source_id)]
+       |
+       |  manifest.py: load manifest entry for source_id
+       |    {
+       |      source_id:   "prose_edda",
+       |      title:       "Prose Edda (Brodeur translation)",
+       |      url:         "https://gutenberg.org/files/18947/18947-0.txt",
+       |      sha256:      "<expected hash>",
+       |      approx_size: "280 KB",
+       |      license:     "Public Domain"
+       |    }
+       |  IF source not found in manifest: raise LibraryManifestError; print error; exit
+       |
+       v
+  [consent.py: prompt_operator_consent(manifest_entry)]
+       |
+       |  Display to terminal:
+       |    Source: Prose Edda (Brodeur translation)
+       |      URL:     https://gutenberg.org/files/18947/18947-0.txt
+       |      Size:    ~280 KB
+       |      License: Public Domain
+       |    Confirm download? [y/N]
+       |
+       |  IF --yes flag passed: skip interactive prompt (consent treated as given)
+       |  IF operator types anything other than 'y' or 'Y':
+       |    log: "Download cancelled by operator"
+       |    return ConsentRefusedResult (F-6)  -- exit cleanly, no partial state
+       |
+       v
+  [downloader.py: async_download(url, dest_path, expected_sha256)]
+       |
+       |  dest_path = store.py: <data_dir>/library/sources/prose_edda/text.txt
+       |  tmp_path  = dest_path.with_suffix(".tmp")
+       |              (atomic write: download to .tmp, move to final only on success)
+       |
+       |  async with httpx.AsyncClient() as client:
+       |    async with client.stream("GET", url) as response:
+       |      sha256_hasher = hashlib.sha256()
+       |      async for chunk in response.aiter_bytes(chunk_size=65536):
+       |        tmp_file.write(chunk)
+       |        sha256_hasher.update(chunk)
+       |  computed_sha256 = sha256_hasher.hexdigest()
+       |
+       |  IF computed_sha256 != expected_sha256:
+       |    tmp_path.unlink()              <- delete partial file (no corrupt state)
+       |    raise IntegrityError(
+       |      f"SHA-256 mismatch for {source_id}: "
+       |      f"expected {expected_sha256}, got {computed_sha256}"
+       |    )
+       |    (F-2: mismatch deletes partial file + raises; caller prints error + exits)
+       |
+       |  os.replace(tmp_path, dest_path)  <- atomic rename (POSIX + Windows)
+       |  (os.replace is atomic within the same filesystem — no partial visible state)
+       |
+       v
+  [store.py: update_local_manifest(source_id, status="downloaded")]
+       |
+       |  Appends or updates the source record in
+       |  <data_dir>/library/manifest.yaml with:
+       |    downloaded: true
+       |    downloaded_at: <ISO timestamp>
+       |    sha256_verified: true
+       |
+       v
+  [index.py: build_or_update_index(source_id)]
+       |
+       |  Read sources/<source_id>/text.txt
+       |  Build line-offset table: list[int] where [i] = byte offset of line i
+       |  Write index to sources/<source_id>/index.json (or .pkl — TBD by Architect)
+       |  Index is used by library.search (Path A) and library.get_text (Path B) to
+       |  seek directly to requested line numbers without scanning from the start.
+       |
+       v
+  [CLI: print success message]
+    "prose_edda downloaded and indexed. Use 'heretic library list' to verify."
+
+
+  CLI FLAGS:
+    heretic library download <source_id>          interactive consent prompt
+    heretic library download <source_id> --yes    skip prompt (consent implied)
+    heretic library download --all                download all manifest sources (each prompts)
+    heretic library download --all --yes           download all, no prompts (batch mode)
+```
+
+---
+
+#### 4.14.2 Storage Layout
+
+> **Added 2026-05-08 v0.7 (Védis Eikleið).** The library root lives under the
+> user-data directory resolved by the `dirs` library (already a HERETIC dependency
+> from v0.6.1). All paths are cross-platform by construction.
+
+```
+  STORAGE LAYOUT
+
+  Root (resolved by dirs.user_data_dir("heretic") at runtime):
+
+    Unix:
+      ~/.local/share/heretic/library/
+
+    Windows:
+      %APPDATA%\heretic\library\
+      (i.e., C:\Users\<username>\AppData\Roaming\heretic\library\)
+
+    macOS:
+      ~/Library/Application Support/heretic/library/
+
+
+  Directory tree under library root:
+
+    library/
+    |
+    ├── manifest.yaml                    <- operator-local manifest
+    │                                       (authoritative for what is downloaded)
+    │                                       Updated by store.py after each download.
+    │                                       Initially absent; first download creates it.
+    │
+    └── sources/
+        |
+        ├── prose_edda/
+        │   ├── text.txt                 <- downloaded UTF-8 plain text
+        │   └── index.json               <- line-offset table (built by index.py)
+        │
+        ├── poetic_edda/
+        │   ├── text.txt
+        │   └── index.json
+        │
+        ├── heimskringla/
+        │   ├── text.txt
+        │   └── index.json
+        │
+        ├── volsunga_saga/
+        │   ├── text.txt
+        │   └── index.json
+        │
+        └── erik_the_red_saga/
+            ├── text.txt
+            └── index.json
+
+
+  Naming invariant:
+    Each source occupies exactly one subdirectory under sources/.
+    The subdirectory name = source_id (snake_case, as defined in the manifest).
+    text.txt is always the canonical corpus file for a plain-text source.
+    index.json is always the line-offset index file.
+    No other files are created in sources/<source_id>/ by mimisbrunnr/.
+
+  Manifest format (manifest.yaml excerpt):
+    sources:
+      - source_id:      prose_edda
+        title:          "Prose Edda (Brodeur translation)"
+        url:            "https://gutenberg.org/files/18947/18947-0.txt"
+        sha256:         "<hash — verified at Architect scaffold time>"
+        license:        "Public Domain"
+        approx_size:    "280 KB"
+        downloaded:     true
+        downloaded_at:  "2026-05-08T14:32:00Z"
+        sha256_verified: true
+      - source_id:      poetic_edda
+        title:          "Poetic Edda (Bellows translation)"
+        url:            "..."
+        sha256:         "..."
+        license:        "Public Domain"
+        approx_size:    "600 KB"
+        downloaded:     false
+
+  The starter manifest (shipped with HERETIC as a package asset) lists all 5 Norse sources
+  with their URLs and expected SHA-256 hashes. The operator-local manifest.yaml tracks
+  what has actually been downloaded. store.py merges the two on load.
+```
+
+---
+
+#### 4.14.3 Privacy Invariants
+
+> **Added 2026-05-08 v0.7 (Védis Eikleið).** The well is deaf to the network during a
+> ceremony. It answers only from what the operator has already placed inside it.
+> These invariants are sealed at v0.7 and carry forward to all future library tiers.
+
+```
+  LIBRARY PRIVACY INVARIANTS (v0.7 — sealed)
+
+  I-LIB-1: Disabled by default
+    skilningr.library.enabled: false in all config paths.
+    If disabled:
+      LibrarySense is NOT mounted in ToolDispatcher at TENGSL.
+      Agent receives no library.* tool definitions.
+      No library tool_call can be dispatched.
+    Operator must explicitly set enabled: true in heretic.yaml to activate the sense.
+
+  I-LIB-2: Per-source consent enforced
+    No source is downloaded without explicit operator confirmation.
+    consent.py displays source metadata (URL, size, license) and requires 'y' or --yes.
+    A consent refusal cancels the download immediately with no partial file left on disk.
+    The agent CANNOT trigger a download. Downloads are operator-CLI-only.
+    (The library.search / library.get_text / library.list_sources tools are read-only.
+     None of them call downloader.py. No tool_call can initiate a download.)
+
+  I-LIB-3: Queries are LOCAL keyword search ONLY
+    library.search performs re-based iteration over local text.txt files.
+    No network connection is opened during a search query.
+    No external API is called.
+    The agent's query stays on the operator's machine.
+
+  I-LIB-4: Offline-by-design during agent queries
+    Mímisbrunnr NEVER reaches the network during an agent ceremony.
+    The network is only touched during operator-initiated downloads (CLI only).
+    Once text.txt is on disk and indexed, all subsequent queries are file I/O only.
+    LibraryClient has no httpx import. downloader.py is never called by LibraryClient.
+
+  I-LIB-5: Storage path traversal rejected
+    store.resolve_source_path(source_id) resolves
+      <data_dir>/library/sources/<source_id>/text.txt
+    and verifies the resolved path is within the library root.
+    A source_id containing path traversal sequences (e.g., "../../../etc/passwd")
+    is rejected before any file handle opens.
+    Raises LibraryPathError (caught by LibraryClient; returned as error ToolResult).
+
+  I-LIB-6: Index files never leave the library root
+    index.py writes line-offset tables to sources/<source_id>/index.json only.
+    No index data is written to arbitrary paths.
+    Path for index file is derived by the same store.resolve_source_path contract.
+
+  I-LIB-7: No corpus data is sent to the agent model
+    library.search returns context_text excerpts (one surrounding line).
+    library.get_text returns the requested line range.
+    Neither returns the entire corpus. The corpus never leaves the local machine.
+    Excerpt size is bounded by max_results * context_window (Architect sets limits).
+
+  BOUNDARY SUMMARY:
+    Download (network reach): operator CLI only, per-source, consent-gated
+    Search / retrieve (agent tools): local file I/O only, never network
+    Data direction:    network → disk (download only)
+                       disk → tool_result (query only)
+    The two directions are strictly separated by code path — downloader.py vs LibraryClient.
+```
+
+```
+  MÍMISBRUNNR FAILURE MODES
+
+  F-1: Download fail (network error)
+    Cause: httpx.ConnectError, DNS failure, server unreachable during download.
+    downloader.py raises DownloadNetworkError.
+    tmp file is deleted (never partially committed).
+    CLI prints: "Download failed: <detail>. No file written."
+    Library state unchanged from before the attempt.
+
+  F-2: SHA-256 mismatch (integrity failure)
+    Cause: downloaded bytes do not match expected SHA-256 in manifest.
+    downloader.py deletes tmp file, raises IntegrityError.
+    CLI prints: "Integrity check failed for <source_id>. File deleted. Do not use."
+    No corrupt state is left on disk.
+    Operator should verify the manifest hash or re-download.
+
+  F-3: Source missing on disk (agent query — source listed but not downloaded)
+    Cause: agent calls library.search or library.get_text for a source_id where
+           text.txt does not exist on disk (source in manifest but not downloaded).
+    LibraryClient.search(): skips the source, returns matches from other sources only.
+    LibraryClient.get_text(): returns error ToolResult:
+      {"error": "library_source_not_downloaded",
+       "source_id": "<id>",
+       "hint": "operator must run: heretic library download <source_id>"}
+    No crash. Agent can inform the user.
+
+  F-4: Index empty — operator has not downloaded any source
+    Cause: library is enabled but no source has been downloaded.
+           manifest exists (shipped starter) but no text.txt files on disk.
+    library.search: returns empty results list with a hint field:
+      {"results": [], "hint": "No sources downloaded. Run: heretic library download <source_id>"}
+    library.get_text: returns F-3 error for any source_id requested.
+    library.list_sources: returns all 5 manifest entries with "downloaded": false for each.
+    No crash. This is the expected initial state for a fresh install.
+
+  F-5: Storage path traversal attempt
+    Cause: source_id in a tool_call argument contains traversal sequences
+           (e.g., source_id = "../../etc/passwd").
+    store.resolve_source_path raises LibraryPathError before any file open.
+    LibraryClient catches and returns error ToolResult:
+      {"error": "library_path_violation",
+       "source_id": "<malicious id>",
+       "detail": "source_id resolves outside the library root"}
+    No file I/O performed. No crash. Turn continues.
+
+  F-6: Consent refused (download cancelled cleanly)
+    Cause: operator answers 'n' or presses Enter at the consent prompt.
+    consent.py returns ConsentRefused; download is not attempted.
+    CLI prints: "Download cancelled."
+    No partial file. No manifest change. Clean exit.
+    Return code 0 (cancelled is not an error; operator made an intentional choice).
+
+  F-7: Corpus reading I/O error (graceful degrade)
+    Cause: text.txt exists but is unreadable (permissions error, disk fault, corrupted file).
+    LibraryClient catches IOError during file read.
+    library.search: skips the unreadable source; includes it in a "degraded_sources" list
+      in the tool_result so the agent can report the issue.
+    library.get_text: returns error ToolResult:
+      {"error": "library_read_error", "source_id": "<id>", "detail": "<OS message>"}
+    No crash. Turn continues.
+
+
+  ERROR CLASS HIERARCHY (mimisbrunnr/errors.py):
+    LibraryError (base, extends SkilningrError)
+      |-- LibraryManifestError       (source not found in manifest)
+      |-- LibraryPathError           (path traversal rejected — F-5)
+      |-- DownloadNetworkError       (F-1)
+      |-- IntegrityError             (F-2 — SHA-256 mismatch)
+      |-- LibrarySourceNotDownloaded (F-3)
+      |-- LibraryReadError           (F-7)
+    ConsentRefused                   (F-6 — not an error; returned as a typed result)
+    All LibraryError subclasses caught by LibraryClient; none propagate to ToolDispatcher.
+```
+
+---
+
+## 16. L5 Skilningr — Five Senses + MCP Server Component Diagram (v0.7)
 
 > **Added 2026-05-08 v0.6 (Védis Eikleið). Extended 2026-05-08 v0.6.1 (Védis Eikleið).
 > Extended 2026-05-08 v0.6.2 (Védis Eikleið).
 > Extended 2026-05-08 v0.6.x (Védis Eikleið) — mcp_server.py module added; three-door
-> transport surface mapped; ToolDispatcher reuse across all three shown.**
-> Maps the internal structure of the `skillingr/` module: four sense subpackages
-> (Smiðja, Minni, Skepja, Leið) and the new MCP server adapter module.
+> transport surface mapped; ToolDispatcher reuse across all three shown.
+> Extended 2026-05-08 v0.7 (Védis Eikleið) — LibrarySense (L5.9 Mímisbrunnr light tier)
+> added as fifth sense; mimisbrunnr/ subsystem mapped (manifest.py, downloader.py, store.py,
+> index.py, consent.py, errors.py); LibraryConfig with enabled:false default; 3 new library
+> tools (library.search, library.get_text, library.list_sources); ToolDispatcher updated to
+> route "library.*"; tool count updated to 19 when all five senses enabled.**
+> Maps the internal structure of the `skillingr/` module: five sense subpackages
+> (Smiðja, Minni, Skepja, Leið, Library) and the MCP server adapter module.
 >
 > **Position in the body:** Skilningr is the discernment layer — the organ that decides
-> which sense to invoke when the agent reaches. In v0.6.2, four senses are mounted.
-> In v0.6.x, a new door opens: an MCP server sits parallel to the existing OpenAI tool_use
+> which sense to invoke when the agent reaches. In v0.7, five senses are mounted.
+> In v0.6.x, a new door opened: an MCP server sits parallel to the existing OpenAI tool_use
 > path, routing through the same ToolDispatcher. One execution backend; three transport paths.
+> In v0.7, the well opens: the fifth sense lets the agent drink from offline corpora.
 
 ```
   ============================================================
-  SKILNINGR MODULE — src/heretic/skilningr/    (v0.6.x Three Doors)
+  SKILNINGR MODULE — src/heretic/skilningr/    (v0.7 Five Senses + Three Doors)
   ============================================================
 
   skillingr/
@@ -5907,7 +6379,13 @@ The MCP server carries forward the same auth model as the existing REST surfaces
   │                      |  minni:     MinniConfig         (v0.6.2)
   │                      |  skepja:    SkepjaConfig        (v0.6.2)
   │                      |  leid:      LeidConfig          (v0.6.2)
-  │                      |  mcp_server: McpServerConfig    (v0.6.x NEW)
+  │                      |  library:   LibraryConfig       (v0.7 NEW)
+  │                      |    enabled:          bool       default false
+  │                      |    max_results:       int       default 10
+  │                      |    max_context_lines: int       default 3
+  │                      |    data_dir:          str       default "" (resolved by dirs)
+  │                      |    sources:           list[str] default [] (all available)
+  │                      |  mcp_server: McpServerConfig    (v0.6.x)
   │                      |    enabled:           bool      default false
   │                      |    transport:         str       "stdio" | "http"   default "stdio"
   │                      |    host:              str       default "127.0.0.1"
@@ -5921,22 +6399,30 @@ The MCP server carries forward the same auth model as the existing REST surfaces
   │                      |-- CommandNotAllowedError  (v0.6.2)
   │                      |-- UrlNotAllowedError      (v0.6.2)
   │                      |-- FilesizeLimitError      (v0.6.2)
-  │                      |-- McpServerError          (v0.6.x NEW)
-  │                          |-- TransportError      (stdio EOF; HTTP bind failure)
-  │                          |-- ProtocolError       (malformed JSON-RPC; see F-MCP-2)
+  │                      |-- McpServerError          (v0.6.x)
+  │                      |   |-- TransportError      (stdio EOF; HTTP bind failure)
+  │                      |   |-- ProtocolError       (malformed JSON-RPC; see F-MCP-2)
+  │                      |-- LibraryError            (v0.7 NEW — base for all library errors)
+  │                          |-- LibraryManifestError
+  │                          |-- LibraryPathError
+  │                          |-- DownloadNetworkError
+  │                          |-- IntegrityError
+  │                          |-- LibrarySourceNotDownloaded
+  │                          |-- LibraryReadError
   │
   ├── sandbox.py         Shared validation primitives (v0.6.2)
   │                      |  path_within_allowed_roots(raw_path, allowed_roots) -> Path
   │                      |  command_allowlist_check(tokens, allowlist) -> None
   │                      |  url_allowlist_match(url, patterns) -> None
   │
-  ├── dispatcher.py      ToolDispatcher  (unchanged — four senses registered)
+  ├── dispatcher.py      ToolDispatcher  (v0.7 — five senses registered)
   │                      |  async dispatch(tool_call) -> ToolResult
-  │                      |    "smidja.*" → SmidjaSense
-  │                      |    "minni.*"  → MinniSense
-  │                      |    "skepja.*" → SkepjaSense
-  │                      |    "leid.*"   → LeidSense
-  │                      |    unknown   → error ToolResult (F-6 / F-MCP-3)
+  │                      |    "smidja.*"  → SmidjaSense
+  │                      |    "minni.*"   → MinniSense
+  │                      |    "skepja.*"  → SkepjaSense
+  │                      |    "leid.*"    → LeidSense
+  │                      |    "library.*" → LibrarySense    (v0.7 NEW)
+  │                      |    unknown    → error ToolResult (F-6 / F-MCP-3)
   │
   │                      ToolDispatcher is the single dispatch seam across all three doors.
   │                      Door 1 (OpenAI tool_use via L1 Bifröst) --> ToolDispatcher
@@ -5944,88 +6430,175 @@ The MCP server carries forward the same auth model as the existing REST surfaces
   │                      Door 3 (MCP HTTP/SSE via McpServer)     --> ToolDispatcher
   │                      Same instance. Same routing table. Same execution path.
   │
-  ├── mcp_server.py      McpServer  (v0.6.x NEW)
-  │                      |  __init__(dispatcher: ToolDispatcher, config: McpServerConfig)
-  │                      |
-  │                      |  async start_stdio() -> None
-  │                      |    reads JSON-RPC from stdin; writes to stdout
-  │                      |    StdioTransport (mcp SDK) manages framing
-  │                      |
-  │                      |  async start_http(host, port) -> None
-  │                      |    mounts /mcp (POST) and /mcp/events (GET/SSE)
-  │                      |    uses HttpSseTransport (mcp SDK) over uvicorn (already a dep)
-  │                      |
-  │                      |  --- Handlers (shared across both transports) ---
-  │                      |
-  │                      |  handle_initialize(params) -> InitializeResult
-  │                      |    returns: protocolVersion, capabilities={tools:{}}, serverInfo
-  │                      |
-  │                      |  handle_tools_list() -> list[McpTool]
-  │                      |    collects tool defs from all enabled senses
-  │                      |    calls convert_to_mcp_tool() on each
-  │                      |    returns 0..16 tools (count depends on enabled senses)
-  │                      |
-  │                      |  handle_tools_call(name, arguments) -> McpCallResult
-  │                      |    builds ToolCall; calls dispatcher.dispatch()
-  │                      |    maps ToolResult → content array + isError flag
-  │                      |    catches any dispatcher exception → error McpCallResult
-  │                      |
-  │                      |  --- Schema converter ---
-  │                      |
-  │                      |  convert_to_mcp_tool(openai_tool: dict) -> dict
-  │                      |    {"name": fn["name"],
-  │                      |     "description": fn["description"],
-  │                      |     "inputSchema": fn["parameters"]}
-  │                      |    where fn = openai_tool["function"]
-  │                      |    (inputSchema content = parameters content — same JSON Schema)
+  ├── mimisbrunnr/       Mímisbrunnr subsystem (v0.7 NEW)
+  │   │                  The corpus backend — operator-facing corpus management.
+  │   │                  Never called directly by agent tools; accessed only via LibraryClient.
+  │   │
+  │   ├── __init__.py
+  │   ├── INTERFACE.md   subsystem contract (storage layout, consent invariant, SHA-256)
+  │   ├── manifest.py    NorseStarterPackManifest dataclass; load/save manifest.yaml
+  │   │                  |  load_starter_manifest() -> list[SourceEntry]
+  │   │                  |    (reads the package-asset starter manifest — 5 Norse sources)
+  │   │                  |  load_local_manifest(data_dir) -> list[SourceEntry]
+  │   │                  |    (reads operator-local manifest.yaml tracking downloaded state)
+  │   │                  |  merge(starter, local) -> list[SourceEntry]
+  │   │                  |    (starter entries + downloaded status from local)
+  │   │
+  │   ├── downloader.py  async httpx download + SHA-256 streaming verify + atomic write
+  │   │                  |  async download(url, dest_path, expected_sha256) -> None
+  │   │                  |    streams to .tmp, verifies hash, os.replace → final path
+  │   │                  |    deletes .tmp + raises IntegrityError on SHA-256 mismatch
+  │   │
+  │   ├── store.py       local filesystem layout manager
+  │   │                  |  get_library_root(data_dir: str | None) -> Path
+  │   │                  |    uses dirs.user_data_dir("heretic") / "library" if data_dir empty
+  │   │                  |  resolve_source_path(source_id, library_root) -> Path
+  │   │                  |    returns library_root / "sources" / source_id / "text.txt"
+  │   │                  |    validates resolved path is within library_root (traversal block)
+  │   │                  |    raises LibraryPathError if validation fails
+  │   │                  |  update_local_manifest(source_id, status, library_root) -> None
+  │   │                  |    writes/updates manifest.yaml with downloaded state
+  │   │
+  │   ├── index.py       line-offset index — build and query
+  │   │                  |  build_index(text_path: Path) -> list[int]
+  │   │                  |    scans text.txt; records byte offset of each line start
+  │   │                  |    writes index to sources/<source_id>/index.json
+  │   │                  |  load_index(source_id, library_root) -> list[int]
+  │   │                  |    loads pre-built index.json; raises LibraryReadError if absent
+  │   │                  |  search(query: str, text_path: Path, index: list[int],
+  │   │                  |         max_results: int, context_lines: int) -> list[Match]
+  │   │                  |    re.search(query) over each line; collect Match objects
+  │   │                  |    Match: { line_number, context_text (surrounding N lines) }
+  │   │                  |  get_lines(text_path: Path, index: list[int],
+  │   │                  |            start: int, end: int) -> str
+  │   │                  |    seek to byte offset index[start]; read through index[end]
+  │   │
+  │   ├── consent.py     operator-confirmation flow
+  │   │                  |  prompt_operator_consent(entry: SourceEntry,
+  │   │                  |                          skip: bool = False) -> ConsentResult
+  │   │                  |    displays: title, URL, size, license
+  │   │                  |    if skip=True (--yes flag): return ConsentGranted immediately
+  │   │                  |    reads stdin; 'y'/'Y' → ConsentGranted; anything else → ConsentRefused
+  │   │
+  │   └── errors.py      LibraryError hierarchy (see errors.py entry above)
+  │
+  ├── mcp_server.py      McpServer  (v0.6.x — unchanged from v0.6.x description)
+  │                      (handles_tools_list now collects from 5 senses; max 19 tools)
   │
   └── senses/
       |
       ├── smidja/        Smiðja — the workshop (v0.6 + v0.6.1)
-      │   (unchanged — see §16 v0.6.2 for full internal structure)
+      │   (unchanged — see §4.11 for full flow)
       │
-      ├── minni/         Minni — the library (v0.6.2)
-      │   (unchanged)
+      ├── minni/         Minni — the filesystem library (v0.6.2)
+      │   (unchanged — see §4.12 for full flow)
       │
       ├── skepja/        Skepja — the terminal (v0.6.2)
-      │   (unchanged)
+      │   (unchanged — see §4.12.1 for full flow)
       │
-      └── leid/          Leið — the road (v0.6.2)
-          (unchanged)
+      ├── leid/          Leið — the road (v0.6.2)
+      │   (unchanged — see §4.12.2 for full flow)
+      │
+      └── library/       Library — the well (v0.7 NEW)
+          ├── __init__.py
+          ├── INTERFACE.md   sense contract (3 tools, offline-only search, privacy invariants)
+          ├── config_model.py  LibraryConfig
+          ├── errors.py      LibraryError hierarchy re-exported from mimisbrunnr/errors.py
+          ├── client.py      LibraryClient — wraps mimisbrunnr/ for sense-level operations
+          │                  |  search(query, max_results) -> list[Match]
+          │                  |    loads merged manifest; for each downloaded source:
+          │                  |      load_index → index.search → collect matches
+          │                  |    returns ranked list[Match] with source attribution
+          │                  |  get_text(source_id, start_line, end_line) -> dict
+          │                  |    store.resolve_source_path → index.get_lines → return
+          │                  |  list_sources() -> list[dict]
+          │                  |    merge starter + local manifest → return with downloaded flag
+          │                  |  All methods: pure local I/O. No network access.
+          ├── tools.py       3 tool definitions
+          │                  |  library.search
+          │                  |    { "query": str, "max_results": int (optional, default 10) }
+          │                  |    Returns: list of { source_id, line_number, context_text,
+          │                  |                        source_title } + total_searched_sources
+          │                  |  library.get_text
+          │                  |    { "source_id": str, "start_line": int, "end_line": int }
+          │                  |    Returns: { source_id, source_title, start_line, end_line,
+          │                  |               text, license }
+          │                  |  library.list_sources
+          │                  |    {}  (no arguments)
+          │                  |    Returns: list of { source_id, title, license,
+          │                  |                        approx_size, downloaded }
+          └── sense.py       LibrarySense orchestrator
+                             |  open() -> None
+                             |    validates library root exists (creates if absent)
+                             |    loads merged manifest; logs source count + downloaded count
+                             |    IF no sources downloaded: logs hint about heretic library download
+                             |  close() -> None  (no-op; no persistent resource)
+                             |  dispatch_tool_call(tool_call) -> ToolResult
+                             |    routes to LibraryClient.search / get_text / list_sources
+                             |    wraps all LibraryError subclasses → error ToolResult
+                             |    never raises to ToolDispatcher
 
 
   ============================================================
-  THREE-DOOR TRANSPORT DIAGRAM
+  LIBRARY SENSE DELEGATION CHAIN
   ============================================================
 
-                    ┌─────────────────────────────────────────────┐
-                    │          L5 Skilningr — v0.6.x              │
-                    │                                             │
-  Door 1            │                                             │
-  OpenAI tool_use   │                                             │
-  (heretic light    │                                             │
-   / heretic serve) │                                             │
-  Agent             │                                             │
-  POST /v1/chat/    │                                             │
-  completions  ─────┼──> L1 Bifröst                              │
-                    │          │                                  │
-                    │          ▼                                  │
-  Door 2            │    ┌─────────────┐                          │
-  MCP stdio         │    │    Tool     │                          │
-  (Claude Desktop)  │    │ Dispatcher  │◄────────────────────┐   │
-  stdin/stdout ─────┼──> │             │                     │   │
-                    │    └──────┬──────┘                     │   │
-  Door 3            │           │                            │   │
-  MCP HTTP/SSE      │           │ routes by prefix           │   │
-  (browser-friendly │           ├──> SmidjaSense             │   │
-  / Tailscale)      │           ├──> MinniSense              │   │
-  POST /mcp    ─────┼──> McpServer    SkepjaSense            │   │
-  GET /mcp/events   │    │      └──> LeidSense               │   │
-                    │    └───────────────────────────────────┘   │
-                    │    (McpServer calls dispatcher.dispatch()   │
-                    │     — same instance used by Bifröst)        │
-                    │                                             │
-                    └─────────────────────────────────────────────┘
+  Agent tool_call  -->  ToolDispatcher  -->  LibrarySense
+                                                  |
+                                                  v
+                                           LibraryClient
+                                                  |
+                                     +-----------+-----------+
+                                     |           |           |
+                                     v           v           v
+                                manifest.py  index.py   store.py
+                                (what exists) (search)  (path resolve)
+                                     |
+                                     v
+                             mimisbrunnr/sources/<source_id>/text.txt
+                                     |
+                                     v
+                             tool_result with source attribution
+                             { source_id, line_number, context_text, source_title }
+
+  Download (operator CLI only — never via agent tool_call):
+  heretic library download  -->  consent.py  -->  downloader.py  -->  store.py  -->  index.py
+  (CLI subcommand)               (prompt)         (httpx + SHA256)   (manifest)    (rebuild)
+
+
+  ============================================================
+  THREE-DOOR TRANSPORT DIAGRAM — v0.7 (unchanged routing; fifth sense added)
+  ============================================================
+
+                    ┌──────────────────────────────────────────────────┐
+                    │              L5 Skilningr — v0.7                 │
+                    │                                                  │
+  Door 1            │                                                  │
+  OpenAI tool_use   │                                                  │
+  (heretic light    │                                                  │
+   / heretic serve) │                                                  │
+  Agent             │                                                  │
+  POST /v1/chat/    │                                                  │
+  completions  ─────┼──> L1 Bifröst                                   │
+                    │          │                                       │
+                    │          ▼                                       │
+  Door 2            │    ┌─────────────┐                               │
+  MCP stdio         │    │    Tool     │                               │
+  (Claude Desktop)  │    │ Dispatcher  │◄───────────────────────┐     │
+  stdin/stdout ─────┼──> │             │                        │     │
+                    │    └──────┬──────┘                        │     │
+  Door 3            │           │                               │     │
+  MCP HTTP/SSE      │           │ routes by prefix              │     │
+  (browser-friendly │           ├──> SmidjaSense                │     │
+  / Tailscale)      │           ├──> MinniSense                 │     │
+  POST /mcp    ─────┼──> McpServer    SkepjaSense               │     │
+  GET /mcp/events   │    │      │──> LeidSense                  │     │
+                    │    │      └──> LibrarySense (v0.7 NEW)    │     │
+                    │    └──────────────────────────────────────┘     │
+                    │    (McpServer calls dispatcher.dispatch()        │
+                    │     — same instance used by Bifröst)             │
+                    │                                                  │
+                    └──────────────────────────────────────────────────┘
 
   Arrows to ToolDispatcher:
     L1 Bifröst  ──────────────────────────────> ToolDispatcher
@@ -6035,27 +6608,75 @@ The MCP server carries forward the same auth model as the existing REST surfaces
 
 
   ============================================================
-  TOOL COUNT SUMMARY — v0.6.x (unchanged from v0.6.2)
+  TOOL COUNT SUMMARY — v0.7
   ============================================================
 
-  Sense      Prefix    Tools    Door 1 exposed    Door 2/3 exposed
-  ---------  --------  -------  ----------------  ----------------
-  Smiðja     smidja    9        tools[] array     tools/list
-  Minni      minni     3        tools[] array     tools/list
-  Skepja     skepja    2        tools[] array     tools/list
-  Leið       leid      2        tools[] array     tools/list
-  ---------  --------  -------  ----------------  ----------------
-  TOTAL                16       same 16           same 16 (if enabled)
+  Sense      Prefix    Tools    Notes
+  ---------  --------  -------  -------------------------------------
+  Smiðja     smidja    9        6 Brúarhönd + 3 Forge (v0.6 + v0.6.1)
+  Minni      minni     3        read_file, write_file, list_directory (v0.6.2)
+  Skepja     skepja    2        run_command, get_working_directory (v0.6.2)
+  Leið       leid      2        fetch_url, extract_text (v0.6.2)
+  Library    library   3        search, get_text, list_sources (v0.7 NEW)
+  ---------  --------  -------  -------------------------------------
+  TOTAL                19       when all five senses are enabled
+                                (agent receives only tools for enabled senses)
 
 
   ============================================================
-  MCP SERVER LIFECYCLE AT TENGSL / SLOKNA
+  FIVE-SENSE LIFECYCLE AT TENGSL (ceremony open) — v0.7
+  ============================================================
+
+  CLI.TENGSL():
+    ToolDispatcher._senses = {}
+    IF smidja.enabled (brunhand or forge):
+      SmidjaSense.open()     → dual-half probe (Brúarhönd + Forge independently)
+      _senses["smidja"] = SmidjaSense
+    IF minni.enabled:
+      MinniSense.open()      → validates allowed_roots paths exist
+      _senses["minni"] = MinniSense
+    IF skepja.enabled:
+      SkepjaSense.open()     → validates working_directory; logs allowlist size
+      _senses["skepja"] = SkepjaSense
+    IF leid.enabled:
+      LeidSense.open()       → logs url_allowlist_patterns; warns if wildcard
+      _senses["leid"] = LeidSense
+    IF library.enabled:
+      LibrarySense.open()    → resolves library root; loads merged manifest
+                               logs downloaded source count
+                               IF 0 downloaded: log.info hint about heretic library download
+      _senses["library"] = LibrarySense
+
+    Each open() is wrapped in independent try/except.
+    Failure of any one sense does not abort the others.
+    A failed sense is not added to _senses; its tools are not offered to the agent.
+
+
+  ============================================================
+  FIVE-SENSE LIFECYCLE AT SLOKNA (ceremony close) — v0.7
+  ============================================================
+
+  CLI.SLOKNA():
+    FOR sense_id, sense in _senses.items():
+      try:
+        await sense.close()
+      except Exception:
+        log.warning(f"Sense {sense_id!r} failed to close cleanly — ignoring")
+
+    Each close() is isolated.
+    LibrarySense.close() is a no-op (no persistent resource — all file handles close per call).
+    Minni, Skepja, Leið have no-op close().
+    Smiðja close() shuts down both httpx.AsyncClient instances.
+
+
+  ============================================================
+  MCP SERVER LIFECYCLE AT TENGSL / SLOKNA (unchanged from v0.6.x)
   ============================================================
 
   CLI.TENGSL() — when heretic mcp is launched:
     McpServerConfig read from heretic.yaml (skilningr.mcp_server block)
     IF mcp_server.enabled:
-      ToolDispatcher built from enabled senses (same as Door 1 path)
+      ToolDispatcher built from enabled senses (same as Door 1 path — now up to 5 senses)
       IF transport == "stdio":
         McpServer.start_stdio()     blocks on stdin; exits on EOF (F-MCP-1)
       IF transport == "http":
@@ -6069,11 +6690,11 @@ The MCP server carries forward the same auth model as the existing REST surfaces
               → ToolDispatcher.close() → each sense.close()
     http:   SIGTERM / KeyboardInterrupt → uvicorn shutdown
               → McpServer.shutdown() → ToolDispatcher.close() → each sense.close()
-    Each sense.close() wrapped in independent try/except (same pattern as v0.6.2).
+    Each sense.close() wrapped in independent try/except.
 
 
   ============================================================
-  INVARIANTS — v0.6.x
+  INVARIANTS — v0.7
   ============================================================
   - ToolDispatcher is the single dispatch backend across all three transport doors.
     The dispatch routing table is built once at TENGSL. All three doors read it.
@@ -6086,6 +6707,14 @@ The MCP server carries forward the same auth model as the existing REST surfaces
     No information is added or removed by convert_to_mcp_tool().
   - tools/list returns only enabled senses' tools. A disabled sense contributes 0 tools
     on the MCP path, exactly as it contributes 0 entries to the OpenAI tools[] array.
+  - Library sense is offline-by-design during agent queries. No network call is made
+    by LibraryClient or LibrarySense. Only downloader.py reaches the network, and
+    downloader.py is only called by the operator CLI subcommand.
+  - Library downloads require per-source consent. The agent cannot initiate a download.
+    All three library tools (search, get_text, list_sources) are read-only.
+  - SHA-256 mismatch during download: partial file deleted immediately; no corrupt state.
+  - Storage path traversal in any tool_call argument: rejected by store.resolve_source_path
+    before any file handle opens.
 ```
 
 ---
@@ -6103,4 +6732,7 @@ The MCP server carries forward the same auth model as the existing REST surfaces
 *Seven senses mapped. The body is learning to read, to act, and to travel.*
 *One arm reaches for the screen. The other reaches into the render. Both belong to the same hand.*
 *v0.6.x: the workshop opens a third door. MCP agents may now enter — stdio or HTTP/SSE, as they prefer.*
+*v0.7: the well opens. The spirit may now drink of the offline corpus — Eddas, sagas, the deep Norse word.*
+*Five senses mapped. The well is sealed to the network during ceremony. Only the operator may tend it.*
+*Mímisbrunnr answers from what has been placed inside it — never from what lies beyond the machine.*
 *The ToolDispatcher stands in the center. All three doors lead to the same workbench.*
