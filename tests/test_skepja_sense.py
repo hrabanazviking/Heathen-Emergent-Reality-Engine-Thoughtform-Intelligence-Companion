@@ -1,18 +1,38 @@
 """
-Placeholder tests for SkepjaSense — L5.2 terminal sense orchestrator.
+Tests for SkepjaSense — L5.2 terminal sense orchestrator.
+
+Covers:
+    - Config validation
+    - Sense lifecycle (open/close/is_available)
+    - Tool definitions
+    - dispatch_tool_call routing (mocked client)
+    - Error handling (CommandNotAllowedError, CommandTimeoutError, etc.)
+    - JSON argument errors
 
 Ref: src/heretic/skilningr/senses/skepja/sense.py
+     TASK_HERETIC_v0.6.2_MORE_SENSES.md
 """
 
 from __future__ import annotations
+
+import json
+from unittest.mock import MagicMock
 
 import pytest
 
 from heretic.skilningr.config_model import SkepjaConfig
 from heretic.skilningr.senses.skepja.client import SkepjaClient
+from heretic.skilningr.senses.skepja.errors import (
+    CommandNotAllowedError,
+    CommandTimeoutError,
+)
 from heretic.skilningr.senses.skepja.sense import SkepjaSense
 from heretic.skilningr.senses.skepja.tools import SKEPJA_TOOL_DEFINITIONS
 
+
+# ---------------------------------------------------------------------------
+# Config validation
+# ---------------------------------------------------------------------------
 
 class TestSkepjaConfig:
 
@@ -36,6 +56,10 @@ class TestSkepjaConfig:
         with pytest.raises(ValueError, match="max_output_bytes"):
             SkepjaConfig(max_output_bytes=-1)
 
+
+# ---------------------------------------------------------------------------
+# Sense lifecycle
+# ---------------------------------------------------------------------------
 
 class TestSkepjaSenseLifecycle:
 
@@ -68,6 +92,10 @@ class TestSkepjaSenseLifecycle:
         assert sense.is_available is False
 
 
+# ---------------------------------------------------------------------------
+# Tool definitions
+# ---------------------------------------------------------------------------
+
 class TestSkepjaSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
@@ -91,13 +119,101 @@ class TestSkepjaSenseToolDefinitions:
         assert "skepja.get_working_directory" in names
 
 
-@pytest.mark.skip(reason="Wave 2 — SkepjaClient not yet implemented by Forge")
+# ---------------------------------------------------------------------------
+# dispatch_tool_call — happy path and error paths (mocked client)
+# ---------------------------------------------------------------------------
+
 class TestSkepjaSenseDispatch:
 
-    @pytest.mark.asyncio
-    async def test_run_command_dispatches(self):
-        pass
+    def _make_tool_call(self, name: str, args: dict) -> dict:
+        return {
+            "id": "call_s01",
+            "function": {
+                "name": name,
+                "arguments": json.dumps(args),
+            },
+        }
 
     @pytest.mark.asyncio
-    async def test_get_working_directory_dispatches(self):
-        pass
+    async def test_run_command_dispatch_success(self):
+        """dispatch_tool_call routes skepja.run_command and returns result."""
+        config = SkepjaConfig(enabled=True, command_allowlist=["git"])
+        mock_client = MagicMock(spec=SkepjaClient)
+        mock_client.run_command.return_value = {
+            "command": "git status",
+            "args": ["git", "status"],
+            "exit_code": 0,
+            "stdout": "on branch main\n",
+            "stderr": "",
+            "timed_out": False,
+            "truncated": False,
+            "working_directory": "/home/user/workspace",
+        }
+        sense = SkepjaSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("skepja.run_command", {"command": "git status"})
+        result = await sense.dispatch_tool_call(tool_call)
+        assert result["role"] == "tool"
+        parsed = json.loads(result["content"])
+        assert parsed["exit_code"] == 0
+        assert "main" in parsed["stdout"]
+
+    @pytest.mark.asyncio
+    async def test_get_working_directory_dispatch(self):
+        """dispatch_tool_call routes skepja.get_working_directory and returns result."""
+        config = SkepjaConfig(enabled=True)
+        mock_client = MagicMock(spec=SkepjaClient)
+        mock_client.get_working_directory.return_value = {
+            "working_directory": "/home/user/heretic_workspace",
+            "exists": True,
+        }
+        sense = SkepjaSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("skepja.get_working_directory", {})
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["exists"] is True
+
+    @pytest.mark.asyncio
+    async def test_command_not_allowed_returns_error_result(self):
+        """dispatch_tool_call returns error tool_result on CommandNotAllowedError."""
+        config = SkepjaConfig(enabled=True, command_allowlist=["git"])
+        mock_client = MagicMock(spec=SkepjaClient)
+        mock_client.run_command.side_effect = CommandNotAllowedError("rm not permitted")
+        sense = SkepjaSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("skepja.run_command", {"command": "rm -rf /"})
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "PERMISSION_DENIED"
+
+    @pytest.mark.asyncio
+    async def test_command_timeout_returns_error_result(self):
+        """dispatch_tool_call returns error tool_result on CommandTimeoutError."""
+        config = SkepjaConfig(enabled=True, command_allowlist=["sleep"])
+        mock_client = MagicMock(spec=SkepjaClient)
+        mock_client.run_command.side_effect = CommandTimeoutError("timed out")
+        sense = SkepjaSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("skepja.run_command", {"command": "sleep 999"})
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "SENSE_TIMEOUT"
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_args_returns_error_result(self):
+        """dispatch_tool_call returns error result when arguments are invalid JSON."""
+        config = SkepjaConfig(enabled=True)
+        mock_client = MagicMock(spec=SkepjaClient)
+        sense = SkepjaSense(config, mock_client)
+        await sense.open()
+        bad_call = {
+            "id": "call_bad",
+            "function": {"name": "skepja.run_command", "arguments": "{bad json"},
+        }
+        result = await sense.dispatch_tool_call(bad_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "INVALID_ARGUMENTS"

@@ -15,13 +15,23 @@ SANDBOX INVARIANT (DO NOT WEAKEN):
     MUST pass shell=False. Shell metacharacters (|, >, &&, ;) have no special
     meaning — they become literal arguments to the executable.
 
-CROSS-PLATFORM NOTE:
-    Windows cmd.exe uses different conventions from POSIX sh. shlex.split()
-    defaults to POSIX mode; on Windows, this may not parse all command strings
-    identically. Forge Wave 2 must handle platform differences explicitly.
-    The allowlist check is case-sensitive on all platforms — operators must
-    configure allowlist entries using the exact executable name for the target OS
-    (e.g. "python" on Unix, "python.exe" on Windows if needed).
+CROSS-PLATFORM NOTE (Architect's flag):
+    shlex.split() in POSIX mode parses differently from Windows cmd.exe conventions.
+    We use posix=(os.name != "nt") so that on Windows, shlex uses non-POSIX mode,
+    which preserves Windows-style quoting behaviour more accurately.
+    The allowlist check is case-sensitive on all platforms — operators must configure
+    allowlist entries using the exact executable name for the target OS
+    (e.g. "python" on Unix, "python.exe" on Windows if the extension is needed).
+
+Environment:
+    When inherit_env=False (default), the subprocess receives only PATH from
+    the host environment — no API keys, tokens, or other secrets leak.
+    When inherit_env=True, the full os.environ copy is passed; this is the
+    operator's explicit opt-in.
+
+Output:
+    stdout and stderr are each individually capped at max_output_bytes.
+    The "truncated" key in the result dict is True if either stream was capped.
 
 Ref: src/heretic/skilningr/senses/skepja/INTERFACE.md
      src/heretic/skilningr/sandbox.py (command_in_allowlist)
@@ -31,14 +41,19 @@ Ref: src/heretic/skilningr/senses/skepja/INTERFACE.md
 from __future__ import annotations
 
 import logging
+import os
+import shlex
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from heretic.skilningr.config_model import SkepjaConfig
 from heretic.skilningr.sandbox import command_in_allowlist
 from heretic.skilningr.senses.skepja.errors import (
+    CommandExecutionError,
     CommandNotAllowedError,
     CommandParseError,
+    CommandTimeoutError,
 )
 
 logger = logging.getLogger(__name__)
@@ -81,7 +96,7 @@ class SkepjaClient:
             command: Raw command string from the agent tool call.
 
         Returns:
-            List of string tokens (as from shlex.split) ready for subprocess.run().
+            List of string tokens ready for subprocess.run().
 
         Raises:
             CommandNotAllowedError: executable not in allowlist.
@@ -93,15 +108,49 @@ class SkepjaClient:
             raise CommandNotAllowedError(
                 f"Command not permitted: {result}"
             )
-        # result is the string repr of the parsed token list when allowed=True;
-        # Forge Wave 2 will parse this properly — for now return shlex.split directly
-        import shlex
+        # Use posix=False on Windows for correct Windows quoting semantics.
+        # This is the Architect's cross-platform flag — do not remove.
+        use_posix = os.name != "nt"
         try:
-            return shlex.split(command)
+            return shlex.split(command, posix=use_posix)
         except ValueError as exc:
             raise CommandParseError(
                 f"Could not parse command {command!r}: {exc}"
             ) from exc
+
+    def _resolve_working_directory(self) -> str:
+        """Resolve and validate the configured working directory.
+
+        Returns:
+            Absolute path string to the working directory.
+
+        Raises:
+            CommandExecutionError: working_directory does not exist.
+        """
+        resolved = str(Path(self._config.working_directory).expanduser().resolve())
+        if not Path(resolved).exists():
+            raise CommandExecutionError(
+                f"Skepja working_directory {resolved!r} does not exist. "
+                f"Create the directory or update SkepjaConfig.working_directory."
+            )
+        if not Path(resolved).is_dir():
+            raise CommandExecutionError(
+                f"Skepja working_directory {resolved!r} is not a directory."
+            )
+        return resolved
+
+    def _build_env(self) -> dict[str, str] | None:
+        """Build the subprocess environment dict.
+
+        Returns:
+            Full os.environ copy when inherit_env=True.
+            Minimal dict with only PATH when inherit_env=False (default).
+        """
+        if self._config.inherit_env:
+            return dict(os.environ)
+        # Minimal environment: only PATH so basic executables can be found.
+        # No API keys, tokens, or other secrets from the host environment.
+        return {"PATH": os.environ.get("PATH", "")}
 
     def run_command(self, command: str) -> dict[str, Any]:
         """Execute an allowlisted command as a subprocess.
@@ -112,23 +161,100 @@ class SkepjaClient:
         Returns:
             dict with keys:
                 command (str): the original command string
+                args (list[str]): parsed token list passed to subprocess
                 exit_code (int): process exit code (0 = success)
                 stdout (str): captured stdout (truncated to max_output_bytes)
                 stderr (str): captured stderr (truncated to max_output_bytes)
                 timed_out (bool): True if the process was killed due to timeout
+                truncated (bool): True if stdout or stderr was capped
                 working_directory (str): resolved working directory used
 
         Raises:
             CommandNotAllowedError: executable not in allowlist.
             CommandParseError: command could not be parsed.
             CommandTimeoutError: subprocess did not finish within timeout_seconds.
-            CommandExecutionError: subprocess returned non-zero exit code.
+            CommandExecutionError: working directory invalid or subprocess failed to start.
         """
-        # Forge implements this body in Wave 2.
-        # The validation gateway is wired here so it is already exercised by tests.
-        raise NotImplementedError(
-            "SkepjaClient.run_command: Forge implements this in Wave 2 of v0.6.2."
+        # Gate 1 — allowlist check
+        args = self._validate_command(command)
+
+        # Resolve working directory — may raise CommandExecutionError
+        working_directory = self._resolve_working_directory()
+
+        # Build environment
+        env = self._build_env()
+
+        self._log.debug(
+            "Skepja run_command: %r (cwd=%s, timeout=%ds, inherit_env=%s)",
+            command, working_directory, self._config.timeout_seconds,
+            self._config.inherit_env,
         )
+
+        # Gate 2 — subprocess execution with shell=False INVARIANT
+        timed_out = False
+        try:
+            proc = subprocess.run(
+                args,
+                cwd=working_directory,
+                capture_output=True,
+                timeout=self._config.timeout_seconds,
+                shell=False,  # INVARIANT — never change this
+                env=env,
+            )
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            # Capture whatever partial output was available
+            stdout_raw = (exc.stdout or b"")
+            stderr_raw = (exc.stderr or b"")
+            stdout_str = stdout_raw.decode("utf-8", errors="replace")
+            stderr_str = stderr_raw.decode("utf-8", errors="replace")
+            self._log.warning(
+                "Skepja command %r timed out after %ds", command,
+                self._config.timeout_seconds,
+            )
+            raise CommandTimeoutError(
+                f"Command {command!r} timed out after {self._config.timeout_seconds}s. "
+                f"Partial stdout: {stdout_str[:200]!r}"
+            ) from exc
+        except FileNotFoundError as exc:
+            raise CommandExecutionError(
+                f"Executable not found on PATH: {args[0]!r}. "
+                f"The allowlist permitted {args[0]!r} but it is not installed or "
+                f"not on PATH in the subprocess environment. "
+                f"Original error: {exc}"
+            ) from exc
+        except (PermissionError, OSError) as exc:
+            raise CommandExecutionError(
+                f"OS error launching command {command!r}: {exc}"
+            ) from exc
+
+        # Capture and truncate output
+        max_bytes = self._config.max_output_bytes
+        stdout_raw = proc.stdout or b""
+        stderr_raw = proc.stderr or b""
+
+        stdout_truncated = len(stdout_raw) > max_bytes
+        stderr_truncated = len(stderr_raw) > max_bytes
+
+        stdout_str = stdout_raw[:max_bytes].decode("utf-8", errors="replace")
+        stderr_str = stderr_raw[:max_bytes].decode("utf-8", errors="replace")
+        truncated = stdout_truncated or stderr_truncated
+
+        self._log.debug(
+            "Skepja run_command complete: exit_code=%d, stdout=%d bytes, stderr=%d bytes",
+            proc.returncode, len(stdout_raw), len(stderr_raw),
+        )
+
+        return {
+            "command": command,
+            "args": args,
+            "exit_code": proc.returncode,
+            "stdout": stdout_str,
+            "stderr": stderr_str,
+            "timed_out": timed_out,
+            "truncated": truncated,
+            "working_directory": working_directory,
+        }
 
     def get_working_directory(self) -> dict[str, Any]:
         """Return the resolved working directory for Skepja commands.
@@ -136,8 +262,11 @@ class SkepjaClient:
         Returns:
             dict with keys:
                 working_directory (str): resolved absolute path of the working dir
+                exists (bool): whether the directory currently exists on disk
         """
-        # Forge implements this body in Wave 2 — trivial but stubbed for consistency.
-        raise NotImplementedError(
-            "SkepjaClient.get_working_directory: Forge implements this in Wave 2 of v0.6.2."
-        )
+        resolved = str(Path(self._config.working_directory).expanduser().resolve())
+        exists = Path(resolved).exists() and Path(resolved).is_dir()
+        return {
+            "working_directory": resolved,
+            "exists": exists,
+        }
