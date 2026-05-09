@@ -24,6 +24,15 @@ DESIGN CONTRACT:
       verified sha256 hashes.
     - is_source_downloaded: returns True if the source file exists and
       is non-empty at the expected path.
+    - update_local_manifest: writes/merges a single source entry into
+      the local manifest atomically via .tmp + os.replace.
+
+source_id validation invariant (Cartographer thread #2):
+    source_id must match ^[a-z0-9_]+$ — only lowercase alphanumerics
+    and underscores, no dots, no slashes, no path characters. Any
+    attempt to pass a traversal string is rejected with ValueError.
+    The allowed_sources list from NORSE_STARTER_PACK is fully
+    compliant with this pattern.
 
 Ref: src/heretic/skilningr/mimisbrunnr/INTERFACE.md §Store
      src/heretic/skilningr/senses/library/config_model.py (LibraryConfig)
@@ -31,8 +40,52 @@ Ref: src/heretic/skilningr/mimisbrunnr/INTERFACE.md §Store
 
 from __future__ import annotations
 
+import json
+import logging
+import os
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 
+from heretic.skilningr.mimisbrunnr.errors import ManifestError
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# source_id validation
+# ---------------------------------------------------------------------------
+
+_SOURCE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
+"""Valid source_id: lowercase alphanumerics and underscores only.
+No dots, no slashes, no hyphens — prevents path traversal entirely."""
+
+_LOCAL_MANIFEST_FILENAME = "mimisbrunnr_manifest.json"
+"""Filename for the local download-state manifest within data_dir."""
+
+
+def _validate_source_id(source_id: str) -> None:
+    """Raise ValueError if source_id contains any unsafe characters.
+
+    Called by resolve_source_path and is_source_downloaded before any
+    path construction. This is the structural traversal guard.
+
+    Args:
+        source_id: The identifier to validate.
+
+    Raises:
+        ValueError: if source_id does not match ^[a-z0-9_]+$
+    """
+    if not _SOURCE_ID_PATTERN.match(source_id):
+        raise ValueError(
+            f"Invalid source_id {source_id!r}: must match ^[a-z0-9_]+$ "
+            "(only lowercase letters, digits, underscores — no dots, slashes, "
+            "hyphens, or other characters). This is a traversal prevention guard."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def resolve_source_path(data_dir: Path, source_id: str) -> Path:
     """Return the expected on-disk path for a downloaded source file.
@@ -42,17 +95,16 @@ def resolve_source_path(data_dir: Path, source_id: str) -> Path:
     Args:
         data_dir:  The Mímisbrunnr data directory (from LibraryConfig).
         source_id: The stable source identifier (e.g. 'prose_edda_brodeur').
+                   Must match ^[a-z0-9_]+$.
 
     Returns:
         The absolute Path where the source's .txt file should live.
 
     Raises:
-        NotImplementedError: Forge implements the body.
+        ValueError: if source_id does not match the safe-identifier pattern.
     """
-    raise NotImplementedError(
-        "resolve_source_path is a Forge implementation target. "
-        "Body: return data_dir / f'{source_id}.txt'"
-    )
+    _validate_source_id(source_id)
+    return data_dir / f"{source_id}.txt"
 
 
 def ensure_storage_directory(data_dir: Path) -> None:
@@ -67,7 +119,6 @@ def ensure_storage_directory(data_dir: Path) -> None:
     Raises:
         OSError: if the directory cannot be created (permission denied, etc.).
     """
-    # This function IS implemented — it is trivial and needed by tests.
     data_dir.mkdir(parents=True, exist_ok=True)
 
 
@@ -86,14 +137,109 @@ def load_local_manifest(data_dir: Path) -> dict[str, dict]:
             downloaded_at (str | None): ISO 8601 UTC timestamp, or None
             size_bytes (int | None): actual downloaded file size
 
+        Returns {} if the manifest file does not exist yet.
+
     Raises:
-        NotImplementedError: Forge implements the body.
-        ManifestError: if the manifest file is corrupt or schema-invalid.
+        ManifestError: if the manifest file exists but is corrupt or
+            schema-invalid (invalid JSON, unexpected top-level type).
     """
-    raise NotImplementedError(
-        "load_local_manifest is a Forge implementation target. "
-        "Body: load data_dir / 'mimisbrunnr_manifest.json'; parse JSON; "
-        "validate schema; return dict. If file absent, return {}."
+    manifest_path = data_dir / _LOCAL_MANIFEST_FILENAME
+
+    if not manifest_path.exists():
+        return {}
+
+    try:
+        raw = manifest_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ManifestError(
+            f"Could not read local manifest at {manifest_path}: {exc}"
+        ) from exc
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ManifestError(
+            f"Local manifest at {manifest_path} is not valid JSON: {exc}"
+        ) from exc
+
+    if not isinstance(data, dict):
+        raise ManifestError(
+            f"Local manifest at {manifest_path} must be a JSON object "
+            f"(dict), got {type(data).__name__!r}."
+        )
+
+    return data  # type: ignore[return-value]
+
+
+def update_local_manifest(
+    data_dir: Path,
+    source_id: str,
+    sha256: str,
+    downloaded_at: str | None = None,
+    size_bytes: int | None = None,
+) -> None:
+    """Write or merge a single source entry into the local manifest.
+
+    The write is atomic: data is written to a .tmp file then os.replace()d
+    to the final path, so no partial manifest is ever visible.
+
+    Args:
+        data_dir:      The Mímisbrunnr data directory.
+        source_id:     The source identifier to update. Must match ^[a-z0-9_]+$.
+        sha256:        The verified SHA-256 hex digest of the downloaded file.
+        downloaded_at: ISO 8601 UTC timestamp string (optional). Defaults to
+                       now if not provided.
+        size_bytes:    Actual size of the downloaded file in bytes (optional).
+
+    Raises:
+        ValueError: if source_id does not match the safe-identifier pattern.
+        ManifestError: if the existing manifest is corrupt.
+        OSError: if the atomic write fails.
+    """
+    _validate_source_id(source_id)
+
+    if downloaded_at is None:
+        downloaded_at = datetime.now(timezone.utc).isoformat()
+
+    # Load existing manifest (or start fresh)
+    try:
+        data = load_local_manifest(data_dir)
+    except ManifestError:
+        logger.warning(
+            "Corrupt local manifest in %s — resetting to empty dict before update.",
+            data_dir,
+        )
+        data = {}
+
+    # Merge the new entry
+    data[source_id] = {
+        "sha256": sha256,
+        "downloaded_at": downloaded_at,
+        "size_bytes": size_bytes,
+    }
+
+    # Atomic write
+    manifest_path = data_dir / _LOCAL_MANIFEST_FILENAME
+    tmp_path = manifest_path.with_suffix(".heretic_tmp")
+
+    try:
+        tmp_path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        os.replace(str(tmp_path), str(manifest_path))
+    except OSError as exc:
+        # Clean up .heretic_tmp on failure
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise OSError(
+            f"Failed to write local manifest to {manifest_path}: {exc}"
+        ) from exc
+
+    logger.info(
+        "Local manifest updated — source %r sha256=%s", source_id, sha256[:12]
     )
 
 
@@ -111,10 +257,10 @@ def is_source_downloaded(data_dir: Path, source_id: str) -> bool:
         True if the .txt file exists and has size > 0, False otherwise.
 
     Raises:
-        NotImplementedError: Forge implements the body.
+        ValueError: if source_id does not match the safe-identifier pattern.
     """
-    raise NotImplementedError(
-        "is_source_downloaded is a Forge implementation target. "
-        "Body: p = resolve_source_path(data_dir, source_id); "
-        "return p.exists() and p.stat().st_size > 0"
-    )
+    path = resolve_source_path(data_dir, source_id)
+    try:
+        return path.exists() and path.stat().st_size > 0
+    except OSError:
+        return False
