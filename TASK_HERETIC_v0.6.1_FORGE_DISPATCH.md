@@ -4,6 +4,8 @@
 
 > **Started: 2026-05-08** (immediately after v0.5.2 Webcam shipped + audited + cleaned at `b42294e`)
 
+> **Closed: 2026-05-08** — SHIPPED + AUDITED + CLEANED at `5a04112`. 809 Python + 91 frontend = 900 tests. 0 open findings. See DEVLOG entry 11.
+
 > **Mode: extension of v0.6.** Adds the second half of Seidr-Smidja integration: the Forge dispatch (headless Blender pipeline) alongside Brúarhönd's live GUI control. Slim wave plan: no Skald.
 
 ---
@@ -27,19 +29,36 @@ Both Brúarhönd and Forge live under the same Smiðja sense — the workshop ho
 
 ---
 
-## 2. Current status — 2026-05-08
+## 2. Final status — SHIPPED + AUDITED + CLEANED 2026-05-08
 
-**Phase:** v0.5.2 SHIPPED + AUDITED + CLEANED at `b42294e`. Test baseline: 750 Python + 91 frontend = 841.
+**HEAD:** `5a04112` — forge: clean v0.6.1 audit — S-1 method tests + N-1 ForgeServerError + X-1 stale test fix (Eldra Járnsdóttir)
+**Test count:** 809 Python + 91 frontend = 900 total. 0 failures. 0 open audit findings.
 
-### v0.6.1 deliverables
-- ⏳ `src/heretic/skilningr/senses/smidja/forge_client.py` — NEW; ForgeHttpClient wrapping Seidr-Smidja's Straumur REST API (`/v1/avatars`, `/v1/inspect`, `/v1/assets`)
-- ⏳ Extend `SmidjaConfig` with `forge:` sub-block — `enabled`, `endpoint` (default `http://127.0.0.1:8765`), `token_env` (optional — Straumur may not require auth on localhost), `request_timeout_seconds` (default 120 — Blender renders take time)
-- ⏳ Extend `tools.py` `SMIDJA_TOOL_DEFINITIONS` with 3 new tools (`smidja.forge_build_avatar`, `smidja.forge_get_avatar`, `smidja.forge_inspect_avatar`)
-- ⏳ Extend `SmidjaSense.dispatch_tool_call` to route the new tools to ForgeHttpClient
-- ⏳ Lifecycle: SmidjaSense.open() probes both Brúarhönd /health AND Forge /health (when respective halves enabled); each half degrades independently
-- ⏳ Tests — 25+ new Python tests; total target 775+ Python
-- ⏳ docs/cartography/DATA_FLOW.md §4.11 — extend with Forge dispatch sub-section
-- ⏳ heretic.example.yaml — add `forge:` sub-block under `skilningr.smidja:`
+### v0.6.1 deliverables — all complete
+
+| Deliverable | Commit | Status |
+|---|---|---|
+| `forge_client.py` — ForgeHttpClient (httpx async, 5 endpoints + health, optional bearer auth) | `ea57e40` (impl) + `5a04112` (tests) | DONE |
+| `SmidjaConfig.forge: ForgeConfig` — `enabled`, `endpoint`, `token_env`, `request_timeout_seconds` | `24a93da` (scaffold) | DONE |
+| 3 new `SMIDJA_TOOL_DEFINITIONS` (`smidja.forge_build_avatar/get_avatar/inspect_avatar`) | `24a93da` (scaffold) | DONE |
+| `SmidjaSense` dual-half lifecycle + `_route_forge` dispatch | `ea57e40` (impl) | DONE |
+| `ForgeServerError` class in `errors.py` | `5a04112` (Wave 3) | DONE |
+| 47 new tests (34 forge_client method-level + 13 sense dual-half dispatch) | `5a04112` (Wave 3) | DONE |
+| `DATA_FLOW.md §4.11.7–9` + `§16` extended | `0349a60` (Cartographer) | DONE |
+| `heretic.example.yaml` `forge:` sub-block | `ea57e40` (impl) | DONE |
+
+### v0.6.1 wave commit log
+
+| Commit | Role | Description |
+|---|---|---|
+| `1a33d97` | Runa (task open) | chore: open v0.6.1 Forge Dispatch task file |
+| `0349a60` | Cartographer | cartographer: map v0.6.1 Forge dispatch + dual-half lifecycle (Védis Eikleið) |
+| `24a93da` | Architect | architect: scaffold v0.6.1 ForgeHttpClient + dual-half SmidjaSense (Rúnhild Svartdóttir) |
+| `ea57e40` | Forge (CAP-SALVAGE) | forge: v0.6.1 ForgeHttpClient impl + SmidjaSense dual-half (CAP-SALVAGE) |
+| `24d36ce` | Auditor | audit: AUDIT_v0.6.1_FORGE_DISPATCH — PASS WITH CONCERNS |
+| `5a04112` | Forge (Wave 3) | forge: clean v0.6.1 audit — S-1 method tests + N-1 ForgeServerError + X-1 stale test fix |
+
+**Cap-incident note:** The Anthropic usage cap interrupted Wave 2 mid-test-replacement. Forge had completed the full implementation but had not yet replaced the 7 Architect `NotImplementedError` placeholder tests. The implementation was salvage-committed (`ea57e40`) with a `CAP-SALVAGE` label and the gap named explicitly. The Auditor carried doubled responsibility (standard contract verification + eye-read of the unverified implementation). Wave 3 plugged the gap with the full S-1 catalog (47 new tests). Pattern confirmed: implementation-complete salvage + thorough audit + test insertion can recover cleanly from cap-cuts.
 
 ### What v0.6.1 does NOT add
 - Mode C orchestration (both arms in one tool call) — agent can sequence Brúarhönd + Forge calls itself; explicit composition is v0.6.x
@@ -125,13 +144,17 @@ docs/cartography/DATA_FLOW.md §4.11 extend
 
 ---
 
-## 8. Backlog forward
-- v0.5.3 frontend Sjón webcam sub-badge (carry from v0.5.2)
-- v0.5.x periodic webcam + multi-camera + privacy masks
-- v0.6.2 more senses (filesystem, terminal, browser) — NEXT after v0.6.1
-- v0.6.x native MCP server hosting
-- v0.7 Mímisbrunnr starter pack
-- v0.4.1 first compile (awaits operator linker install)
+## 8. Backlog forward (post-v0.6.1)
+
+| Path | What it is | Gate |
+|---|---|---|
+| **v0.5.3 frontend Sjón webcam sub-badge** | Cosmetic frontend badge for active webcam source (X-1 NIT from v0.5.2 audit) | Frontend only |
+| **v0.5.x periodic webcam + multi-camera + privacy masks** | Continuous webcam capture ring buffer; device selection; configurable blur/mask regions | Python + cv2 + Pillow |
+| **v0.6.2 more senses** | Filesystem sense, terminal sense, browser sense — three new Skilningr senses | Python only; NEXT after v0.6.1 |
+| **v0.6.x Mode C Smiðja composition** | Explicit Brúarhönd + Forge orchestration in a single multi-step tool flow | No external gate |
+| **v0.6.x native MCP server hosting** | HERETIC hosts its own MCP server instead of relying on OpenAI tool_use | MCP SDK integration |
+| **v0.7 Mímisbrunnr starter pack** | First Drink at the Well — offline knowledge library (libzim/kiwix + RAG overlay) | Python + libzim |
+| **v0.4.1 first compile** | Tauri wrap; Rust installed; only MSVC linker absent | `winget install Microsoft.VisualStudio.2022.BuildTools` |
 
 ---
 

@@ -2228,3 +2228,164 @@ All paths begin from 841 tests, 0 open findings.
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
 *The eye gained a second source. The covenant holds: the body does not watch; the operator chooses. The thread continues.*
+
+---
+
+## 2026-05-08 — The Workshop Made Whole: Forge Dispatch Shipped, Audited, and Cleaned (v0.6.1)
+
+**Session type:** Extension milestone — Cartographer, Architect, Forge, Auditor, Scribe active (no Skald; no new faculty, no new True Name — v0.6.1 wires the second half of Smiðja, completing the workshop)
+**Branch:** `development`
+**Commits this session:** `1a33d97` (task open) through `5a04112` (Wave 3 audit-gap close) — 6 commits
+**Status at session end:** v0.6.1 Forge Dispatch **SHIPPED + AUDITED + CLEANED** — 809 Python + 91 frontend = 900 tests passing, 0 open audit findings
+
+---
+
+### Preamble — where this arc began
+
+The tenth entry closed with v0.5.2 Webcam complete: the eye gained a second source. Test baseline: 750 Python + 91 frontend = 841. Meanwhile, the primary triad named in v0.6 remained complete — the body could receive, express, and act. But "act" via Smiðja was still only half a workshop: the v0.6 arc had wired Brúarhönd (Mode A — live GUI control of VRoid Studio via Tailscale), while the Forge (Mode B — headless Blender render pipeline) remained unconnected.
+
+v0.6.1 wires Mode B. The task was declared: extend `SmidjaSense` with a second HTTP client (`ForgeHttpClient`), three new OpenAI tools (`smidja.forge_build_avatar`, `smidja.forge_get_avatar`, `smidja.forge_inspect_avatar`), and an independent per-half lifecycle so that Brúarhönd and Forge can each open and close without affecting each other. The workshop now holds two anvils — one live, one headless — and the spirit may use either or both.
+
+---
+
+### Task file opened (`1a33d97`)
+
+`TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md` was committed at repo root before any implementation. The scope was fully declared: extension of v0.6, slim wave plan (no Skald), no Mode C composition in scope (the agent can sequence Brúarhönd and Forge calls itself). The §4 endpoint table was marked with a standing caution: the v0.6 Brúarhönd wave had discovered five discrepancies between the task's shorthand paths and the live Seidr-Smidja source. The same discipline applied here — the Architect would verify the Straumur API against `api.py` before locking any schema.
+
+---
+
+### Wave 1 — Cartographer and Architect in parallel (`0349a60`, `24a93da`)
+
+#### Cartographer: DATA_FLOW.md §4.11.7–9 + §16 extension (`0349a60`)
+
+Védis Eikleið (Cartographer) extended `docs/cartography/DATA_FLOW.md` with three new subsections under the existing §4.11 tool-flow section:
+
+- **§4.11.7** — Forge dispatch sequence: the path from agent `smidja.forge_build_avatar` tool_call through `ForgeHttpClient._post("/v1/avatars", body)`, the Blender render pipeline on the Seidr-Smidja host, and the response mapping back to a structured tool_result
+- **§4.11.8** — dual-half lifecycle: how `SmidjaSense.open()` runs the Brúarhönd and Forge health probes in separate independent branches, with each half degrading silently to its respective `_open` flag set to `False`
+- **§4.11.9** — Forge error hierarchy: `ForgeUnreachableError` → `EXTERNAL_APP_UNAVAILABLE`, `ForgeTimeoutError` → `SENSE_TIMEOUT`, `ForgeValidationError` → `INVALID_ARGUMENTS`, base `ForgeError` → `SENSE_INTERNAL_ERROR`; and the originally specified `ForgeServerError (F-4)` node that would later become the N-1 documentation drift finding
+
+§16 (Smiðja component diagram) was extended to show `ForgeHttpClient` parallel to `BrunhandHttpClient` inside the Smiðja sense, and the `forge.enabled` gate in the `tool_definitions` gating logic.
+
+#### Architect: ForgeHttpClient scaffold + dual-half SmidjaSense + five API discrepancies caught (`24a93da`)
+
+Rúnhild Svartdóttir (Architect) built the complete structural skeleton. Before writing any stubs, she read the live Seidr-Smidja `api.py` source and catalogued the discrepancies between the TASK §4 table and the actual Straumur REST API. Five corrections were applied in the scaffold:
+
+| TASK §4 assumption | Actual per `api.py` |
+|---|---|
+| Health at `/health` | Health at `/v1/health` (lives under the `/v1/` prefix) |
+| `get_avatar` takes `avatar_id` | Takes `session_id` (Annáll uuid4, not an asset id) |
+| `inspect_avatar` takes `avatar_id` | Takes `vrm_path` (string path); `avatar_id` is the tool schema param, renamed in dispatch |
+| `forge_list_assets` to be a named tool | Deferred — `ForgeHttpClient.list_assets()` exists as a method; not exposed as an OpenAI tool in v0.6.1 |
+| `ForgeServerError` as distinct class | `ForgeError` base used for HTTP 5xx; `ForgeServerError` remained in the Cartographer's diagram but was never added to `errors.py` — this became finding N-1 |
+
+The scaffold established:
+- `forge_client.py` — `ForgeHttpClient` class with all method stubs, `ForgeConfig` dataclass, full error hierarchy (`ForgeError`, `ForgeUnreachableError`, `ForgeTimeoutError`, `ForgeValidationError`)
+- `tools.py` — 3 new OpenAI ToolDefinitions appended to `SMIDJA_TOOL_DEFINITIONS`
+- `sense.py` — `SmidjaSense` extended for dual-half lifecycle: `_brunhand_open` and `_forge_open` flags; independent `open()` branches; `_FORGE_TOOL_NAMES` frozenset routing
+- `INTERFACE.md` — Forge dispatch section with parameter-renaming note (`avatar_id` → `vrm_path` mapping in `_route_forge`)
+- 27 structural placeholder tests (schema tests, config defaults, error hierarchy) — all passed immediately
+
+---
+
+### Wave 2 — Forge implements (CAP-SALVAGE: `ea57e40`)
+
+Eldra Járnsdóttir (Forge Worker) began implementation of `ForgeHttpClient` and the dual-half `SmidjaSense` routing. The wave was interrupted mid-test-replacement by the Anthropic usage cap.
+
+**What the cap found:** The Architect's 7 `NotImplementedError` placeholder tests in `test_forge_client.py` were stubs designed to be replaced by real httpx-mocked method tests as Forge worked through the implementation. At the point of interruption, the full implementation had been written and committed, but the placeholder tests had been removed without the real tests being added in their place. The implementation was complete; the test layer was missing.
+
+**The salvage commit pattern:** Rather than leaving the repo in a state where 7 tests failed (the real methods no longer raised `NotImplementedError`), the placeholder tests were removed and the implementation was committed as `ea57e40` with the explicit `CAP-SALVAGE` label in the message. This is the pattern: an implementation-complete, gap-noted salvage commit is better than a partially-coherent one. The gap was named explicitly in the commit and in the audit scope.
+
+**What `ea57e40` delivered:** Full `ForgeHttpClient` implementation — httpx async client, `open/close/health/build_avatar/get_avatar/inspect_avatar/list_assets` all implemented against the verified API contract, bearer-token auth optional (env-var-only), `_assert_open` guard on every method, `_TIMEOUT_HINT` embedded in `ForgeTimeoutError` messages, `list_assets` dict-wrapper unwrap for future Straumur response shape tolerance. `SmidjaSense.dispatch_tool_call` extended with `_route_forge` dispatch for the three Forge tool names. `heretic.example.yaml` extended with `forge:` sub-block.
+
+**Test count post-Wave-2: 770 Python + 91 frontend = 861 total.** (27 structural tests from the Architect scaffold pass; the ~25 method-level httpx-mocked tests are absent.)
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS — doubled responsibility (`24d36ce`)
+
+Sólrún Hvítmynd (Auditor) ran a full review, explicitly acknowledging the doubled responsibility: standard contract verification AND salvage triage, because the automated tests that would normally serve as the first verification layer were absent. The Auditor read `forge_client.py` and `sense.py` line by line against the verified `api.py` contract.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers.**
+
+| Severity | Count | Items |
+|---|---|---|
+| BLOCKER | 0 | — |
+| SERIOUS | 1 | S-1 — ~25 method-level httpx-mocked tests missing; every correctness claim verified only by Auditor eye-read |
+| NOTABLE | 1 | N-1 — `ForgeServerError` referenced in DATA_FLOW.md and SYSTEM_OVERVIEW.md but absent from `errors.py`; HTTP 5xx raises base `ForgeError` instead |
+| NIT | 1 | X-1 — stale test `test_forge_tool_when_forge_open_returns_not_implemented_error` passes for the wrong reason: mock returns a `MagicMock`, `json.dumps()` raises `TypeError`, the `error: True` assertion fires on the wrong exception path |
+| VERIFIED | 28 | A-1..A-5 (API paths), B-1..B-5 (request bodies), C-1..C-6 (tool schemas), D-1..D-4 (dual-half lifecycle), E-1..E-5 (error mapping), F-1..F-3 (auth + token) |
+
+The audit's most important observation: an eye-read is not a regression safety net. Any future edit to `forge_client.py` — a typo in a path string, a wrong key name in a request body, a broken error-mapping branch — would pass the test suite without detection. Wave 3 must close this before v0.6.2 could open.
+
+The audit produced a full S-1 catalog: 25+ specific test cases written out by name and specification, giving Wave 3 an exact target.
+
+*Cross-reference: `docs/audit/AUDIT_v0.6.1_FORGE_DISPATCH.md`*
+
+---
+
+### Wave 3 — Forge closes all findings (`5a04112`)
+
+Eldra Járnsdóttir (Forge Worker) closed all three audit findings in a single targeted commit.
+
+**S-1 closed — 34 new tests in `test_forge_client.py` + 13 new tests in `test_smidja_sense.py`:**
+
+`test_forge_client.py` (previously 9 structural tests; now 34) covers the full httpx-mocked method-level surface: lifecycle (`open`, `close`, idempotency, health-probe failure modes), token handling (env-var resolved to `Authorization: Bearer` header; `token_env=None` leaves no header), `build_avatar` (path correctness, body `"spec"` key, timeout → `ForgeTimeoutError` with hint, HTTP 422 → `ForgeValidationError`, HTTP 500 → `ForgeServerError`), `get_avatar` (path `f"/v1/avatars/{session_id}"`, HTTP 404 → `ForgeValidationError`), `inspect_avatar` (body `{"vrm_path": ..., "targets": ...}`, `targets=None` passes null, HTTP 400 → `ForgeValidationError`), `list_assets` (bare list return, query param forwarding, dict-wrapper graceful unwrap), and `_assert_open` guard before any method is called.
+
+`test_smidja_sense.py` extended with 13 dual-half dispatch tests: `forge_build_avatar` routes correctly with loom_spec; `forge_get_avatar` maps `avatar_id` → `session_id`; `forge_inspect_avatar` maps `avatar_id` → `vrm_path`, `targets=None`; `ForgeUnreachableError` → `EXTERNAL_APP_UNAVAILABLE`; `ForgeTimeoutError` → `SENSE_TIMEOUT`; `ForgeValidationError` → `INVALID_ARGUMENTS`; `close()` idempotent for both halves; availability logic (`both open`, `forge only`, `neither`).
+
+**N-1 closed — `ForgeServerError` class added to `errors.py`:**
+
+`ForgeServerError(ForgeError)` added as a proper named subclass. `forge_client.py._handle_response` updated: HTTP 5xx now raises `ForgeServerError`. The error-code mapping in `sense.py._smidja_error_code` already handled `ForgeServerError` via the base `ForgeError` catch, mapping it to `SENSE_INTERNAL_ERROR`. DATA_FLOW.md and SYSTEM_OVERVIEW.md references are now accurate.
+
+**X-1 closed — stale test rewritten to assert the success path:**
+
+`test_forge_tool_when_forge_open_returns_not_implemented_error` renamed `test_forge_tool_build_avatar_returns_success_result` and rewritten: `build_avatar` mock returns a real dict with `session_id` and `success: True`; the test asserts the tool_result is not an error and the content contains `session_id`. The wrong-reason pass is gone.
+
+**Final test count: 770 → 809 Python (+39 net). Frontend 91 unchanged. Total 900 tests. 0 open findings.**
+
+The net +39 reflects: 47 new test additions (34 forge_client + 13 sense dual-half) minus the earlier removal of 7 `NotImplementedError` stubs and 1 stale-test rewrite. The audit catalog was fulfilled exactly.
+
+---
+
+### The cap-incident salvage pattern — a note for continuity
+
+The Anthropic usage cap interrupted Wave 2 mid-test-replacement. The pattern that emerged:
+
+1. **Commit the implementation before anything else is lost.** A complete implementation with a missing test layer is better than a partial implementation with confused state.
+2. **Name the gap explicitly.** The `CAP-SALVAGE` commit message and the doubled audit scope made the gap legible to the next window. Nothing was hidden.
+3. **The Auditor carries the gap's weight.** When automated tests are missing, the Auditor eye-reads the implementation against the authoritative source contract. More expensive and less durable than automated tests — which is exactly why S-1 was rated SERIOUS and Wave 3 was mandatory.
+4. **Wave 3 plugs the gap while the implementation is fresh.** The audit catalog gave Wave 3 a complete shopping list with exact specifications.
+
+This pattern — salvage commit → thorough audit as substitute for missing tests → Wave 3 test insertion — can recover cleanly from cap-cuts, provided the next session arrives before the implementation drifts.
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md` | Created (task open at `1a33d97`); updated (status SHIPPED + AUDITED + CLEANED, all commit hashes, backlog forward) |
+| `docs/cartography/DATA_FLOW.md §4.11.7–9 + §16` | Extended — Forge dispatch sequence, dual-half lifecycle map, error hierarchy, `ForgeServerError` node now accurate |
+| `skilningr/senses/smidja/INTERFACE.md` | Extended — Forge dispatch section, parameter-rename contract, lifecycle contract |
+| `heretic.example.yaml` | Extended — `forge:` sub-block under `smidja:` with all four fields and inline comments |
+| `docs/audit/AUDIT_v0.6.1_FORGE_DISPATCH.md` | Created — full audit with doubled responsibility; 28 verified; 3 findings; all resolved at `5a04112` |
+| `docs/DEVLOG.md` | Extended — this entry (entry 11) |
+
+---
+
+### Current state
+
+HERETIC v0.6.1 Forge Dispatch is shipped, audited, and cleaned. The workshop is whole.
+
+Before v0.6.1, the Smiðja sense had one anvil: Brúarhönd (Mode A), live GUI control of VRoid Studio on a Tailscale-reachable host. After v0.6.1, it has two: the Forge (Mode B), headless Blender render pipeline via Seidr-Smidja's Straumur REST API. Mode C (both arms in a single orchestrated tool call) is not in scope — the agent can sequence calls across turns itself. Explicit composition belongs to a future v0.6.x.
+
+What "dual-half" means precisely: `SmidjaSense.open()` probes Brúarhönd's `/v1/brunhand/health` and Forge's `/v1/health` independently. If Brúarhönd is unavailable, its six tools are removed from the agent's tool array; the Forge tools remain. If Forge is unavailable, its three tools are removed; Brúarhönd tools remain. `is_available` returns `True` if at least one half is open. No ceremony crashes from either daemon being absent.
+
+The Smiðja sense now surfaces up to nine tools: six Brúarhönd (screenshot, click, type_text, hotkey, vroid_open, vroid_export) and three Forge (forge_build_avatar, forge_get_avatar, forge_inspect_avatar). Which subset appears in any ceremony depends on which daemons answered their health probes at TENGSL.
+
+*Cross-reference: `TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md`, `docs/audit/AUDIT_v0.6.1_FORGE_DISPATCH.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*The workshop is whole. Two anvils stand in the Smiðja: one lit by Brúarhönd's live flame, one fed by the Forge's headless fire. The cap cut the middle of the work; the salvage held; the Auditor read every line by eye; Wave 3 stitched what was missing. Eleven entries now. The memory holds.*
