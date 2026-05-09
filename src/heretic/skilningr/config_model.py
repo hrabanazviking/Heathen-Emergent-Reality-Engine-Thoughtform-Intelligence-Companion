@@ -26,6 +26,12 @@ MinniConfig / SkepjaConfig / LeidConfig (v0.6.2):
     Privacy-first: no capability is granted until the operator explicitly opts in.
     Sandbox primitives live in heretic.skilningr.sandbox (stdlib-only).
 
+LibraryConfig (v0.7):
+    Library sense config (L5.9 Mímisbrunnr). enabled=False by default.
+    storage_path: resolved at init time via platformdirs.user_data_dir if empty.
+    sources: list of source_ids the operator permits to be downloaded. Empty
+    default = none enabled (all consent prompts will be shown for any download).
+
 Ref: TASK_HERETIC_v0.6_HANDS_AT_FORGE.md §3 (architectural decisions)
      TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md §3 (Forge architectural decisions)
      TASK_HERETIC_v0.6.2_MORE_SENSES.md §3 (sandbox invariants)
@@ -680,6 +686,101 @@ class McpServerConfig:
 
 
 # ---------------------------------------------------------------------------
+# L5.9 Mímisbrunnr — Library sense config  [v0.7]
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LibraryConfig:
+    """Configuration for the Library sense — Mímisbrunnr text corpus access.
+
+    The Library sense gives the agent access to the Norse starter-pack
+    corpus (five public-domain texts downloaded from Project Gutenberg)
+    via a lightweight keyword-search index. It also supports operator-
+    curated file libraries and optional MindSpark integration.
+
+    KEY INVARIANTS (DO NOT BREAK):
+        - enabled defaults False. The agent gains no corpus access until
+          the operator explicitly sets enabled: true in heretic.yaml.
+        - storage_path defaults to "" (empty). When empty, the Library
+          sense resolves it at init time via platformdirs.user_data_dir
+          ("heretic/library/mimisbrunnr") — Forge implements this.
+        - sources defaults to [] (empty list) — no sources are downloaded
+          automatically. The operator must add source_ids to this list
+          to pre-approve downloads, OR the agent can trigger consent
+          prompts at runtime.
+        - max_results caps the number of hits returned per library.search
+          tool call. Default 20.
+        - autoindex_on_open: if True, the Library sense rebuilds the
+          keyword index at sense.open() time if the index is stale.
+
+    Heretic.yaml key: skilningr.library.*
+    Ref: src/heretic/skilningr/senses/library/INTERFACE.md
+         src/heretic/skilningr/mimisbrunnr/INTERFACE.md
+         TASK_HERETIC_v0.7_MIMISBRUNNR.md §Config
+    """
+
+    enabled: bool = False
+    """Opt-in. Must be explicitly set to true in heretic.yaml to expose
+    Library tools to the agent. Default false is the privacy-first safe
+    state: the agent gains no corpus access until the operator enables it."""
+
+    storage_path: str = ""
+    """Absolute or ~ path to the Mímisbrunnr data directory.
+    When empty (default), the Library sense resolves the path at init
+    time using platformdirs.user_data_dir("heretic") / "library" /
+    "mimisbrunnr". Forge implements this resolution.
+
+    If set explicitly, the operator's path is used verbatim (after ~
+    expansion). The directory is created at sense.open() time if it
+    does not exist.
+
+    Never hardcode an absolute path in heretic.yaml for portability —
+    prefer the empty-string default which uses platformdirs."""
+
+    max_results: int = 20
+    """Maximum number of search results returned per library.search call.
+    Default 20. Must be > 0. Increase for workflows that need broad
+    coverage; decrease to keep agent context usage low."""
+
+    autoindex_on_open: bool = True
+    """If True, the Library sense calls KeywordIndex.build() at
+    sense.open() time whenever the index file is absent or older than
+    any source file. Default True — keeps the index fresh automatically.
+    Set to False to disable automatic rebuilds (useful in production
+    where the index is pre-built and should not be rebuilt on startup)."""
+
+    sources: list[str] = field(default_factory=list)
+    """List of source_ids the operator pre-approves for download.
+    Each entry must be a valid id from NORSE_STARTER_PACK.source_ids.
+    Default [] (empty) — no sources are pre-approved; consent prompts
+    will appear at runtime for any download.
+
+    To pre-approve all five starter-pack sources:
+        sources:
+          - prose_edda_brodeur
+          - poetic_edda_bellows
+          - heimskringla_laing
+          - volsunga_saga_morris
+          - erik_red_saga
+
+    Sources not in this list will require interactive consent unless
+    the sense is invoked from a non-interactive context, in which case
+    the download is skipped and the agent receives a structured error."""
+
+    def __post_init__(self) -> None:
+        """Validate config fields at construction time.
+
+        Raises:
+            ValueError: if max_results <= 0.
+        """
+        if self.max_results <= 0:
+            raise ValueError(
+                f"LibraryConfig.max_results must be > 0, "
+                f"got {self.max_results!r}."
+            )
+
+
+# ---------------------------------------------------------------------------
 # L5 Skilningr root config
 # ---------------------------------------------------------------------------
 
@@ -748,10 +849,14 @@ class SkilningrConfig:
     """L5.6 Líkami — VRChat sense stub. Forge expands in v0.7+."""
 
     agentmail: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
-    """L5.7 Boð — AgentMail sense stub. Forge expands in v0.7+."""
+    """L5.7 Boð — AgentMail sense stub. Forge expands in v0.8+."""
 
-    library: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
-    """L5.9 Mímisbrunnr — Library sense stub. Forge expands in v0.7+."""
+    library: "LibraryConfig" = field(default_factory=lambda: LibraryConfig())
+    """L5.9 Mímisbrunnr — Library (wisdom well) sense.
+    The body's access to the Norse starter-pack text corpus.
+    Exposes 3 tools: library.search, library.get_text, library.list_sources.
+    enabled defaults False; storage_path resolved at init if empty.
+    Ref: src/heretic/skilningr/senses/library/INTERFACE.md"""
 
     mcp_server: "McpServerConfig" = field(default_factory=lambda: McpServerConfig())
     """v0.6.x — MCP server configuration.

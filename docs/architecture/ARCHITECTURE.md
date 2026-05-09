@@ -1,6 +1,6 @@
 # HERETIC — Master Architecture Document
 
-**Last updated:** 2026-05-07 (corrective pass — Rúnhild Svartdóttir, adding sense layering section, fixing cross-repo references)
+**Last updated:** 2026-05-08 (v0.7 scaffold — Rúnhild Svartdóttir: Mímisbrunnr/Library sense scaffold; LibraryConfig promoted from dict stub to typed dataclass; 5 Norse starter-pack sources with verified URLs locked in manifest; mimisbrunnr/ backend subsystem and senses/library/ sense layer created; IPC_PROTOCOL §8.4 updated; heretic.example.yaml library block rewritten) | 2026-05-07 (corrective pass — Rúnhild Svartdóttir, adding sense layering section, fixing cross-repo references)
 **Scope:** Whole-system structural decomposition — layers, process model, data ownership, lifecycle, licensing layout, technology decisions, and non-goals.
 **Authority:** Derives from `docs/BODY_MANIFESTO.md` (sealed vision). All conflicts defer to the manifesto.
 **Owner:** Architect (Rúnhild Svartdóttir)

@@ -1917,6 +1917,47 @@ def _cmd_mcp(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# library command  [v0.7 — Mímisbrunnr library management]
+# ---------------------------------------------------------------------------
+
+def _cmd_library_list(args: argparse.Namespace) -> int:
+    """List all Mímisbrunnr Norse corpus sources with download status."""
+    raise NotImplementedError(
+        "heretic library list is a Forge implementation target. "
+        "Body: load config; construct LibraryClient; call list_sources(); "
+        "print a formatted table of source_id, title, downloaded, size."
+    )
+
+
+def _cmd_library_download(args: argparse.Namespace) -> int:
+    """Download one or all Mímisbrunnr Norse corpus sources."""
+    raise NotImplementedError(
+        "heretic library download is a Forge implementation target. "
+        "Body: load config; resolve storage_path; for each source_id in "
+        "args.source_ids (or all if --all): call prompt_for_download (unless "
+        "--yes), then Downloader.download(source, dest_path)."
+    )
+
+
+def _cmd_library_remove(args: argparse.Namespace) -> int:
+    """Remove a downloaded Mímisbrunnr source file and its index entry."""
+    raise NotImplementedError(
+        "heretic library remove is a Forge implementation target. "
+        "Body: resolve path; confirm deletion (or --yes flag); unlink the "
+        ".txt file; update local manifest; flag index as stale."
+    )
+
+
+def _cmd_library_rebuild_index(args: argparse.Namespace) -> int:
+    """Rebuild the Mímisbrunnr keyword index from all downloaded sources."""
+    raise NotImplementedError(
+        "heretic library rebuild-index is a Forge implementation target. "
+        "Body: resolve storage_path; call KeywordIndex.build(data_dir); "
+        "report number of sources indexed and index file size."
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct and return the top-level argument parser.
 
@@ -2031,6 +2072,86 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_mcp.set_defaults(func=_cmd_mcp)
+
+    # library  [v0.7]
+    p_library = subparsers.add_parser(
+        "library",
+        help=(
+            "Manage the Mímisbrunnr Norse text corpus — list sources, "
+            "download texts, remove sources, and rebuild the keyword index."
+        ),
+    )
+    library_sub = p_library.add_subparsers(
+        dest="library_command",
+        metavar="library_command",
+    )
+    library_sub.required = True
+
+    # library list
+    p_lib_list = library_sub.add_parser(
+        "list",
+        help="List all Norse corpus sources and their download status.",
+    )
+    p_lib_list.set_defaults(func=_cmd_library_list)
+
+    # library download
+    p_lib_download = library_sub.add_parser(
+        "download",
+        help="Download one or more Norse corpus sources.",
+    )
+    p_lib_download.add_argument(
+        "source_ids",
+        nargs="*",
+        metavar="SOURCE_ID",
+        help=(
+            "One or more source ids to download "
+            "(e.g. prose_edda_brodeur). "
+            "Omit to download all sources listed in heretic.yaml "
+            "skilningr.library.sources."
+        ),
+    )
+    p_lib_download.add_argument(
+        "--all",
+        action="store_true",
+        default=False,
+        dest="download_all",
+        help="Download all five Norse starter-pack sources.",
+    )
+    p_lib_download.add_argument(
+        "--yes",
+        action="store_true",
+        default=False,
+        help="Skip the consent prompt and download without confirmation.",
+    )
+    p_lib_download.set_defaults(func=_cmd_library_download)
+
+    # library remove
+    p_lib_remove = library_sub.add_parser(
+        "remove",
+        help="Remove a downloaded Norse corpus source from local storage.",
+    )
+    p_lib_remove.add_argument(
+        "source_id",
+        metavar="SOURCE_ID",
+        help="The source id to remove (e.g. prose_edda_brodeur).",
+    )
+    p_lib_remove.add_argument(
+        "--yes",
+        action="store_true",
+        default=False,
+        help="Skip the confirmation prompt.",
+    )
+    p_lib_remove.set_defaults(func=_cmd_library_remove)
+
+    # library rebuild-index
+    p_lib_rebuild = library_sub.add_parser(
+        "rebuild-index",
+        help=(
+            "Rebuild the Mímisbrunnr keyword index from all downloaded sources. "
+            "Run after downloading new sources or if search results seem stale."
+        ),
+    )
+    p_lib_rebuild.set_defaults(func=_cmd_library_rebuild_index)
 
     return parser
 
