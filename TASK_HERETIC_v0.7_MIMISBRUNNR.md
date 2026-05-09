@@ -20,20 +20,23 @@ The library is **opt-in**. A user who never enables it never downloads a byte. P
 
 ## 2. Current status — 2026-05-08
 
-**Phase:** v0.6.x SHIPPED + AUDITED + CLEANED at `f7a85b5`. Test baseline: Python 1012 + 7 skipped + 91 frontend = 1110.
+**Phase:** v0.7 **SHIPPED + AUDITED + CLEANED** at `d555397` (Wave 3 SHA-256 lock) + Scribe seal commit.
 
-### v0.7 deliverables
-- ⏳ `src/heretic/skilningr/mimisbrunnr/` — Mímisbrunnr subsystem (corpus manifest, downloader, file-index, query)
-- ⏳ `src/heretic/skilningr/senses/library/` — L5.9 Library sense (the agent-callable surface)
-- ⏳ Norse starter pack manifest — list of public-domain texts with URL, license, size, SHA-256
-- ⏳ File-index backend — simple line-by-line keyword search; no vector search yet (v0.9)
-- ⏳ Download manager — per-source disk budget; user confirmation; resumable download; SHA-256 verify
-- ⏳ Tools (3): `library.search`, `library.get_text`, `library.list_sources`
-- ⏳ `pyproject.toml` — new `[library]` extra (minimal for v0.7: just stdlib + httpx already present; v0.9 adds sentence-transformers + faiss)
-- ⏳ `heretic.example.yaml` — `skilningr.library:` block
-- ⏳ Tests — 30+ new Python tests
-- ⏳ docs/cartography/DATA_FLOW.md §4.14 — library flow
-- ⏳ docs/THIRD_PARTY_NOTICES.md — Norse starter pack license entries
+**HEAD (development):** *(Scribe seal commit — see git log)*
+**Test count:** Python 1231 passed + 7 skipped + 91 frontend = **1329 total. 0 failures. 0 open findings.**
+
+### v0.7 deliverables — all complete
+- ✅ `src/heretic/skilningr/mimisbrunnr/` — Mímisbrunnr subsystem (corpus manifest, downloader, file-index, query)
+- ✅ `src/heretic/skilningr/senses/library/` — L5.9 Library sense (the agent-callable surface)
+- ✅ Norse starter pack manifest — 5 public-domain texts with URL, license, size, SHA-256 (all hashes locked `d555397`)
+- ✅ File-index backend — stdlib `re`-based line scan; no vector search (v0.9)
+- ✅ Download manager — consent gate before network; SHA-256 verify; atomic write; per-source confirmation
+- ✅ Tools (3): `library.search`, `library.get_text`, `library.list_sources`
+- ✅ `pyproject.toml` — `[library]` extra (stdlib only; httpx already present)
+- ✅ `heretic.example.yaml` — `skilningr.library:` block
+- ✅ Tests — 157 net new Python tests (1074 → 1231)
+- ✅ `docs/cartography/DATA_FLOW.md §4.14` — library query flow + download flow + consent gate
+- ✅ `docs/THIRD_PARTY_NOTICES.md` — five Norse starter pack source entries (L-1 fulfilled by Scribe)
 
 ### What v0.7 does NOT add
 - Vector search / embeddings (v0.9; `[library-vector]` extra adds sentence-transformers + faiss-cpu)
