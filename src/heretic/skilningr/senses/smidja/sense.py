@@ -537,19 +537,22 @@ class SmidjaSense:
         is unrecognized. ForgeError subclasses propagate to the caller
         (dispatch_tool_call catches them via SmidjaError).
 
-        NOTE: All ForgeHttpClient methods raise NotImplementedError in Wave 1
-        scaffold. This is caught here and returned as a structured tool_result
-        error so tests and operators get a clear message rather than a crash.
+        Parameter mapping (tool schema uses "avatar_id" for both get and inspect):
+            smidja.forge_build_avatar   → forge_client.build_avatar(loom_spec=args["loom_spec"])
+            smidja.forge_get_avatar     → forge_client.get_avatar(session_id=args["avatar_id"])
+            smidja.forge_inspect_avatar → forge_client.inspect_avatar(vrm_path=args["avatar_id"],
+                                             targets=args.get("targets"))
 
-        Forge implements the actual method bodies in Wave 2.
+        The tool schema exposes "avatar_id" for UX consistency; the mapping to the
+        correct ForgeHttpClient parameter (session_id / vrm_path) is done here.
+        See INTERFACE.md §"IMPORTANT parameter naming".
         """
         from heretic.skilningr.errors import SenseUnavailableError, ToolDispatchError
 
         if not self._forge_open:
             raise SenseUnavailableError(
                 f"Smiðja Forge half is not open — cannot dispatch {tool_name!r}. "
-                f"Ensure skilningr.smidja.forge.enabled: true and Straumur is running. "
-                f"Note: ForgeHttpClient is a Wave 2 stub — methods raise NotImplementedError."
+                f"Ensure skilningr.smidja.forge.enabled: true and Straumur is running."
             )
 
         if tool_name not in _FORGE_TOOL_NAMES:
@@ -558,13 +561,32 @@ class SmidjaSense:
                 f"Valid Forge tools: {sorted(_FORGE_TOOL_NAMES)}"
             )
 
-        # Forge implements these method bodies in Wave 2.
-        # In Wave 1 scaffold, these raise NotImplementedError.
-        # That error propagates here and is caught by dispatch_tool_call's
-        # except Exception clause, returning a structured SENSE_INTERNAL_ERROR.
-        raise NotImplementedError(
-            f"Forge route for {tool_name!r} — Forge implements dispatch in Wave 2. "
-            f"ForgeHttpClient.build_avatar/get_avatar/inspect_avatar raise NotImplementedError."
+        # Route to the correct ForgeHttpClient method
+        if tool_name == "smidja.forge_build_avatar":
+            result = await self._forge_client.build_avatar(
+                loom_spec=args["loom_spec"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "smidja.forge_get_avatar":
+            # Tool param "avatar_id" is the Annáll session_id
+            result = await self._forge_client.get_avatar(
+                session_id=args["avatar_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "smidja.forge_inspect_avatar":
+            # Tool param "avatar_id" is actually the server-side vrm_path
+            result = await self._forge_client.inspect_avatar(
+                vrm_path=args["avatar_id"],
+                targets=args.get("targets"),
+            )
+            return json.dumps(result)
+
+        # Unreachable if _FORGE_TOOL_NAMES is kept in sync, but guard anyway
+        raise ToolDispatchError(
+            f"Forge route fell through for {tool_name!r} — this is a bug. "
+            f"_FORGE_TOOL_NAMES and _route_forge dispatch table are out of sync."
         )
 
     def _emit_event(

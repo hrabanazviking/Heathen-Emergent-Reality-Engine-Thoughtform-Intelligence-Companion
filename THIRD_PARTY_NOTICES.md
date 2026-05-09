@@ -3,7 +3,7 @@
 **Project:** H.E.R.E.T.I.C. — Host Environment for Realtime Embodiment, Tooling & Interactive Control
 **Project license:** MIT
 **Copyright:** 2026 Volmarr Wyrd
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-08
 **Maintained by:** Eirwyn Rúnblóm, Scribe for Vibe Coding
 
 This file records every third-party dependency — whether vendored, runtime-installed, or called as an external service — that HERETIC uses or intends to use. It is organized by the layer of the architecture that owns the dependency. It is updated whenever a new dependency enters the project, and whenever a dependency is removed.
@@ -303,7 +303,95 @@ The following corpus entries are added **automatically** when a user downloads a
 **Name:** Project Gutenberg
 **License:** Public domain (works pre-1928) — no copyright restriction on content
 **Attribution:** Works from Project Gutenberg are in the public domain. The Project Gutenberg trademark and branding require that content served as "from Project Gutenberg" links back to the original Project Gutenberg source. HERETIC's attribution field for Gutenberg results will cite the Project Gutenberg item ID.
-**Status in repository:** Template only.
+**Status in repository:** Template for future catalog sources. The v0.7 Norse starter pack entries are named individually below.
+
+---
+
+## Norse Starter Pack — v0.7 Mímisbrunnr (Corpus Data Attribution, Named Entries)
+
+These five texts are the authoritative sources constituting the Norse starter pack shipped in HERETIC v0.7. They are public-domain works translated before 1928 by translators who died more than 70 years ago. The texts were sourced exclusively from Project Gutenberg, which has verified their public-domain status in the United States of America.
+
+No copyright protection attaches to the text content. No license compliance is required beyond attribution. The SHA-256 values below were computed from the canonical UTF-8 text files as served by Project Gutenberg on 2026-05-08 (verified via `scripts/lock_hashes.py`, HERETIC development branch commit `d555397`).
+
+---
+
+### Prose Edda — Snorri Sturluson (~1220 CE) / trans. Arthur Gilchrist Brodeur (1916)
+
+**Source title:** The Prose Edda of Snorri Sturluson
+**Original work:** Written ~1220 CE by Snorri Sturluson (1179–1241), Icelandic chieftain, historian, and poet
+**Translation:** Arthur Gilchrist Brodeur (1916); Brodeur died 1971 — translation is public domain (pre-1928 publication, author deceased >70 years)
+**Project Gutenberg item ID:** #18947
+**Project Gutenberg URL:** https://www.gutenberg.org/files/18947/18947-0.txt
+**Manifest source ID:** `prose_edda_brodeur`
+**Approximate size:** 388 KB (387,653 bytes)
+**SHA-256 (UTF-8 text, 2026-05-08):** `a46fb8abc9e96c4bf757571f25cf55a1d2999d780271765b9dd54f09f70f8f32`
+**License:** Public domain in the United States of America (and in most jurisdictions). Project Gutenberg License applies to Project Gutenberg's electronic presentation; the text itself is free of copyright.
+**Redistribution terms:** Freely redistributable. Attribution to Snorri Sturluson (author) and Arthur Gilchrist Brodeur (translator) is customary and encouraged.
+**Notes:** The Prose Edda is the principal source for Norse mythology and Skaldic poetics. It comprises the Gylfaginning (cosmology), Skáldskaparmál (poetic language), and Háttatal (verse forms). Brodeur's 1916 translation is standard in English scholarship.
+
+---
+
+### Poetic Edda — Anonymous (~9th–13th century CE) / trans. Henry Adams Bellows (1923)
+
+**Source title:** The Poetic Edda
+**Original work:** Anonymous collection of Old Norse poems, compiled ~13th century in Iceland; individual poems date from the 9th–12th centuries CE
+**Translation:** Henry Adams Bellows (1923); Bellows died 1939 — translation is public domain (pre-1928 publication, author deceased >70 years)
+**Project Gutenberg item ID:** #73533
+**Project Gutenberg URL:** https://www.gutenberg.org/ebooks/73533.txt.utf-8
+**Manifest source ID:** `poetic_edda_bellows`
+**Approximate size:** 978 KB (977,831 bytes)
+**SHA-256 (UTF-8 text, 2026-05-08):** `50710042c87eb3075c74a9f36cd7dd0ffdc7bd7ba3bb7d5dee0f62db88b28e3c`
+**License:** Public domain in the United States of America. Project Gutenberg License applies to the electronic presentation.
+**Redistribution terms:** Freely redistributable. Attribution to the translator Henry Adams Bellows is customary.
+**Notes:** The Poetic Edda (Codex Regius) is the primary source of Norse mythological and heroic poetry, including the Völuspá, Hávamál, Rígsþula, and the Sigurd/Völsung cycle. Bellows's 1923 translation includes extensive scholarly commentary. Note: an earlier proposed URL (`sacred-texts.com/neu/poe/`) was rejected in favor of the canonical Project Gutenberg URL due to unclear redistribution terms on sacred-texts.com. Project Gutenberg's public-domain verification is authoritative.
+
+---
+
+### Heimskringla — Snorri Sturluson (~1230 CE) / trans. Samuel Laing (1844)
+
+**Source title:** Heimskringla, or the Chronicle of the Kings of Norway
+**Original work:** Written ~1230 CE by Snorri Sturluson (1179–1241). The Ynglinga Saga opens the collection; it continues through the life of Óláfr Haraldsson and later kings.
+**Translation:** Samuel Laing (1844); Laing died 1868 — translation is public domain (pre-1928 publication, author deceased >70 years)
+**Project Gutenberg item ID:** #598
+**Project Gutenberg URL:** https://www.gutenberg.org/ebooks/598.txt.utf-8
+**Manifest source ID:** `heimskringla_laing`
+**Approximate size:** 1.75 MB (1,748,862 bytes)
+**SHA-256 (UTF-8 text, 2026-05-08):** `dc794ff1dbaf88a9fee5172e5594adcb3de79316c4f281508fc3b8a6dd83d6a1`
+**License:** Public domain in the United States of America. Project Gutenberg License applies to the electronic presentation.
+**Redistribution terms:** Freely redistributable. Attribution to Snorri Sturluson (author) and Samuel Laing (translator) is customary.
+**Notes:** Heimskringla is the most comprehensive history of the Norwegian kings composed in the medieval period, drawing on oral tradition, earlier sagas, and Snorri's own synthesis. Laing's 1844 translation was the standard English text for over a century. The Gutenberg edition is the largest file in the Norse starter pack (~1.75 MB).
+
+---
+
+### Saga of the Volsungs — Anonymous (~1270 CE) / trans. William Morris and Eiríkr Magnússon (1888)
+
+**Source title:** The Story of the Volsungs (Volsunga Saga)
+**Original work:** Anonymous Icelandic prose saga, compiled ~1270 CE, drawing on older heroic poetry including the Poetic Edda Sigurd cycle. The foundational source for Wagner's Ring Cycle and Tolkien's Sigurd and Gudrún.
+**Translation:** William Morris (1834–1896) and Eiríkr Magnússon (1833–1913), 1888; both translators deceased >70 years — translation is public domain (pre-1928 publication, authors deceased)
+**Project Gutenberg item ID:** #1152
+**Project Gutenberg URL:** https://www.gutenberg.org/files/1152/1152-0.txt
+**Manifest source ID:** `volsunga_saga_morris`
+**Approximate size:** 331 KB (330,843 bytes)
+**SHA-256 (UTF-8 text, 2026-05-08):** `b6ecaf400f47608c7497465fe5029268fb57c1a456c5bb99a1633fd6fc04053b`
+**License:** Public domain in the United States of America. Project Gutenberg License applies to the electronic presentation.
+**Redistribution terms:** Freely redistributable. Attribution to William Morris and Eiríkr Magnússon (translators) is customary.
+**Notes:** The Morris/Magnússon translation is notable for its deliberately archaic and elevated register, intended to reflect the saga's heroic tone. The Volsunga Saga covers the genealogy of the Volsung clan from Odin through Sigurd Fáfnisbane and the tragedies that follow. This is the earliest and most complete prose account of the Sigurd legend.
+
+---
+
+### Saga of Erik the Red — Anonymous (~1265 CE) / trans. J. Sephton (1880)
+
+**Source title:** The Saga of Erik the Red (Eiríks saga rauða)
+**Original work:** Anonymous Icelandic saga, compiled ~1265 CE, one of the two principal Vinland sagas. Narrates the Norse exploration of North America (Vínland) by Leif Eiríksson and Þorfinnr Karlsefni.
+**Translation:** J. Sephton (1880); Sephton died 1883 — translation is public domain (pre-1928 publication, author deceased >70 years)
+**Project Gutenberg item ID:** #17946
+**Project Gutenberg URL:** https://www.gutenberg.org/files/17946/17946-0.txt
+**Manifest source ID:** `erik_red_saga`
+**Approximate size:** 79 KB (79,340 bytes)
+**SHA-256 (UTF-8 text, 2026-05-08):** `6232afa6e0c384eb51d8a32df92fce7ba25cc15382cc9df45e2b0b2edb2b9c42`
+**License:** Public domain in the United States of America. Project Gutenberg License applies to the electronic presentation.
+**Redistribution terms:** Freely redistributable. Attribution to J. Sephton (translator) is customary.
+**Notes:** Eiríks saga rauða is the shorter and more geographically precise of the two Vinland sagas (the other being Grænlendinga saga). It contains the earliest written account of Europeans reaching North America and describes the skræling (indigenous people) encounters. Sephton's 1880 translation is the earliest standard English text. The smallest file in the Norse starter pack (~79 KB).
 
 ---
 
@@ -322,4 +410,4 @@ All four previously-TBD entries have been resolved. See audit report `docs/audit
 
 *This file is maintained by Eirwyn Rúnblóm, Scribe for Vibe Coding.*
 *Every borrowed thing is named here. Every name carries its lineage.*
-*Updated: 2026-05-07*
+*Updated: 2026-05-08 — v0.7 Norse starter pack corpus entries added (L-1 fulfillment)*

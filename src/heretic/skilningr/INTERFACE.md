@@ -191,15 +191,104 @@ Full reference: `heretic.example.yaml §L5 Skilningr smidja block`
 
 ---
 
+## MCP Server  [v0.6.x]
+
+HERETIC's sense hub can also be reached via the Model Context Protocol transport,
+in addition to (or instead of) the OpenAI tool_call path.
+
+**The same dispatcher.  The same sandboxes.  The same auth invariants.**
+The MCP server is an alternative connection transport, not a separate capability surface.
+
+### McpServer class (`mcp_server.py`)
+
+| Method | State | Notes |
+|---|---|---|
+| `__init__(config, dispatcher, logger)` | Live | Constructs `mcp.server.lowlevel.Server` instance. |
+| `start(transport)` | NotImplementedError | Forge implements: register handlers + open transport. |
+| `handle_initialize()` | NotImplementedError | Forge implements if custom init-time logic needed. |
+| `handle_tools_list()` | NotImplementedError | Forge implements: calls dispatcher + convert_to_mcp_tool. |
+| `handle_tools_call(name, args)` | NotImplementedError | Forge implements: dispatch + encode as TextContent. |
+
+### convert_to_mcp_tool (module-level pure function)
+
+```python
+convert_to_mcp_tool(openai_tool: dict) -> dict
+```
+
+Translates one OpenAI `{"type": "function", "function": {...}}` schema to
+`{"name": ..., "description": ..., "inputSchema": ...}` for `mcp.types.Tool(**result)`.
+Raises `ValueError`/`TypeError` on malformed input.  Fully implemented.
+
+### McpServerConfig (`config_model.py`)
+
+```yaml
+skilningr:
+  mcp_server:
+    enabled: false          # opt-in
+    transport: stdio        # stdio | http
+    host: 127.0.0.1         # http only
+    port: 8643              # http only
+    allow_remote_bind: false # http + non-loopback gate
+    request_timeout_seconds: 60
+```
+
+Invariants:
+- Non-loopback `host` with `transport: http` requires `allow_remote_bind: true`.
+- `transport` must be `"stdio"` or `"http"`.
+- `port` must be 1–65535.
+- `request_timeout_seconds` must be > 0.
+
+### MCP SDK API (mcp==1.27.0, verified 2026-05-08)
+
+```python
+# list_tools handler registration:
+@mcp_lowlevel_server.list_tools()
+async def handler() -> list[mcp.types.Tool]: ...
+
+# call_tool handler registration:
+@mcp_lowlevel_server.call_tool()
+async def handler(name: str, arguments: dict) -> list[mcp.types.TextContent]: ...
+
+# stdio transport:
+async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+    init_opts = server.create_initialization_options()
+    await server.run(read_stream, write_stream, init_opts)
+
+# http transport:
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+manager = StreamableHTTPSessionManager(mcp_lowlevel_server)
+# Mount manager.handle at "/" in a Starlette app; run with uvicorn.
+```
+
+### Error hierarchy additions (v0.6.x)
+
+| Error class | Parent | When |
+|---|---|---|
+| `McpServerError` | `SkilningrError` | Root for all MCP server failures |
+| `TransportError` | `McpServerError` | stdio stream failure; http port conflict |
+| `ProtocolError` | `McpServerError` | MCP application-layer violation |
+| `McpAuthError` | `McpServerError` | http bearer token rejected |
+
+### CLI command
+
+```
+heretic mcp [--transport stdio|http] [--config PATH]
+```
+
+Stub raises `NotImplementedError`.  Forge implements full body.
+
+---
+
 ## Module Map
 
 ```
 src/heretic/skilningr/
   __init__.py        — public re-exports
   INTERFACE.md       — this file
-  config_model.py    — SkilningrConfig, SmidjaConfig (canonical defs)
-  errors.py          — complete error hierarchy
+  config_model.py    — SkilningrConfig, SmidjaConfig, McpServerConfig (canonical defs)
+  errors.py          — complete error hierarchy (incl. McpServerError tree)
   dispatcher.py      — ToolDispatcher (Forge Wave 2)
+  mcp_server.py      — McpServer class + convert_to_mcp_tool (v0.6.x scaffold)
   senses/
     __init__.py
     smidja/
@@ -213,4 +302,4 @@ src/heretic/skilningr/
 
 ---
 
-*Rúnhild Svartdóttir, Architect — 2026-05-08*
+*Rúnhild Svartdóttir, Architect — 2026-05-08 (v0.6.x MCP server scaffold)*

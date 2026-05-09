@@ -103,11 +103,25 @@ def test_skilningr_config_smidja_disabled_by_default():
 
 
 def test_skilningr_config_other_senses_have_enabled_key():
-    """Future sense stubs (filesystem, terminal, etc.) must have an 'enabled' key."""
+    """Sense configs (stubs and typed dataclasses) must expose an 'enabled' attribute or key.
+
+    v0.6.2 update: filesystem/terminal/browser stubs were promoted to typed dataclasses
+    under their True Names (minni/skepja/leid). The old stub field names are no longer
+    present. The remaining stubs (photopea, vrchat, agentmail, library) are still dicts.
+    New canonical sense fields are typed dataclasses with .enabled attributes.
+    """
     cfg = SkilningrConfig()
-    for sense_id in ("filesystem", "terminal", "browser", "photopea", "vrchat", "agentmail", "library"):
+    # v0.6.2 concrete sense configs (typed dataclasses)
+    for sense_id in ("minni", "skepja", "leid"):
+        sense = getattr(cfg, sense_id, None)
+        assert sense is not None, f"SkilningrConfig missing v0.6.2 sense: {sense_id}"
+        assert hasattr(sense, "enabled"), f"{sense_id} config has no .enabled attribute"
+        assert sense.enabled is False, f"{sense_id} must default to enabled=False"
+
+    # Remaining stubs (dict-typed until their own milestones)
+    for sense_id in ("photopea", "vrchat", "agentmail", "library"):
         stub = getattr(cfg, sense_id, None)
-        assert stub is not None, f"SkilningrConfig missing sense: {sense_id}"
+        assert stub is not None, f"SkilningrConfig missing sense stub: {sense_id}"
         if isinstance(stub, dict):
             assert "enabled" in stub
         else:

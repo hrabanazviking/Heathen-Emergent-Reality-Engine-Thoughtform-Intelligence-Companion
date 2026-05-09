@@ -277,21 +277,39 @@ skilningr:
     #       HA_URL: "http://homeassistant.local:8123"
     #     prefix: "home."
 
-  # L5.9 Mímisbrunnr — Library (wisdom well)
+  # MCP Server transport  [v0.6.x]
+  # When enabled, HERETIC opens an MCP transport so that Claude Desktop, Continue,
+  # and other MCP-compatible agents can connect directly to HERETIC's tool surface.
+  # The same tools exposed via OpenAI tool_call are also exposed here.
+  # Same dispatcher. Same sandboxes. Same auth invariants.
+  #
+  # Requires: pip install heretic[mcp]
+  # Ref: src/heretic/skilningr/mcp_server.py
+  #      docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
+  #      src/heretic/skilningr/INTERFACE.md §MCP Server
+  mcp_server:
+    enabled: false          # opt-in; set true to open the MCP transport at startup
+    transport: stdio        # stdio (subprocess/stdin-stdout) | http (Starlette/uvicorn)
+    host: 127.0.0.1         # http only; NEVER non-loopback without allow_remote_bind: true
+    port: 8643              # http only; must be in range 1-65535; default avoids conflict with vebond (8642)
+    allow_remote_bind: false # http only; must be true to accept non-loopback connections
+    request_timeout_seconds: 60  # per tool-call timeout; increase for slow senses (Forge/Blender)
+
+  # L5.9 Mímisbrunnr — Library sense (wisdom well)
+  # v0.7 — LibraryConfig typed dataclass. All fields optional; defaults shown.
   library:
-    enabled: false
-    backends:
-      - type: file_index
-        path: "~/heretic_workspace/library/curated"  # relative to home
-      - type: mimisbrunnr
-        data_dir: "~/.heretic/library/mimisbrunnr"   # configurable; never hardcoded
-        sources: []
-        retrieval: keyword    # keyword | vector | hybrid
-      - type: mindspark
-        endpoint: "http://localhost:7777"
-        enabled: false
-    restart_policy:
-      max_retries: 3
-      backoff_seconds: [2, 5, 15]
-    shutdown_grace_seconds: 5
-    health_interval_seconds: 15
+    enabled: false                    # opt-in; must be true to expose library.* tools
+    storage_path: ""                  # empty = resolved via platformdirs at startup
+                                      # (typically ~/.local/share/heretic/library/mimisbrunnr
+                                      # on Linux; %APPDATA%\heretic\library\mimisbrunnr
+                                      # on Windows). Set explicitly for portable paths.
+    max_results: 20                   # max hits per library.search call (1–100)
+    autoindex_on_open: true           # rebuild keyword index at startup if stale
+    sources:                          # pre-approved source ids for automatic download
+      []                              # empty = require interactive consent for each
+      # Uncomment to pre-approve the full Norse starter pack:
+      # - prose_edda_brodeur          # Prose Edda (Brodeur, 1916) — 378 KB
+      # - poetic_edda_bellows         # Poetic Edda (Bellows, 1923) — 955 KB
+      # - heimskringla_laing          # Heimskringla (Laing, 1844) — 1.7 MB
+      # - volsunga_saga_morris        # Volsunga Saga (Morris/Magnusson, 1888) — 323 KB
+      # - erik_red_saga               # Saga of Erik the Red (Sephton, 1880) — 78 KB

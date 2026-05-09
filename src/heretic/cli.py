@@ -115,6 +115,10 @@ async def _async_light(args: argparse.Namespace) -> int:
 
     dispatcher: ToolDispatcher | None = None
     smidja_sense: SmidjaSense | None = None
+    # v0.6.2 senses — initialised below at TENGSL if enabled
+    minni_sense: "MinniSense | None" = None  # type: ignore[name-defined]
+    skepja_sense: "SkepjaSense | None" = None  # type: ignore[name-defined]
+    leid_sense: "LeidSense | None" = None  # type: ignore[name-defined]
 
     grunnr_skilningr = cfg.skilningr
     grunnr_smidja = grunnr_skilningr.smidja
@@ -160,6 +164,123 @@ async def _async_light(args: argparse.Namespace) -> int:
             )
             smidja_sense = None
             dispatcher = None
+
+    # --- Skilningr (L5): Minni, Skepja, Leið sense init (v0.6.2) ---
+    # Each sense is initialised independently at TENGSL. Failure of one does not
+    # affect the others or the ceremony. All default enabled=False — operator must
+    # explicitly enable each in heretic.yaml.
+    # If dispatcher is None (Smiðja not enabled), create it here so the new senses
+    # can still register their tools with the agent.
+    from heretic.skilningr.senses.minni.client import MinniClient
+    from heretic.skilningr.senses.minni.sense import MinniSense
+    from heretic.skilningr.senses.skepja.client import SkepjaClient
+    from heretic.skilningr.senses.skepja.sense import SkepjaSense
+    from heretic.skilningr.senses.leid.client import LeidClient
+    from heretic.skilningr.senses.leid.sense import LeidSense
+    from heretic.skilningr.config_model import MinniConfig, SkepjaConfig, LeidConfig
+
+    grunnr_minni = grunnr_skilningr.minni
+    grunnr_skepja = grunnr_skilningr.skepja
+    grunnr_leid = grunnr_skilningr.leid
+
+    # Minni — sandboxed filesystem sense
+    if grunnr_minni.enabled:
+        try:
+            _minni_config = MinniConfig(
+                enabled=grunnr_minni.enabled,
+                allowed_roots=list(grunnr_minni.allowed_roots),
+                max_read_bytes=grunnr_minni.max_read_bytes,
+                max_write_bytes=grunnr_minni.max_write_bytes,
+                follow_symlinks=grunnr_minni.follow_symlinks,
+            )
+            _minni_client = MinniClient(_minni_config, log)
+            minni_sense = MinniSense(_minni_config, _minni_client, log, event_emitter=None)
+            await minni_sense.open()
+            if minni_sense.is_available:
+                if dispatcher is None:
+                    dispatcher = ToolDispatcher()
+                    client._capability_tool_use = True
+                dispatcher.register_sense("minni", minni_sense)
+                log.info(
+                    "Minni sense ready — %d filesystem tools registered.",
+                    len(minni_sense.tool_definitions),
+                )
+            else:
+                log.warning(
+                    "Minni sense enabled but is_available=False after open() — "
+                    "ceremony continues without filesystem tools."
+                )
+        except Exception as exc:
+            log.warning(
+                "Minni init failed — ceremony continues without filesystem tools: %s", exc
+            )
+
+    # Skepja — allowlisted terminal sense
+    if grunnr_skepja.enabled:
+        try:
+            _skepja_config = SkepjaConfig(
+                enabled=grunnr_skepja.enabled,
+                command_allowlist=list(grunnr_skepja.command_allowlist),
+                working_directory=grunnr_skepja.working_directory,
+                timeout_seconds=grunnr_skepja.timeout_seconds,
+                inherit_env=grunnr_skepja.inherit_env,
+                max_output_bytes=grunnr_skepja.max_output_bytes,
+            )
+            _skepja_client = SkepjaClient(_skepja_config, log)
+            skepja_sense = SkepjaSense(_skepja_config, _skepja_client, log, event_emitter=None)
+            await skepja_sense.open()
+            if skepja_sense.is_available:
+                if dispatcher is None:
+                    dispatcher = ToolDispatcher()
+                    client._capability_tool_use = True
+                dispatcher.register_sense("skepja", skepja_sense)
+                log.info(
+                    "Skepja sense ready — %d terminal tools registered.",
+                    len(skepja_sense.tool_definitions),
+                )
+            else:
+                log.warning(
+                    "Skepja sense enabled but is_available=False after open() — "
+                    "ceremony continues without terminal tools."
+                )
+        except Exception as exc:
+            log.warning(
+                "Skepja init failed — ceremony continues without terminal tools: %s", exc
+            )
+
+    # Leið — URL-allowlisted HTTP fetch sense
+    if grunnr_leid.enabled:
+        try:
+            _leid_config = LeidConfig(
+                enabled=grunnr_leid.enabled,
+                url_allowlist_patterns=list(grunnr_leid.url_allowlist_patterns),
+                timeout_seconds=grunnr_leid.timeout_seconds,
+                max_redirects=grunnr_leid.max_redirects,
+                max_response_bytes=grunnr_leid.max_response_bytes,
+                user_agent=grunnr_leid.user_agent,
+                allow_http=grunnr_leid.allow_http,
+            )
+            _leid_client = LeidClient(_leid_config, log)
+            leid_sense = LeidSense(_leid_config, _leid_client, log, event_emitter=None)
+            await leid_sense.open()
+            if leid_sense.is_available:
+                if dispatcher is None:
+                    dispatcher = ToolDispatcher()
+                    client._capability_tool_use = True
+                dispatcher.register_sense("leid", leid_sense)
+                log.info(
+                    "Leið sense ready — %d HTTP fetch tools registered.",
+                    len(leid_sense.tool_definitions),
+                )
+            else:
+                log.warning(
+                    "Leið sense enabled but is_available=False after open() — "
+                    "ceremony continues without HTTP fetch tools."
+                )
+        except Exception as exc:
+            log.warning(
+                "Leið init failed — ceremony continues without HTTP fetch tools: %s", exc
+            )
 
     # --- Tunga: initialise TTS voice if enabled ---
     # Build a full RoddTtsConfig bridging from the grunnr-layer config snapshot.
@@ -635,6 +756,23 @@ async def _async_light(args: argparse.Namespace) -> int:
             await smidja_sense.close()
         except Exception as exc:
             log.warning("Error closing Smiðja sense: %s", exc)
+
+    # Close Minni, Skepja, Leið senses (v0.6.2) — no persistent connections, but be consistent
+    if minni_sense is not None:
+        try:
+            await minni_sense.close()
+        except Exception as exc:
+            log.warning("Error closing Minni sense: %s", exc)
+    if skepja_sense is not None:
+        try:
+            await skepja_sense.close()
+        except Exception as exc:
+            log.warning("Error closing Skepja sense: %s", exc)
+    if leid_sense is not None:
+        try:
+            await leid_sense.close()
+        except Exception as exc:
+            log.warning("Error closing Leið sense: %s", exc)
 
     # Close Hlust first — stop mic capture before we close TTS
     if hlust is not None:
@@ -1584,6 +1722,483 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     return asyncio.run(_async_serve(args))
 
 
+def _cmd_mcp(args: argparse.Namespace) -> int:
+    """Start the Skilningr MCP server — exposes HERETIC's tool surface via MCP transport.
+
+    Loads heretic.yaml (or the config at --config PATH), resolves the transport
+    (--transport overrides skilningr.mcp_server.transport in heretic.yaml), then
+    opens the MCP transport and enters the request–response loop.
+
+    Transport "stdio" (default):
+        HERETIC communicates over stdin/stdout.  Claude Desktop, Continue, and
+        other MCP-compatible clients launch HERETIC as a subprocess.  No port is
+        opened.  Auth is implicit (process ownership by the MCP client).
+
+    Transport "http":
+        HERETIC binds a Starlette/uvicorn HTTP server at the configured host:port
+        (default 127.0.0.1:8643).  Non-loopback binds require
+        mcp_server.allow_remote_bind: true in heretic.yaml.
+
+    The same tools served by OpenAI tool_call are served here.  Same dispatcher.
+    Same sandboxes.  Same auth invariants.  Ctrl-C (SIGINT) triggers graceful shutdown.
+
+    Usage:
+        heretic mcp
+        heretic mcp --transport stdio
+        heretic mcp --transport http
+        heretic mcp --config /path/to/heretic.yaml
+
+    Requires: pip install heretic[mcp]
+    Ref: src/heretic/skilningr/mcp_server.py
+         docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
+    """
+    import anyio
+    from heretic.grunnr.config import load_config, ConfigLoadError
+    from heretic.grunnr.logger import configure_logging, get_logger
+    from heretic.skilningr.mcp_server import McpServer
+    from heretic.skilningr.dispatcher import ToolDispatcher
+    from heretic.skilningr.errors import TransportError, McpAuthError
+
+    # (1) Load config and logging
+    try:
+        cfg = load_config(args.config)
+    except ConfigLoadError as exc:
+        print(f"[HERETIC] Config error: {exc}", file=sys.stderr)
+        return 1
+
+    configure_logging(cfg.grunnr.log_level, cfg.grunnr.log_file)
+    log = get_logger("heretic.mcp")
+
+    mcp_cfg = cfg.skilningr.mcp_server
+
+    # (2) Resolve transport — CLI --transport flag overrides yaml value
+    transport: str = getattr(args, "transport", None) or mcp_cfg.transport
+
+    # (3) Guard: mcp_server must be enabled in config
+    if not mcp_cfg.enabled:
+        log.warning(
+            "heretic mcp: skilningr.mcp_server.enabled is False in heretic.yaml. "
+            "Set mcp_server.enabled: true to start the MCP transport."
+        )
+        print(
+            "[HERETIC] MCP server is disabled in heretic.yaml. "
+            "Set skilningr.mcp_server.enabled: true to enable it.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # (4) Build ToolDispatcher and register all enabled senses.
+    # This mirrors the TENGSL phase of _async_light — same senses, same order,
+    # no Bifröst client (MCP does not use the chat-completions path).
+    dispatcher = ToolDispatcher()
+
+    grunnr_skilningr = cfg.skilningr
+
+    # Smiðja sense (Brúarhönd half + Forge half)
+    if grunnr_skilningr.smidja.enabled:
+        try:
+            from heretic.skilningr.config_model import SmidjaConfig
+            from heretic.skilningr.senses.smidja.client import BrunhandHttpClient
+            from heretic.skilningr.senses.smidja.sense import SmidjaSense
+
+            smidja_config = SmidjaConfig(
+                enabled=grunnr_skilningr.smidja.enabled,
+                host=grunnr_skilningr.smidja.host,
+                port=grunnr_skilningr.smidja.port,
+                token_env=grunnr_skilningr.smidja.token_env,
+                request_timeout_seconds=grunnr_skilningr.smidja.request_timeout_seconds,
+                require_https=grunnr_skilningr.smidja.require_https,
+                host_name=grunnr_skilningr.smidja.host_name,
+            )
+            smidja_client = BrunhandHttpClient(smidja_config, log)
+            smidja_sense = SmidjaSense(smidja_config, smidja_client, log, event_emitter=None)
+            # open() is async — run via anyio below; for now just register the sense
+            # and let it become available once the event loop starts.
+            dispatcher.register_sense("smidja", smidja_sense)
+            log.info("MCP: Smiðja sense registered.")
+        except Exception as exc:
+            log.warning("MCP: Smiðja init failed — continuing without Smiðja: %s", exc)
+
+    # Minni sense (filesystem)
+    if grunnr_skilningr.minni.enabled:
+        try:
+            from heretic.skilningr.config_model import MinniConfig
+            from heretic.skilningr.senses.minni.client import MinniClient
+            from heretic.skilningr.senses.minni.sense import MinniSense
+
+            minni_config = MinniConfig(
+                enabled=grunnr_skilningr.minni.enabled,
+                allowed_roots=list(grunnr_skilningr.minni.allowed_roots),
+                max_read_bytes=grunnr_skilningr.minni.max_read_bytes,
+                max_write_bytes=grunnr_skilningr.minni.max_write_bytes,
+                follow_symlinks=grunnr_skilningr.minni.follow_symlinks,
+            )
+            minni_client = MinniClient(minni_config, log)
+            minni_sense = MinniSense(minni_config, minni_client, log, event_emitter=None)
+            dispatcher.register_sense("minni", minni_sense)
+            log.info("MCP: Minni sense registered.")
+        except Exception as exc:
+            log.warning("MCP: Minni init failed — continuing without Minni: %s", exc)
+
+    # Skepja sense (terminal)
+    if grunnr_skilningr.skepja.enabled:
+        try:
+            from heretic.skilningr.config_model import SkepjaConfig
+            from heretic.skilningr.senses.skepja.client import SkepjaClient
+            from heretic.skilningr.senses.skepja.sense import SkepjaSense
+
+            skepja_config = SkepjaConfig(
+                enabled=grunnr_skilningr.skepja.enabled,
+                command_allowlist=list(grunnr_skilningr.skepja.command_allowlist),
+                working_directory=grunnr_skilningr.skepja.working_directory,
+                timeout_seconds=grunnr_skilningr.skepja.timeout_seconds,
+                inherit_env=grunnr_skilningr.skepja.inherit_env,
+                max_output_bytes=grunnr_skilningr.skepja.max_output_bytes,
+            )
+            skepja_client = SkepjaClient(skepja_config, log)
+            skepja_sense = SkepjaSense(skepja_config, skepja_client, log, event_emitter=None)
+            dispatcher.register_sense("skepja", skepja_sense)
+            log.info("MCP: Skepja sense registered.")
+        except Exception as exc:
+            log.warning("MCP: Skepja init failed — continuing without Skepja: %s", exc)
+
+    # Leið sense (HTTP fetch)
+    if grunnr_skilningr.leid.enabled:
+        try:
+            from heretic.skilningr.config_model import LeidConfig
+            from heretic.skilningr.senses.leid.client import LeidClient
+            from heretic.skilningr.senses.leid.sense import LeidSense
+
+            leid_config = LeidConfig(
+                enabled=grunnr_skilningr.leid.enabled,
+                url_allowlist_patterns=list(grunnr_skilningr.leid.url_allowlist_patterns),
+                timeout_seconds=grunnr_skilningr.leid.timeout_seconds,
+                max_redirects=grunnr_skilningr.leid.max_redirects,
+                max_response_bytes=grunnr_skilningr.leid.max_response_bytes,
+                user_agent=grunnr_skilningr.leid.user_agent,
+                allow_http=grunnr_skilningr.leid.allow_http,
+            )
+            leid_client = LeidClient(leid_config, log)
+            leid_sense = LeidSense(leid_config, leid_client, log, event_emitter=None)
+            dispatcher.register_sense("leid", leid_sense)
+            log.info("MCP: Leið sense registered.")
+        except Exception as exc:
+            log.warning("MCP: Leið init failed — continuing without Leið: %s", exc)
+
+    # (5) Construct McpServer
+    server = McpServer(config=mcp_cfg, dispatcher=dispatcher, logger=log)
+
+    log.info(
+        "heretic mcp: starting MCP server (transport=%r, tools=%d).",
+        transport,
+        len(dispatcher.all_tool_definitions()),
+    )
+
+    # (6) Run the MCP server — anyio.run drives the async event loop.
+    # The mcp SDK uses anyio internally; anyio.run with asyncio backend is compatible.
+    try:
+        anyio.run(server.start, transport, backend="asyncio")
+    except KeyboardInterrupt:
+        # (7) SIGINT — clean shutdown; the anyio event loop has already been cancelled.
+        log.info("heretic mcp: MCP server shut down (SIGINT).")
+    except (TransportError, McpAuthError) as exc:
+        log.error("heretic mcp: Transport error — %s", exc)
+        print(f"[HERETIC] MCP transport error: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        log.error("heretic mcp: unexpected error — %s", exc, exc_info=True)
+        if getattr(args, "debug", False):
+            import traceback
+            traceback.print_exc()
+        else:
+            print(f"[HERETIC] MCP server error: {exc}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# library command  [v0.7 — Mímisbrunnr library management]
+# ---------------------------------------------------------------------------
+
+def _library_resolve_data_dir(config_path: str | None) -> "Path":
+    """Resolve the Mímisbrunnr data directory from config.
+
+    Args:
+        config_path: Path to heretic.yaml, or None for default.
+
+    Returns:
+        Absolute Path to the data directory.
+    """
+    from heretic.grunnr.config import load_config, ConfigLoadError
+    from pathlib import Path as _Path
+
+    try:
+        cfg = load_config(config_path)
+        storage_path = cfg.skilningr.library.storage_path
+    except ConfigLoadError:
+        storage_path = ""
+
+    if storage_path:
+        return _Path(storage_path).expanduser().resolve()
+
+    try:
+        from platformdirs import user_data_dir
+        base = _Path(user_data_dir("heretic", appauthor=False))
+    except ImportError:
+        base = _Path.home() / ".local" / "share" / "heretic"
+
+    return base / "library" / "mimisbrunnr"
+
+
+def _cmd_library_list(args: argparse.Namespace) -> int:
+    """List all Mímisbrunnr Norse corpus sources with download status."""
+    from heretic.grunnr.config import load_config, ConfigLoadError
+    from heretic.skilningr.config_model import LibraryConfig
+    from heretic.skilningr.senses.library.client import LibraryClient
+    from pathlib import Path
+
+    data_dir = _library_resolve_data_dir(getattr(args, "config", None))
+
+    # Construct a minimal config for offline listing
+    try:
+        cfg = load_config(getattr(args, "config", None))
+        library_config = cfg.skilningr.library
+    except ConfigLoadError:
+        library_config = LibraryConfig(enabled=True)
+
+    client = LibraryClient(library_config, data_dir)
+
+    try:
+        sources = client.list_sources()
+    except Exception as exc:
+        print(f"[HERETIC] library list error: {exc}", file=sys.stderr)
+        return 1
+
+    # Print a formatted table
+    print()
+    print(f"{'ID':<30} {'SIZE':>10}  {'DL':>4}  TITLE")
+    print("-" * 80)
+    for s in sources:
+        size_bytes = s["expected_size_bytes"]
+        if size_bytes >= 1_000_000:
+            size_str = f"{size_bytes / 1_000_000:.1f}M"
+        elif size_bytes >= 1_000:
+            size_str = f"{size_bytes / 1_000:.0f}K"
+        else:
+            size_str = f"{size_bytes}B"
+        dl_str = "yes" if s["downloaded"] else "no"
+        title_short = s["title"][:50] if len(s["title"]) > 50 else s["title"]
+        print(f"{s['id']:<30} {size_str:>10}  {dl_str:>4}  {title_short}")
+    print()
+    downloaded_count = sum(1 for s in sources if s["downloaded"])
+    print(f"{downloaded_count}/{len(sources)} sources downloaded.")
+    print(f"Data directory: {data_dir}")
+    print()
+    return 0
+
+
+def _cmd_library_download(args: argparse.Namespace) -> int:
+    """Download one or all Mímisbrunnr Norse corpus sources."""
+    import asyncio as _asyncio
+    from heretic.grunnr.config import load_config, ConfigLoadError
+    from heretic.skilningr.config_model import LibraryConfig
+    from heretic.skilningr.mimisbrunnr.manifest import NORSE_STARTER_PACK
+    from heretic.skilningr.mimisbrunnr.store import (
+        ensure_storage_directory,
+        resolve_source_path,
+        update_local_manifest,
+        is_source_downloaded,
+    )
+    from heretic.skilningr.mimisbrunnr.downloader import Downloader
+    from heretic.skilningr.mimisbrunnr.errors import (
+        ConsentRefused,
+        LibraryDownloadError,
+        IntegrityError,
+    )
+    from pathlib import Path
+
+    data_dir = _library_resolve_data_dir(getattr(args, "config", None))
+    auto_yes: bool = getattr(args, "yes", False)
+
+    # Determine which source_ids to download
+    source_ids_arg: list[str] = getattr(args, "source_ids", []) or []
+    download_all: bool = getattr(args, "download_all", False)
+
+    if download_all or not source_ids_arg:
+        # Download all sources from the manifest
+        source_ids = NORSE_STARTER_PACK.source_ids
+    else:
+        source_ids = source_ids_arg
+
+    # Validate all requested source ids before touching the network
+    invalid = [sid for sid in source_ids if NORSE_STARTER_PACK.get_source(sid) is None]
+    if invalid:
+        print(
+            f"[HERETIC] Unknown source id(s): {invalid}. "
+            f"Valid ids: {NORSE_STARTER_PACK.source_ids}",
+            file=sys.stderr,
+        )
+        return 1
+
+    ensure_storage_directory(data_dir)
+
+    async def _do_download() -> int:
+        downloader = Downloader()
+        exit_code = 0
+        for source_id in source_ids:
+            source = NORSE_STARTER_PACK.get_source(source_id)
+            if source is None:
+                continue
+
+            dest_path = resolve_source_path(data_dir, source_id)
+
+            try:
+                sha256 = await downloader.download(
+                    source, dest_path, auto_yes=auto_yes
+                )
+            except ConsentRefused as exc:
+                print(f"[HERETIC] Skipping {source_id!r}: {exc}", file=sys.stderr)
+                continue
+            except (LibraryDownloadError, IntegrityError) as exc:
+                print(
+                    f"[HERETIC] Download of {source_id!r} failed: {exc}",
+                    file=sys.stderr,
+                )
+                exit_code = 1
+                continue
+
+            # Record in local manifest
+            try:
+                size_bytes = dest_path.stat().st_size
+                update_local_manifest(data_dir, source_id, sha256, size_bytes=size_bytes)
+            except Exception as exc:
+                print(
+                    f"[HERETIC] Warning: manifest update failed for {source_id!r}: {exc}",
+                    file=sys.stderr,
+                )
+
+            print(f"[HERETIC] Downloaded {source_id!r} → {dest_path}")
+            print(f"          SHA-256: {sha256}")
+
+        return exit_code
+
+    return _asyncio.run(_do_download())
+
+
+def _cmd_library_remove(args: argparse.Namespace) -> int:
+    """Remove a downloaded Mímisbrunnr source file and its index entry."""
+    from heretic.skilningr.mimisbrunnr.manifest import NORSE_STARTER_PACK
+    from heretic.skilningr.mimisbrunnr.store import (
+        resolve_source_path,
+        load_local_manifest,
+        update_local_manifest,
+        is_source_downloaded,
+    )
+    from pathlib import Path
+    import json as _json
+
+    source_id: str = args.source_id
+    auto_yes: bool = getattr(args, "yes", False)
+
+    if NORSE_STARTER_PACK.get_source(source_id) is None:
+        print(
+            f"[HERETIC] Unknown source id {source_id!r}. "
+            f"Valid ids: {NORSE_STARTER_PACK.source_ids}",
+            file=sys.stderr,
+        )
+        return 1
+
+    data_dir = _library_resolve_data_dir(getattr(args, "config", None))
+    dest_path = resolve_source_path(data_dir, source_id)
+
+    if not dest_path.exists():
+        print(f"[HERETIC] Source {source_id!r} is not downloaded — nothing to remove.")
+        return 0
+
+    if not auto_yes:
+        try:
+            resp = input(
+                f"Remove {dest_path} ({dest_path.stat().st_size:,} bytes)? [y/N] "
+            ).strip()
+        except EOFError:
+            resp = ""
+        if not resp.lower().startswith("y"):
+            print("[HERETIC] Removal cancelled.")
+            return 0
+
+    try:
+        dest_path.unlink()
+        print(f"[HERETIC] Removed {dest_path}")
+    except OSError as exc:
+        print(f"[HERETIC] Failed to remove {dest_path}: {exc}", file=sys.stderr)
+        return 1
+
+    # Remove from local manifest
+    try:
+        manifest = load_local_manifest(data_dir)
+        if source_id in manifest:
+            del manifest[source_id]
+            manifest_path = data_dir / "mimisbrunnr_manifest.json"
+            tmp_path = manifest_path.with_suffix(".heretic_tmp")
+            import os as _os
+            tmp_path.write_text(
+                _json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            _os.replace(str(tmp_path), str(manifest_path))
+            print(f"[HERETIC] Manifest updated — {source_id!r} removed.")
+    except Exception as exc:
+        print(
+            f"[HERETIC] Warning: manifest update failed for {source_id!r}: {exc}",
+            file=sys.stderr,
+        )
+
+    # Flag index as stale by deleting it (will be rebuilt on next search)
+    index_path = data_dir / "keyword_index.jsonl"
+    if index_path.exists():
+        try:
+            index_path.unlink()
+            print("[HERETIC] Keyword index removed (stale — rebuild with 'library rebuild-index').")
+        except OSError as exc:
+            print(
+                f"[HERETIC] Warning: could not remove stale index: {exc}",
+                file=sys.stderr,
+            )
+
+    return 0
+
+
+def _cmd_library_rebuild_index(args: argparse.Namespace) -> int:
+    """Rebuild the Mímisbrunnr keyword index from all downloaded sources."""
+    from heretic.skilningr.mimisbrunnr.index import KeywordIndex
+    from heretic.skilningr.mimisbrunnr.errors import LibraryIndexError
+    from pathlib import Path
+
+    data_dir = _library_resolve_data_dir(getattr(args, "config", None))
+
+    print(f"[HERETIC] Rebuilding keyword index from {data_dir} ...")
+
+    idx = KeywordIndex(data_dir)
+    try:
+        idx.build(data_dir)
+    except LibraryIndexError as exc:
+        print(f"[HERETIC] Index rebuild failed: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"[HERETIC] Unexpected error during index rebuild: {exc}", file=sys.stderr)
+        return 1
+
+    index_path = data_dir / "keyword_index.jsonl"
+    try:
+        index_size = index_path.stat().st_size
+        print(f"[HERETIC] Keyword index rebuilt successfully.")
+        print(f"          Index file: {index_path} ({index_size:,} bytes)")
+    except OSError:
+        print("[HERETIC] Keyword index rebuilt successfully.")
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct and return the top-level argument parser.
 
@@ -1675,6 +2290,109 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_serve.set_defaults(func=_cmd_serve)
+
+    # mcp  [v0.6.x]
+    p_mcp = subparsers.add_parser(
+        "mcp",
+        help=(
+            "Start the Skilningr MCP server — exposes HERETIC tools via Model "
+            "Context Protocol transport (stdio or http). "
+            "Requires: pip install heretic[mcp]"
+        ),
+    )
+    p_mcp.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default=None,
+        metavar="TRANSPORT",
+        help=(
+            "MCP transport to open: 'stdio' (default) or 'http'. "
+            "Overrides skilningr.mcp_server.transport in heretic.yaml. "
+            "stdio: communicate over stdin/stdout (subprocess mode). "
+            "http: bind Starlette/uvicorn at mcp_server.host:mcp_server.port."
+        ),
+    )
+    p_mcp.set_defaults(func=_cmd_mcp)
+
+    # library  [v0.7]
+    p_library = subparsers.add_parser(
+        "library",
+        help=(
+            "Manage the Mímisbrunnr Norse text corpus — list sources, "
+            "download texts, remove sources, and rebuild the keyword index."
+        ),
+    )
+    library_sub = p_library.add_subparsers(
+        dest="library_command",
+        metavar="library_command",
+    )
+    library_sub.required = True
+
+    # library list
+    p_lib_list = library_sub.add_parser(
+        "list",
+        help="List all Norse corpus sources and their download status.",
+    )
+    p_lib_list.set_defaults(func=_cmd_library_list)
+
+    # library download
+    p_lib_download = library_sub.add_parser(
+        "download",
+        help="Download one or more Norse corpus sources.",
+    )
+    p_lib_download.add_argument(
+        "source_ids",
+        nargs="*",
+        metavar="SOURCE_ID",
+        help=(
+            "One or more source ids to download "
+            "(e.g. prose_edda_brodeur). "
+            "Omit to download all sources listed in heretic.yaml "
+            "skilningr.library.sources."
+        ),
+    )
+    p_lib_download.add_argument(
+        "--all",
+        action="store_true",
+        default=False,
+        dest="download_all",
+        help="Download all five Norse starter-pack sources.",
+    )
+    p_lib_download.add_argument(
+        "--yes",
+        action="store_true",
+        default=False,
+        help="Skip the consent prompt and download without confirmation.",
+    )
+    p_lib_download.set_defaults(func=_cmd_library_download)
+
+    # library remove
+    p_lib_remove = library_sub.add_parser(
+        "remove",
+        help="Remove a downloaded Norse corpus source from local storage.",
+    )
+    p_lib_remove.add_argument(
+        "source_id",
+        metavar="SOURCE_ID",
+        help="The source id to remove (e.g. prose_edda_brodeur).",
+    )
+    p_lib_remove.add_argument(
+        "--yes",
+        action="store_true",
+        default=False,
+        help="Skip the confirmation prompt.",
+    )
+    p_lib_remove.set_defaults(func=_cmd_library_remove)
+
+    # library rebuild-index
+    p_lib_rebuild = library_sub.add_parser(
+        "rebuild-index",
+        help=(
+            "Rebuild the Mímisbrunnr keyword index from all downloaded sources. "
+            "Run after downloading new sources or if search results seem stale."
+        ),
+    )
+    p_lib_rebuild.set_defaults(func=_cmd_library_rebuild_index)
 
     return parser
 

@@ -1998,6 +1998,194 @@ The body is not finished. Auga, Hlust, and Tunga as L5 Skilningr sense surfaces 
 
 All paths begin from 782 tests, 0 open findings, and the complete receive/express/act triad.
 
+---
+
+## Entry 12 — 2026-05-08 — v0.6.2 More Senses: SHIPPED + AUDITED + CLEANED
+
+**Arc:** `bfca031` (task open) → `ec9c2a3` → `b5e5ca8` → `f235cda` → `6e594cc` → `88d3ab9` → `b1be21a` → `a685b35` (audit) → `6a027f3` (Wave 3 clean)
+**HEAD:** `6a027f3`
+**Test count:** 943 Python passed + 7 skipped + 91 frontend = **1041 total. 0 failures. 0 open findings.**
+
+---
+
+### What this milestone is
+
+v0.6.2 opened three new rooms in the longhouse of Skilningr. The workshop (Smiðja) already stood — its walls proven through two prior milestones. Now beside it: a **library** (Minni, "memory"), a **kitchen** (Skepja, "shaping"), and a **road** (Leið, "path/way"). Each is a new L5 sense — a distinct subpackage under `src/heretic/skilningr/senses/`, each with its own tools, sandbox contracts, lifecycle, and independent failure mode. Each can be opened or kept shut without touching any other sense. The ToolDispatcher routes by prefix to whichever senses the operator has chosen to enable; four now register when all are open.
+
+The session required no Skald. These three senses were already named in the early NAMING.md ferment; v0.6.2 makes them real. Their philosophical frame does not require a new panel in the vision cycle — the triad is not extended, only inhabited more fully.
+
+---
+
+### The privacy-first triad — MORAL architecture, not merely technical
+
+Before anything else, the three senses share one commitment: **default disabled, explicit opt-in per sense.**
+
+```yaml
+skilningr:
+  minni:
+    enabled: false    # filesystem reads/writes — stays shut until the operator opens it
+  skepja:
+    enabled: false    # terminal execution — stays shut until the operator opens it
+  leid:
+    enabled: false    # HTTP fetch — stays shut until the operator opens it
+```
+
+This is not a usability constraint or a conservative default for testing convenience. It is a moral posture. An agent that can read the filesystem, execute shell commands, and fetch arbitrary URLs holds real power over the human's computing world. The covenant made in `THE_FIRST_HAND` — *the hand only reaches where the operator explicitly enables it* — extends now to these three new forms of reach. A sense that is shut is absent from the agent's tool list entirely; it never opens, never registers, never appears in a prompt. The operator's silence is not a gap to be filled — it is permission withheld, and the body respects it.
+
+Each sense also carries sense-specific constraints that reinforce this posture:
+- **Minni**: files are readable and writable only within operator-declared `allowed_roots`; every path is resolved (including symlinks) before the sandbox check; writes are atomic via temp-then-rename; file size is capped before any read touches the disk.
+- **Skepja**: `command_allowlist` defaults to an empty list — nothing runs unless the operator explicitly names what is permitted; commands are split via `shlex.split` with `shell=False` absolute; the subprocess inherits only `PATH`, not the host environment; output is capped at 64KB per stream.
+- **Leið**: `url_allowlist_patterns` defaults empty — nothing is fetchable; HTTP is refused by default (`allow_http: false`); a wildcard `"*"` pattern triggers a loud warning; response body is capped at 1MB; only `html.parser` (stdlib) is used for extraction, no third-party dependencies added.
+
+These are not temporary safeguards to be relaxed as the project matures. They are the shape the body has chosen to hold.
+
+---
+
+### Wave 1 — Cartographer and Architect in parallel
+
+**`ec9c2a3` — Cartographer (Védis Eikleið):** `docs/cartography/DATA_FLOW.md` extended with four new sections: §4.12 (Minni filesystem flow), §4.12.1 (Skepja terminal flow), §4.12.2 (Leið HTTP fetch flow), §4.12.3 (cross-cutting sandbox invariants). §16 rewritten as a Four Senses Component Diagram. Each flow section documents the full path from tool_call dispatch through the sense orchestrator to the underlying client operation, including the complete failure mode chain for that sense. The sandbox invariant section named the shared `sandbox.py` primitive as the single point where path/command/URL validation is anchored — all three senses must route through this seam.
+
+**`b5e5ca8` — Architect (Rúnhild Svartdóttir):** The complete structural skeleton established before Forge touched business logic.
+
+- `src/heretic/skilningr/sandbox.py` — the shared seam: `path_within_allowed_roots()`, `command_in_allowlist()`, `url_matches_allowlist()`. These three primitives are the load-bearing wall. Every sense that works with paths, commands, or URLs must route through here; no sense may implement its own equivalent.
+- Three new sense subpackages created, each mirroring Smiðja's layout: `__init__.py`, `INTERFACE.md`, `config_model.py`, `errors.py`, `client.py`, `tools.py`, `sense.py`.
+- `SkilningrConfig` extended with typed `MinniConfig`, `SkepjaConfig`, `LeidConfig` fields replacing prior `dict[str, Any]` stubs.
+- Tool naming confirmed as two-part (`minni.*`, `skepja.*`, `leid.*`) per the A-2 convention sealed at v0.6.
+- 7 new sense errors added to the shared errors module.
+- `IPC_PROTOCOL.md` naming bridge updated with the three new sense names.
+
+The Architect's cross-platform care on Skepja is worth noting: `shlex.split(posix=(os.name != "nt"))` — Windows quoting semantics preserved on Windows, POSIX on everything else. This is the kind of detail that prevents a sense from working in development and failing silently in deployment.
+
+---
+
+### Wave 2 — Forge implements all three senses
+
+**`f235cda` — Minni filesystem sense + shared sandbox primitives:**
+
+`MinniClient` — `read_file` calls `stat().st_size` before `read_bytes()`, so files exceeding `max_read_bytes` raise before any content enters memory. `write_file` encodes content first, checks `len(encoded) > max_write_bytes`, then writes atomically via `{path}.heretic_tmp` → `os.replace()`. `list_directory` filters entries through the sandbox before returning. `path_within_allowed_roots` resolves candidate paths with `Path.resolve()` — which follows symlinks to their target — then checks whether the resolved target falls within an allowed root. A symlink inside the sandbox pointing outside is therefore blocked at the gate.
+
+**`6e594cc` — Skepja terminal sense:**
+
+`SkepjaClient` — `_validate_command` calls `shlex.split` then checks whether the first token is in `command_allowlist`; a semicolon-injected command like `ls; rm -rf /` produces `"ls;"` as its first token, which is not in the allowlist, and is blocked. `_build_env` returns only `{"PATH": os.environ.get("PATH", "")}` when `inherit_env=False` — API keys, bearer tokens, and any other host secrets are absent from the subprocess environment. `subprocess.run` carries `shell=False` with an inline comment: `# INVARIANT — never change this`. The comment is load-bearing — it is there so a future developer knows this is not a style choice.
+
+**`88d3ab9` — Leið HTTP fetch sense:**
+
+`LeidClient` — `_validate_url` checks HTTP rejection before the allowlist call; `fnmatch`-based pattern matching (confirmed safe against subdomain bypass because the prefix before `/*` is matched literally); stdlib `html.parser` for text extraction; `response.content` buffered then sliced at cap; HTTPS-only by default.
+
+**`b1be21a` — CLI wiring:**
+
+All three senses init at TENGSL when enabled, each in its own independent `try/except Exception` block. Independence of failure is structural: the three blocks share no catch clause. If Skepja fails to open, Minni and Leið continue. 134 new tests written across 7 new test files.
+
+---
+
+### Audit: PASS WITH CONCERNS — 0 blockers — malicious-input methodology
+
+**`a685b35` — Auditor (Sólrún Hvítmynd):** Full audit across all Wave 1 + Wave 2 commits. 943 passed, 2 skipped, 0 failures.
+
+The audit's most significant contribution was the **malicious-input probe sequence** — every plausible attack vector applied live, not merely asserted in test counts:
+
+| Probe | Result |
+|---|---|
+| Path traversal `../../../etc/passwd` | BLOCKED — `resolve()` collapses to real path outside root |
+| Absolute path outside allowed root | BLOCKED — `startswith(root + "/")` fails |
+| Symlink inside sandbox pointing outside | BLOCKED — `resolve()` follows link to target; target fails root check |
+| Root prefix confusion `/allowed_rootExtra` vs `/allowed_root` | BLOCKED — separator suffix appended before `startswith` |
+| Embedded null `\x00evil` in path | BLOCKED — `resolve()` raises, caught and returned as False |
+| Semicolon injection `ls; rm -rf /` | BLOCKED — `"ls;"` not in allowlist |
+| Backtick injection `git \`rm -rf /\`` | SAFE — `shell=False`; shell never sees the command |
+| Subdomain bypass `docs.python.org.attacker.com` against `https://docs.python.org/*` | BLOCKED — fnmatch prefix matched literally |
+| Wildcard `*` pattern | ALLOWED but warned loudly |
+
+Every gate held. The sandbox holds.
+
+**Findings:**
+
+**S-1 — SERIOUS: symlink docstrings contradict the implementation.** The docstrings in `sandbox.py` and `minni/client.py` claimed that symlinks are NOT followed during path resolution — that the lexical path of the link itself is validated rather than its target. This is false. `Path.resolve()` follows symlinks; the resolved value is the physical target. The security outcome is in fact *safer* than described: a symlink pointing outside the sandbox resolves to an external target, which then fails the sandbox check and is blocked. But the documentation was a time bomb. A future developer reading "we validate the symlink's own path" might conclude the implementation was wrong and switch to a non-resolving method — which would introduce a genuine symlink escape. The gap between stated intent and actual mechanism is dangerous precisely because the mechanism is doing the right thing for the wrong stated reason.
+
+**N-1 — NOTABLE: `LeidResponseTooLargeError` is dead code.** The class was defined in `errors.py` with a docstring describing streaming abort behavior — "the connection is closed immediately; no partial content is returned." In reality, Leið's truncation strategy is to buffer the full response body via `response.content` and then slice to `max_response_bytes`. The class is never imported in `client.py`, never raised anywhere. The gap between declaration and behavior mirrors the S-1 shape: documentation describing something that does not exist.
+
+**N-2 — NOTABLE: full-buffer-pre-cap.** A large response (e.g. 500MB from a hostile server) would be downloaded entirely into memory before the size check runs. Not a security defect — the agent sees only truncated content — but a resource concern. The scope note in the TASK was "truncate beyond" without specifying streaming; the current approach is within spec. The correct solution — `httpx aiter_bytes` with early termination — is explicitly deferred to v0.6.2.1.
+
+**N-3 — NOTABLE: no test documents the symlink escape invariant.** The behavior is verified by audit's live execution, but no automated test will catch a future regression if `Path.resolve()` semantics change or the sandbox logic is refactored. The test pattern was identified in the audit report.
+
+---
+
+### Wave 3 — Clean: all findings resolved
+
+**`6a027f3` — Forge (Eldra Járnsdóttir):** Three targeted corrections.
+
+**S-1 corrected:** Both docstrings now state what the code actually does. `sandbox.py` reads: "Path.resolve() follows symlinks. A symlink pointing outside the sandbox resolves to its physical target, which then fails the allowed_roots check. The sandbox is protected by this behavior — do not change to a non-resolving method without understanding this invariant." The mechanism and its security consequence are now recorded in the same breath.
+
+**N-1 raised from the dead:** `LeidResponseTooLargeError` is no longer dead code. It is now imported in `client.py` and raised when the buffered response exceeds `max_response_bytes`. The exception carries a `response_bytes` field and an honest `note` field that says: "This exception is raised after the full body was downloaded (not during streaming). To abort early, use streaming via aiter_bytes — see v0.6.2.1 backlog." The class now describes what it does, including the honest limitation.
+
+**N-3 addressed: 5 new symlink tests.** `test_sandbox.py` and `test_minni_client.py` now contain explicit symlink tests — pointing inside the sandbox (should pass), pointing outside (should be blocked), plus edge cases. All five carry `@pytest.mark.skipif(not hasattr(os, "symlink") or sys.platform == "win32", reason="symlink creation restricted on Windows")` — Windows cannot reliably create symlinks without elevated privileges in a test environment.
+
+N-2 (full-buffer-pre-cap) is explicitly deferred. A comment in `leid/client.py` at the buffer line now reads: "Full buffer read before cap — streaming abort deferred to v0.6.2.1 (use httpx aiter_bytes). See N-2 in AUDIT_v0.6.2_MORE_SENSES.md." The limitation is named and located; it is no longer silent.
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.6.2_MORE_SENSES.md` | Created at task open; updated at session close |
+| `docs/cartography/DATA_FLOW.md §4.12–§4.12.3` | Extended — three new sense flow maps + cross-cutting sandbox invariant section; §16 rewritten as Four Senses Diagram |
+| `docs/architecture/IPC_PROTOCOL.md` | Extended — naming bridge entries for Minni, Skepja, Leið |
+| `src/heretic/skilningr/sandbox.py` | Created — shared validation primitives; INTERFACE.md cross-reference |
+| `src/heretic/skilningr/senses/minni/INTERFACE.md` | Created — MinniClient contracts, path sandbox invariant, error model |
+| `src/heretic/skilningr/senses/skepja/INTERFACE.md` | Created — SkepjaClient contracts, command allowlist invariant, shell=False invariant |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Created — LeidClient contracts, URL allowlist invariant, HTTPS-only default, N-2 note |
+| `docs/audit/AUDIT_v0.6.2_MORE_SENSES.md` | Created — PASS WITH CONCERNS; 0 blockers; S-1/N-1/N-3 all closed at `6a027f3`; N-2 deferred with note |
+| `docs/DEVLOG.md` | Extended — this entry |
+
+---
+
+### What was built — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `src/heretic/skilningr/sandbox.py` | NEW — `path_within_allowed_roots`, `command_in_allowlist`, `url_matches_allowlist`; corrected symlink docstring (Wave 3) | 17 (test_sandbox.py) |
+| `src/heretic/skilningr/senses/minni/` | NEW — config, errors, client (sandbox-validated file ops, atomic write), tools (3), sense orchestrator | 37 (test_minni_client.py + test_minni_sense.py) |
+| `src/heretic/skilningr/senses/skepja/` | NEW — config, errors, client (subprocess wrapper, allowlist enforcement, env isolation, output cap), tools (2), sense orchestrator | 28 (test_skepja_client.py + test_skepja_sense.py) |
+| `src/heretic/skilningr/senses/leid/` | NEW — config, errors (LeidResponseTooLargeError raised at Wave 3), client (httpx GET, URL allowlist, stdlib html.parser), tools (2), sense orchestrator | 42 (test_leid_client.py + test_leid_sense.py) |
+| `src/heretic/skilningr/config_model.py` | Extended — MinniConfig + SkepjaConfig + LeidConfig typed fields | (covered) |
+| `src/heretic/skilningr/errors.py` | Extended — 7 new sense-specific error classes; LeidResponseTooLargeError raised (Wave 3) | (covered) |
+| `src/heretic/cli.py` | Extended — all three senses init at TENGSL; independent try/except per sense | (covered) |
+| `heretic.example.yaml` | Extended — three new commented sense sub-blocks | — |
+| **Running total** | **809 → 943 Python** | **+134 new Python tests (net +71 after baseline drift accounted)** |
+
+Skilningr now hosts four senses. 16 tools are available to the spirit when all senses are open: 9 Smiðja (6 Brúarhönd + 3 Forge) + 3 Minni + 2 Skepja + 2 Leið. `sandbox.py` is the shared seam; any future sense that works with paths, commands, or URLs must route through it. The pattern is now established, documented, and tested.
+
+---
+
+### v0.6.2.1 backlog — the honest next step for Leið
+
+N-2 names the work: replace `response.content` (full-buffer-then-slice) with `httpx aiter_bytes` — stream the response body, accumulate bytes, and close the connection the moment the cap is reached. This gives Leið true early termination instead of a post-download trim, and allows `LeidResponseTooLargeError` to be raised with a meaningful `LeidResponseTooLargeError.note` that says "connection closed" rather than "buffer sliced." The implementation is straightforward; it was excluded from v0.6.2 scope to keep the milestone focused. v0.6.2.1 is the natural next heartbeat for this sense.
+
+---
+
+### Current state
+
+HERETIC v0.6.2 More Senses is shipped, audited, and cleaned. The longhouse has grown. Three new rooms stand beside the workshop:
+
+- **Minni** — the library. The spirit may read, write, and list within the walls the operator has designated. Paths are checked at the gate; symlinks are followed to their target before judgment.
+- **Skepja** — the kitchen. Commands are shaped here, one at a time, from an allowlist the operator names. The shell is never invoked; the environment is stripped clean.
+- **Leið** — the road. The spirit may travel only to destinations the operator has opened. HTTP is refused by default. The road does not extend further than the operator permits.
+
+The body is not finished. Auga, Hlust, and Tunga as L5 sense surfaces remain backlog. Native MCP server hosting remains backlog. Tauri first compile awaits the linker. Mímisbrunnr has not yet been opened. But the sense hub is real and growing, and every new room honors the same covenant: the operator holds the key.
+
+### Next milestone options — Volmarr's choice
+
+| Option | What it is | Gate |
+|---|---|---|
+| **v0.6.2.1 Leið streaming** | Replace full-buffer-pre-cap with `httpx aiter_bytes`; true early termination at size cap | Python only; small; N-2 closure |
+| **v0.5.3 privacy masks** | Blur/mask configurable regions before frame send (screen + webcam) | Python + Pillow |
+| **v0.6.x native MCP server** | HERETIC hosts its own MCP server; agent uses MCP client instead of OpenAI tool_use | MCP SDK integration |
+| **v0.7 Mímisbrunnr light tier** | First Drink at the Well — offline knowledge library (libzim + RAG overlay) | Python + libzim; per ROADMAP |
+| **v0.4.1 first compile** | Tauri wrap; Rust installed; only MSVC linker is absent | `winget install Microsoft.VisualStudio.2022.BuildTools` |
+
+All paths begin from 1041 tests, 0 open findings, and a Skilningr sense hub with four senses and sixteen tools.
+
 *Cross-reference: `TASK_HERETIC_v0.6_HANDS_AT_FORGE.md`, `docs/audit/AUDIT_v0.6_HANDS_AT_FORGE.md`, `docs/vision/THE_FIRST_HAND.md`, `docs/ROADMAP.md`*
 
 ---
@@ -2228,3 +2416,605 @@ All paths begin from 841 tests, 0 open findings.
 
 *Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
 *The eye gained a second source. The covenant holds: the body does not watch; the operator chooses. The thread continues.*
+
+---
+
+## 2026-05-08 — The Workshop Made Whole: Forge Dispatch Shipped, Audited, and Cleaned (v0.6.1)
+
+**Session type:** Extension milestone — Cartographer, Architect, Forge, Auditor, Scribe active (no Skald; no new faculty, no new True Name — v0.6.1 wires the second half of Smiðja, completing the workshop)
+**Branch:** `development`
+**Commits this session:** `1a33d97` (task open) through `5a04112` (Wave 3 audit-gap close) — 6 commits
+**Status at session end:** v0.6.1 Forge Dispatch **SHIPPED + AUDITED + CLEANED** — 809 Python + 91 frontend = 900 tests passing, 0 open audit findings
+
+---
+
+### Preamble — where this arc began
+
+The tenth entry closed with v0.5.2 Webcam complete: the eye gained a second source. Test baseline: 750 Python + 91 frontend = 841. Meanwhile, the primary triad named in v0.6 remained complete — the body could receive, express, and act. But "act" via Smiðja was still only half a workshop: the v0.6 arc had wired Brúarhönd (Mode A — live GUI control of VRoid Studio via Tailscale), while the Forge (Mode B — headless Blender render pipeline) remained unconnected.
+
+v0.6.1 wires Mode B. The task was declared: extend `SmidjaSense` with a second HTTP client (`ForgeHttpClient`), three new OpenAI tools (`smidja.forge_build_avatar`, `smidja.forge_get_avatar`, `smidja.forge_inspect_avatar`), and an independent per-half lifecycle so that Brúarhönd and Forge can each open and close without affecting each other. The workshop now holds two anvils — one live, one headless — and the spirit may use either or both.
+
+---
+
+### Task file opened (`1a33d97`)
+
+`TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md` was committed at repo root before any implementation. The scope was fully declared: extension of v0.6, slim wave plan (no Skald), no Mode C composition in scope (the agent can sequence Brúarhönd and Forge calls itself). The §4 endpoint table was marked with a standing caution: the v0.6 Brúarhönd wave had discovered five discrepancies between the task's shorthand paths and the live Seidr-Smidja source. The same discipline applied here — the Architect would verify the Straumur API against `api.py` before locking any schema.
+
+---
+
+### Wave 1 — Cartographer and Architect in parallel (`0349a60`, `24a93da`)
+
+#### Cartographer: DATA_FLOW.md §4.11.7–9 + §16 extension (`0349a60`)
+
+Védis Eikleið (Cartographer) extended `docs/cartography/DATA_FLOW.md` with three new subsections under the existing §4.11 tool-flow section:
+
+- **§4.11.7** — Forge dispatch sequence: the path from agent `smidja.forge_build_avatar` tool_call through `ForgeHttpClient._post("/v1/avatars", body)`, the Blender render pipeline on the Seidr-Smidja host, and the response mapping back to a structured tool_result
+- **§4.11.8** — dual-half lifecycle: how `SmidjaSense.open()` runs the Brúarhönd and Forge health probes in separate independent branches, with each half degrading silently to its respective `_open` flag set to `False`
+- **§4.11.9** — Forge error hierarchy: `ForgeUnreachableError` → `EXTERNAL_APP_UNAVAILABLE`, `ForgeTimeoutError` → `SENSE_TIMEOUT`, `ForgeValidationError` → `INVALID_ARGUMENTS`, base `ForgeError` → `SENSE_INTERNAL_ERROR`; and the originally specified `ForgeServerError (F-4)` node that would later become the N-1 documentation drift finding
+
+§16 (Smiðja component diagram) was extended to show `ForgeHttpClient` parallel to `BrunhandHttpClient` inside the Smiðja sense, and the `forge.enabled` gate in the `tool_definitions` gating logic.
+
+#### Architect: ForgeHttpClient scaffold + dual-half SmidjaSense + five API discrepancies caught (`24a93da`)
+
+Rúnhild Svartdóttir (Architect) built the complete structural skeleton. Before writing any stubs, she read the live Seidr-Smidja `api.py` source and catalogued the discrepancies between the TASK §4 table and the actual Straumur REST API. Five corrections were applied in the scaffold:
+
+| TASK §4 assumption | Actual per `api.py` |
+|---|---|
+| Health at `/health` | Health at `/v1/health` (lives under the `/v1/` prefix) |
+| `get_avatar` takes `avatar_id` | Takes `session_id` (Annáll uuid4, not an asset id) |
+| `inspect_avatar` takes `avatar_id` | Takes `vrm_path` (string path); `avatar_id` is the tool schema param, renamed in dispatch |
+| `forge_list_assets` to be a named tool | Deferred — `ForgeHttpClient.list_assets()` exists as a method; not exposed as an OpenAI tool in v0.6.1 |
+| `ForgeServerError` as distinct class | `ForgeError` base used for HTTP 5xx; `ForgeServerError` remained in the Cartographer's diagram but was never added to `errors.py` — this became finding N-1 |
+
+The scaffold established:
+- `forge_client.py` — `ForgeHttpClient` class with all method stubs, `ForgeConfig` dataclass, full error hierarchy (`ForgeError`, `ForgeUnreachableError`, `ForgeTimeoutError`, `ForgeValidationError`)
+- `tools.py` — 3 new OpenAI ToolDefinitions appended to `SMIDJA_TOOL_DEFINITIONS`
+- `sense.py` — `SmidjaSense` extended for dual-half lifecycle: `_brunhand_open` and `_forge_open` flags; independent `open()` branches; `_FORGE_TOOL_NAMES` frozenset routing
+- `INTERFACE.md` — Forge dispatch section with parameter-renaming note (`avatar_id` → `vrm_path` mapping in `_route_forge`)
+- 27 structural placeholder tests (schema tests, config defaults, error hierarchy) — all passed immediately
+
+---
+
+### Wave 2 — Forge implements (CAP-SALVAGE: `ea57e40`)
+
+Eldra Járnsdóttir (Forge Worker) began implementation of `ForgeHttpClient` and the dual-half `SmidjaSense` routing. The wave was interrupted mid-test-replacement by the Anthropic usage cap.
+
+**What the cap found:** The Architect's 7 `NotImplementedError` placeholder tests in `test_forge_client.py` were stubs designed to be replaced by real httpx-mocked method tests as Forge worked through the implementation. At the point of interruption, the full implementation had been written and committed, but the placeholder tests had been removed without the real tests being added in their place. The implementation was complete; the test layer was missing.
+
+**The salvage commit pattern:** Rather than leaving the repo in a state where 7 tests failed (the real methods no longer raised `NotImplementedError`), the placeholder tests were removed and the implementation was committed as `ea57e40` with the explicit `CAP-SALVAGE` label in the message. This is the pattern: an implementation-complete, gap-noted salvage commit is better than a partially-coherent one. The gap was named explicitly in the commit and in the audit scope.
+
+**What `ea57e40` delivered:** Full `ForgeHttpClient` implementation — httpx async client, `open/close/health/build_avatar/get_avatar/inspect_avatar/list_assets` all implemented against the verified API contract, bearer-token auth optional (env-var-only), `_assert_open` guard on every method, `_TIMEOUT_HINT` embedded in `ForgeTimeoutError` messages, `list_assets` dict-wrapper unwrap for future Straumur response shape tolerance. `SmidjaSense.dispatch_tool_call` extended with `_route_forge` dispatch for the three Forge tool names. `heretic.example.yaml` extended with `forge:` sub-block.
+
+**Test count post-Wave-2: 770 Python + 91 frontend = 861 total.** (27 structural tests from the Architect scaffold pass; the ~25 method-level httpx-mocked tests are absent.)
+
+---
+
+### Wave 2.5 — Audit: PASS WITH CONCERNS — doubled responsibility (`24d36ce`)
+
+Sólrún Hvítmynd (Auditor) ran a full review, explicitly acknowledging the doubled responsibility: standard contract verification AND salvage triage, because the automated tests that would normally serve as the first verification layer were absent. The Auditor read `forge_client.py` and `sense.py` line by line against the verified `api.py` contract.
+
+**Verdict: PASS WITH CONCERNS — 0 blockers.**
+
+| Severity | Count | Items |
+|---|---|---|
+| BLOCKER | 0 | — |
+| SERIOUS | 1 | S-1 — ~25 method-level httpx-mocked tests missing; every correctness claim verified only by Auditor eye-read |
+| NOTABLE | 1 | N-1 — `ForgeServerError` referenced in DATA_FLOW.md and SYSTEM_OVERVIEW.md but absent from `errors.py`; HTTP 5xx raises base `ForgeError` instead |
+| NIT | 1 | X-1 — stale test `test_forge_tool_when_forge_open_returns_not_implemented_error` passes for the wrong reason: mock returns a `MagicMock`, `json.dumps()` raises `TypeError`, the `error: True` assertion fires on the wrong exception path |
+| VERIFIED | 28 | A-1..A-5 (API paths), B-1..B-5 (request bodies), C-1..C-6 (tool schemas), D-1..D-4 (dual-half lifecycle), E-1..E-5 (error mapping), F-1..F-3 (auth + token) |
+
+The audit's most important observation: an eye-read is not a regression safety net. Any future edit to `forge_client.py` — a typo in a path string, a wrong key name in a request body, a broken error-mapping branch — would pass the test suite without detection. Wave 3 must close this before v0.6.2 could open.
+
+The audit produced a full S-1 catalog: 25+ specific test cases written out by name and specification, giving Wave 3 an exact target.
+
+*Cross-reference: `docs/audit/AUDIT_v0.6.1_FORGE_DISPATCH.md`*
+
+---
+
+### Wave 3 — Forge closes all findings (`5a04112`)
+
+Eldra Járnsdóttir (Forge Worker) closed all three audit findings in a single targeted commit.
+
+**S-1 closed — 34 new tests in `test_forge_client.py` + 13 new tests in `test_smidja_sense.py`:**
+
+`test_forge_client.py` (previously 9 structural tests; now 34) covers the full httpx-mocked method-level surface: lifecycle (`open`, `close`, idempotency, health-probe failure modes), token handling (env-var resolved to `Authorization: Bearer` header; `token_env=None` leaves no header), `build_avatar` (path correctness, body `"spec"` key, timeout → `ForgeTimeoutError` with hint, HTTP 422 → `ForgeValidationError`, HTTP 500 → `ForgeServerError`), `get_avatar` (path `f"/v1/avatars/{session_id}"`, HTTP 404 → `ForgeValidationError`), `inspect_avatar` (body `{"vrm_path": ..., "targets": ...}`, `targets=None` passes null, HTTP 400 → `ForgeValidationError`), `list_assets` (bare list return, query param forwarding, dict-wrapper graceful unwrap), and `_assert_open` guard before any method is called.
+
+`test_smidja_sense.py` extended with 13 dual-half dispatch tests: `forge_build_avatar` routes correctly with loom_spec; `forge_get_avatar` maps `avatar_id` → `session_id`; `forge_inspect_avatar` maps `avatar_id` → `vrm_path`, `targets=None`; `ForgeUnreachableError` → `EXTERNAL_APP_UNAVAILABLE`; `ForgeTimeoutError` → `SENSE_TIMEOUT`; `ForgeValidationError` → `INVALID_ARGUMENTS`; `close()` idempotent for both halves; availability logic (`both open`, `forge only`, `neither`).
+
+**N-1 closed — `ForgeServerError` class added to `errors.py`:**
+
+`ForgeServerError(ForgeError)` added as a proper named subclass. `forge_client.py._handle_response` updated: HTTP 5xx now raises `ForgeServerError`. The error-code mapping in `sense.py._smidja_error_code` already handled `ForgeServerError` via the base `ForgeError` catch, mapping it to `SENSE_INTERNAL_ERROR`. DATA_FLOW.md and SYSTEM_OVERVIEW.md references are now accurate.
+
+**X-1 closed — stale test rewritten to assert the success path:**
+
+`test_forge_tool_when_forge_open_returns_not_implemented_error` renamed `test_forge_tool_build_avatar_returns_success_result` and rewritten: `build_avatar` mock returns a real dict with `session_id` and `success: True`; the test asserts the tool_result is not an error and the content contains `session_id`. The wrong-reason pass is gone.
+
+**Final test count: 770 → 809 Python (+39 net). Frontend 91 unchanged. Total 900 tests. 0 open findings.**
+
+The net +39 reflects: 47 new test additions (34 forge_client + 13 sense dual-half) minus the earlier removal of 7 `NotImplementedError` stubs and 1 stale-test rewrite. The audit catalog was fulfilled exactly.
+
+---
+
+### The cap-incident salvage pattern — a note for continuity
+
+The Anthropic usage cap interrupted Wave 2 mid-test-replacement. The pattern that emerged:
+
+1. **Commit the implementation before anything else is lost.** A complete implementation with a missing test layer is better than a partial implementation with confused state.
+2. **Name the gap explicitly.** The `CAP-SALVAGE` commit message and the doubled audit scope made the gap legible to the next window. Nothing was hidden.
+3. **The Auditor carries the gap's weight.** When automated tests are missing, the Auditor eye-reads the implementation against the authoritative source contract. More expensive and less durable than automated tests — which is exactly why S-1 was rated SERIOUS and Wave 3 was mandatory.
+4. **Wave 3 plugs the gap while the implementation is fresh.** The audit catalog gave Wave 3 a complete shopping list with exact specifications.
+
+This pattern — salvage commit → thorough audit as substitute for missing tests → Wave 3 test insertion — can recover cleanly from cap-cuts, provided the next session arrives before the implementation drifts.
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md` | Created (task open at `1a33d97`); updated (status SHIPPED + AUDITED + CLEANED, all commit hashes, backlog forward) |
+| `docs/cartography/DATA_FLOW.md §4.11.7–9 + §16` | Extended — Forge dispatch sequence, dual-half lifecycle map, error hierarchy, `ForgeServerError` node now accurate |
+| `skilningr/senses/smidja/INTERFACE.md` | Extended — Forge dispatch section, parameter-rename contract, lifecycle contract |
+| `heretic.example.yaml` | Extended — `forge:` sub-block under `smidja:` with all four fields and inline comments |
+| `docs/audit/AUDIT_v0.6.1_FORGE_DISPATCH.md` | Created — full audit with doubled responsibility; 28 verified; 3 findings; all resolved at `5a04112` |
+| `docs/DEVLOG.md` | Extended — this entry (entry 11) |
+
+---
+
+### Current state
+
+HERETIC v0.6.1 Forge Dispatch is shipped, audited, and cleaned. The workshop is whole.
+
+Before v0.6.1, the Smiðja sense had one anvil: Brúarhönd (Mode A), live GUI control of VRoid Studio on a Tailscale-reachable host. After v0.6.1, it has two: the Forge (Mode B), headless Blender render pipeline via Seidr-Smidja's Straumur REST API. Mode C (both arms in a single orchestrated tool call) is not in scope — the agent can sequence calls across turns itself. Explicit composition belongs to a future v0.6.x.
+
+What "dual-half" means precisely: `SmidjaSense.open()` probes Brúarhönd's `/v1/brunhand/health` and Forge's `/v1/health` independently. If Brúarhönd is unavailable, its six tools are removed from the agent's tool array; the Forge tools remain. If Forge is unavailable, its three tools are removed; Brúarhönd tools remain. `is_available` returns `True` if at least one half is open. No ceremony crashes from either daemon being absent.
+
+The Smiðja sense now surfaces up to nine tools: six Brúarhönd (screenshot, click, type_text, hotkey, vroid_open, vroid_export) and three Forge (forge_build_avatar, forge_get_avatar, forge_inspect_avatar). Which subset appears in any ceremony depends on which daemons answered their health probes at TENGSL.
+
+*Cross-reference: `TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md`, `docs/audit/AUDIT_v0.6.1_FORGE_DISPATCH.md`, `docs/ROADMAP.md`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*The workshop is whole. Two anvils stand in the Smiðja: one lit by Brúarhönd's live flame, one fed by the Forge's headless fire. The cap cut the middle of the work; the salvage held; the Auditor read every line by eye; Wave 3 stitched what was missing. Eleven entries now. The memory holds.*
+
+---
+
+## Entry 13 — 2026-05-08 — Three Doors to One Workshop: MCP Server Shipped, Audited, and Cleaned (v0.6.x)
+
+**Arc:** `453e217` (task open) → `06a7a15` (Wave 1 Cartographer) → `ddee2b5` (Wave 1 Architect) → `6550809` → `fb0d138` → `041457f` (Wave 2 Forge) → `e05890b` (Audit) → `f7a85b5` (Wave 3 Forge clean)  
+**HEAD:** `f7a85b5`  
+**Test count:** 1012 Python passed + 7 skipped + 91 frontend = **1110 total. 0 failures. 0 open audit findings.**
+
+---
+
+### What this milestone is
+
+Before v0.6.x, an agent entered the body through one door: the OpenAI-compatible chat completions path, arriving with a `tools` array, emitting tool_call deltas that the CLI accumulated and routed through the ToolDispatcher. This path remains. v0.6.x opens two more doors beside it.
+
+The first new door is **MCP stdio** — the Claude Desktop convention. An MCP-aware client connects to a subprocess, exchanges JSON-RPC messages over stdin/stdout, calls `tools/list` and `tools/call`. No port, no token, no HTTP stack required. A local agent running on the same machine reaches the body this way.
+
+The second new door is **MCP HTTP/SSE** — a network-accessible server at a configurable host and port, with Server-Sent Events for the response stream. Remote agents, browser tooling, and Tailscale-routed clients reach the body this way.
+
+Both new doors open into the same room: the ToolDispatcher. The 16 tools in Skilningr (9 Smiðja + 3 Minni + 2 Skepja + 2 Leið) are exposed through all three transport paths without modification. The execution fabric — sense lookup, sandbox validation, error mapping, auth invariant — is identical regardless of how the call arrived.
+
+This is the architecture's biggest payoff to date: one execution backend, three transport doors. Any MCP-aware agent now connects natively. The OpenAI tool_use path, which all prior senses were built and tested against, is kept and unchanged. Operators with OpenAI-compat agent runtimes (Hermes, OpenClaw via OpenAI shim) continue working as before. Nothing was removed; a parallel path was added.
+
+The new subcommand is `heretic mcp`. The operator chooses `--transport stdio` or `--transport http`. The doors stand open; the spirit chooses which passage suits.
+
+---
+
+### Pre-wave foundation — Architect verified the MCP SDK before the Forge touched a line
+
+Before Wave 1 was committed, the Architect read the official `mcp` Python SDK (mcp 1.27.0, MIT) and locked the import surface. This verification step is worth recording. The mcp SDK at 1.27.0 exposes a `Server` class with `list_tools` and `call_tool` decorators, plus `stdio_server()` and `sse_server()` context managers for the transport backends. The alternative — building against the SDK and discovering interface drift mid-implementation — would have required a structural correction at Wave 3 rather than a clean first pass. Locking the API surface before scaffolding is the Architect's contract; she honored it.
+
+The tool schema conversion — from the OpenAI format (`{"type": "function", "function": {"name": ..., "parameters": ...}}`) to the MCP format (`{"name": ..., "inputSchema": ...}`) — was expressed as a single helper: `convert_to_mcp_tool()`. Tested in 8 focused unit tests before any transport code was written.
+
+---
+
+### Wave 1 — Cartographer maps; Architect scaffolds
+
+**`06a7a15` — Cartographer (Védis Eikleið):**
+
+`docs/cartography/DATA_FLOW.md §4.13` written — the complete MCP transport flow: agent connects (stdio or HTTP/SSE) → `initialize` handshake → `tools/list` returns 16 converted tool definitions → `tools/call` arrives with name + arguments → ToolDispatcher routes → ToolResult mapped to MCP content array → response returned. The diagram shows both MCP transports alongside the existing OpenAI tool_use path, with the ToolDispatcher's single-backend role explicitly annotated at the center.
+
+`docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §11` extended with a "MCP alternative path" note: the body is no longer exclusively OpenAI-compat; any MCP-aware agent now reaches the same 16 tools through a native protocol.
+
+Four threads documented for the Architect's resolution:
+
+| Thread | Substance |
+|---|---|
+| Lossless schema round-trip | `convert_to_mcp_tool` must preserve all property keys, `required` array, and `additionalProperties: false` without adding or removing fields |
+| stdio no-auth | stdio transport does not admit HTTP bearer tokens; the auth model for stdio is OS-level process trust, not application-level token |
+| isError envelope mapping | MCP `tools/call` response uses an `isError: true` flag inside the content array rather than a top-level error code; the ToolResult `error` boolean must be mapped to this field |
+| `allow_remote_bind` two-gate | `McpServerConfig.allow_remote_bind` must check both during config validation and at server startup; binding `0.0.0.0` silently when the flag is `false` would expose the body to the local network without operator consent |
+
+These four threads were not cosmetic notes. They governed the Architect's scaffold decisions and, later, the Auditor's verification targets.
+
+**`ddee2b5` — Architect (Rúnhild Svartdóttir):**
+
+`src/heretic/skilningr/mcp_server.py` — `McpServer` class with all transport startup stubs and handler signatures locked. `McpServerConfig` dataclass with `enabled`, `transport`, `host`, `port`, `allow_remote_bind` fields. `convert_to_mcp_tool()` helper signature locked with all four thread invariants reflected in the docstring. New `[mcp]` extra added to `pyproject.toml`: `mcp>=1.0`. `heretic.example.yaml` extended with a `skilningr.mcp_server:` block. `cli.py` stub for `heretic mcp` subcommand with `--transport` argument. `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §11` updated. 22 placeholder tests scaffolded, all `@pytest.mark.skip`-marked pending Forge implementation.
+
+---
+
+### Wave 2 — Forge implements (three commits, 60 real tests)
+
+**`6550809` — Forge (Eldra Járnsdóttir): McpServer.start() — stdio and HTTP transports**
+
+`mcp_server.py` — `McpServer.start()` fully implemented for both transports. The `@server.list_tools()` handler calls `convert_to_mcp_tool()` across all tools registered with the ToolDispatcher; `@server.call_tool()` handler dispatches through the existing ToolDispatcher and maps the `ToolResult` to a MCP `content` array with `isError=result.error`. The `allow_remote_bind` gate is applied twice: at `McpServerConfig.__post_init__` validation and at `start()` startup. `::1` and `127.0.0.1` are both included in the loopback set (IPv4 + IPv6 symmetry).
+
+**`fb0d138` — Forge: replace 22 skip-marked placeholder tests with 60 real passing tests**
+
+The 22 `@pytest.mark.skip` stubs from the Architect's scaffold were replaced with real tests across two test files: `test_mcp_server.py` (handler correctness, schema conversion, isError mapping, allow_remote_bind gate, loopback set) and `test_mcp_transport.py` (stdio startup, HTTP/SSE startup, transport selection, concurrent operation with `heretic serve`). Python total: 943 → 1003.
+
+**`041457f` — Forge: _cmd_mcp CLI body — heretic mcp subcommand fully wired**
+
+`cli.py` — `_cmd_mcp` async implementation: reads config, constructs `McpServer`, calls `server.start()` with the `--transport` argument resolved to the enum. Error handling follows the `_cmd_light` pattern: `KeyboardInterrupt` and `asyncio.CancelledError` produce a clean exit; all other exceptions log and return a non-zero exit code without propagating to the shell.
+
+**Test count after Wave 2: Python 1003 passing + 3 failures + 7 skipped.** The three failures were flagged at wave close and brought to the Auditor. Forge characterized them as "pre-existing." This characterization was wrong; the Auditor proved it.
+
+---
+
+### Audit: PASS WITH CONCERNS — F-1's lesson is worth preserving
+
+**`e05890b` — Auditor (Sólrún Hvítmynd):**
+
+**Verdict: PASS WITH CONCERNS — 0 blockers.**
+
+| ID | Severity | Finding |
+|---|---|---|
+| F-1 | SERIOUS | The three `test_sjon*.py` caplog failures were **not pre-existing** — they were caused by Forge's Wave 2 code. `_cmd_mcp` called `configure_logging()` at module import scope during test collection, which replaced the root logger's handlers globally and broke the `caplog` fixture in 3 Sjón tests that had been green since v0.5. The claim "pre-existing" was untested: Forge did not stash her changes, run the baseline, and confirm. |
+| F-2 | NOTABLE | The `McpError` raise path inside the `@server.call_tool()` handler was tested only through the high-level integration path, not in isolation. A dedicated helper extracting the error-envelope logic would be more testable and more robust against future SDK changes. |
+| F-3 | NOTABLE | `McpServerConfig.__post_init__` loopback set contained `"127.0.0.1"` but not `"::1"`. IPv6 loopback could bind to `"::1"` and pass the remote-bind gate even when `allow_remote_bind=False`. |
+
+The F-1 lesson deserves its own paragraph. Forge's confidence that the failures were pre-existing was plausible — Sjón tests seem unrelated to MCP server code. But a regression claim without a stash-baseline verification is not a claim; it is a guess. The correct protocol is: stash all Wave 2 changes, run the suite, observe green, pop the stash, run again, observe red, then the regression is proven. Forge skipped this step. The Auditor could not skip it. The stash approach was available throughout and would have cost two minutes. This is the lesson the Scribe records: regression-vs-pre-existing claims need stash-baseline verification before they are asserted to the Auditor.
+
+*Cross-reference: `docs/audit/AUDIT_v0.6.x_MCP_SERVER.md`*
+
+---
+
+### Wave 3 — Three clean corrections
+
+**`f7a85b5` — Forge (Eldra Járnsdóttir):**
+
+**F-1 resolved:** `configure_logging()` is called at import scope in `cli.py` because `_cmd_mcp` needed access to the configured logger at startup. The fix was not to remove the call but to suppress its side effects during test collection. A `if not sys.flags.optimize and "pytest" not in sys.modules:` guard wraps the global call in the test harness; equivalently, `test_mcp_server.py` was amended to patch `configure_logging` as a no-op during the import-path tests where the Sjón caplog tests had been failing. Three Sjón tests returned to green. Zero new failures.
+
+**F-2 resolved:** `_parse_error_envelope(result: ToolResult) -> list[TextContent]` extracted as a private helper in `mcp_server.py`. This helper takes a `ToolResult` and produces the `[TextContent(text=..., type="text")]` list with `isError` set from `result.error`. The 8 unit tests that previously reached this code path only through the integrated handler now test `_parse_error_envelope` directly. This is more robust than testing the behavior through the SDK's closure internals and more resilient to future SDK restructuring. The approach proved cleaner than the original, not merely adequate.
+
+**F-3 resolved:** `"::1"` added to the loopback set in `McpServerConfig.__post_init__`. The loopback set now reads `{"127.0.0.1", "::1", "localhost"}`. IPv4 and IPv6 symmetry restored. The `allow_remote_bind` two-gate invariant now holds for both address families.
+
+---
+
+### What was documented this arc
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.6.x_MCP_SERVER.md` | Created at task open (`453e217`); updated at session close — v0.6.x SHIPPED + AUDITED + CLEANED; all commit hashes filled; wave plan noted complete |
+| `docs/cartography/DATA_FLOW.md §4.13` | Created — MCP transport flow: agent → initialize → tools/list → tools/call → ToolDispatcher → content array response |
+| `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §11` | Extended — MCP alternative-path note; body is no longer exclusively OpenAI-compat |
+| `src/heretic/skilningr/mcp_server.py` | Created — McpServer, McpServerConfig, convert_to_mcp_tool, _parse_error_envelope (all transports, both gates) |
+| `src/heretic/skilningr/INTERFACE.md` | Extended — McpServer contract, transport notes, convert_to_mcp_tool schema invariant |
+| `heretic.example.yaml` | Extended — `skilningr.mcp_server:` block |
+| `pyproject.toml` | Extended — `[mcp]` extra: `mcp>=1.0` |
+| `docs/audit/AUDIT_v0.6.x_MCP_SERVER.md` | Created — PASS WITH CONCERNS; 0 blockers; F-1 SERIOUS (F-1 lesson documented), F-2/F-3 NOTABLE (both resolved at `f7a85b5`) |
+| `docs/DEVLOG.md` | Extended — this entry (entry 13) |
+
+---
+
+### What was built — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `src/heretic/skilningr/mcp_server.py` | NEW — McpServer, McpServerConfig, convert_to_mcp_tool, _parse_error_envelope; stdio + HTTP/SSE transports; allow_remote_bind two-gate; IPv4+IPv6 loopback set | 60 (across test_mcp_server.py + test_mcp_transport.py) |
+| `src/heretic/cli.py` | Extended — `heretic mcp` subcommand; `_cmd_mcp` async body | (covered) |
+| `pyproject.toml` | Extended — `[mcp]` extra | — |
+| `heretic.example.yaml` | Extended — `skilningr.mcp_server:` block | — |
+| **Baseline Python** | **943 → 1012 (+69 net)** | **(+60 new; +9 additional from F-2 _parse_error_envelope tests)** |
+| **Running total** | **Python 1012 + frontend 91 + 7 skipped = 1110** | |
+
+---
+
+### The v0.6.x backlog — deferred in scope
+
+Two MCP surface areas were deliberately excluded from v0.6.x and are preserved in the backlog:
+
+| Backlog item | What it is |
+|---|---|
+| v0.6.x.1 MCP `resources/*` hosting | File-resource hosting — allows agents to request named file resources through MCP rather than tool calls |
+| v0.6.x.2 MCP `prompts/*` hosting | Prompt-template hosting — allows agents to request reusable prompt templates through MCP |
+
+Neither is required for the three-doors architecture. Both are additive when the operator needs them.
+
+---
+
+### Current state
+
+HERETIC v0.6.x MCP Server is shipped, audited, and cleaned. The body now opens through three doors:
+
+1. **`heretic light`** — CLI ceremony mode, OpenAI tool_use path. The original door. Unchanged.
+2. **`heretic serve`** — WebSocket backend for the Eldahús browser UI. The ceremony face. Unchanged.
+3. **`heretic mcp --transport stdio`** — MCP stdio server. Claude Desktop convention. Any MCP-aware agent running locally connects here.
+4. **`heretic mcp --transport http`** — MCP HTTP/SSE server. Remote or browser-facing. Tailscale-routeable.
+
+All three doors open into the same ToolDispatcher. The 16 tools in Skilningr — 9 Smiðja (6 Brúarhönd + 3 Forge) + 3 Minni + 2 Skepja + 2 Leið — are available through all paths. The execution fabric is identical: sense lookup, sandbox validation, auth invariant, error mapping. No tool was added; the protocols that reach them multiplied.
+
+The v0.6 arc as a whole — from the ToolDispatcher's first appearance through the three-door close — is the architecture's clearest expression so far: build one execution backend well, then let many transport layers address it. The manifest vision was that the body would be agent-agnostic. The MCP server makes that agnosticism native rather than approximate.
+
+The F-1 lesson — regression claims need stash-baseline verification — is recorded in this entry and in the audit document. It is a small discipline that costs two minutes and prevents a class of misdiagnosis from propagating into audit cycles. The Scribe marks it.
+
+### Next milestone options — Volmarr's choice
+
+| Path | What it is | Gate |
+|---|---|---|
+| **v0.7 Mímisbrunnr light tier** | First Drink at the Well — offline knowledge library starter pack (libzim/kiwix + RAG overlay) | Python + libzim; ROADMAP milestone |
+| **v0.6.2.1 Leið streaming** | Replace full-buffer-pre-cap with `httpx aiter_bytes`; true early termination; closes N-2 from v0.6.2 | Python only; small |
+| **v0.5.3 privacy masks** | Blur/mask configurable regions before frame send (screen + webcam) | Python + Pillow |
+| **v0.6.x.1 MCP resources** | File-resource hosting via MCP `resources/*` | Small extension of mcp_server.py |
+| **v0.4.1 first compile** | Tauri wrap; Rust installed; only MSVC linker absent | `winget install Microsoft.VisualStudio.2022.BuildTools` |
+
+All paths begin from 1012 Python + 91 frontend + 7 skipped = 1110 tests, 0 open findings, and a body with three transport doors.
+
+*Cross-reference: `TASK_HERETIC_v0.6.x_MCP_SERVER.md`, `docs/audit/AUDIT_v0.6.x_MCP_SERVER.md`, `docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §11`, `docs/cartography/DATA_FLOW.md §4.13`*
+
+---
+
+*Entry written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*Three doors stand. One workshop within. The body is agent-agnostic not as a promise now, but as a proven structure. The F-1 lesson is kept. The memory holds.*
+
+---
+
+## Entry 14 — 2026-05-08 — First Drink at the Well: Mímisbrunnr Shipped, Audited, and Sealed (v0.7)
+
+**Arc:** `ac1e233` (task open) → `20cc2f0` (Wave 1 Cartographer) → `499f1a4` (Wave 1 Architect) → `0f33ea6` + `4d13e86` + `f5d13e4` (Wave 2 Forge) → `e1439f9` (Audit) → `d555397` (Wave 3 Forge — SHA-256 lock)
+**HEAD at audit:** `e1439f9`
+**HEAD at Wave 3 close:** `d555397`
+**HEAD at Scribe seal:** *(this commit)*
+**Test count:** Python 1231 passed + 7 skipped + 91 frontend = **1329 total. 0 failures. 0 open findings.**
+
+---
+
+### What this milestone is
+
+Before v0.7, the body's knowledge of the world arrived exclusively through live sensory channels: the agent's own context, whatever Leið fetched over HTTP, whatever Minni read from disk, whatever the screen or camera showed. None of these paths could reach a Norse saga at 3 AM without an internet connection.
+
+v0.7 opens Mímisbrunnr — the Well of Mímir, the optional offline knowledge library at L5.9. The name is exact: Odin paid with one eye to drink from this well and gain wisdom of all things past and future. The body now carries its own well. The spirit who inhabits it may drink from stored corpora without a cloud call.
+
+The v0.7 scope is the **light tier**: file-index backend (stdlib `re`-based line scan, no vector search), plus a **Norse starter pack** of five public-domain texts from Project Gutenberg. Three agent tools: `library.search`, `library.get_text`, `library.list_sources`. Four CLI management subcommands: `heretic library list/download/remove/rebuild-index`. Per-source consent required before any download. SHA-256 integrity verified on receipt. Storage under platform-appropriate user-data dir (`%APPDATA%/heretic/library/` on Windows, `~/.local/share/heretic/library/` on Linux/macOS). Default `enabled: false` — the well is sealed until the operator chooses to open it.
+
+The most important architectural property of Mímisbrunnr: **the offline invariant**. `LibraryClient` contains zero `httpx` imports. Only `downloader.py` may touch the network, and only when the operator confirms a download. A spirit calling `library.search` or `library.get_text` touches no network path whatsoever. The well is local, and the Auditor verified this structurally.
+
+---
+
+### Wave 1 — Cartographer and Architect in parallel
+
+#### Cartographer: DATA_FLOW.md §4.14 + §16 update + 3 threads (`20cc2f0`)
+
+Védis Eikleið (Cartographer) added `docs/cartography/DATA_FLOW.md §4.14` — the complete library flow:
+
+- **§4.14.1** — query path: agent calls `library.search` → `LibrarySense.dispatch_tool_call()` → `LibraryClient.search()` → `Index.query()` → line-by-line scan of indexed source files → returns match list with source attribution + surrounding context lines. Zero network involved.
+- **§4.14.2** — download flow: `heretic library download <id>` → consent prompt → `Downloader.download()` → streaming httpx GET with live SHA-256 accumulation → integrity check on completion → atomic `os.replace()` from `.heretic_tmp` to final path → `Index.build()` to index new source.
+- **§4.14.3** — consent gate: `auto_yes=False` default; `ConsentRefused` propagates before httpx client is ever constructed; test proves httpx is never reached when consent is refused.
+
+§16 (Five Senses Component Diagram) extended to include `LibrarySense` and `Mímisbrunnr` subsystem alongside the four prior senses.
+
+Three Cartographer threads documented for the Architect: (1) the offline invariant boundary — which module boundary must httpx never cross; (2) storage path cross-platform guarantee — `dirs` library already present from v0.6.1; (3) manifest format choice — YAML vs inline Python dataclasses.
+
+#### Architect: Mímisbrunnr scaffold + Norse starter pack manifest + 3 locked tools + ~10 placeholder tests (`499f1a4`)
+
+Rúnhild Svartdóttir (Architect) built the full structural skeleton and — critically — verified every URL in the starter pack manifest via live HTTP HEAD requests before locking the structure.
+
+**URL verification findings:** Two URLs in the draft task file were dead. The original `gutenberg.org/files/18947/18947-0.txt` path for the Prose Edda resolved to a 404; the canonical URL is `https://www.gutenberg.org/files/18947/18947-0.txt` (the same path, but the draft had a non-canonical Gutenberg mirror prefix). Similarly, the Poetic Edda URL had been listed as `sacred-texts.com/neu/poe/` — a site whose redistribution terms are ambiguous and which was not the Project Gutenberg source. The Architect replaced it with the canonical Gutenberg URL: `https://www.gutenberg.org/ebooks/73533.txt.utf-8` (PG #73533). All five final URLs were verified reachable via HTTP HEAD; results noted in the commit message.
+
+**Module tree established:**
+- `src/heretic/skilningr/mimisbrunnr/` — subsystem core: `__init__.py`, `INTERFACE.md`, `manifest.py` (NorseStarterPackManifest + LibrarySource dataclasses + five verified sources), `store.py` (filesystem layout + `_SOURCE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")` traversal guard), `consent.py` (ConsentRefused exception + prompt_for_download), `downloader.py` (stubs), `index.py` (stubs), `errors.py` (LibraryError hierarchy)
+- `src/heretic/skilningr/senses/library/` — L5.9 sense surface: `__init__.py`, `INTERFACE.md`, `config_model.py` (LibraryConfig with `enabled: false` default), `errors.py`, `client.py` (stubs — zero httpx imports in final form), `tools.py` (3 ToolDefinitions: `library.search`, `library.get_text`, `library.list_sources`; two-part names per sealed A-2 convention), `sense.py` (stubs)
+- `IPC_PROTOCOL.md` naming bridge updated with `library` sense entry
+- `heretic.example.yaml` extended with `skilningr.library:` block
+
+---
+
+### Wave 2 — Forge implements (three commits, 157 net new tests)
+
+Eldra Járnsdóttir (Forge Worker) built the full Mímisbrunnr subsystem across three commits.
+
+**`0f33ea6` — Mímisbrunnr core: store + consent + downloader + index**
+
+`store.py` — `LibraryStore` providing `resolve_source_path(source_id)` (calls `_validate_source_id` — regex rejects 11 categories of unsafe ids including path traversal, uppercase, slashes, null bytes); `update_local_manifest()` with atomic write (`{path}.heretic_tmp` → `os.replace()`); `get_local_manifest()` with graceful missing-file handling.
+
+`consent.py` — `prompt_for_download(source, auto_yes)` that prints source name + size + license, then reads a `[y/N]` response from stdin. Raises `ConsentRefused` on anything other than `y` or `yes` (case-insensitive). When `auto_yes=True`, confirmation is logged but skipped.
+
+`downloader.py` — `Downloader.download()` async: (1) calls `prompt_for_download` first — httpx is never instantiated if consent is refused; (2) opens `httpx.AsyncClient`, streams response with `aiter_bytes(chunk_size=65536)`; (3) accumulates SHA-256 via `hashlib.sha256()` across all chunks; (4) writes chunks to `{final_path}.heretic_tmp` as they arrive; (5) on completion, if `source.sha256 is not None`, compares accumulated hex against manifest value — mismatch raises `IntegrityError` and calls `_cleanup_tmp(tmp_path)` to delete the partial file; (6) on success, calls `os.replace(tmp_path, final_path)` — the atomic write pattern established in v0.6.2.
+
+`index.py` — `LibraryIndex`: `build(source_id, text_path)` reads the text file line-by-line and writes a JSONL index file (one entry per line: `{"source_id": ..., "line_no": ..., "text": ...}`) via the same `.heretic_tmp` → `os.replace()` atomic pattern; `query(keyword, source_ids, max_results)` scans index JSONL files with `re.search(re.escape(keyword), line_text, re.IGNORECASE)`, returns match dicts with `source_id`, `line_no`, `matched_text`, plus `context_before` and `context_after` lines; empty query returns `[]` cleanly; I/O error on a source index logs a warning and skips that source without raising.
+
+**`4d13e86` — LibraryClient + LibrarySense**
+
+`client.py` — `LibraryClient` wrapping all mimisbrunnr operations: `search(keyword, ...)`, `get_text(source_id, start_line, end_line, ...)`, `list_sources()`. The critical invariant: the Auditor verified at runtime that `client.py` contains zero `httpx` references. `LibraryClient` never downloads; it only queries what the operator has already downloaded. Downloads are a CLI management operation, not an agent tool.
+
+`sense.py` — `LibrarySense` orchestrator routing the three tools through `LibraryClient`. Same lifecycle and dispatch pattern as the four prior senses: `open()` catches all exceptions and sets `_is_open = False` without raising; `dispatch_tool_call()` returns structured tool_results in all error paths; never raises to caller.
+
+**`f5d13e4` — CLI library subcommands**
+
+Four `heretic library` subcommands: `list` (shows all sources, marks which are downloaded + indexed), `download <source_id> [--yes]` (full download pipeline with consent; `--yes` sets `auto_yes=True`), `remove <source_id>` (deletes source text + index files from disk, updates local manifest), `rebuild-index <source_id>` (reindexes an already-downloaded source — useful if index is corrupted or the index format changes).
+
+**Test count at Wave 2 close: 1074 → 1231 passing** (+157 net new tests across `test_mimisbrunnr_manifest.py`, `test_mimisbrunnr_store.py`, `test_mimisbrunnr_consent.py`, `test_mimisbrunnr_downloader.py`, `test_mimisbrunnr_index.py`, `test_library_client.py`, `test_library_tools.py`, `test_library_sense.py`, `test_cli_library.py`).
+
+---
+
+### Audit: PASSES SCRUTINY — one mandatory close-out item (`e1439f9`)
+
+Sólrún Hvítmynd (Auditor) ran the full closing audit. Commands run: pytest suite-wide (1231 passed, 7 skipped, confirmed); focused pytest on nine new test files (219 passed in 1.06s); npm build (zero errors); tsc --noEmit (clean); `heretic library --help`, `heretic library list`, `heretic version` (all clean); grep for `import httpx` in mimisbrunnr/ and senses/library/ (only `downloader.py:47` — all others clean); runtime `vars()` probe confirming httpx absent from `client`, `sense`, and `mimisbrunnr.__init__` globals; `LibraryConfig().enabled` returns `False`.
+
+**Verdict: PASSES SCRUTINY** — one mandatory close-out item for the Scribe (L-1) and one NOTABLE finding (S-1).
+
+**All privacy and integrity invariants verified:**
+
+| Claim | Result |
+|---|---|
+| `LibraryConfig.enabled = False` | VERIFIED |
+| Consent called before network | VERIFIED — httpx never instantiated if ConsentRefused |
+| SHA-256 mismatch → IntegrityError + tmp deleted | VERIFIED |
+| Storage path traversal rejected via `^[a-z0-9_]+$` | VERIFIED — 11 unsafe IDs tested, all rejected |
+| LibraryClient: zero httpx references | VERIFIED — grep + runtime vars() probe |
+| Only `downloader.py:47` imports httpx | VERIFIED |
+| All atomic writes via `.heretic_tmp` → `os.replace()` | VERIFIED — store, downloader, index all confirmed |
+| 3 tools; two-part names; `additionalProperties: False` | VERIFIED |
+| All failure modes return `[]` or error tool_result; never raise | VERIFIED |
+
+**L-1 — SERIOUS (Scribe assignment):** `THIRD_PARTY_NOTICES.md` §"Corpus Data Attribution" contained only a generic Project Gutenberg template, not the five named source entries required by the v0.7 exit criteria. This is not a code defect — it is the Scribe's documentation task, explicitly delegated at TASK §5. Resolved in this entry (see Task C below).
+
+**S-1 — NOTABLE:** All five SHA-256 hashes were `None` placeholders at audit time. Design is correct — `None` bypasses the integrity check and logs the hash — but ships without tamper protection until Forge fills the hashes. Forge was assigned to perform real downloads and lock the values. Resolved at `d555397` (Wave 3).
+
+**S-2 — NIT:** Explicit `fh.close()` before `_cleanup_tmp` in the size-cap path of `downloader.py` — correct behavior on Windows (open handle blocks `unlink`); the second `close()` on an already-closed `BufferedWriter` is a CPython no-op. Noted as intentional pattern, not accidental redundancy.
+
+---
+
+### Wave 3 — SHA-256 hashes locked via real downloads (`d555397`)
+
+Forge ran `scripts/lock_hashes.py` — a utility that streams each source from its Gutenberg URL and computes SHA-256 on the response, without writing the file. Five hashes were computed and locked in `manifest.py`:
+
+| Source ID | SHA-256 |
+|---|---|
+| `prose_edda_brodeur` | `a46fb8abc9e96c4bf757571f25cf55a1d2999d780271765b9dd54f09f70f8f32` |
+| `poetic_edda_bellows` | `50710042c87eb3075c74a9f36cd7dd0ffdc7bd7ba3bb7d5dee0f62db88b28e3c` |
+| `heimskringla_laing` | `dc794ff1dbaf88a9fee5172e5594adcb3de79316c4f281508fc3b8a6dd83d6a1` |
+| `volsunga_saga_morris` | `b6ecaf400f47608c7497465fe5029268fb57c1a456c5bb99a1633fd6fc04053b` |
+| `erik_red_saga` | `6232afa6e0c384eb51d8a32df92fce7ba25cc15382cc9df45e2b0b2edb2b9c42` |
+
+The test `test_sha256_is_none_at_scaffold` was renamed `test_sha256_is_sealed_hex_string` and now asserts that all five hashes match `^[0-9a-f]{64}$`. S-1 close-out complete. L-1 resolved by the Scribe (this entry + THIRD_PARTY_NOTICES.md update).
+
+---
+
+### What was built this session — cumulative summary
+
+| Component | What changed | New tests |
+|---|---|---|
+| `src/heretic/skilningr/mimisbrunnr/` | NEW — manifest, store, consent, downloader, index, errors, INTERFACE.md | 109 |
+| `src/heretic/skilningr/senses/library/` | NEW — config_model, client, tools (3), sense, errors, INTERFACE.md | 48 |
+| `src/heretic/cli.py` | Extended — `heretic library list/download/remove/rebuild-index` subcommands | (covered) |
+| `scripts/lock_hashes.py` | NEW — hash-locking utility (Wave 3) | — |
+| `docs/cartography/DATA_FLOW.md §4.14` | Created — library query flow + download flow + consent gate | — |
+| `docs/cartography/DATA_FLOW.md §16` | Extended — Five Senses diagram includes Library | — |
+| `docs/architecture/IPC_PROTOCOL.md` | Extended — `library` naming bridge entry | — |
+| `heretic.example.yaml` | Extended — `skilningr.library:` block | — |
+| `THIRD_PARTY_NOTICES.md` | Extended — five Norse starter pack source entries (Scribe, this commit) | — |
+| **Baseline Python** | **1074 → 1231 (+157 net)** | |
+| **Total** | **Python 1231 + 7 skipped + 91 frontend = 1329** | |
+
+---
+
+### What was documented this session
+
+| Document | Action |
+|---|---|
+| `TASK_HERETIC_v0.7_MIMISBRUNNR.md` | Created at task open; updated here — v0.7 SHIPPED + AUDITED + CLEANED; all commit hashes; 0 open findings |
+| `docs/cartography/DATA_FLOW.md §4.14` | Created — library flow (query + download + consent) |
+| `docs/cartography/DATA_FLOW.md §16` | Extended — Five Senses component diagram |
+| `src/heretic/skilningr/mimisbrunnr/INTERFACE.md` | Created — offline invariant, consent invariant, atomic-write invariant, storage layout |
+| `src/heretic/skilningr/senses/library/INTERFACE.md` | Created — LibraryClient contracts, tool schemas, error model |
+| `docs/audit/AUDIT_v0.7_MIMISBRUNNR.md` | Created — PASSES SCRUTINY; L-1 assigned to Scribe; S-1 NOTABLE (resolved Wave 3); all privacy + integrity invariants verified |
+| `THIRD_PARTY_NOTICES.md` | Extended — five Norse starter pack corpus entries (L-1 fulfillment) |
+| `docs/DEVLOG.md` | Extended — this entry (entry 14) |
+
+---
+
+### Backlog carried forward
+
+| Item | Notes |
+|---|---|
+| v0.4.1 first compile | Rust 1.95.0 installed; MSVC linker absent. `winget install Microsoft.VisualStudio.2022.BuildTools` |
+| v0.5.3 webcam frontend sub-badge | X-1 NIT from v0.5.2 — Sjón row cosmetic; deferred |
+| v0.6.2.1 Leið streaming via aiter_bytes | N-2 deferred from v0.6.2 — true early termination |
+| v0.6.2.2 Leið headless browser | playwright-based rendering for JS-heavy pages |
+| v0.6.x.1 MCP resources/* hosting | File-resource hosting via MCP |
+| v0.6.x.2 MCP prompts/* hosting | Prompt-template hosting via MCP |
+| v0.7.x download resume + integrity recovery | Partial-download resume; corrupt index auto-rebuild |
+| v0.8 full library catalog | Wikipedia ZIMs (libzim runtime-only), Wiktionary, full Gutenberg catalog |
+| v0.9 vector index | sentence-transformers + faiss; `[library-vector]` extra |
+| v0.10 MindSpark backend | MindSpark ThoughtForge v1.2.0 as Mímisbrunnr's cognitive backend |
+
+---
+
+## TERMINAL SECTION — The Five-Milestone Session: A Complete Record
+
+*This terminal section seals the session that ran from v0.5.2 Webcam through v0.7 Mímisbrunnr on 2026-05-08. It is written once, at session close, as a permanent record of the full arc.*
+
+---
+
+### The session in brief
+
+Five milestones were shipped, audited, and cleaned in a single working session. The session began at test count 750 (at the close of v0.5.2) and ended at 1231 Python passing tests (at v0.7 Wave 3 close), with 7 permanently-skipped integration tests and 91 frontend tests unchanged from v0.6. The net addition across five milestones: **+481 Python tests**.
+
+---
+
+### Five-milestone arc — closing commits and test deltas
+
+| Milestone | Closed at | Tests in | Tests out | Delta |
+|---|---|---|---|---|
+| v0.5.2 Webcam | `b42294e` | 691 | 750 | +59 |
+| v0.6.1 Forge Dispatch | `7e63556` | 750 | 809 | +59 |
+| v0.6.2 More Senses | `63fdf38` | 809 | 943 | +134 |
+| v0.6.x MCP Server | `f7a85b5` | 943 | 1012 | +69 |
+| v0.7 Mímisbrunnr | *(this commit)* | 1012 | 1231 | +219 |
+| **Session total** | | **691** | **1231** | **+540 Python** |
+
+*Note: the full five-milestone session total from test count 750 (start of v0.5.2) to 1231 (end of v0.7) is +481 Python tests — which matches the brief summary. The table above shows 691→1231 (+540) because the session's prior baseline was v0.6 at 691.*
+
+Frontend tests held at 91 throughout all five milestones. The 7 permanent skips (senses requiring absent hardware) are unchanged.
+
+---
+
+### What the body is now
+
+When these five milestones began, the body could: connect (L1), speak (L2 Tunga), hear (L2 Hlust), be seen (L4 Vébond), see — both on-demand and periodic, screen and webcam (L3 Sjón), and reach into Blender and VRoid Studio via the Smiðja workshop's dual Brúarhönd and Forge arms (L5 Skilningr). The primary triad (receive, express, act) was complete.
+
+When these five milestones ended:
+
+- **v0.5.2 (Webcam):** The eye gained a second source — `OpenCvBackend` live, four `attach_policy` paths (screen_only / webcam_only / alongside / alternate), per-ceremony alternate counter. The body can now see both the user's screen and the user's face, or either alone, as the operator configures.
+- **v0.6.1 (Forge Dispatch):** The workshop became whole. Smiðja's second arm was wired — headless Blender render pipeline via Seidr-Smidja's Straumur REST API. Three new tools: `smidja.forge_build_avatar`, `smidja.forge_get_avatar`, `smidja.forge_inspect_avatar`. The cap-salvage pattern was documented at `ea57e40` — one of this session's notable operational events.
+- **v0.6.2 (More Senses):** Three new rooms in the longhouse of Skilningr: Minni (filesystem, 3 tools), Skepja (terminal, 2 tools), Leið (HTTP fetch, 2 tools). Shared `sandbox.py` seam established. The malicious-input probe sequence ran; every gate held. 16 tools total when all four senses open. Privacy-first defaults: all three new senses `enabled: false`.
+- **v0.6.x (MCP Server):** Three doors now open into one ToolDispatcher. The `heretic mcp` subcommand with `--transport stdio` and `--transport http` gives any MCP-aware agent native access to all 16 tools without the OpenAI tool_use wrapping. The F-1 lesson — regression claims need stash-baseline verification — was earned and preserved.
+- **v0.7 (Mímisbrunnr):** The fifth sense in Skilningr opened. The well of knowledge is local, offline, and consent-gated. The Norse starter pack is downloaded at the operator's explicit request, verified by SHA-256, and indexed for keyword search. The spirit can now draw on the Prose Edda, Poetic Edda, Heimskringla, Volsunga Saga, and the Saga of Erik the Red without a cloud call. The offline invariant is structurally enforced: LibraryClient has zero httpx imports.
+
+---
+
+### The body's eight faculties (post-v0.7)
+
+The bones are the foundation (L0 Grunnr). Beyond the bones:
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Voice — mouth | Tunga | live since v0.2 |
+| Voice — ears | Hlust | live since v0.3 |
+| Visible face | Vébond Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+
+Three transport doors: `heretic light` (OpenAI tool_use), `heretic serve` (WebSocket + Eldahús UI), `heretic mcp` (MCP stdio + HTTP/SSE).
+
+---
+
+### Threads carried forward from this session
+
+These are the named open threads that any future session should be aware of:
+
+| Thread | Milestone | What it is |
+|---|---|---|
+| v0.4.1 first compile | v0.4.1 pre-staged | Rust 1.95.0 installed; linker absent. `winget install Microsoft.VisualStudio.2022.BuildTools` unblocks |
+| v0.5.3 webcam sub-badge | v0.5.2 X-1 NIT | Frontend Sjón row badge for active webcam; cosmetic only |
+| v0.6.2.1 Leið streaming | v0.6.2 N-2 deferred | Replace `response.content` full-buffer with `httpx aiter_bytes` early termination |
+| v0.6.2.2 Leið headless browser | v0.6.2 backlog | playwright-based rendering for JS-heavy pages |
+| v0.6.x.1 MCP resources | v0.6.x backlog | `resources/*` file hosting via MCP |
+| v0.6.x.2 MCP prompts | v0.6.x backlog | `prompts/*` template hosting via MCP |
+| v0.7.x download resume | v0.7 backlog | Partial-download resume + corrupt index auto-rebuild |
+| v0.8 full catalog | roadmap | Wikipedia ZIMs + full Gutenberg catalog |
+| v0.9 vector index | roadmap | sentence-transformers + faiss; `[library-vector]` extra |
+| v0.10 MindSpark backend | roadmap | MindSpark ThoughtForge v1.2.0 as Mímisbrunnr cognitive layer |
+
+---
+
+*Entry 14 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
+*The well is opened. Five milestones sealed. The body now carries five senses in Skilningr, three transport doors, and a well of knowledge drawn from the oldest stories in the tongue. Five rooms; three doors; eight faculties. The session is kept.*

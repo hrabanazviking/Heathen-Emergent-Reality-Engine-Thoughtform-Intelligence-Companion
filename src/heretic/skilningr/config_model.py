@@ -1,5 +1,6 @@
 """
-Skilningr config model — SkilningrConfig, SmidjaConfig, and ForgeConfig.
+Skilningr config model — SkilningrConfig, SmidjaConfig, ForgeConfig,
+MinniConfig, SkepjaConfig, LeidConfig.
 
 This module owns the authoritative Python type definitions for the L5 Skilningr
 sense hub configuration and all currently-defined sense sub-configs. The pattern
@@ -20,8 +21,20 @@ ForgeConfig (v0.6.1):
     If set, ForgeHttpClient will pass it as Authorization: Bearer. If None, no
     auth header is sent — matching Straumur's H-005 localhost-only default.
 
+MinniConfig / SkepjaConfig / LeidConfig (v0.6.2):
+    Three new senses — filesystem, terminal, HTTP fetch. All default enabled=False.
+    Privacy-first: no capability is granted until the operator explicitly opts in.
+    Sandbox primitives live in heretic.skilningr.sandbox (stdlib-only).
+
+LibraryConfig (v0.7):
+    Library sense config (L5.9 Mímisbrunnr). enabled=False by default.
+    storage_path: resolved at init time via platformdirs.user_data_dir if empty.
+    sources: list of source_ids the operator permits to be downloaded. Empty
+    default = none enabled (all consent prompts will be shown for any download).
+
 Ref: TASK_HERETIC_v0.6_HANDS_AT_FORGE.md §3 (architectural decisions)
      TASK_HERETIC_v0.6.1_FORGE_DISPATCH.md §3 (Forge architectural decisions)
+     TASK_HERETIC_v0.6.2_MORE_SENSES.md §3 (sandbox invariants)
      src/seidr_smidja/brunhand/daemon/INTERFACE.md (Brúarhönd daemon API contract)
      src/seidr_smidja/bridges/straumur/api.py (Straumur REST bridge — authoritative)
 """
@@ -260,6 +273,514 @@ class SmidjaConfig:
 
 
 # ---------------------------------------------------------------------------
+# L5.1 Minni — filesystem sense config  [v0.6.2]
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MinniConfig:
+    """Configuration for the Minni sense — sandboxed local filesystem access.
+
+    Minni is the body's memory: it reads and writes files within a strict
+    sandbox. The sandbox boundary is defined by allowed_roots — an explicit
+    opt-in list. Everything outside is inaccessible regardless of OS permissions.
+
+    KEY INVARIANTS (DO NOT BREAK):
+        - enabled defaults False. The agent gains no filesystem access until
+          the operator explicitly sets enabled: true in heretic.yaml.
+        - Every path submitted to Minni is validated against allowed_roots via
+          sandbox.path_within_allowed_roots() BEFORE any I/O occurs.
+        - Symlinks are NOT followed during validation (follow_symlinks: false
+          default). This prevents symlink escape attacks.
+        - File sizes are capped at max_read_bytes / max_write_bytes to prevent
+          token-blowup and resource exhaustion.
+        - No execute permission is ever touched by Minni.
+
+    Heretic.yaml key: skilningr.minni.*
+    Ref: src/heretic/skilningr/senses/minni/INTERFACE.md
+         TASK_HERETIC_v0.6.2_MORE_SENSES.md §3 (Minni sandbox invariants)
+    """
+
+    enabled: bool = False
+    """Opt-in. Must be explicitly set to true in heretic.yaml to expose Minni
+    filesystem tools to the agent. Default false is the privacy-first safe state:
+    the agent gains no local filesystem capability until the operator consciously
+    enables it AND configures the allowed_roots list."""
+
+    allowed_roots: list[str] = field(default_factory=lambda: ["~/heretic_workspace"])
+    """List of root directories the agent may read from and write to.
+    Each entry is resolved to an absolute path by sandbox.path_within_allowed_roots().
+    The ~ home-directory shorthand is supported. Default is ~/heretic_workspace —
+    a single dedicated workspace directory.
+
+    IMPORTANT: An empty list means no filesystem access is granted regardless
+    of enabled=True. Operators MUST add at least one entry to permit any access.
+
+    Example:
+        allowed_roots:
+          - ~/heretic_workspace
+          - /data/agent_output
+    """
+
+    max_read_bytes: int = 1_048_576  # 1 MB
+    """Maximum bytes to read from a single file. Files larger than this are
+    rejected with a MinniFileTooLargeError — no partial read is attempted.
+    Default: 1 MiB. Increase for specific workflows that require larger files,
+    but be aware that very large reads consume significant agent context window.
+    Must be > 0."""
+
+    max_write_bytes: int = 1_048_576  # 1 MB
+    """Maximum bytes the agent may write in a single write_file call.
+    Content exceeding this limit is rejected before any file is created or
+    overwritten. Default: 1 MiB. Must be > 0."""
+
+    follow_symlinks: bool = False
+    """Whether to follow symlinks when resolving paths during I/O operations.
+    Default false (privacy-first): a symlink that points outside allowed_roots
+    is treated as a sandbox violation even if the symlink itself is inside.
+    Set to true only if your workspace uses symlinks intentionally and you
+    accept the risk that a symlink could point outside the sandbox boundary."""
+
+    def __post_init__(self) -> None:
+        """Validate config fields at construction time.
+
+        Raises:
+            ValueError: if max_read_bytes or max_write_bytes are <= 0.
+        """
+        if self.max_read_bytes <= 0:
+            raise ValueError(
+                f"MinniConfig.max_read_bytes must be > 0, got {self.max_read_bytes!r}."
+            )
+        if self.max_write_bytes <= 0:
+            raise ValueError(
+                f"MinniConfig.max_write_bytes must be > 0, got {self.max_write_bytes!r}."
+            )
+
+
+# ---------------------------------------------------------------------------
+# L5.2 Skepja — terminal sense config  [v0.6.2]
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SkepjaConfig:
+    """Configuration for the Skepja sense — sandboxed shell command execution.
+
+    Skepja is the body's shaping hand: it runs commands in a controlled
+    environment. The command_allowlist is the gate — no executable may run
+    unless the operator explicitly permits it. An empty allowlist permits nothing.
+
+    KEY INVARIANTS (DO NOT BREAK):
+        - enabled defaults False. The agent gains no terminal capability until
+          the operator explicitly enables it.
+        - command_allowlist defaults [] (empty). No command runs until the
+          operator adds entries. This is the safest possible default.
+        - All commands are executed with subprocess.run(shell=False).
+          The client splits the command via shlex.split — this function validates
+          here, but shell=False enforcement lives in client.py.
+        - The subprocess does NOT inherit HERETIC's environment unless
+          inherit_env: true (default false). This prevents credential leakage.
+        - Output is capped at max_output_bytes to prevent token-blowup.
+        - Each run_command invocation starts a fresh subprocess — there is no
+          persistent shell session (stateless by design in v0.6.2).
+
+    Heretic.yaml key: skilningr.skepja.*
+    Ref: src/heretic/skilningr/senses/skepja/INTERFACE.md
+         TASK_HERETIC_v0.6.2_MORE_SENSES.md §3 (Skepja sandbox invariants)
+    """
+
+    enabled: bool = False
+    """Opt-in. Must be explicitly set to true in heretic.yaml. Default false."""
+
+    command_allowlist: list[str] = field(default_factory=list)
+    """Explicit list of permitted executable names or full command patterns.
+    Default: [] (empty) — nothing can run. The operator must add entries.
+
+    Each entry may be:
+        - A bare executable name: "git"  (permits any git <subcommand>)
+        - A full pattern: "git status"   (permits only this exact invocation)
+
+    The sandbox.command_in_allowlist() function checks the first token of the
+    parsed command against this list. Case-sensitive on all platforms.
+
+    Example:
+        command_allowlist:
+          - git
+          - python
+          - pytest
+    """
+
+    working_directory: str = "~/heretic_workspace"
+    """Directory in which all commands are executed. The agent cannot change
+    this directory — it is fixed for all Skepja invocations.
+    Default: ~/heretic_workspace. The ~ home-directory shorthand is supported.
+    Must be an existing directory when a command is first run."""
+
+    timeout_seconds: int = 60
+    """Maximum wall-clock seconds a subprocess may run before being terminated.
+    Default: 60. Increase for long-running build tasks. Must be > 0."""
+
+    inherit_env: bool = False
+    """Whether the subprocess inherits HERETIC's environment variables.
+    Default false — the subprocess starts with a minimal environment, preventing
+    accidental exposure of API keys, tokens, or other credentials present in
+    HERETIC's environment. Set to true only when the command requires specific
+    environment variables that cannot be set by other means."""
+
+    max_output_bytes: int = 65_536  # 64 KB
+    """Maximum bytes to capture from stdout and stderr combined.
+    Output beyond this limit is truncated. Default: 64 KiB. Must be > 0."""
+
+    def __post_init__(self) -> None:
+        """Validate config fields at construction time.
+
+        Raises:
+            ValueError: if timeout_seconds or max_output_bytes are <= 0.
+        """
+        if self.timeout_seconds <= 0:
+            raise ValueError(
+                f"SkepjaConfig.timeout_seconds must be > 0, got {self.timeout_seconds!r}."
+            )
+        if self.max_output_bytes <= 0:
+            raise ValueError(
+                f"SkepjaConfig.max_output_bytes must be > 0, got {self.max_output_bytes!r}."
+            )
+
+
+# ---------------------------------------------------------------------------
+# L5.3 Leið — HTTP fetch sense config  [v0.6.2]
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LeidConfig:
+    """Configuration for the Leið sense — sandboxed HTTP fetch and text extraction.
+
+    Leið is the body's path outward: it fetches pages from the web within an
+    explicit URL allowlist. No URL is accessible unless the operator adds a
+    matching pattern. An empty allowlist fetches nothing.
+
+    KEY INVARIANTS (DO NOT BREAK):
+        - enabled defaults False. The agent gains no outbound HTTP capability
+          until the operator explicitly enables it.
+        - url_allowlist_patterns defaults [] (empty). No URL is fetchable until
+          the operator adds patterns. A "*" wildcard pattern enables unrestricted
+          fetch — this is logged as a warning at ceremony start.
+        - HTTPS only by default (allow_http: false). HTTP URLs are rejected with
+          a sandbox error unless allow_http: true is explicitly set.
+        - Cookies are never stored, sent, or accepted (stateless by design).
+        - No JavaScript execution — httpx only; playwright = v0.6.2.1+.
+        - Response size is capped at max_response_bytes to prevent token-blowup.
+        - Redirects are followed up to max_redirects (default 5); beyond that
+          the request is aborted.
+
+    Heretic.yaml key: skilningr.leid.*
+    Ref: src/heretic/skilningr/senses/leid/INTERFACE.md
+         TASK_HERETIC_v0.6.2_MORE_SENSES.md §3 (Leið sandbox invariants)
+    """
+
+    enabled: bool = False
+    """Opt-in. Must be explicitly set to true in heretic.yaml. Default false."""
+
+    url_allowlist_patterns: list[str] = field(default_factory=list)
+    """Explicit list of URL patterns the agent may fetch. Default: [] (empty).
+    No URL is fetchable until the operator adds at least one pattern.
+
+    Pattern forms:
+        "*"                        — unrestricted wildcard (allow all URLs)
+                                     WARNING: a "*" pattern is logged as a
+                                     security warning at ceremony start.
+        "https://docs.python.org/*" — prefix wildcard (any path under this host)
+        "https://example.com/page"  — exact URL match
+
+    fnmatch semantics are used: "*" matches any sequence of characters.
+    Scheme comparison is case-insensitive; host comparison is lowercase-normalised.
+
+    Example:
+        url_allowlist_patterns:
+          - "https://docs.python.org/*"
+          - "https://en.wikipedia.org/*"
+    """
+
+    timeout_seconds: int = 30
+    """Maximum wall-clock seconds for the full HTTP request (connect + read).
+    Default: 30. Must be > 0."""
+
+    max_redirects: int = 5
+    """Maximum number of HTTP redirects to follow before aborting.
+    Default: 5. Must be >= 0 (0 = no redirects followed)."""
+
+    max_response_bytes: int = 1_048_576  # 1 MB
+    """Maximum bytes to read from an HTTP response body. Responses larger
+    than this limit are truncated. Default: 1 MiB. Must be > 0."""
+
+    user_agent: str = "HERETIC/0.6.2 (heretic-summoning-circle)"
+    """User-Agent header sent with all Leið requests. Must be a non-empty string.
+    Identifies the HERETIC agent to remote servers. Do not set to an empty string."""
+
+    allow_http: bool = False
+    """Whether HTTP (non-TLS) URLs are permitted. Default false — HTTPS only.
+    Setting this to true allows fetching http:// URLs that match the allowlist.
+    HTTP URLs are logged as warnings even when allow_http is true, because they
+    expose request/response content without encryption.
+    NEVER set allow_http: true in production unless HTTP is unavoidable."""
+
+    def __post_init__(self) -> None:
+        """Validate config fields at construction time.
+
+        Raises:
+            ValueError: if timeout_seconds or max_response_bytes are <= 0,
+                        max_redirects < 0, or user_agent is empty.
+
+        Warns (but does not raise) if url_allowlist_patterns contains "*"
+        (unrestricted wildcard) while enabled is True.
+        """
+        if self.timeout_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.timeout_seconds must be > 0, got {self.timeout_seconds!r}."
+            )
+        if self.max_redirects < 0:
+            raise ValueError(
+                f"LeidConfig.max_redirects must be >= 0, got {self.max_redirects!r}."
+            )
+        if self.max_response_bytes <= 0:
+            raise ValueError(
+                f"LeidConfig.max_response_bytes must be > 0, got {self.max_response_bytes!r}."
+            )
+        if not self.user_agent or not self.user_agent.strip():
+            raise ValueError(
+                "LeidConfig.user_agent must be a non-empty string. "
+                f"Got {self.user_agent!r}."
+            )
+        # Warn on unrestricted wildcard
+        if self.enabled and "*" in self.url_allowlist_patterns:
+            warnings.warn(
+                "LeidConfig: url_allowlist_patterns contains '*' — ALL URLs are "
+                "fetchable. This disables the URL sandbox entirely. "
+                "Remove '*' and add specific patterns unless unrestricted fetch "
+                "is intentional.",
+                stacklevel=2,
+            )
+
+
+# ---------------------------------------------------------------------------
+# L5.0 MCP Server config  [v0.6.x]
+# ---------------------------------------------------------------------------
+
+@dataclass
+class McpServerConfig:
+    """Configuration for HERETIC's MCP server transport.
+
+    When enabled, McpServer opens an MCP-protocol transport alongside (or instead
+    of) the OpenAI tool_call path.  MCP-compatible agents — Claude Desktop,
+    Continue, future OpenClaw with an MCP client — can connect directly to
+    HERETIC without requiring an OpenAI-compatible intermediary.
+
+    The same tools, the same dispatcher, the same sandboxes, and the same auth
+    invariants apply regardless of which transport the agent uses.
+
+    Transport options
+    -----------------
+    stdio   — The process communicates over stdin/stdout.  The MCP client
+              (e.g. Claude Desktop) launches HERETIC as a subprocess.  No bind
+              address or port is needed.  Auth is implicit (process ownership).
+
+    http    — HERETIC launches a Starlette/uvicorn HTTP server at host:port.
+              Non-loopback bind addresses require allow_remote_bind==True.
+              Auth for remote binds is a Forge responsibility (middleware).
+
+    KEY INVARIANTS (DO NOT BREAK):
+        - enabled defaults False.  The MCP transport is not opened until the
+          operator explicitly opts in.
+        - Non-loopback host requires allow_remote_bind==True (mirrors Vébond and
+          Brúarhönd patterns throughout HERETIC).  __post_init__ enforces this.
+        - port must be in valid range 1–65535.
+        - transport must be "stdio" or "http".
+        - request_timeout_seconds must be > 0.
+
+    Heretic.yaml key: skilningr.mcp_server.*
+    Ref: src/heretic/skilningr/mcp_server.py
+         src/heretic/skilningr/INTERFACE.md §MCP Server
+         docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
+    """
+
+    enabled: bool = False
+    """Opt-in.  Must be explicitly set to true to open an MCP transport.
+    Default false: HERETIC does not expose an MCP surface until the operator
+    consciously enables it.  This is consistent with all other HERETIC sense
+    and transport opt-ins."""
+
+    transport: str = "stdio"
+    """Which MCP transport to open.  Must be "stdio" or "http".
+    Default "stdio": the safest and most portable choice.  Claude Desktop, for
+    example, launches HERETIC as an stdio MCP server subprocess.
+    Use "http" when remote agents (on other machines or containers) need to
+    connect to HERETIC's MCP surface over the network."""
+
+    host: str = "127.0.0.1"
+    """Bind address for the HTTP transport.  Ignored when transport="stdio".
+    Default 127.0.0.1 (loopback only — safe).  For cross-machine use, set to a
+    Tailscale IP or MagicDNS name.
+    INVARIANT: non-loopback host requires allow_remote_bind==True."""
+
+    port: int = 8643
+    """TCP port for the HTTP transport.  Ignored when transport="stdio".
+    Default 8643 — matches the Hermes endpoint port in heretic.example.yaml for
+    conceptual consistency.  Must be in valid range 1–65535.
+    IMPORTANT: ensure this port does not conflict with other HERETIC services
+    (Vébond WebSocket defaults to 8642)."""
+
+    allow_remote_bind: bool = False
+    """Whether to allow the HTTP transport to bind to a non-loopback address.
+    Default False.  When False, __post_init__ rejects any host other than
+    127.0.0.1 with a ValueError — protecting operators from accidentally
+    exposing the MCP surface to the network without consciously opting in.
+    Set to True only when you intend cross-machine MCP agent connections AND
+    you have configured appropriate authentication (bearer token middleware).
+    Ref: Vébond allow_remote_bind pattern (same invariant across all HERETIC
+    transports)."""
+
+    request_timeout_seconds: int = 60
+    """Per-request timeout in seconds applied by the MCP server to tool call
+    execution.  Default 60.  Increase for senses with slow operations (e.g.
+    Forge/Blender builds).  Must be > 0."""
+
+    def __post_init__(self) -> None:
+        """Validate config fields at construction time.
+
+        Raises:
+            ValueError: if transport is not "stdio" or "http";
+                        if port is out of range 1–65535;
+                        if request_timeout_seconds <= 0;
+                        if host is not 127.0.0.1 and allow_remote_bind is False
+                        (remote bind safety gate — mirrors Vébond/Brúarhönd pattern).
+        """
+        _valid_transports = {"stdio", "http"}
+        if self.transport not in _valid_transports:
+            raise ValueError(
+                f"McpServerConfig.transport {self.transport!r} is not valid. "
+                f"Must be one of {sorted(_valid_transports)}."
+            )
+        if not (1 <= self.port <= 65535):
+            raise ValueError(
+                f"McpServerConfig.port {self.port!r} is out of valid range 1–65535."
+            )
+        if self.request_timeout_seconds <= 0:
+            raise ValueError(
+                f"McpServerConfig.request_timeout_seconds must be > 0, "
+                f"got {self.request_timeout_seconds!r}."
+            )
+        # Remote bind safety gate — identical pattern to Vébond ws_host validation.
+        # F-3: include "::1" (IPv6 loopback) in the loopback set to match the
+        # identical set used by _start_http at runtime.  Without this, an operator
+        # who sets host: "::1" is incorrectly required to also set allow_remote_bind,
+        # creating an asymmetry between construction-time and runtime checks.
+        _loopback_hosts = {"127.0.0.1", "localhost", "::1"}
+        if self.transport == "http" and self.host not in _loopback_hosts:
+            if not self.allow_remote_bind:
+                raise ValueError(
+                    f"McpServerConfig: host {self.host!r} is not loopback but "
+                    f"allow_remote_bind is False. "
+                    f"Set mcp_server.allow_remote_bind: true in heretic.yaml to "
+                    f"permit binding to non-loopback addresses. "
+                    f"Ensure you have also configured authentication middleware "
+                    f"before enabling remote MCP access."
+                )
+
+
+# ---------------------------------------------------------------------------
+# L5.9 Mímisbrunnr — Library sense config  [v0.7]
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LibraryConfig:
+    """Configuration for the Library sense — Mímisbrunnr text corpus access.
+
+    The Library sense gives the agent access to the Norse starter-pack
+    corpus (five public-domain texts downloaded from Project Gutenberg)
+    via a lightweight keyword-search index. It also supports operator-
+    curated file libraries and optional MindSpark integration.
+
+    KEY INVARIANTS (DO NOT BREAK):
+        - enabled defaults False. The agent gains no corpus access until
+          the operator explicitly sets enabled: true in heretic.yaml.
+        - storage_path defaults to "" (empty). When empty, the Library
+          sense resolves it at init time via platformdirs.user_data_dir
+          ("heretic/library/mimisbrunnr") — Forge implements this.
+        - sources defaults to [] (empty list) — no sources are downloaded
+          automatically. The operator must add source_ids to this list
+          to pre-approve downloads, OR the agent can trigger consent
+          prompts at runtime.
+        - max_results caps the number of hits returned per library.search
+          tool call. Default 20.
+        - autoindex_on_open: if True, the Library sense rebuilds the
+          keyword index at sense.open() time if the index is stale.
+
+    Heretic.yaml key: skilningr.library.*
+    Ref: src/heretic/skilningr/senses/library/INTERFACE.md
+         src/heretic/skilningr/mimisbrunnr/INTERFACE.md
+         TASK_HERETIC_v0.7_MIMISBRUNNR.md §Config
+    """
+
+    enabled: bool = False
+    """Opt-in. Must be explicitly set to true in heretic.yaml to expose
+    Library tools to the agent. Default false is the privacy-first safe
+    state: the agent gains no corpus access until the operator enables it."""
+
+    storage_path: str = ""
+    """Absolute or ~ path to the Mímisbrunnr data directory.
+    When empty (default), the Library sense resolves the path at init
+    time using platformdirs.user_data_dir("heretic") / "library" /
+    "mimisbrunnr". Forge implements this resolution.
+
+    If set explicitly, the operator's path is used verbatim (after ~
+    expansion). The directory is created at sense.open() time if it
+    does not exist.
+
+    Never hardcode an absolute path in heretic.yaml for portability —
+    prefer the empty-string default which uses platformdirs."""
+
+    max_results: int = 20
+    """Maximum number of search results returned per library.search call.
+    Default 20. Must be > 0. Increase for workflows that need broad
+    coverage; decrease to keep agent context usage low."""
+
+    autoindex_on_open: bool = True
+    """If True, the Library sense calls KeywordIndex.build() at
+    sense.open() time whenever the index file is absent or older than
+    any source file. Default True — keeps the index fresh automatically.
+    Set to False to disable automatic rebuilds (useful in production
+    where the index is pre-built and should not be rebuilt on startup)."""
+
+    sources: list[str] = field(default_factory=list)
+    """List of source_ids the operator pre-approves for download.
+    Each entry must be a valid id from NORSE_STARTER_PACK.source_ids.
+    Default [] (empty) — no sources are pre-approved; consent prompts
+    will appear at runtime for any download.
+
+    To pre-approve all five starter-pack sources:
+        sources:
+          - prose_edda_brodeur
+          - poetic_edda_bellows
+          - heimskringla_laing
+          - volsunga_saga_morris
+          - erik_red_saga
+
+    Sources not in this list will require interactive consent unless
+    the sense is invoked from a non-interactive context, in which case
+    the download is skipped and the agent receives a structured error."""
+
+    def __post_init__(self) -> None:
+        """Validate config fields at construction time.
+
+        Raises:
+            ValueError: if max_results <= 0.
+        """
+        if self.max_results <= 0:
+            raise ValueError(
+                f"LibraryConfig.max_results must be > 0, "
+                f"got {self.max_results!r}."
+            )
+
+
+# ---------------------------------------------------------------------------
 # L5 Skilningr root config
 # ---------------------------------------------------------------------------
 
@@ -294,18 +815,32 @@ class SkilningrConfig:
     See src/heretic/skilningr/senses/smidja/INTERFACE.md for the full contract."""
 
     # -----------------------------------------------------------------------
-    # Future sense stubs — Forge expands each in its own milestone.
-    # All kept as generic dict stubs until their config_model submodules exist.
+    # v0.6.2 — three concrete sense configs (Minni, Skepja, Leið)
+    # The prior dict stubs are replaced with typed dataclasses.
+    # All default enabled=False (privacy-first).
     # -----------------------------------------------------------------------
 
-    filesystem: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
-    """L5.1 Minni — FileSystem sense stub. Forge expands in v0.7+."""
+    minni: MinniConfig = field(default_factory=MinniConfig)
+    """L5.1 Minni — filesystem sense (sandboxed read/write).
+    The body's memory. Exposes 3 tools: minni.read_file, minni.write_file,
+    minni.list_directory. All paths validated against allowed_roots.
+    Ref: src/heretic/skilningr/senses/minni/INTERFACE.md"""
 
-    terminal: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
-    """L5.2 Skepja — Terminal sense stub. Forge expands in v0.7+."""
+    skepja: SkepjaConfig = field(default_factory=SkepjaConfig)
+    """L5.2 Skepja — terminal sense (allowlisted shell commands).
+    The body's shaping hand. Exposes 2 tools: skepja.run_command,
+    skepja.get_working_directory. command_allowlist defaults empty.
+    Ref: src/heretic/skilningr/senses/skepja/INTERFACE.md"""
 
-    browser: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
-    """L5.3 Leið — Browser sense stub. Forge expands in v0.7+."""
+    leid: LeidConfig = field(default_factory=LeidConfig)
+    """L5.3 Leið — HTTP fetch sense (URL-allowlisted outbound fetch).
+    The body's road. Exposes 2 tools: leid.fetch_url, leid.extract_text.
+    url_allowlist_patterns defaults empty; HTTPS-only by default.
+    Ref: src/heretic/skilningr/senses/leid/INTERFACE.md"""
+
+    # -----------------------------------------------------------------------
+    # Future sense stubs — Forge expands each in its own milestone.
+    # -----------------------------------------------------------------------
 
     photopea: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
     """L5.4 Hönd — Photopea sense stub. Forge expands in v0.7+."""
@@ -314,7 +849,27 @@ class SkilningrConfig:
     """L5.6 Líkami — VRChat sense stub. Forge expands in v0.7+."""
 
     agentmail: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
-    """L5.7 Boð — AgentMail sense stub. Forge expands in v0.7+."""
+    """L5.7 Boð — AgentMail sense stub. Forge expands in v0.8+."""
 
-    library: dict[str, Any] = field(default_factory=lambda: {"enabled": False})
-    """L5.9 Mímisbrunnr — Library sense stub. Forge expands in v0.7+."""
+    library: "LibraryConfig" = field(default_factory=lambda: LibraryConfig())
+    """L5.9 Mímisbrunnr — Library (wisdom well) sense.
+    The body's access to the Norse starter-pack text corpus.
+    Exposes 3 tools: library.search, library.get_text, library.list_sources.
+    enabled defaults False; storage_path resolved at init if empty.
+    Ref: src/heretic/skilningr/senses/library/INTERFACE.md"""
+
+    mcp_server: "McpServerConfig" = field(default_factory=lambda: McpServerConfig())
+    """v0.6.x — MCP server configuration.
+
+    When enabled, HERETIC opens an MCP transport (stdio or http) so that
+    MCP-compatible agents (Claude Desktop, Continue, future OpenClaw with MCP
+    client) can connect directly and call HERETIC's tools.
+
+    The same 16+ tools exposed via OpenAI tool_use are also exposed here.
+    Same dispatcher.  Same sandboxes.  Same auth invariants.
+
+    Heretic.yaml key: skilningr.mcp_server.*
+    Ref: src/heretic/skilningr/mcp_server.py
+         docs/architecture/AGENT_AGNOSTIC_PROTOCOL.md §v0.6.x MCP transport addendum
+         src/heretic/skilningr/INTERFACE.md §MCP Server
+    """

@@ -37,8 +37,6 @@ API DISCREPANCIES vs TASK §4 (documented for the record):
     4. Straumur has NO bearer-token auth layer at the HTTP level (localhost H-005).
     5. Default port confirmed: 8765 (matches TASK §4 and api.py __main__).
 
-All methods raise NotImplementedError stubs. Forge implements in Wave 2.
-
 Ref: src/seidr_smidja/bridges/straumur/api.py (AUTHORITATIVE endpoint contracts)
      src/heretic/skilningr/senses/smidja/INTERFACE.md §Forge dispatch
      src/heretic/skilningr/config_model.ForgeConfig
@@ -53,6 +51,7 @@ from typing import Any
 from heretic.skilningr.config_model import ForgeConfig
 from heretic.skilningr.senses.smidja.errors import (
     ForgeError,
+    ForgeServerError,
     ForgeTimeoutError,
     ForgeUnreachableError,
     ForgeValidationError,
@@ -69,6 +68,12 @@ except ImportError as _httpx_missing:
 
 logger = logging.getLogger(__name__)
 
+# Hint injected into ForgeTimeoutError so the agent knows what to tell the operator
+_TIMEOUT_HINT = (
+    "Increase request_timeout_seconds in ForgeConfig for complex Loom specs. "
+    "Standard builds take 60–120 s; high-poly or multi-view builds may exceed 120 s."
+)
+
 
 class ForgeHttpClient:
     """Async HTTP client for the Seidr-Smidja Straumur REST bridge.
@@ -83,7 +88,7 @@ class ForgeHttpClient:
         result = await client.build_avatar(spec)    # ... call methods ...
         await client.close()                        # release httpx client
 
-    All methods are async. Methods raise NotImplementedError stubs — Forge implements.
+    All methods are async.
 
     AUTH INVARIANT:
         If config.token_env is set, the token is resolved from os.environ ONCE at
@@ -120,8 +125,11 @@ class ForgeHttpClient:
         # Base URL comes from config — never an absolute filesystem path
         self._base_url: str = config.endpoint.rstrip("/")
 
-        # httpx.AsyncClient is built lazily in open()
+        # httpx.AsyncClient is built in open(); None until then
         self._http: "httpx.AsyncClient | None" = None
+
+        # Track whether open() has been called and succeeded
+        self._is_open: bool = False
 
     def __repr__(self) -> str:
         """Safe repr — NEVER includes the token value."""
@@ -146,26 +154,132 @@ class ForgeHttpClient:
             ForgeUnreachableError: if the health probe fails (connection refused,
                 DNS failure, or non-200 response).
             ForgeTimeoutError: if the health probe times out.
-
-        Forge implements.
         """
-        raise NotImplementedError(
-            "ForgeHttpClient.open() — Forge implements in v0.6.1 Wave 2. "
-            "Expected behaviour: build httpx.AsyncClient, probe GET /v1/health, "
-            "raise ForgeUnreachableError on failure."
+        # Build headers — only inject Authorization when a token is present
+        headers: dict[str, str] = {}
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+
+        self._http = httpx.AsyncClient(
+            base_url=self._base_url,
+            headers=headers,
+            timeout=httpx.Timeout(float(self._config.request_timeout_seconds)),
+        )
+
+        # Probe /v1/health — raises on failure so callers know immediately
+        try:
+            health = await self.health()
+        except (ForgeUnreachableError, ForgeTimeoutError):
+            raise
+        except Exception as exc:
+            raise ForgeUnreachableError(
+                f"Health probe failed for Straumur at {self._base_url}: {exc}"
+            ) from exc
+
+        status = health.get("status", "")
+        if status != "ok":
+            raise ForgeUnreachableError(
+                f"Straumur at {self._base_url} returned health status {status!r} "
+                f"(expected 'ok')."
+            )
+
+        self._is_open = True
+        self._log.info(
+            "Straumur (Forge) reachable at %s — version %s",
+            self._base_url,
+            health.get("version", "unknown"),
         )
 
     async def close(self) -> None:
         """Close the httpx AsyncClient and release resources.
 
         Idempotent — safe to call multiple times. Called from SmidjaSense.close().
-
-        Forge implements.
         """
-        raise NotImplementedError(
-            "ForgeHttpClient.close() — Forge implements in v0.6.1 Wave 2. "
-            "Expected behaviour: aclose() the httpx client; set self._http = None."
-        )
+        self._is_open = False
+        if self._http is not None:
+            try:
+                await self._http.aclose()
+            except Exception as exc:
+                self._log.warning("Error while closing Forge httpx client: %s", exc)
+            finally:
+                self._http = None
+
+    # ------------------------------------------------------------------
+    # Internal HTTP helpers
+    # ------------------------------------------------------------------
+
+    def _assert_open(self) -> None:
+        """Raise ForgeUnreachableError if the client has not been opened."""
+        if self._http is None:
+            raise ForgeUnreachableError(
+                "ForgeHttpClient is not open — call open() before making requests."
+            )
+
+    async def _get(self, path: str, params: dict | None = None) -> dict | list:
+        """Perform a GET request with unified error mapping.
+
+        Args:
+            path: URL path relative to base_url (e.g. "/v1/health").
+            params: Optional query parameters dict.
+
+        Returns:
+            Parsed JSON response (dict or list depending on endpoint).
+
+        Raises:
+            ForgeUnreachableError: on connection failure.
+            ForgeTimeoutError: on timeout.
+            ForgeValidationError: on HTTP 4xx.
+            ForgeServerError: on HTTP 5xx.
+        """
+        assert self._http is not None  # _assert_open() already checked
+        try:
+            response = await self._http.get(path, params=params)
+        except httpx.ConnectError as exc:
+            raise ForgeUnreachableError(
+                f"Cannot connect to Straumur at {self._base_url}{path}: {exc}"
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise ForgeTimeoutError(
+                f"Request to Straumur timed out ({path}): {exc}. hint: {_TIMEOUT_HINT}"
+            ) from exc
+        except Exception as exc:
+            raise ForgeUnreachableError(
+                f"Unexpected error from Straumur GET {path}: {exc}"
+            ) from exc
+        return _handle_response(response, path)
+
+    async def _post(self, path: str, body: dict) -> dict | list:
+        """Perform a POST request with unified error mapping.
+
+        Args:
+            path: URL path relative to base_url.
+            body: Request body as a Python dict (serialised to JSON automatically).
+
+        Returns:
+            Parsed JSON response.
+
+        Raises:
+            ForgeUnreachableError: on connection failure.
+            ForgeTimeoutError: on timeout.
+            ForgeValidationError: on HTTP 4xx.
+            ForgeServerError: on HTTP 5xx.
+        """
+        assert self._http is not None
+        try:
+            response = await self._http.post(path, json=body)
+        except httpx.ConnectError as exc:
+            raise ForgeUnreachableError(
+                f"Cannot connect to Straumur at {self._base_url}{path}: {exc}"
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise ForgeTimeoutError(
+                f"Request to Straumur timed out ({path}): {exc}. hint: {_TIMEOUT_HINT}"
+            ) from exc
+        except Exception as exc:
+            raise ForgeUnreachableError(
+                f"Unexpected error from Straumur POST {path}: {exc}"
+            ) from exc
+        return _handle_response(response, path)
 
     # ------------------------------------------------------------------
     # Utility endpoints
@@ -183,13 +297,11 @@ class ForgeHttpClient:
         Raises:
             ForgeUnreachableError: on connection failure.
             ForgeTimeoutError: on timeout.
-
-        Forge implements.
         """
-        raise NotImplementedError(
-            "ForgeHttpClient.health() — Forge implements in v0.6.1 Wave 2. "
-            "Path: GET /v1/health. No auth. Returns JSON with status + version."
-        )
+        self._assert_open()
+        result = await self._get("/v1/health")
+        assert isinstance(result, dict)
+        return result
 
     # ------------------------------------------------------------------
     # Tool endpoints
@@ -200,11 +312,11 @@ class ForgeHttpClient:
 
         Request body (BuildRequestBody in api.py):
             {
-                "spec": <loom_spec dict>,    -- the full Loom spec JSON
-                "output_dir": null,          -- null = Straumur default output/
-                "render_views": null,        -- null = no render; list of view names for renders
-                "compliance_targets": null,  -- null = default Gate targets
-                "session_metadata": {}       -- arbitrary agent-side metadata
+                "spec": <loom_spec dict>,
+                "output_dir": null,
+                "render_views": null,
+                "compliance_targets": null,
+                "session_metadata": {}
             }
 
         Response shape (on success — HTTP 200):
@@ -214,20 +326,14 @@ class ForgeHttpClient:
                 "vrm_path": "<absolute path on Straumur host or null>",
                 "render_paths": {"<view_name>": "<path>", ...},
                 "compliance_passed": true | false | null,
-                "session_id": "<uuid4>",           -- use this for get_avatar()
+                "session_id": "<uuid4>",
                 "elapsed_seconds": 42.1,
-                "errors": []                       -- list of {stage, message} on failure
+                "errors": []
             }
-
-        Response shape (on failure — HTTP 422):
-            Same shape, success=false, errors=[{stage, message}, ...]
-
-        NOTE: The session_id in the response is the Annáll session identifier.
-        Pass it to get_avatar(session_id) to retrieve the full session record.
 
         Args:
             loom_spec: Full Loom spec as a Python dict. Must include at minimum
-                       "base_asset_id" (str). Other fields per Loom domain schema.
+                       "base_asset_id" (str).
 
         Returns:
             dict matching the response shape above.
@@ -236,20 +342,24 @@ class ForgeHttpClient:
             ForgeUnreachableError: on connection failure.
             ForgeTimeoutError: on timeout (default 120 s — builds are slow).
             ForgeValidationError: on HTTP 422 (server-side schema rejection).
-
-        Forge implements.
         """
-        raise NotImplementedError(
-            "ForgeHttpClient.build_avatar() — Forge implements in v0.6.1 Wave 2. "
-            "Path: POST /v1/avatars. Body: BuildRequestBody. Returns build result dict."
-        )
+        self._assert_open()
+        body: dict[str, Any] = {
+            "spec": loom_spec,
+            "output_dir": None,
+            "render_views": None,
+            "compliance_targets": None,
+            "session_metadata": {},
+        }
+        result = await self._post("/v1/avatars", body)
+        assert isinstance(result, dict)
+        return result
 
     async def get_avatar(self, session_id: str) -> dict:
         """GET /v1/avatars/{session_id} — retrieve the Annáll session record for a build.
 
         IMPORTANT: The {id} in the path is the session_id from the POST /v1/avatars
-        response (the Annáll session UUID), NOT an avatar asset ID. This retrieves
-        the full audit/event record for a prior build session.
+        response (the Annáll session UUID), NOT an avatar asset ID.
 
         Response shape (HTTP 200):
             {
@@ -260,21 +370,12 @@ class ForgeHttpClient:
                 "ended_at": "<ISO datetime or null>",
                 "success": true | false,
                 "summary": "<human-readable summary string>",
-                "events": [
-                    {
-                        "event_type": "<str>",
-                        "severity": "<str>",
-                        "payload": {...},
-                        "timestamp": "<ISO datetime>"
-                    },
-                    ...
-                ]
+                "events": [...]
             }
 
-        Raises HTTP 404 (via HTTPException) if the session_id is not found in Annáll.
-
         Args:
-            session_id: The Annáll session UUID returned by build_avatar() response["session_id"].
+            session_id: The Annáll session UUID returned by build_avatar()
+                        response["session_id"].
 
         Returns:
             dict matching the session record shape above.
@@ -283,74 +384,51 @@ class ForgeHttpClient:
             ForgeUnreachableError: on connection failure.
             ForgeTimeoutError: on timeout.
             ForgeValidationError: on HTTP 404 (session_id not found).
-
-        Forge implements.
         """
-        raise NotImplementedError(
-            "ForgeHttpClient.get_avatar() — Forge implements in v0.6.1 Wave 2. "
-            "Path: GET /v1/avatars/{session_id}. Returns Annáll session record dict."
-        )
+        self._assert_open()
+        result = await self._get(f"/v1/avatars/{session_id}")
+        assert isinstance(result, dict)
+        return result
 
-    async def inspect_avatar(self, vrm_path: str, targets: list[str] | None = None) -> dict:
+    async def inspect_avatar(
+        self,
+        vrm_path: str,
+        targets: list[str] | None = None,
+    ) -> dict:
         """POST /v1/inspect — run Gate compliance check on a .vrm file.
 
         IMPORTANT: The request body is NOT an avatar_id. It is the SERVER-SIDE
         path to a .vrm file that Straumur can access. The path must:
             - End in .vrm (case-insensitive) — H-004 check
-            - Be within Straumur's allow-listed directories:
-                  <project_root>/output/
-                  <project_root>/data/hoard/bases/
-              (or operator-configured straumur.inspect_roots in seidr-smidja config)
-        Paths outside the allow-list receive HTTP 400 "vrm_path_not_allowed".
+            - Be within Straumur's allow-listed directories
 
         Request body (InspectRequestBody in api.py):
             {
-                "vrm_path": "<server-side absolute or relative path to .vrm>",
-                "targets": ["vrchat", "vtuber"] | null   -- null = all targets
-            }
-
-        Response shape (HTTP 200):
-            {
-                "passed": true | false,
-                "vrm_path": "<path echoed>",
-                "targets_checked": ["vrchat", ...],
-                "elapsed_seconds": 1.2,
-                "results": {
-                    "<target_name>": {
-                        "passed": true | false,
-                        "violations": [
-                            {
-                                "rule_id": "<str>",
-                                "severity": "error" | "warning" | "info",
-                                "description": "<human-readable>"
-                            },
-                            ...
-                        ]
-                    },
-                    ...
-                }
+                "vrm_path": "<server-side path to .vrm>",
+                "targets": ["vrchat", "vtuber"] | null
             }
 
         Args:
-            vrm_path: Server-side path to the .vrm file. Must be within
-                      Straumur's allow-listed output or hoard directories.
+            vrm_path: Server-side path to the .vrm file.
             targets: Optional list of Gate target names to check against.
                      None = all configured targets.
 
         Returns:
-            dict matching the compliance report shape above.
+            dict with passed, vrm_path, targets_checked, elapsed_seconds, results.
 
         Raises:
             ForgeUnreachableError: on connection failure.
             ForgeTimeoutError: on timeout.
             ForgeValidationError: on HTTP 400 (invalid path or extension).
-
-        Forge implements.
         """
-        raise NotImplementedError(
-            "ForgeHttpClient.inspect_avatar() — Forge implements in v0.6.1 Wave 2. "
-            "Path: POST /v1/inspect. Body: InspectRequestBody. Returns Gate report dict."
-        )
+        self._assert_open()
+        body: dict[str, Any] = {
+            "vrm_path": vrm_path,
+            "targets": targets if targets is not None else None,
+        }
+        result = await self._post("/v1/inspect", body)
+        assert isinstance(result, dict)
+        return result
 
     async def list_assets(
         self,
@@ -359,37 +437,82 @@ class ForgeHttpClient:
     ) -> list[dict]:
         """GET /v1/assets — list available Hoard assets.
 
-        Optional query parameters (passed as URL query string):
+        Optional query parameters:
             asset_type: str | None — filter by asset type
             tag: str | None — filter by tag
 
-        Response shape (HTTP 200) — list of asset objects:
-            [
-                {
-                    "asset_id": "<str>",
-                    "display_name": "<str>",
-                    "asset_type": "<str>",
-                    "tags": ["<str>", ...],
-                    "vrm_version": "<str>",
-                    "cached": true | false
-                },
-                ...
-            ]
-
-        Args:
-            asset_type: Optional asset type filter string.
-            tag: Optional tag filter string. Straumur accepts only one tag per request.
-
         Returns:
-            List of asset dicts matching the shape above. Empty list if no matches.
+            List of asset dicts. Empty list if no matches.
 
         Raises:
             ForgeUnreachableError: on connection failure.
             ForgeTimeoutError: on timeout.
-
-        Forge implements.
         """
-        raise NotImplementedError(
-            "ForgeHttpClient.list_assets() — Forge implements in v0.6.1 Wave 2. "
-            "Path: GET /v1/assets. Optional query: asset_type, tag. Returns list of asset dicts."
+        self._assert_open()
+        params: dict[str, str] = {}
+        if asset_type is not None:
+            params["asset_type"] = asset_type
+        if tag is not None:
+            params["tag"] = tag
+        result = await self._get("/v1/assets", params=params or None)
+        # Straumur returns a list for /v1/assets
+        if isinstance(result, list):
+            return result
+        # Graceful degradation: if the server wraps it, try to unwrap
+        if isinstance(result, dict):
+            return result.get("assets", [result])
+        return []
+
+
+# ------------------------------------------------------------------
+# Module-level helpers
+# ------------------------------------------------------------------
+
+def _handle_response(response: "httpx.Response", path: str) -> dict | list:
+    """Parse and validate an httpx response; raise typed ForgeError on failure.
+
+    Error mapping per Cartographer §4.11.9:
+        - ConnectError → ForgeUnreachableError (raised before we reach here)
+        - TimeoutException → ForgeTimeoutError (raised before we reach here)
+        - HTTP 4xx → ForgeValidationError
+        - HTTP 5xx → ForgeServerError("render_failed")
+        - HTTP 200 → return parsed JSON
+
+    Args:
+        response: The httpx.Response to evaluate.
+        path: The request path — included in error messages for diagnostics.
+
+    Returns:
+        Parsed JSON body (dict or list).
+
+    Raises:
+        ForgeValidationError: on HTTP 4xx.
+        ForgeServerError: on HTTP 5xx.
+    """
+    if response.is_success:
+        try:
+            return response.json()
+        except Exception as exc:
+            raise ForgeError(
+                f"Straumur returned non-JSON body from {path}: {exc}"
+            ) from exc
+
+    # Try to extract a useful error detail from the response body
+    detail = ""
+    try:
+        body = response.json()
+        # FastAPI returns {"detail": "<str>"} or {"detail": [{...}]}
+        raw_detail = body.get("detail", "") if isinstance(body, dict) else ""
+        detail = str(raw_detail)[:500]  # guard against huge payloads
+    except Exception:
+        detail = response.text[:500]
+
+    if 400 <= response.status_code < 500:
+        raise ForgeValidationError(
+            f"Straumur rejected request to {path} (HTTP {response.status_code}): {detail}"
         )
+
+    # HTTP 5xx — Blender render or pipeline failure on the Forge side
+    raise ForgeServerError(
+        f"Straumur render_failed — {path} returned HTTP {response.status_code}: {detail}"
+    )
