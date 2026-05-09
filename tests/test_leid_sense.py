@@ -1,18 +1,40 @@
 """
-Placeholder tests for LeidSense — L5.3 HTTP fetch sense orchestrator.
+Tests for LeidSense — L5.3 HTTP fetch sense orchestrator.
+
+Covers:
+    - Config validation
+    - Sense lifecycle (open/close/is_available)
+    - Tool definitions
+    - dispatch_tool_call routing (mocked client)
+    - Error handling (UrlNotAllowedError, LeidTimeoutError, etc.)
+    - JSON argument errors
 
 Ref: src/heretic/skilningr/senses/leid/sense.py
+     TASK_HERETIC_v0.6.2_MORE_SENSES.md
 """
 
 from __future__ import annotations
+
+import json
+import warnings
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from heretic.skilningr.config_model import LeidConfig
 from heretic.skilningr.senses.leid.client import LeidClient
+from heretic.skilningr.senses.leid.errors import (
+    LeidConnectionError,
+    LeidTimeoutError,
+    UrlNotAllowedError,
+)
 from heretic.skilningr.senses.leid.sense import LeidSense
 from heretic.skilningr.senses.leid.tools import LEID_TOOL_DEFINITIONS
 
+
+# ---------------------------------------------------------------------------
+# Config validation
+# ---------------------------------------------------------------------------
 
 class TestLeidConfig:
 
@@ -53,14 +75,19 @@ class TestLeidConfig:
 
     def test_leid_config_wildcard_warns_when_enabled(self):
         """A '*' pattern in url_allowlist_patterns emits a warning when enabled=True."""
-        import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             LeidConfig(enabled=True, url_allowlist_patterns=["*"])
-        assert any("wildcard" in str(warning.message).lower()
-                   or "unrestricted" in str(warning.message).lower()
-                   for warning in w)
+        assert any(
+            "wildcard" in str(warning.message).lower()
+            or "unrestricted" in str(warning.message).lower()
+            for warning in w
+        )
 
+
+# ---------------------------------------------------------------------------
+# Sense lifecycle
+# ---------------------------------------------------------------------------
 
 class TestLeidSenseLifecycle:
 
@@ -90,6 +117,10 @@ class TestLeidSenseLifecycle:
         assert sense.is_available is False
 
 
+# ---------------------------------------------------------------------------
+# Tool definitions
+# ---------------------------------------------------------------------------
+
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
@@ -113,13 +144,132 @@ class TestLeidSenseToolDefinitions:
         assert "leid.extract_text" in names
 
 
-@pytest.mark.skip(reason="Wave 2 — LeidClient not yet implemented by Forge")
+# ---------------------------------------------------------------------------
+# dispatch_tool_call — routing and error handling (mocked client)
+# ---------------------------------------------------------------------------
+
 class TestLeidSenseDispatch:
 
-    @pytest.mark.asyncio
-    async def test_fetch_url_dispatches(self):
-        pass
+    def _make_tool_call(self, name: str, args: dict) -> dict:
+        return {
+            "id": "call_l01",
+            "function": {
+                "name": name,
+                "arguments": json.dumps(args),
+            },
+        }
 
     @pytest.mark.asyncio
-    async def test_extract_text_dispatches(self):
-        pass
+    async def test_fetch_url_dispatch_success(self):
+        """dispatch_tool_call routes leid.fetch_url and returns result."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_client.fetch_url = AsyncMock(return_value={
+            "url": "https://example.com/page",
+            "status_code": 200,
+            "content_type": "text/html",
+            "body": "<html><body>Hello</body></html>",
+            "size_bytes": 30,
+            "truncated": False,
+        })
+        sense = LeidSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("leid.fetch_url", {"url": "https://example.com/page"})
+        result = await sense.dispatch_tool_call(tool_call)
+        assert result["role"] == "tool"
+        parsed = json.loads(result["content"])
+        assert parsed["status_code"] == 200
+        assert parsed["truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_extract_text_dispatch_success(self):
+        """dispatch_tool_call routes leid.extract_text and returns result."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_client.extract_text = AsyncMock(return_value={
+            "url": "https://example.com/page",
+            "text": "Hello World",
+            "title": "Example",
+            "source_size_bytes": 100,
+            "truncated": False,
+        })
+        sense = LeidSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("leid.extract_text", {"url": "https://example.com/page"})
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["text"] == "Hello World"
+        assert parsed["title"] == "Example"
+
+    @pytest.mark.asyncio
+    async def test_url_not_allowed_returns_error_result(self):
+        """dispatch_tool_call returns error tool_result on UrlNotAllowedError."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_client.fetch_url = AsyncMock(side_effect=UrlNotAllowedError("not allowed"))
+        sense = LeidSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("leid.fetch_url", {"url": "https://evil.com/steal"})
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "PERMISSION_DENIED"
+
+    @pytest.mark.asyncio
+    async def test_leid_timeout_returns_error_result(self):
+        """dispatch_tool_call returns error tool_result on LeidTimeoutError."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_client.fetch_url = AsyncMock(side_effect=LeidTimeoutError("timeout"))
+        sense = LeidSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("leid.fetch_url", {"url": "https://example.com/slow"})
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "SENSE_TIMEOUT"
+
+    @pytest.mark.asyncio
+    async def test_connection_error_returns_error_result(self):
+        """dispatch_tool_call returns error tool_result on LeidConnectionError."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_client.fetch_url = AsyncMock(side_effect=LeidConnectionError("refused"))
+        sense = LeidSense(config, mock_client)
+        await sense.open()
+        tool_call = self._make_tool_call("leid.fetch_url", {"url": "https://example.com/down"})
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "EXTERNAL_APP_UNAVAILABLE"
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_args_returns_error_result(self):
+        """dispatch_tool_call returns error result when arguments are invalid JSON."""
+        config = LeidConfig(enabled=True, url_allowlist_patterns=["*"])
+        mock_client = MagicMock(spec=LeidClient)
+        sense = LeidSense(config, mock_client)
+        await sense.open()
+        bad_call = {
+            "id": "call_bad",
+            "function": {"name": "leid.fetch_url", "arguments": "{bad json"},
+        }
+        result = await sense.dispatch_tool_call(bad_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "INVALID_ARGUMENTS"
