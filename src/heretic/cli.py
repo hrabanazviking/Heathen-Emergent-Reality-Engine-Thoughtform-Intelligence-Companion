@@ -1921,41 +1921,282 @@ def _cmd_mcp(args: argparse.Namespace) -> int:
 # library command  [v0.7 — Mímisbrunnr library management]
 # ---------------------------------------------------------------------------
 
+def _library_resolve_data_dir(config_path: str | None) -> "Path":
+    """Resolve the Mímisbrunnr data directory from config.
+
+    Args:
+        config_path: Path to heretic.yaml, or None for default.
+
+    Returns:
+        Absolute Path to the data directory.
+    """
+    from heretic.grunnr.config import load_config, ConfigLoadError
+    from pathlib import Path as _Path
+
+    try:
+        cfg = load_config(config_path)
+        storage_path = cfg.skilningr.library.storage_path
+    except ConfigLoadError:
+        storage_path = ""
+
+    if storage_path:
+        return _Path(storage_path).expanduser().resolve()
+
+    try:
+        from platformdirs import user_data_dir
+        base = _Path(user_data_dir("heretic", appauthor=False))
+    except ImportError:
+        base = _Path.home() / ".local" / "share" / "heretic"
+
+    return base / "library" / "mimisbrunnr"
+
+
 def _cmd_library_list(args: argparse.Namespace) -> int:
     """List all Mímisbrunnr Norse corpus sources with download status."""
-    raise NotImplementedError(
-        "heretic library list is a Forge implementation target. "
-        "Body: load config; construct LibraryClient; call list_sources(); "
-        "print a formatted table of source_id, title, downloaded, size."
-    )
+    from heretic.grunnr.config import load_config, ConfigLoadError
+    from heretic.skilningr.config_model import LibraryConfig
+    from heretic.skilningr.senses.library.client import LibraryClient
+    from pathlib import Path
+
+    data_dir = _library_resolve_data_dir(getattr(args, "config", None))
+
+    # Construct a minimal config for offline listing
+    try:
+        cfg = load_config(getattr(args, "config", None))
+        library_config = cfg.skilningr.library
+    except ConfigLoadError:
+        library_config = LibraryConfig(enabled=True)
+
+    client = LibraryClient(library_config, data_dir)
+
+    try:
+        sources = client.list_sources()
+    except Exception as exc:
+        print(f"[HERETIC] library list error: {exc}", file=sys.stderr)
+        return 1
+
+    # Print a formatted table
+    print()
+    print(f"{'ID':<30} {'SIZE':>10}  {'DL':>4}  TITLE")
+    print("-" * 80)
+    for s in sources:
+        size_bytes = s["expected_size_bytes"]
+        if size_bytes >= 1_000_000:
+            size_str = f"{size_bytes / 1_000_000:.1f}M"
+        elif size_bytes >= 1_000:
+            size_str = f"{size_bytes / 1_000:.0f}K"
+        else:
+            size_str = f"{size_bytes}B"
+        dl_str = "yes" if s["downloaded"] else "no"
+        title_short = s["title"][:50] if len(s["title"]) > 50 else s["title"]
+        print(f"{s['id']:<30} {size_str:>10}  {dl_str:>4}  {title_short}")
+    print()
+    downloaded_count = sum(1 for s in sources if s["downloaded"])
+    print(f"{downloaded_count}/{len(sources)} sources downloaded.")
+    print(f"Data directory: {data_dir}")
+    print()
+    return 0
 
 
 def _cmd_library_download(args: argparse.Namespace) -> int:
     """Download one or all Mímisbrunnr Norse corpus sources."""
-    raise NotImplementedError(
-        "heretic library download is a Forge implementation target. "
-        "Body: load config; resolve storage_path; for each source_id in "
-        "args.source_ids (or all if --all): call prompt_for_download (unless "
-        "--yes), then Downloader.download(source, dest_path)."
+    import asyncio as _asyncio
+    from heretic.grunnr.config import load_config, ConfigLoadError
+    from heretic.skilningr.config_model import LibraryConfig
+    from heretic.skilningr.mimisbrunnr.manifest import NORSE_STARTER_PACK
+    from heretic.skilningr.mimisbrunnr.store import (
+        ensure_storage_directory,
+        resolve_source_path,
+        update_local_manifest,
+        is_source_downloaded,
     )
+    from heretic.skilningr.mimisbrunnr.downloader import Downloader
+    from heretic.skilningr.mimisbrunnr.errors import (
+        ConsentRefused,
+        LibraryDownloadError,
+        IntegrityError,
+    )
+    from pathlib import Path
+
+    data_dir = _library_resolve_data_dir(getattr(args, "config", None))
+    auto_yes: bool = getattr(args, "yes", False)
+
+    # Determine which source_ids to download
+    source_ids_arg: list[str] = getattr(args, "source_ids", []) or []
+    download_all: bool = getattr(args, "download_all", False)
+
+    if download_all or not source_ids_arg:
+        # Download all sources from the manifest
+        source_ids = NORSE_STARTER_PACK.source_ids
+    else:
+        source_ids = source_ids_arg
+
+    # Validate all requested source ids before touching the network
+    invalid = [sid for sid in source_ids if NORSE_STARTER_PACK.get_source(sid) is None]
+    if invalid:
+        print(
+            f"[HERETIC] Unknown source id(s): {invalid}. "
+            f"Valid ids: {NORSE_STARTER_PACK.source_ids}",
+            file=sys.stderr,
+        )
+        return 1
+
+    ensure_storage_directory(data_dir)
+
+    async def _do_download() -> int:
+        downloader = Downloader()
+        exit_code = 0
+        for source_id in source_ids:
+            source = NORSE_STARTER_PACK.get_source(source_id)
+            if source is None:
+                continue
+
+            dest_path = resolve_source_path(data_dir, source_id)
+
+            try:
+                sha256 = await downloader.download(
+                    source, dest_path, auto_yes=auto_yes
+                )
+            except ConsentRefused as exc:
+                print(f"[HERETIC] Skipping {source_id!r}: {exc}", file=sys.stderr)
+                continue
+            except (LibraryDownloadError, IntegrityError) as exc:
+                print(
+                    f"[HERETIC] Download of {source_id!r} failed: {exc}",
+                    file=sys.stderr,
+                )
+                exit_code = 1
+                continue
+
+            # Record in local manifest
+            try:
+                size_bytes = dest_path.stat().st_size
+                update_local_manifest(data_dir, source_id, sha256, size_bytes=size_bytes)
+            except Exception as exc:
+                print(
+                    f"[HERETIC] Warning: manifest update failed for {source_id!r}: {exc}",
+                    file=sys.stderr,
+                )
+
+            print(f"[HERETIC] Downloaded {source_id!r} → {dest_path}")
+            print(f"          SHA-256: {sha256}")
+
+        return exit_code
+
+    return _asyncio.run(_do_download())
 
 
 def _cmd_library_remove(args: argparse.Namespace) -> int:
     """Remove a downloaded Mímisbrunnr source file and its index entry."""
-    raise NotImplementedError(
-        "heretic library remove is a Forge implementation target. "
-        "Body: resolve path; confirm deletion (or --yes flag); unlink the "
-        ".txt file; update local manifest; flag index as stale."
+    from heretic.skilningr.mimisbrunnr.manifest import NORSE_STARTER_PACK
+    from heretic.skilningr.mimisbrunnr.store import (
+        resolve_source_path,
+        load_local_manifest,
+        update_local_manifest,
+        is_source_downloaded,
     )
+    from pathlib import Path
+    import json as _json
+
+    source_id: str = args.source_id
+    auto_yes: bool = getattr(args, "yes", False)
+
+    if NORSE_STARTER_PACK.get_source(source_id) is None:
+        print(
+            f"[HERETIC] Unknown source id {source_id!r}. "
+            f"Valid ids: {NORSE_STARTER_PACK.source_ids}",
+            file=sys.stderr,
+        )
+        return 1
+
+    data_dir = _library_resolve_data_dir(getattr(args, "config", None))
+    dest_path = resolve_source_path(data_dir, source_id)
+
+    if not dest_path.exists():
+        print(f"[HERETIC] Source {source_id!r} is not downloaded — nothing to remove.")
+        return 0
+
+    if not auto_yes:
+        try:
+            resp = input(
+                f"Remove {dest_path} ({dest_path.stat().st_size:,} bytes)? [y/N] "
+            ).strip()
+        except EOFError:
+            resp = ""
+        if not resp.lower().startswith("y"):
+            print("[HERETIC] Removal cancelled.")
+            return 0
+
+    try:
+        dest_path.unlink()
+        print(f"[HERETIC] Removed {dest_path}")
+    except OSError as exc:
+        print(f"[HERETIC] Failed to remove {dest_path}: {exc}", file=sys.stderr)
+        return 1
+
+    # Remove from local manifest
+    try:
+        manifest = load_local_manifest(data_dir)
+        if source_id in manifest:
+            del manifest[source_id]
+            manifest_path = data_dir / "mimisbrunnr_manifest.json"
+            tmp_path = manifest_path.with_suffix(".heretic_tmp")
+            import os as _os
+            tmp_path.write_text(
+                _json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            _os.replace(str(tmp_path), str(manifest_path))
+            print(f"[HERETIC] Manifest updated — {source_id!r} removed.")
+    except Exception as exc:
+        print(
+            f"[HERETIC] Warning: manifest update failed for {source_id!r}: {exc}",
+            file=sys.stderr,
+        )
+
+    # Flag index as stale by deleting it (will be rebuilt on next search)
+    index_path = data_dir / "keyword_index.jsonl"
+    if index_path.exists():
+        try:
+            index_path.unlink()
+            print("[HERETIC] Keyword index removed (stale — rebuild with 'library rebuild-index').")
+        except OSError as exc:
+            print(
+                f"[HERETIC] Warning: could not remove stale index: {exc}",
+                file=sys.stderr,
+            )
+
+    return 0
 
 
 def _cmd_library_rebuild_index(args: argparse.Namespace) -> int:
     """Rebuild the Mímisbrunnr keyword index from all downloaded sources."""
-    raise NotImplementedError(
-        "heretic library rebuild-index is a Forge implementation target. "
-        "Body: resolve storage_path; call KeywordIndex.build(data_dir); "
-        "report number of sources indexed and index file size."
-    )
+    from heretic.skilningr.mimisbrunnr.index import KeywordIndex
+    from heretic.skilningr.mimisbrunnr.errors import LibraryIndexError
+    from pathlib import Path
+
+    data_dir = _library_resolve_data_dir(getattr(args, "config", None))
+
+    print(f"[HERETIC] Rebuilding keyword index from {data_dir} ...")
+
+    idx = KeywordIndex(data_dir)
+    try:
+        idx.build(data_dir)
+    except LibraryIndexError as exc:
+        print(f"[HERETIC] Index rebuild failed: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"[HERETIC] Unexpected error during index rebuild: {exc}", file=sys.stderr)
+        return 1
+
+    index_path = data_dir / "keyword_index.jsonl"
+    try:
+        index_size = index_path.stat().st_size
+        print(f"[HERETIC] Keyword index rebuilt successfully.")
+        print(f"          Index file: {index_path} ({index_size:,} bytes)")
+    except OSError:
+        print("[HERETIC] Keyword index rebuilt successfully.")
+
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
