@@ -86,6 +86,38 @@ class TestLeidConfig:
             for warning in w
         )
 
+    # --- v0.8.0 Opið Vef — browser-render field validation (Auditor N-1) ---
+
+    def test_leid_config_invalid_browser_navigation_timeout_raises(self):
+        """browser_navigation_timeout_seconds <= 0 raises ValueError."""
+        with pytest.raises(ValueError, match="browser_navigation_timeout_seconds"):
+            LeidConfig(browser_navigation_timeout_seconds=0)
+        with pytest.raises(ValueError, match="browser_navigation_timeout_seconds"):
+            LeidConfig(browser_navigation_timeout_seconds=-5)
+
+    def test_leid_config_invalid_browser_load_state_raises(self):
+        """browser_load_state outside the four allowed values raises ValueError."""
+        with pytest.raises(ValueError, match="browser_load_state"):
+            LeidConfig(browser_load_state="ready")  # not a Playwright state
+        with pytest.raises(ValueError, match="browser_load_state"):
+            LeidConfig(browser_load_state="")
+
+    def test_leid_config_browser_load_state_accepts_all_four_valid_values(self):
+        """All four documented browser_load_state values construct without error."""
+        for state in ("commit", "domcontentloaded", "load", "networkidle"):
+            cfg = LeidConfig(browser_load_state=state)
+            assert cfg.browser_load_state == state
+
+    def test_leid_config_browser_navigation_timeout_default(self):
+        """browser_navigation_timeout_seconds defaults to 30."""
+        cfg = LeidConfig()
+        assert cfg.browser_navigation_timeout_seconds == 30
+
+    def test_leid_config_browser_load_state_default_is_domcontentloaded(self):
+        """browser_load_state defaults to 'domcontentloaded'."""
+        cfg = LeidConfig()
+        assert cfg.browser_load_state == "domcontentloaded"
+
 
 # ---------------------------------------------------------------------------
 # Sense lifecycle
