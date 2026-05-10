@@ -108,3 +108,15 @@ There will be more. The Smiðja hand may need *measured reaching* — restraint 
 ---
 
 *Authored by Sigrún Ljósbrá, Skald for Vibe Coding, in the autonomous Mythic Engineering session of 2026-05-09. The next wave is the Cartographer.*
+
+---
+
+## VIII. Addendum — v0.7.3: continuity extends to the index (2026-05-09)
+
+> *The Skald has decided not to coin a new name for v0.7.3. This is not because the milestone is unimportant — it is because the milestone is the same disposition, applied to a second layer.*
+
+v0.7.2 *Endurdrykkr* taught the body's draught to pick up where it left off when the connection dropped. v0.7.3 teaches the same disposition to the *cup itself* — the keyword index that organises the bytes into something queryable. When the index is corrupt or missing but the source files are present, the body does not punish the operator with an actionable-error message demanding they run `heretic library rebuild-index` manually. The body simply rebuilds the index from the sources it already has — quietly, automatically, and identically to how a manual rebuild would build it. The continuity discipline now extends across two layers: bytes (v0.7.2) and structure-over-bytes (v0.7.3). Same Endurdrykkr; one layer deeper.
+
+The decision not to add a separate vision passage for v0.7.3 is itself a discipline. The Skald's pen is reserved for milestones that name new dispositions, vocabularies, or major faculties. v0.7.3 does none of those — it deepens an existing discipline. A scribe-class milestone, recorded in the DEVLOG, but not earning a separate vision page. The lineage stays clean.
+
+*Addendum authored by Sigrún Ljósbrá, 2026-05-09.*
