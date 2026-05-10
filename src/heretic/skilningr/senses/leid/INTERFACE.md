@@ -1,7 +1,7 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-09 (v0.7.1 *Straumr á Leið* streaming addendum — Rúnhild Svartdóttir) | 2026-05-08 (v0.6.2 scaffold — Rúnhild Svartdóttir)
-**Scope:** L5.3 Leið — sandboxed HTTP fetch sense
+**Last updated:** 2026-05-10 (v0.8.0 *Opið Vef* browser-render addendum — Rúnhild Svartdóttir) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming addendum) | 2026-05-08 (v0.6.2 scaffold)
+**Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
 ---
@@ -16,7 +16,8 @@
 | Prefix      | `leid.*`                                       |
 | Config key  | `skilningr.leid.*` in `heretic.yaml`           |
 | Module      | `heretic.skilningr.senses.leid`                |
-| Client      | `LeidClient` (httpx GET, URL allowlist)        |
+| Client (httpx) | `LeidClient` (httpx GET, URL allowlist) — answers `leid.fetch_url`, `leid.extract_text` |
+| Client (browser, v0.8.0+, opt-in) | `PlaywrightLeidClient` (headless Chromium via Playwright) — answers `leid.render_url` |
 
 ---
 
@@ -27,9 +28,18 @@ HTTP resources and extracts their text within an operator-defined URL allowlist.
 No URL is reachable unless the operator explicitly permits a matching pattern.
 An empty allowlist means the world is closed.
 
-Leið does NOT execute JavaScript. It does NOT follow links beyond the requested
-URL. It does NOT store or send cookies. It does NOT support POST or any other
-write method. v0.6.2 is GET-only.
+Leið's **httpx tools** (`leid.fetch_url`, `leid.extract_text`) do NOT execute JavaScript.
+They do NOT follow links beyond the requested URL. They do NOT store or send
+cookies. They do NOT support POST or any other write method. These are GET-only
+since v0.6.2.
+
+Leið's **browser tool** (`leid.render_url`, **v0.8.0+, opt-in via `pip install heretic[browser]`**)
+launches a headless Chromium subprocess via Playwright and DOES allow the page's
+own scripts to run before reading the rendered DOM. It uses a fresh browser
+context per call — no cookies persist between calls, no localStorage carries
+over, no state of any kind crosses call boundaries. HERETIC injects no
+JavaScript of its own; only the page's scripts run, on the page itself. See §10
+for the v0.8.0 browser-mode contract.
 
 ---
 
@@ -50,12 +60,26 @@ write method. v0.6.2 is GET-only.
 
 ---
 
-## 4. Tools (LOCKED at v0.6.2)
+## 4. Tools
 
-| Tool name          | Action              | Required params  | Optional params |
-|--------------------|---------------------|------------------|-----------------|
-| `leid.fetch_url`   | Raw HTTP GET        | `url` (string)   | —               |
-| `leid.extract_text`| GET + strip HTML    | `url` (string)   | —               |
+### 4.1 httpx tools (LOCKED at v0.6.2)
+
+| Tool name          | Action              | Required params  | Optional params | Transport |
+|--------------------|---------------------|------------------|-----------------|-----------|
+| `leid.fetch_url`   | Raw HTTP GET        | `url` (string)   | —               | httpx     |
+| `leid.extract_text`| GET + strip HTML    | `url` (string)   | —               | httpx     |
+
+### 4.2 Browser tool (added at v0.8.0 — *Opið Vef*)
+
+| Tool name          | Action                                          | Required params  | Optional params | Transport          |
+|--------------------|-------------------------------------------------|------------------|-----------------|--------------------|
+| `leid.render_url`  | Headless Chromium navigate + extract rendered text | `url` (string) | —               | Playwright (Chromium) |
+
+**Availability:** `leid.render_url` is registered in `LEID_TOOL_DEFINITIONS` whenever
+`config.enabled: true`, but a tool call to it raises
+`LeidPlaywrightUnavailableError → EXTERNAL_APP_UNAVAILABLE` if the operator has
+not installed the `[browser]` extra (`pip install heretic[browser]`) and run
+`playwright install chromium`. The httpx tools work unaffected.
 
 ---
 
@@ -106,6 +130,7 @@ write method. v0.6.2 is GET-only.
 | Network-level error (DNS, TCP, TLS)        | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
 | Unknown tool name in `leid.*`              | `ToolDispatchError`        | `SENSE_INTERNAL_ERROR`    |
 | Sense disabled or not open                 | `SenseUnavailableError`    | `SENSE_UNAVAILABLE`       |
+| Playwright not installed / chromium missing (v0.8.0 `leid.render_url` only) | `LeidPlaywrightUnavailableError` | `EXTERNAL_APP_UNAVAILABLE` |
 
 ---
 
@@ -123,6 +148,10 @@ skilningr:
     max_response_bytes: 1048576           # 1 MB
     user_agent: "HERETIC/0.6.2 (heretic-summoning-circle)"
     allow_http: false                     # HTTPS-only by default
+
+    # v0.8.0 Opið Vef — browser-render fields (apply to leid.render_url only)
+    browser_navigation_timeout_seconds: 30   # max wall-clock for page.goto(); separate from httpx timeout
+    browser_load_state: "domcontentloaded"   # one of: commit, domcontentloaded, load, networkidle
 ```
 
 ---
@@ -158,3 +187,117 @@ v0.7.1. No new methods, no new private helpers, no new config keys. The streamin
 behaviour is hidden behind the same agent-facing contract. This was an explicit
 Architect decision: a one-path replacement is cleaner than parallel buffer/streaming
 modes when the v0.6.2 path was authored as a known-temporary placeholder.
+
+The v0.8.0 *Opið Vef* addition does NOT modify `LeidClient`. The new browser-render
+sub-faculty lives in a sibling class `PlaywrightLeidClient` with its own `render_url()`
+method. `LeidSense._route` dispatches `leid.fetch_url` and `leid.extract_text` to
+`LeidClient` (unchanged) and `leid.render_url` to `PlaywrightLeidClient`. This was an
+explicit Architect decision (D-14): the v0.7.1 streaming path is byte-untouched and
+zero-regression-risk; the new transport is purely additive.
+
+---
+
+## 10. Browser-mode contract (v0.8.0 — *Opið Vef*)
+
+### 10.1 Sub-faculty identity
+
+| Field            | Value                                                                     |
+|------------------|---------------------------------------------------------------------------|
+| Sub-faculty name | *Opið Vef* — "the open web"                                               |
+| Tool             | `leid.render_url`                                                         |
+| Module           | `heretic.skilningr.senses.leid.playwright_client`                         |
+| Class            | `PlaywrightLeidClient`                                                    |
+| Engine           | Chromium (headless) via Playwright (Microsoft, Apache-2.0)                |
+| Optional dep     | `pip install heretic[browser]` + `playwright install chromium`            |
+| Lifecycle        | Launch-per-call (D-5): each call spawns and disposes its own browser     |
+
+### 10.2 B-Invariants (NON-NEGOTIABLE — additive over L-1..L-9)
+
+The L-invariants from §3 continue to govern the httpx tools unchanged. The
+B-invariants govern `leid.render_url`. Where an L and a B address the same
+concern, B is a refinement, not a replacement.
+
+| #   | B-Invariant |
+|-----|-------------|
+| B-1 | `_validate_url()` (allowlist + HTTPS-only gate) is called BEFORE `async_playwright().start()`. No browser process spawns for a rejected URL. |
+| B-2 | `LeidPlaywrightUnavailableError` is raised at `render_url()` entry if `playwright` import or `chromium.launch()` fails. The httpx tools (`fetch_url`, `extract_text`) continue to dispatch unaffected. |
+| B-3 | Each `render_url()` call uses `browser.new_context()` — cookies and localStorage are scoped to the call and discarded at `context.close()`. No state persists between calls. |
+| B-4 | The browser is launched headless (`headless=True`). No visible window. |
+| B-5 | `page.goto(url, wait_until=config.browser_load_state, timeout=config.browser_navigation_timeout_seconds * 1000)`. Playwright's `TimeoutError` maps to `LeidTimeoutError`. |
+| B-6 | After navigation: `len(html.encode("utf-8")) <= config.max_response_bytes`. If exceeded, raise `LeidResponseTooLargeError` BEFORE text extraction; close context+browser+pw cleanly during stack unwind. |
+| B-7 | All three resources (`pw`, `browser`, `context`) are closed in `finally` blocks. A failure during navigation must not leak a browser process. |
+| B-8 | The `User-Agent` on every browser request matches `config.user_agent`, passed via `browser.new_context(user_agent=...)`. |
+| B-9 | `allow_http: false` rejects `http://` URLs at `_validate_url()` before browser launch — same posture as httpx tools. |
+| B-10 | HERETIC injects no JavaScript code into the page in v0.8.0. The page's own scripts run during render; that is the only script execution. No `page.evaluate(...)` from agent input. |
+
+### 10.3 Success response shape
+
+```json
+{
+  "url": "https://example.com/spa",
+  "final_url": "https://example.com/spa#loaded",
+  "text": "Welcome to the rendered SPA...",
+  "title": "Example SPA — Home",
+  "source_size_bytes": 24576
+}
+```
+
+| Key                | Type   | Meaning                                                                     |
+|--------------------|--------|-----------------------------------------------------------------------------|
+| `url`              | string | The validated URL passed in (post normalisation; identical to input in most cases) |
+| `final_url`        | string | `page.url` after navigation; differs from `url` when the page navigated itself during render (client-side redirect, hash change, etc.) |
+| `text`             | string | Plain text extracted from rendered DOM via the same stdlib `_TextExtractor` as `extract_text` |
+| `title`            | string \| null | `<title>` of the rendered DOM; `null` if absent                       |
+| `source_size_bytes`| int    | UTF-8 byte length of `await page.content()` (the rendered HTML before tag stripping) |
+
+### 10.4 Memory bound at the rendered-HTML cap
+
+Unlike `leid.fetch_url` (which streams via `aiter_bytes` and aborts mid-stream
+once the accumulator exceeds the cap), `leid.render_url` materialises the entire
+rendered DOM as a single string via `await page.content()` BEFORE the cap is
+checked. The worst-case memory at the moment of pre-cap raise is therefore
+approximately:
+
+```
+len(html.encode("utf-8")) + Python string overhead
+```
+
+This is intentional: Playwright does not expose a streaming DOM read API. The
+cap on `render_url` is a **token-budget bound** (preventing the agent from
+receiving an enormous text payload), not a **memory bound** for the browser
+process itself. Operators who need true streaming abort must use `leid.fetch_url`,
+which retains the v0.7.1 streaming guarantees. This trade-off is documented at
+DATA_FLOW.md §4.12.2.2.
+
+### 10.5 Out of scope at v0.8.0
+
+| Capability                 | Status            |
+|----------------------------|-------------------|
+| `leid.screenshot`          | v0.8.1 (separate slice) |
+| `leid.click`, `leid.type`  | v0.8.2 (requires persistent-session model) |
+| `leid.query`               | v0.8.3 (CSS selector + attribute extraction) |
+| Multi-tab support          | v0.8.x+           |
+| Persistent browser between calls | v0.8.2 (when click/type need a live page) |
+| Cookie persistence         | NEVER (B-3 is permanent) |
+| Visible browser mode       | Not planned (debug-only, may add later if needed) |
+
+### 10.6 Forge implementation contract
+
+- `PlaywrightLeidClient(config: LeidConfig, log: logging.Logger | None = None)`
+  has a single public coroutine: `async def render_url(self, url: str) -> dict`.
+- Imports of `playwright` are deferred to inside `render_url()` — the module
+  import does NOT require playwright to be installed. This guarantees that
+  modules importing `playwright_client` do not break on hosts without the
+  `[browser]` extra.
+- Allowlist + HTTPS-only validation reuses the existing `_validate_url()` logic
+  (refactored into a shared helper or duplicated; Forge to choose the
+  cleanest integration without modifying `LeidClient`).
+- All three resources opened (`pw`, `browser`, `context`) are closed in nested
+  `try/finally` blocks. The unwinding order is: `context.close()` →
+  `browser.close()` → `pw.stop()`.
+- Status-code check uses the `Response` object returned by `page.goto()`.
+- Pre-cap on `len(html.encode("utf-8"))` BEFORE `_extract_text_from_html` is
+  called. The extractor is the same one used by `LeidClient.extract_text`.
+- The 17 mock-based tests in `tests/test_leid_playwright_client.py` exhaust the
+  invariants. The `@pytest.mark.requires_playwright` smoke test exercises a
+  real Chromium when the operator has installed it; it is default-skip in CI.

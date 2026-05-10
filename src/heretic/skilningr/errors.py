@@ -378,6 +378,23 @@ class LeidConnectionError(LeidError):
     """
 
 
+class LeidPlaywrightUnavailableError(LeidError):
+    """The Playwright browser sub-faculty (v0.8.0 Opið Vef) is not available.
+
+    Raised at the entry of ``PlaywrightLeidClient.render_url()`` when EITHER:
+        - the ``playwright`` Python package is not importable
+          (operator did not run ``pip install heretic[browser]``), OR
+        - ``chromium.launch()`` fails because the Chromium binary is missing
+          (operator did not run ``playwright install chromium``).
+
+    This error is raised ONLY for ``leid.render_url`` tool calls; the v0.7.1
+    httpx tools (``leid.fetch_url``, ``leid.extract_text``) continue to dispatch
+    normally and do not require the ``[browser]`` extra.
+
+    Forge should translate this to SENSE_CONTRACTS.md code EXTERNAL_APP_UNAVAILABLE.
+    """
+
+
 # ---------------------------------------------------------------------------
 # MCP server errors  [v0.6.x]
 # ---------------------------------------------------------------------------

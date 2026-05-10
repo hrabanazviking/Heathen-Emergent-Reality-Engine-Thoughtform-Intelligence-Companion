@@ -522,12 +522,34 @@ class LeidConfig:
     expose request/response content without encryption.
     NEVER set allow_http: true in production unless HTTP is unavoidable."""
 
+    # ----- v0.8.0 Opið Vef — browser-render fields (apply to leid.render_url only) -----
+
+    browser_navigation_timeout_seconds: int = 30
+    """Maximum wall-clock seconds for ``page.goto()`` during a ``leid.render_url``
+    call. INTENTIONALLY separate from ``timeout_seconds`` (which governs the
+    httpx tools): rendered pages legitimately take longer than static fetches,
+    and conflating the two would force a global increase. Default 30. Must be > 0.
+
+    Used only by ``PlaywrightLeidClient.render_url`` (v0.8.0+). Has no effect on
+    ``leid.fetch_url`` or ``leid.extract_text``."""
+
+    browser_load_state: str = "domcontentloaded"
+    """Playwright wait-condition for ``page.goto()`` during a ``leid.render_url``
+    call. One of: ``commit`` (response received), ``domcontentloaded`` (default —
+    HTML parsed and synchronous scripts run), ``load`` (load event fired),
+    ``networkidle`` (no network activity for 500 ms — slowest, most complete).
+    Default ``domcontentloaded`` is the best balance of "page is rendered enough
+    to extract" vs "no waiting forever for trackers." Must be one of the four
+    documented values."""
+
     def __post_init__(self) -> None:
         """Validate config fields at construction time.
 
         Raises:
-            ValueError: if timeout_seconds or max_response_bytes are <= 0,
-                        max_redirects < 0, or user_agent is empty.
+            ValueError: if timeout_seconds, max_response_bytes, or
+                        browser_navigation_timeout_seconds are <= 0,
+                        max_redirects < 0, user_agent is empty, or
+                        browser_load_state is not one of the four allowed values.
 
         Warns (but does not raise) if url_allowlist_patterns contains "*"
         (unrestricted wildcard) while enabled is True.
@@ -548,6 +570,18 @@ class LeidConfig:
             raise ValueError(
                 "LeidConfig.user_agent must be a non-empty string. "
                 f"Got {self.user_agent!r}."
+            )
+        # v0.8.0 — browser-render field validation
+        if self.browser_navigation_timeout_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_navigation_timeout_seconds must be > 0, "
+                f"got {self.browser_navigation_timeout_seconds!r}."
+            )
+        _allowed_load_states = {"commit", "domcontentloaded", "load", "networkidle"}
+        if self.browser_load_state not in _allowed_load_states:
+            raise ValueError(
+                f"LeidConfig.browser_load_state must be one of "
+                f"{sorted(_allowed_load_states)}, got {self.browser_load_state!r}."
             )
         # Warn on unrestricted wildcard
         if self.enabled and "*" in self.url_allowlist_patterns:

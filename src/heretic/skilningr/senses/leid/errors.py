@@ -8,6 +8,7 @@ from heretic.skilningr.errors import (  # noqa: F401
     LeidConnectionError,
     LeidError,
     LeidHttpError,
+    LeidPlaywrightUnavailableError,
     LeidResponseTooLargeError,
     LeidTimeoutError,
     UrlNotAllowedError,
@@ -20,4 +21,5 @@ __all__ = [
     "LeidResponseTooLargeError",
     "LeidHttpError",
     "LeidConnectionError",
+    "LeidPlaywrightUnavailableError",
 ]
