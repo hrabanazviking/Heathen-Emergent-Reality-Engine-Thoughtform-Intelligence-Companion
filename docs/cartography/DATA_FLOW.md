@@ -6153,6 +6153,160 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.2 Leið browser-render fetch (Opið Vef — v0.8.0)
+
+> **Added 2026-05-10 v0.8.0 (Védis Eikleið).** *Opið Vef* — the open web. The body's
+> path outward gains a second pair of eyes: a headless Chromium browser via Playwright
+> that runs the page's scripts before reading the rendered DOM. Additive over §4.12.2 /
+> §4.12.2.1 — the v0.7.1 streaming-httpx flow is unchanged and untouched. The new
+> sub-faculty answers `leid.render_url`; the existing `leid.fetch_url` and
+> `leid.extract_text` still answer through the v0.7.1 streaming path.
+
+```
+  OPIÐ VEF — BROWSER-RENDER FETCH FLOW (v0.8.0)
+
+  Entry point: agent calls leid.render_url(url) via OpenAI tool_call.
+
+  Stage 1 — Sense routing (LeidSense._route)
+    tool_name == "leid.render_url"
+        → dispatched to PlaywrightLeidClient.render_url(url)
+        (NOT to LeidClient.fetch_url; the v0.7.1 streaming path is untouched)
+
+  Stage 2 — URL validation (PlaywrightLeidClient._validate_url)
+    sandbox.url_matches_allowlist(url, config.url_allowlist_patterns)
+    HTTPS-only check (allow_http: false rejects http://)
+    On rejection → UrlNotAllowedError raised; NO browser process spawned.
+    This is invariant B-1 — the gate runs before any Playwright import or launch.
+
+  Stage 3 — Playwright availability check
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        raise LeidPlaywrightUnavailableError("playwright not installed; ...")
+
+    Failure here surfaces as SENSE_CONTRACTS code EXTERNAL_APP_UNAVAILABLE
+    to the agent, but ONLY for leid.render_url calls. The httpx tools
+    (fetch_url, extract_text) continue to dispatch normally and require
+    no browser dep.
+
+  Stage 4 — Per-call browser lifecycle (D-5: launch-per-call)
+    pw = await async_playwright().start()
+    try:
+        try:
+            browser = await pw.chromium.launch(headless=True)   # B-4: always headless
+        except Exception as exc:
+            raise LeidPlaywrightUnavailableError(
+                "chromium binary missing; run `playwright install chromium`"
+            ) from exc
+        try:
+            context = await browser.new_context(
+                user_agent=config.user_agent,                  # B-8
+            )
+            try:
+                page = await context.new_page()
+                response = await page.goto(
+                    url,
+                    wait_until=config.browser_load_state,      # default "domcontentloaded" (B-5)
+                    timeout=config.browser_navigation_timeout_seconds * 1000,
+                )
+                # Stage 5 — Status check
+                if response is not None and response.status >= 400:
+                    raise LeidHttpError(
+                        f"HTTP {response.status} from {url}"
+                    )
+                # Stage 6 — Pre-cap on rendered HTML size
+                html = await page.content()
+                rendered_size = len(html.encode("utf-8"))
+                if rendered_size > config.max_response_bytes:
+                    raise LeidResponseTooLargeError(
+                        f"Rendered HTML from {url} is {rendered_size} bytes, "
+                        f"exceeds max_response_bytes={config.max_response_bytes}"
+                    )
+                # Stage 7 — Text + title extraction (re-uses stdlib HTMLParser)
+                text, title = _extract_text_from_html(html)
+                final_url = page.url
+                source_size = rendered_size
+            finally:
+                await context.close()                          # B-3: cookies discarded
+        finally:
+            await browser.close()
+    finally:
+        await pw.stop()                                        # B-7: full cleanup
+
+    return {
+        "url": validated_url,
+        "final_url": final_url,
+        "text": text,
+        "title": title,
+        "source_size_bytes": source_size,
+    }
+
+  Failure mapping:
+    UrlNotAllowedError              → PERMISSION_DENIED
+    LeidPlaywrightUnavailableError  → EXTERNAL_APP_UNAVAILABLE (NEW v0.8.0)
+    LeidTimeoutError                → SENSE_TIMEOUT  (from page.goto TimeoutError)
+    LeidConnectionError             → EXTERNAL_APP_UNAVAILABLE (network)
+    LeidHttpError                   → SENSE_INTERNAL_ERROR (HTTP 4xx/5xx)
+    LeidResponseTooLargeError       → INVALID_ARGUMENTS (rendered HTML > cap)
+
+  Memory bound at moment of pre-cap raise:
+    page.content() materialises the rendered DOM as a single string. If that
+    string's UTF-8 encoded length exceeds max_response_bytes, the raise occurs
+    AFTER the string has been built — meaning the worst-case memory at the
+    moment of refusal is approximately:
+        len(html.encode("utf-8")) + Python string overhead
+    This is intentional: Playwright does not expose a streaming DOM read.
+    Operators who need true streaming must use leid.fetch_url instead, which
+    has byte-level abort via aiter_bytes (§4.12.2.1).
+
+    The cap is NOT a memory bound for the rendered path; it is a token-budget
+    bound — it prevents the agent from receiving an enormous text payload,
+    not from the browser materialising a moderately-large DOM. This is a
+    documented trade-off, not a defect.
+
+  State persistence between calls:
+    NONE. Each call:
+      - launches its own pw runtime
+      - launches its own browser
+      - opens its own browser context (fresh cookie jar, fresh localStorage)
+      - opens its own page
+      - tears all four down before returning
+
+    No state of any kind crosses call boundaries. This is invariant B-3.
+
+  Cost vs the httpx path:
+    - httpx fetch_url:    ~50–500 ms (single HTTPS round trip)
+    - render_url:         ~500–3000 ms (browser cold start + page render)
+
+    The agent should prefer fetch_url / extract_text for static pages and
+    use render_url only when the page is known to be a JS-rendered SPA.
+    HERETIC does not auto-detect; the agent chooses per call.
+
+  Invariants honoured:
+    - L-1 / B-1: allowlist gate runs before any Playwright operation
+    - L-2:        empty allowlist still means no URL fetchable via render_url
+    - L-3:        sense disabled by default (config.enabled: false)
+    - L-4 / B-9:  HTTPS-only by default; http:// rejected unless allow_http: true
+    - L-5 / B-3:  no cookies persist (fresh context per call)
+    - L-6:        EXPLICITLY OVERRIDDEN — render_url DOES execute JavaScript;
+                  this is the entire point of the new sub-faculty. The page's
+                  scripts run during render. HERETIC injects no script of its
+                  own (B-10) but allows the page's scripts to run on the page.
+    - L-7:        size cap honoured at the rendered-HTML pre-cap (B-6)
+    - L-8:        redirects followed naturally by Playwright; final_url returned
+    - L-9:        wildcard "*" warning still applies (cross-tool)
+
+  License posture:
+    - Playwright (Microsoft):    Apache-2.0           [permissive]
+    - Chromium binary:           BSD-style + LGPL parts; downloaded as a
+                                 runtime artifact via `playwright install
+                                 chromium`, not bundled in HERETIC's wheel.
+    THIRD_PARTY_NOTICES.md updated at v0.8.0 to reflect the Playwright
+    dependency under [browser] extra.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
