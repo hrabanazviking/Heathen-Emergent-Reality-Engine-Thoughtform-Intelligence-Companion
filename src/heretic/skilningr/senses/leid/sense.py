@@ -34,6 +34,7 @@ from typing import Any, Callable
 from heretic.skilningr.config_model import LeidConfig
 from heretic.skilningr.senses.leid.client import LeidClient
 from heretic.skilningr.senses.leid.errors import LeidError
+from heretic.skilningr.senses.leid.playwright_client import PlaywrightLeidClient
 from heretic.skilningr.senses.leid.tools import LEID_TOOL_DEFINITIONS
 
 logger = logging.getLogger(__name__)
@@ -64,12 +65,27 @@ class LeidSense:
         client: LeidClient,
         log: logging.Logger | None = None,
         event_emitter: Callable | None = None,
+        playwright_client: PlaywrightLeidClient | None = None,
     ) -> None:
+        """Construct the Leið sense.
+
+        Args:
+            config: LeidConfig — URL allowlist + browser timeouts + size cap.
+            client: LeidClient — answers leid.fetch_url and leid.extract_text.
+            log:    Optional logger.
+            event_emitter: Optional callback for SenseToolCall events.
+            playwright_client: Optional PlaywrightLeidClient — answers
+                leid.render_url (v0.8.0 Opið Vef). When None, the sense
+                lazily constructs one on first leid.render_url dispatch
+                using the same config; the import of the playwright Python
+                package is then deferred to the first actual call (B-2).
+        """
         self._config = config
         self._client = client
         self._log = log if log is not None else logging.getLogger(__name__)
         self._event_emitter = event_emitter
         self._is_open: bool = False
+        self._playwright_client: PlaywrightLeidClient | None = playwright_client
 
     @property
     def is_available(self) -> bool:
@@ -172,6 +188,19 @@ class LeidSense:
             result = await self._client.extract_text(url=args["url"])
             return json.dumps(result)
 
+        if tool_name == "leid.render_url":
+            # v0.8.0 Opið Vef — browser-render sub-faculty.
+            # Lazily construct PlaywrightLeidClient if it was not injected.
+            # The playwright import only happens inside render_url() itself
+            # (B-2), so this lazy construction is safe on hosts without the
+            # [browser] extra installed.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.render_url(url=args["url"])
+            return json.dumps(result)
+
         raise ToolDispatchError(
             f"Leið route fell through for {tool_name!r} — routing table out of sync."
         )
@@ -224,6 +253,7 @@ def _leid_error_code(exc: LeidError) -> str:
     from heretic.skilningr.errors import (
         LeidConnectionError,
         LeidHttpError,
+        LeidPlaywrightUnavailableError,
         LeidResponseTooLargeError,
         LeidTimeoutError,
         UrlNotAllowedError,
@@ -236,6 +266,11 @@ def _leid_error_code(exc: LeidError) -> str:
         return "INVALID_ARGUMENTS"
     if isinstance(exc, LeidHttpError):
         return "SENSE_INTERNAL_ERROR"
+    if isinstance(exc, LeidPlaywrightUnavailableError):
+        # v0.8.0 Opið Vef — Playwright not installed or chromium missing.
+        # Surfaces to the agent as the same code as a network-level error,
+        # so the agent treats it as a transient/recoverable unavailability.
+        return "EXTERNAL_APP_UNAVAILABLE"
     if isinstance(exc, LeidConnectionError):
         return "EXTERNAL_APP_UNAVAILABLE"
     return "SENSE_INTERNAL_ERROR"

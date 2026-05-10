@@ -25,9 +25,11 @@ from heretic.skilningr.config_model import LeidConfig
 from heretic.skilningr.senses.leid.client import LeidClient
 from heretic.skilningr.senses.leid.errors import (
     LeidConnectionError,
+    LeidPlaywrightUnavailableError,
     LeidTimeoutError,
     UrlNotAllowedError,
 )
+from heretic.skilningr.senses.leid.playwright_client import PlaywrightLeidClient
 from heretic.skilningr.senses.leid.sense import LeidSense
 from heretic.skilningr.senses.leid.tools import LEID_TOOL_DEFINITIONS
 
@@ -124,11 +126,11 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 2 tools when enabled."""
+        """tool_definitions returns 3 tools when enabled (v0.8.0 added leid.render_url)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 2
+        assert len(sense.tool_definitions) == 3
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -138,10 +140,12 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """The two Leið tool names are locked as specified."""
+        """The three Leið tool names are locked as specified
+        (v0.6.2: fetch_url, extract_text; v0.8.0 added: render_url)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
+        assert "leid.render_url" in names
 
 
 # ---------------------------------------------------------------------------
@@ -272,3 +276,70 @@ class TestLeidSenseDispatch:
         parsed = json.loads(result["content"])
         assert parsed["error"] is True
         assert parsed["code"] == "INVALID_ARGUMENTS"
+
+    # -------------------------------------------------------------------
+    # v0.8.0 Opið Vef — leid.render_url dispatch
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_render_url_routes_to_playwright_client(self):
+        """dispatch_tool_call routes leid.render_url to the injected
+        PlaywrightLeidClient; the httpx LeidClient is NOT touched (D-14)."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_client.fetch_url = AsyncMock(return_value={})  # should NOT be called
+        mock_client.extract_text = AsyncMock(return_value={})  # should NOT be called
+
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.render_url = AsyncMock(return_value={
+            "url": "https://example.com/spa",
+            "final_url": "https://example.com/spa",
+            "text": "Rendered content",
+            "title": "SPA",
+            "source_size_bytes": 1234,
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.render_url", {"url": "https://example.com/spa"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+
+        assert parsed["text"] == "Rendered content"
+        assert parsed["title"] == "SPA"
+        assert parsed["final_url"] == "https://example.com/spa"
+        # The httpx client surface MUST NOT have been touched
+        mock_client.fetch_url.assert_not_called()
+        mock_client.extract_text.assert_not_called()
+        mock_pw_client.render_url.assert_awaited_once_with(
+            url="https://example.com/spa"
+        )
+
+    @pytest.mark.asyncio
+    async def test_render_url_unavailable_returns_external_app_unavailable_code(self):
+        """When PlaywrightLeidClient raises LeidPlaywrightUnavailableError, the
+        sense returns SENSE_CONTRACTS code EXTERNAL_APP_UNAVAILABLE."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.render_url = AsyncMock(
+            side_effect=LeidPlaywrightUnavailableError(
+                "Playwright is not installed."
+            )
+        )
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.render_url", {"url": "https://example.com/spa"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "EXTERNAL_APP_UNAVAILABLE"
