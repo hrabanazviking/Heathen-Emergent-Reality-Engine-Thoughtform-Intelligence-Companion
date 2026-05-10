@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
+**Last updated:** 2026-05-09 v0.7.1 addendum — Védis Eikleið: §4.12.2.1 (Leið streaming body-read — *Straumr á Leið*) added; §4.12.2 Step 4 annotated with v0.6.2-shipped + v0.7.1-streaming history; §4.12.2 F-6 rewritten to record three-stage history (first sketch → v0.6.2 raise → v0.7.1 streaming abort); closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`. Memory-bound at moment of raise documented (max_response_bytes + chunk_size). Closing-on-unwind semantics of httpx.AsyncClient.stream + bytearray accumulator documented. | 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -5189,16 +5189,24 @@ is empty and tool calls can never arrive.
     Timeout: 30s end-to-end (connection + response). httpx.TimeoutException raised on breach.
 
   Step 4 — response body size cap
-    MAX_RESPONSE = 1_048_576   # 1 MB
-    body = await response.aread()
-    IF len(body) > MAX_RESPONSE:
-      body = body[:MAX_RESPONSE]
-      truncated = True
-    ELSE:
-      truncated = False
+    NOTE (2026-05-09 v0.7.1): The body-read pattern shown below is HISTORICAL.
+    The shipped v0.6.2 code (post audit cleanup at 6a027f3) does NOT silently
+    truncate — it raises LeidResponseTooLargeError on cap breach. v0.7.1 then
+    replaces the buffer-then-check with a streaming abort. The canonical flow
+    is now §4.12.2.1 — Streaming body-read (Straumr á Leið). Read this Step 4
+    only as a record of the very-first sketch.
 
-    This cap prevents a large response (e.g., a 50 MB HTML page) from consuming agent context.
-    Truncation is noted in the tool_result; agent can report to user.
+    MAX_RESPONSE = 1_048_576   # 1 MB  (configurable)
+    [historical sketch] body = await response.aread()
+                       IF len(body) > MAX_RESPONSE:
+                         body = body[:MAX_RESPONSE]; truncated = True
+                       ELSE:
+                         truncated = False
+
+    The cap prevents a large response (e.g., a 50 MB HTML page) from consuming
+    agent context. v0.7.1 onwards: cap is enforced by streaming abort; the agent
+    receives a structured LeidResponseTooLargeError ToolResult instead of partial
+    content. See §4.12.2.1.
 
   Step 5 — text extraction (leid.fetch_url returns raw decoded text)
     text = body.decode(response.encoding or "utf-8", errors="replace")
@@ -5289,12 +5297,108 @@ is empty and tool calls can never arrive.
                   "detail": "<exception message>"}
     Turn continues.
 
-  F-6: Response body oversize (truncated)
-    Cause: response body exceeds 1 MB.
-    Body silently truncated; {"truncated": true} in result. No error. Turn continues.
+  F-6: Response body oversize
+    Cause: response body exceeds max_response_bytes (default 1 MB).
+    Behaviour history:
+      v0.6.2 first sketch — silently truncated (this section's old text).
+      v0.6.2 shipped (6a027f3) — full-buffer-then-check; raises LeidResponseTooLargeError;
+        no partial content returned to the agent.
+      v0.7.1 (Straumr á Leið) — true streaming abort via aiter_bytes; same exception
+        class raised mid-stream as soon as accumulator exceeds the cap; connection
+        closed during stack unwind. See §4.12.2.1 for the full streaming flow.
+    LeidSense catches LeidResponseTooLargeError and returns:
+      tool_result: {"error": "leid_response_too_large",
+                    "url": "<url>",
+                    "max_response_bytes": <cap>}
+    Turn continues.
 
   NOTE: No cookie leakage is possible. LeidSense uses a fresh httpx.AsyncClient per call
     with no persistent CookieJar. Each fetch_url call is fully stateless.
+```
+
+---
+
+#### 4.12.2.1 Leið streaming body-read (Straumr á Leið — v0.7.1)
+
+> **Added 2026-05-09 v0.7.1 (Védis Eikleið).** *Straumr á Leið* — the current on the road.
+> Replaces the v0.6.2 buffer-then-check pattern with a true streaming abort.
+> The body no longer needs to wait until the cup is full to know if it can be lifted.
+> Closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`.
+
+```
+  STRAUMR Á LEIÐ — STREAMING BODY-READ
+
+  v0.6.2 sketch (now historical):
+    response = await client.get(url)         # entire body lands in memory
+    if len(response.content) > cap:
+        raise LeidResponseTooLargeError(...)  # checked AFTER full intake
+    body = response.content.decode(...)
+
+    Defect: a 500 MB response is fully transferred and held before the cap raises.
+
+  v0.7.1 streaming pattern:
+    async with httpx.AsyncClient(...) as client:
+      async with client.stream("GET", url) as response:
+        # Pre-cap on Content-Length when present (saves the first chunk too):
+        cl_header = response.headers.get("content-length")
+        if cl_header is not None:
+          try:
+            if int(cl_header) > max_response_bytes:
+              raise LeidResponseTooLargeError(...)
+          except ValueError:
+            pass   # malformed header — ignore, fall through to chunk loop
+
+        # Status-code check uses the response object before any body iteration:
+        if response.status_code >= 400:
+          # Bound the error-text peek so a giant 4xx body cannot blow memory:
+          error_acc = bytearray()
+          async for chunk in response.aiter_bytes(4096):
+            error_acc.extend(chunk)
+            if len(error_acc) >= 500:
+              break
+          raise LeidHttpError(f"HTTP {status} from {url}; body[:500]={error_acc[:500]!r}")
+
+        # Streaming accumulator:
+        acc = bytearray()
+        async for chunk in response.aiter_bytes(65536):
+          acc.extend(chunk)
+          if len(acc) > max_response_bytes:
+            raise LeidResponseTooLargeError(
+              f"Response from {url} exceeds max_response_bytes={cap}; "
+              f"streamed {len(acc)} bytes before abort"
+            )
+        body = bytes(acc).decode("utf-8", errors="replace")
+        size_bytes = len(acc)
+
+  Position of the raise:
+    - The raise happens INSIDE the `async with client.stream(...)` block.
+    - On `raise`, Python unwinds the stack: the inner `__aexit__` of the
+      stream context cancels the response and CLOSES the connection.
+    - No further bytes are read from the network. The remote endpoint is
+      not asked to send what it would have sent next.
+
+  Memory bound at moment of raise:
+    Worst case: max_response_bytes + chunk_size (because the chunk that
+    pushes us over the cap is appended before the comparison).
+    For default chunk_size=65536 and max_response_bytes=1_048_576, the
+    bound is 1_114_112 bytes (~1.06 MB) — bounded, predictable, well below
+    the unbounded 500 MB of the v0.6.2 worst case.
+
+  Invariants preserved:
+    - Allowlist gate runs BEFORE httpx.stream() opens
+    - HTTPS-only check runs in the same gate
+    - No cookies (httpx.AsyncClient configured without cookie jar)
+    - GET only (client.stream("GET", url))
+    - 4xx/5xx status raised as LeidHttpError before body accumulation
+    - LeidResponseTooLargeError class shape unchanged; agent contract unchanged
+    - All other LeidError subclasses still rise from their respective httpx exceptions
+    - extract_text inherits streaming for free (it routes through fetch_url)
+
+  Why bytearray, not list-of-bytes:
+    - O(1) amortised extend
+    - Single contiguous buffer at decode time (no per-chunk copy chain)
+    - bytes(acc) is a single materialisation only on the success path
+    - No hidden per-chunk Python object overhead
 ```
 
 ---
