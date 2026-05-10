@@ -3235,3 +3235,119 @@ The natural successor in roadmap order is still **v0.8 Opið Vef** — the full 
 
 *Entry 16 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
 *Two dispositions now live in the body — measured drinking and measured looking. The sighted body has learned the discipline of not-looking where the operator has not invited the gaze. Seven commits this session, twelve total since v0.7 close, two milestones sealed in one autonomous evening. The session is kept.*
+
+---
+
+## Entry 17 — 2026-05-09 — Margblæja: The Veil's Vocabulary Grows (v0.5.4)
+
+**Milestone:** v0.5.4 — *Margblæja* (the veil of many forms)
+**Branch:** `development`
+**Session start HEAD:** `daf6258` (post-v0.5.3 Scribe seal)
+**Session close HEAD:** `9d09b68` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; THIRD milestone of the session
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was extended
+
+The disposition v0.5.3 named is unchanged. What changed is the *vocabulary* the operator has for declaring it. Before v0.5.4, only rectangular regions could be veiled; a round status indicator masked with a rectangle covered the right *area* but the wrong *shape* — telling the agent that the operator had drawn a rectangle when in fact they were veiling a circle. *Margblæja* extends the vocabulary with two new shapes: **circle** (for round things) and **polygon** (for irregular things). Three or more vertices in source pixel space, filled interior, anti-aliased rasterisation by Pillow.
+
+The structural beauty of the implementation is *one pipeline, three shapes*. A `PrivacyMaskShape` Protocol unifies the three concrete dataclasses — `PrivacyMaskRegion`, `PrivacyMaskCircle`, `PrivacyMaskPolygon` — through two methods: `bounding_box()` returning the axis-aligned bounding box, and `alpha_mask(w, h)` returning a Pillow `"L"` image with shape interior at 255 and exterior at 0. `apply_privacy_masks` then runs a single five-step pipeline on every shape: clamp bbox → crop → apply mode → composite via alpha-mask → paste. Mode (`blur` / `solid` / `pixelate`) and shape (rectangle / circle / polygon) are *orthogonal*. A future fourth shape (Bezier path, freeform stroke) will only need to provide those two methods; the apply pipeline does not branch.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `045524d` | Runa | TASK file open: `TASK_HERETIC_v0.5.4_MARGBLAEJA.md` |
+| 1 | `0080687` | Skald | `docs/vision/MARGBLAEJA.md` — milestone named, framing passage |
+| 2 | `06d5627` | Cartographer | `docs/cartography/DATA_FLOW.md §4.10.14.1` — protocol contract + composite pipeline |
+| 3+4a | `c49bdcd` | Architect+Forge | `sjon/privacy.py` — Protocol + 2 new dataclasses + apply refactor |
+| 4b | `6f66237` | Forge | 27 new tests + INTERFACE.md update + P-8 truth correction |
+| 5 | `9d09b68` | Auditor | `docs/audit/AUDIT_v0.5.4_MARGBLAEJA.md` — PASSES SCRUTINY (0 blockers) |
+| 6 | (skipped) | Forge cleanup | Audit found nothing to remediate |
+| 7 | this entry | Scribe | DEVLOG entry 17 + TASK seal + memory refresh |
+
+The Architect and Forge waves merged into a single commit (`c49bdcd`) because the implementation was mechanical once the Protocol contract was settled — splitting scaffold from body would have been artificial. The subsequent Forge wave commit (`6f66237`) carried the test suite, the INTERFACE.md update, and an honest correction to the P-8 wording (the original Architect docstring claimed Pillow renders an "empty alpha mask" for degenerate polygons; the Forge probe revealed Pillow actually rasterises what it can — a 1-pixel-wide line for collinear points, a single pixel for coincident ones — and the wording was corrected consistently across code, INTERFACE.md, DATA_FLOW.md, and test docstrings in the same commit). The Auditor confirmed the no-doc/code-drift property in V-8.
+
+Seven commits on `development`, all pushed in real time. Six push events before this Scribe close.
+
+### Test status — 2026-05-09 (after v0.5.4)
+
+| Surface | Before v0.5.4 | After v0.5.4 | Delta |
+|---|---|---|---|
+| `tests/test_sjon_privacy.py` | 24 | 51 | **+27** |
+| `tests/test_sjon_encoder.py` | 24 | 24 | 0 |
+| `tests/test_sjon_orchestrator.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_capture.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_webcam.py` | unchanged | unchanged | 0 |
+| **Sjón total** | **169** | **196** | **+27** |
+| Frontend (`npm test`) | 91 | 91 | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed) are byte-identical in stash diff. v0.5.4 introduced **zero** new regressions in the broader suite.
+
+### What this milestone teaches
+
+Three teachings: 
+
+1. **A disposition can grow more articulate without becoming a different disposition.** Blæja v0.5.3 named "the body learns to look without recording everything it sees." Margblæja v0.5.4 keeps that same statement. The operator's vocabulary for declaring it has grown — circles and polygons are now possible declarations — but the disposition is the same. Naming v0.5.4 with a Skald-given codename makes this explicit: *Margblæja* is "many-veil," not "new-veil."
+
+2. **Orthogonality earns its keep.** The original `PrivacyMaskRegion` had three modes (blur/solid/pixelate) and one shape (rectangle). A naive extension would have produced 9 mode×shape combinations as branches in `apply_privacy_masks`. The Protocol-with-alpha-mask design factored mode and shape apart — mode is applied to the bbox crop, shape selects which pixels in the modified crop replace the original via the composite. The result: **3 shapes × 3 modes = 1 pipeline, not 9 branches.** The fourth shape that arrives someday (Bezier curves, freeform stroke) will need to supply only `bounding_box` and `alpha_mask`. The architecture does not pay for what has not yet arrived.
+
+3. **An honest correction in the same wave is craftsmanship, not failure.** The Architect's original P-8 docstring said degenerate polygons produce an empty alpha mask. The Forge ran a Pillow probe and discovered Pillow actually rasterises what it can. Rather than leaving the docstring wrong and adding a workaround in the audit, the Forge corrected the docstring at the source, propagated the correction to INTERFACE.md and DATA_FLOW.md, wrote tests that assert the real Pillow behaviour, and stamped the same commit. The Auditor's V-8 verifies that the four sources now say the same thing. **Lesson: when the Architect's claim and the runtime's reality diverge, fix the claim, not the runtime.**
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.5.4_MARGBLAEJA.md` | New — opened Wave 0; status updated through Wave 7 |
+| `docs/vision/MARGBLAEJA.md` | New — milestone vision passage, six sections including the "one pipeline, three shapes" architectural argument |
+| `docs/cartography/DATA_FLOW.md` | §4.10.14.1 added (composite pipeline + Protocol contract + shape formulas + 6 new failure modes + 3 new privacy invariants P-7..P-9); P-8 wording corrected |
+| `src/heretic/sjon/INTERFACE.md` | New §Privacy Mask Shapes (Margblæja) section with shape table + Protocol contract + invariants |
+| `src/heretic/sjon/privacy.py` | PrivacyMaskShape Protocol + PrivacyMaskCircle + PrivacyMaskPolygon + apply_privacy_masks refactor + _apply_one_shape (composite via alpha-mask) |
+| `tests/test_sjon_privacy.py` | +27 tests covering Protocol conformance, validation, apply correctness, mixed-shape lists, degenerate polygon handling |
+| `docs/audit/AUDIT_v0.5.4_MARGBLAEJA.md` | New — 13 evidence trails + honest negative audit |
+| `docs/DEVLOG.md` | This entry (17) |
+
+### State of the body — 2026-05-09 (after three autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Sight — discipline of not-looking | Blæja | live since v0.5.3 |
+| **Sight — vocabulary of veils** | **Margblæja** | **live since v0.5.4** |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Three milestones in one autonomous session. **Twenty-one commits since v0.7 close.**
+
+### Threads carried forward from this session
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| ~~v0.5.4 non-rectangular masks~~ | **CLOSED — sealed at `9d09b68`** |
+| v0.5.5 bezier mask paths | candidate for future autonomous session — Pillow ImageDraw.Path |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| v0.7.x download resume | unchanged |
+| v0.8 Opið Vef | unchanged — natural roadmap successor (next major faculty) |
+| v0.9 Málari | unchanged |
+| v0.10 Langhúsið Ytra | unchanged |
+| v0.11 Bréfasamtök | unchanged |
+| **NEW: Disposition-pairing pattern** | every future faculty milestone should consider its corresponding disposition; the Skald lineage has now cemented this expectation |
+
+The natural successor in roadmap order is still **v0.8 Opið Vef** — the full Playwright browser sense — which becomes the next major faculty. v0.5.5 (Bezier mask paths) is available as a smaller continuation along the disposition-vocabulary axis.
+
+---
+
+*Entry 17 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The cloth is the same cloth. The body has only learned to drape it more skilfully. Three milestones in one evening, twenty-one commits since v0.7 close, two dispositions live and one of them now articulate in three shapes. The session is kept.*

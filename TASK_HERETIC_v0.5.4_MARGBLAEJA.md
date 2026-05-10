@@ -25,20 +25,22 @@ The shape vocabulary is unified through a `PrivacyMaskShape` Protocol. Both new 
 
 ## 2. Current status — 2026-05-09
 
-**Phase:** v0.5.4 **OPEN — wave plan published, no code written yet.**
+**Phase:** v0.5.4 **SHIPPED + AUDITED + SEALED.** All seven waves closed.
 
-**HEAD (development):** `daf6258` (v0.5.3 Scribe seal — parent of upcoming Wave 0 commit)
+**HEAD (development) at audit close:** `9d09b68` (Auditor PASSES SCRUTINY)
 
-**Test count baseline (before this milestone):** Sjón scope 169+ on full-extras host (post-Blæja). Privacy file: 24 tests. Encoder: 24 tests including 3 Blæja integration.
+**Test count after v0.5.4:** Sjón privacy 24 → 51 (+27 new Margblæja tests). Sjón total 169 → 196. No regressions.
 
-### v0.5.4 deliverables — pending
+### v0.5.4 deliverables — all complete
 
-- ☐ Skald — `docs/vision/MARGBLAEJA.md` — what it means for a disposition to grow more expressive
-- ☐ Cartographer — `docs/cartography/DATA_FLOW.md §4.10.14` addendum: shape Protocol + alpha-mask composite pattern
-- ☐ Architect — `PrivacyMaskShape` Protocol; `PrivacyMaskCircle` and `PrivacyMaskPolygon` dataclasses; existing `PrivacyMaskRegion` gains the two Protocol methods; `INTERFACE.md` updated
-- ☐ Forge — Protocol method bodies on all three shapes; refactored `apply_privacy_masks` (clamp bbox → crop → apply mode → composite via alpha-mask → paste); 12+ new tests
-- ☐ Auditor — `docs/audit/AUDIT_v0.5.4_MARGBLAEJA.md` — verifies P-1..P-6 still hold; verifies alpha-mask composite is structurally upstream of every leak path; verifies polygon clamping never leaves unmasked seams
-- ☐ Scribe — DEVLOG entry 17; TASK seal; memory refresh
+- ✅ Wave 0 — `chore: open v0.5.4 ...` at `045524d`
+- ✅ Wave 1 — Skald: `docs/vision/MARGBLAEJA.md` at `0080687`
+- ✅ Wave 2 — Cartographer: `docs/cartography/DATA_FLOW.md §4.10.14.1` at `06d5627`
+- ✅ Waves 3+4a — Architect+Forge merged: Protocol + 2 new dataclasses + apply refactor at `c49bdcd`
+- ✅ Wave 4b — Forge: 27 tests + INTERFACE.md + P-8 truth correction at `6f66237`
+- ✅ Wave 5 — Auditor: `docs/audit/AUDIT_v0.5.4_MARGBLAEJA.md` PASSES at `9d09b68`
+- ⏭ Wave 6 — Forge cleanup (skipped; audit found nothing to remediate)
+- ✅ Wave 7 — Scribe: DEVLOG entry 17, this TASK seal, memory refresh (final commit)
 
 ### What v0.5.4 does NOT add
 
