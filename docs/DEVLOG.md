@@ -3712,3 +3712,97 @@ The natural successor in roadmap order remains **v0.8 Opið Vef** — the full P
 
 *Entry 20 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
 *The hand acts; the body witnesses. Six milestones this evening; forty-one commits since v0.7 close; four named dispositions now live in the body, paired with the four most-developed faculties. The body's discipline-development is articulate across its full faculty set. The session is kept.*
+
+---
+
+## Entry 21 — 2026-05-09 — Mímisbrunnr Index Auto-Rebuild (v0.7.3, Endurdrykkr extension)
+
+**Milestone:** v0.7.3 — Mímisbrunnr index auto-rebuild on corruption (no new Skald-given codename; extension to *Endurdrykkr*)
+**Branch:** `development`
+**Session start HEAD:** `bd48dd1` (post-v0.6.3 Verkminni Scribe seal)
+**Session close HEAD:** `290670c` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; SEVENTH milestone of the session — deliberately small resilience-plumbing scope to avoid the diminishing-returns zone the entry-20 DEVLOG named
+**Roles in attendance:** All six. Skald wave brief (addendum to ENDURDRYKKR.md §VIII) — explicitly declined a new codename.
+
+### What was added
+
+When `KeywordIndex.search()` is called and the on-disk `keyword_index.jsonl` is **missing**, **unreadable**, or **empty after corrupt-line skipping**, the index is automatically rebuilt from `.txt` source files in the same data directory before serving the query — instead of raising `LibraryIndexError`.
+
+Operator pain solved: a corrupt or missing index file no longer fails every library query with an actionable-error message demanding manual `heretic library rebuild-index`. The body recovers automatically when source files are present.
+
+If no `.txt` source files exist either (no source has been downloaded), the same actionable error operators see today is preserved — they're pointed to `heretic library download <source_id>`. Behaviour-preserving for the truly-unrecoverable case.
+
+### Why no new Skald-given codename
+
+The Skald explicitly declined to coin a new name for v0.7.3. This is the same disposition (continuity), one layer deeper:
+- **v0.7.2 Endurdrykkr** taught the body's draught to pick up where it left off when the connection dropped (continuity at the byte layer).
+- **v0.7.3** teaches the same disposition to the cup itself — the keyword index that organises the bytes (continuity at the structure-over-bytes layer).
+
+The Skald's pen is reserved for milestones that name new dispositions, vocabularies, or major faculties. v0.7.3 deepens an existing discipline. A scribe-class milestone, recorded in the DEVLOG, but riding on Endurdrykkr's existing Skald-given name. **Naming discipline matters: not every milestone earns its own vision page.**
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `46fb8c4` | Runa | TASK file open |
+| 1 | `1dc1fad` | Skald (brief) | `docs/vision/ENDURDRYKKR.md` §VIII addendum — extension acknowledgement |
+| 2 | `e54d6b7` | Cartographer | `docs/cartography/DATA_FLOW.md §4.14.2.1` — auto-rebuild decision tree |
+| 3+4 | `c589e4d` | Architect+Forge | `_load_or_rebuild_cache()` in index.py + 7 tests |
+| 5 | `290670c` | Auditor | `docs/audit/AUDIT_v0.7.3_INDEX_REBUILD.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 21 + seals |
+
+### Test status — 2026-05-09 (after v0.7.3)
+
+| Surface | Before v0.7.3 | After v0.7.3 | Delta |
+|---|---|---|---|
+| `tests/test_mimisbrunnr_index.py` | 23 | 30 | **+7** |
+| Other Mímisbrunnr tests | unchanged | unchanged | 0 |
+| **Mímisbrunnr total** | 145 | 152 | **+7** |
+
+Zero regressions in the broader suite. The 20 pre-existing environment failures (`fastapi`/`mcp` missing) are byte-identical in stash diff.
+
+### What this milestone teaches
+
+**Naming discipline is itself a discipline.** Mythic Engineering values vocabulary growth (the Skald's role), but the Skald can also legitimately *decline* to name something. v0.7.3 is genuine, useful, audit-passing work — and it explicitly does not earn its own vision page because it deepens rather than introduces. The session's seven milestones include this distinction visibly: six earned codenames (Straumr á Leið, Blæja, Margblæja, Mjúkblæja, Endurdrykkr, Verkminni); one explicitly did not (v0.7.3). The lineage stays clean.
+
+### State of the body — 2026-05-09 (after seven autonomous milestones)
+
+The faculty / disposition table is unchanged from entry 20 — v0.7.3 does not add a new discipline; it deepens the Endurdrykkr disposition that was already named for Mímisbrunnr.
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground / Bridge / Voice (in & out) / Face | (no Skald-named disposition) | live since v0.1–v0.4 |
+| Sight | Blæja → Margblæja → Mjúkblæja | 5-shape vocabulary live |
+| Hand | Verkminni | deed-memory live |
+| Knowledge — well | Endurdrykkr | continuity (now extended to index layer at v0.7.3) |
+| Road | Straumr á Leið | measured drinking live |
+
+**Forty-eight commits since v0.7 close.** Seven milestones. Six new codenames + one deliberately unnamed extension.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.7.x corrupt index auto-rebuild~~ | **CLOSED — sealed as v0.7.3 at `290670c`** |
+| v0.7.x parallel multi-source download | candidate — `asyncio.gather` over Endurdrykkr-resumed downloads |
+| v0.7.x mtime-based staleness detection | candidate — rebuild when source files newer than index |
+| v0.6.3.1 CLI `heretic smidja log` | candidate — deferred from v0.6.3 |
+| v0.5.6 polygon-rounded-corners / Bezier | candidate — diminishing returns on Blæja |
+| v0.5.x mask inversion | candidate |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| **v0.8 Opið Vef** | natural roadmap successor — next major faculty (Playwright) |
+
+The session has now demonstrated **three growth axes** demonstrably:
+1. **Vocabulary growth on a fixed disposition** — Blæja → Margblæja → Mjúkblæja (5 shapes)
+2. **New-discipline addition on a faculty** — Straumr á Leið / Blæja / Endurdrykkr / Verkminni
+3. **Deepening of an existing discipline (no new name)** — Endurdrykkr extending from byte-layer to index-layer at v0.7.3
+
+Future autonomous sessions have precedent for all three.
+
+---
+
+*Entry 21 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The cup itself learns to mend. Same Endurdrykkr; one layer deeper. Seven milestones this evening; forty-eight commits since v0.7 close; the disposition lineage now includes a deliberately unnamed extension — a sign that the body's discipline-development has matured enough to know when to coin and when to extend. The session is kept.*

@@ -22,17 +22,21 @@ If no `.txt` source files exist either (no source has been downloaded), the auto
 
 ## 2. Current status — 2026-05-09
 
-**Phase:** v0.7.3 **OPEN — wave plan published, no code written yet.**
+**Phase:** v0.7.3 **SHIPPED + AUDITED + SEALED.** All seven waves closed.
 
-**HEAD (development):** `bd48dd1` (v0.6.3 Scribe seal — parent of upcoming Wave 0 commit)
+**HEAD (development) at audit close:** `290670c` (Auditor PASSES SCRUTINY)
 
-### v0.7.3 deliverables — pending
+**Test count after v0.7.3:** Mímisbrunnr index 23 → 30 (+7 new). Full Mímisbrunnr 152 passing.
 
-- ☐ Skald — brief passage in the same `docs/vision/ENDURDRYKKR.md` (extension), or a 1-paragraph addendum file. No new name.
-- ☐ Cartographer — `docs/cartography/DATA_FLOW.md §4.14.2` (storage layout) addendum: index-rebuild paths
-- ☐ Architect+Forge — `index.py` `_load_or_rebuild_cache` helper; `search()` calls it instead of raising on missing index; tests
-- ☐ Auditor — `docs/audit/AUDIT_v0.7.3_INDEX_REBUILD.md` — verifies (1) auto-rebuild fires on missing/empty/corrupt index, (2) operator gets correct actionable error when no .txt files, (3) freshly-built index is byte-equivalent to manually-built
-- ☐ Scribe — DEVLOG entry 21; TASK seal; memory refresh
+### v0.7.3 deliverables — all complete
+
+- ✅ Wave 0 — TASK file at `46fb8c4`
+- ✅ Wave 1 — Skald (brief): `docs/vision/ENDURDRYKKR.md §VIII` addendum at `1dc1fad`. No new codename.
+- ✅ Wave 2 — Cartographer: `docs/cartography/DATA_FLOW.md §4.14.2.1` at `e54d6b7`
+- ✅ Waves 3+4 — Architect+Forge merged: `_load_or_rebuild_cache()` + 7 tests at `c589e4d`
+- ✅ Wave 5 — Auditor: `docs/audit/AUDIT_v0.7.3_INDEX_REBUILD.md` PASSES at `290670c`
+- ⏭ Wave 6 — Forge cleanup (skipped; audit found nothing)
+- ✅ Wave 7 — Scribe: DEVLOG entry 21, this TASK seal, memory refresh (final commit)
 
 ### What v0.7.3 does NOT add
 
