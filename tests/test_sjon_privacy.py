@@ -610,3 +610,258 @@ class TestDegeneratePolygon:
         # The single pixel at (50, 50) is masked; the rest is unchanged.
         assert img.getpixel((50, 50)) == (0, 0, 0)
         assert img.getpixel((30, 30)) == (200, 200, 200)
+
+
+# ---------------------------------------------------------------------------
+# v0.5.5 Mjúkblæja — RoundedRectangle + Ellipse tests
+# ---------------------------------------------------------------------------
+
+from heretic.sjon.privacy import (
+    PrivacyMaskRoundedRectangle, PrivacyMaskEllipse,
+)
+
+
+class TestPrivacyMaskRoundedRectangleValidation:
+
+    def test_default_construction_succeeds(self):
+        rr = PrivacyMaskRoundedRectangle(x=0, y=0, w=100, h=100, corner_radius=10)
+        assert rr.bounding_box() == (0, 0, 100, 100)
+        assert rr.mode == "blur"
+
+    def test_zero_corner_radius_succeeds(self):
+        """corner_radius=0 is a valid degenerate case (sharp rectangle)."""
+        rr = PrivacyMaskRoundedRectangle(x=0, y=0, w=50, h=50, corner_radius=0)
+        # Should not raise
+        assert rr.corner_radius == 0
+
+    def test_negative_corner_radius_raises(self):
+        with pytest.raises(ValueError) as exc_info:
+            PrivacyMaskRoundedRectangle(x=0, y=0, w=10, h=10, corner_radius=-1)
+        assert "corner_radius" in str(exc_info.value)
+
+    def test_zero_width_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskRoundedRectangle(x=0, y=0, w=0, h=10, corner_radius=5)
+
+    def test_zero_height_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskRoundedRectangle(x=0, y=0, w=10, h=0, corner_radius=5)
+
+    def test_invalid_mode_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskRoundedRectangle(
+                x=0, y=0, w=10, h=10, corner_radius=2, mode="curvy",
+            )
+
+    def test_is_shape(self):
+        rr = PrivacyMaskRoundedRectangle(x=0, y=0, w=10, h=10, corner_radius=2)
+        assert isinstance(rr, PrivacyMaskShape)
+
+
+class TestPrivacyMaskRoundedRectangleApply:
+
+    def test_solid_interior_is_mask_color(self):
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskRoundedRectangle(
+            x=20, y=20, w=160, h=160, corner_radius=20,
+            mode="solid", solid_color=(255, 0, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Centre pixel — well inside the rounded rect
+        assert img.getpixel((100, 100)) == (255, 0, 0)
+
+    def test_corner_outside_curve_unchanged(self):
+        """The bbox absolute corner is outside the rounded curve. P-7."""
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        # corner_radius=30, so the absolute corner of the bbox is far outside
+        # the rounded curve.
+        masks = [PrivacyMaskRoundedRectangle(
+            x=20, y=20, w=160, h=160, corner_radius=30,
+            mode="solid", solid_color=(255, 0, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Top-left pixel of bbox: (20, 20). Inside the bbox but outside the
+        # rounded curve (the curve carves away the corner).
+        assert img.getpixel((20, 20)) == (50, 50, 50), (
+            "Bbox top-left corner should be outside the rounded curve "
+            "(P-7 boundary preservation)"
+        )
+        # Top-right corner of bbox
+        assert img.getpixel((179, 20)) == (50, 50, 50)
+        # Bottom-left corner
+        assert img.getpixel((20, 179)) == (50, 50, 50)
+        # Bottom-right corner
+        assert img.getpixel((179, 179)) == (50, 50, 50)
+
+    def test_corner_radius_clamped_to_half_short_side(self):
+        """corner_radius larger than min(w,h)//2 is clamped at apply time without raising."""
+        img = _make_test_image(100, 100, fill=(50, 50, 50))
+        # 50x50 box with corner_radius=200 — clamped to min(50,50)//2 = 25
+        masks = [PrivacyMaskRoundedRectangle(
+            x=10, y=10, w=50, h=50, corner_radius=200,
+            mode="solid", solid_color=(255, 255, 0),
+        )]
+        # Should not raise
+        apply_privacy_masks(img, masks)
+        # Centre is masked (this is now effectively a circle since corner_radius
+        # clamped to 25 == min(w,h)//2)
+        assert img.getpixel((35, 35)) == (255, 255, 0)
+
+    def test_zero_corner_radius_renders_sharp_rectangle(self):
+        """corner_radius=0 produces an alpha mask identical to a regular rectangle."""
+        img = _make_test_image(100, 100, fill=(50, 50, 50))
+        masks = [PrivacyMaskRoundedRectangle(
+            x=10, y=10, w=80, h=80, corner_radius=0,
+            mode="solid", solid_color=(0, 255, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # All four corners of the rect should be masked (it's sharp-cornered)
+        assert img.getpixel((10, 10)) == (0, 255, 0)
+        assert img.getpixel((89, 89)) == (0, 255, 0)
+        assert img.getpixel((50, 50)) == (0, 255, 0)
+
+    def test_off_frame_noop(self):
+        img = _make_test_image(50, 50, fill=(100, 100, 100))
+        masks = [PrivacyMaskRoundedRectangle(
+            x=200, y=200, w=20, h=20, corner_radius=5,
+            mode="solid", solid_color=(0, 0, 0),
+        )]
+        original = list(img.getdata())
+        apply_privacy_masks(img, masks)
+        assert list(img.getdata()) == original
+
+
+class TestPrivacyMaskEllipseValidation:
+
+    def test_default_construction_succeeds(self):
+        e = PrivacyMaskEllipse(cx=50, cy=50, rx=30, ry=20)
+        assert e.bounding_box() == (20, 30, 60, 40)
+        assert e.mode == "blur"
+
+    def test_zero_rx_raises(self):
+        with pytest.raises(ValueError) as exc_info:
+            PrivacyMaskEllipse(cx=10, cy=10, rx=0, ry=5)
+        assert "rx" in str(exc_info.value)
+
+    def test_zero_ry_raises(self):
+        with pytest.raises(ValueError) as exc_info:
+            PrivacyMaskEllipse(cx=10, cy=10, rx=5, ry=0)
+        assert "ry" in str(exc_info.value)
+
+    def test_negative_radii_raise(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskEllipse(cx=10, cy=10, rx=-1, ry=5)
+        with pytest.raises(ValueError):
+            PrivacyMaskEllipse(cx=10, cy=10, rx=5, ry=-1)
+
+    def test_negative_centre_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskEllipse(cx=-1, cy=10, rx=5, ry=5)
+
+    def test_is_shape(self):
+        e = PrivacyMaskEllipse(cx=10, cy=10, rx=5, ry=5)
+        assert isinstance(e, PrivacyMaskShape)
+
+
+class TestPrivacyMaskEllipseApply:
+
+    def test_solid_interior_is_mask_color(self):
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskEllipse(
+            cx=100, cy=100, rx=60, ry=30,
+            mode="solid", solid_color=(0, 200, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Centre pixel — well inside the ellipse
+        assert img.getpixel((100, 100)) == (0, 200, 0)
+
+    def test_bbox_corner_outside_ellipse_unchanged(self):
+        """A pixel at the corner of the bbox is outside the ellipse. P-7."""
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskEllipse(
+            cx=100, cy=100, rx=60, ry=30,
+            mode="solid", solid_color=(0, 200, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # bbox = (40, 70, 120, 60) — corners at (40,70), (159,70), (40,129), (159,129)
+        # All four are outside the ellipse.
+        assert img.getpixel((40, 70)) == (50, 50, 50), (
+            "Bbox top-left corner should be outside the ellipse (P-7)"
+        )
+        assert img.getpixel((159, 70)) == (50, 50, 50)
+        assert img.getpixel((40, 129)) == (50, 50, 50)
+        assert img.getpixel((159, 129)) == (50, 50, 50)
+
+    def test_non_circular_aspect(self):
+        """An ellipse with rx != ry is genuinely non-circular.
+
+        Sample two pixels along the major and minor axes at the same distance
+        from the centre. Inside the ellipse along the major axis; outside
+        along the minor axis (since ry < rx).
+        """
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        # Wide ellipse: rx=60 (horizontal half-axis), ry=20 (vertical half-axis)
+        masks = [PrivacyMaskEllipse(
+            cx=100, cy=100, rx=60, ry=20,
+            mode="solid", solid_color=(0, 0, 200),
+        )]
+        apply_privacy_masks(img, masks)
+        # 50 pixels left of centre along x — inside the ellipse (50 < rx=60)
+        assert img.getpixel((50, 100)) == (0, 0, 200), (
+            "Pixel along major axis (rx=60) at distance 50 should be inside"
+        )
+        # 50 pixels above centre along y — outside the ellipse (50 > ry=20)
+        assert img.getpixel((100, 50)) == (50, 50, 50), (
+            "Pixel along minor axis (ry=20) at distance 50 should be outside"
+        )
+
+    def test_equal_radii_acts_like_circle(self):
+        """rx == ry produces a circular alpha mask (degenerate ellipse = circle)."""
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskEllipse(
+            cx=100, cy=100, rx=40, ry=40,
+            mode="solid", solid_color=(255, 0, 255),
+        )]
+        apply_privacy_masks(img, masks)
+        # Centre is masked
+        assert img.getpixel((100, 100)) == (255, 0, 255)
+        # Bbox corner (60, 60) is outside the disc — unchanged
+        assert img.getpixel((60, 60)) == (50, 50, 50)
+
+
+class TestFiveShapeMixedList:
+
+    def test_all_five_shapes_in_one_apply(self):
+        """A list with one of every shape kind: all five regions masked."""
+        img = _make_test_image(400, 400, fill=(50, 50, 50))
+        masks = [
+            PrivacyMaskRegion(
+                x=10, y=10, w=40, h=40,
+                mode="solid", solid_color=(255, 0, 0),  # red rectangle
+            ),
+            PrivacyMaskCircle(
+                cx=300, cy=50, radius=25,
+                mode="solid", solid_color=(0, 255, 0),  # green circle
+            ),
+            PrivacyMaskPolygon(
+                points=[(50, 200), (100, 200), (75, 250)],
+                mode="solid", solid_color=(0, 0, 255),  # blue triangle
+            ),
+            PrivacyMaskRoundedRectangle(
+                x=200, y=200, w=80, h=80, corner_radius=15,
+                mode="solid", solid_color=(255, 255, 0),  # yellow rounded rect
+            ),
+            PrivacyMaskEllipse(
+                cx=300, cy=300, rx=40, ry=20,
+                mode="solid", solid_color=(255, 0, 255),  # magenta ellipse
+            ),
+        ]
+        apply_privacy_masks(img, masks)
+        # Each shape's interior pixel should match its colour
+        assert img.getpixel((30, 30)) == (255, 0, 0), "Rectangle wrong"
+        assert img.getpixel((300, 50)) == (0, 255, 0), "Circle wrong"
+        assert img.getpixel((75, 220)) == (0, 0, 255), "Polygon wrong"
+        assert img.getpixel((240, 240)) == (255, 255, 0), "Rounded rect wrong"
+        assert img.getpixel((300, 300)) == (255, 0, 255), "Ellipse wrong"
+        # Untouched pixel
+        assert img.getpixel((380, 380)) == (50, 50, 50)

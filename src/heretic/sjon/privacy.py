@@ -398,6 +398,182 @@ class PrivacyMaskPolygon:
 
 
 # ---------------------------------------------------------------------------
+# PrivacyMaskRoundedRectangle (v0.5.5 — Mjúkblæja)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PrivacyMaskRoundedRectangle:
+    """A rounded-rectangle privacy mask region (v0.5.5 *Mjúkblæja*).
+
+    Defined by axis-aligned `(x, y, w, h)` plus `corner_radius` — a single
+    integer applied to all four corners. The dominant modern UI primitive:
+    chat windows, code panels, dialog boxes, browser tabs.
+
+    Construction-time validation (raises `ValueError`):
+        - `x`, `y` non-negative ints
+        - `w`, `h` positive ints (>= 1)
+        - `corner_radius` non-negative int (`0` is valid: degenerate to a
+          sharp rectangle)
+        - `mode`, `solid_color`, `blur_radius`, `pixelate_factor` validated
+          by `_validate_shared_shape_fields`
+
+    Apply-time corner-radius clamp:
+        If `corner_radius > min(w, h) // 2`, the effective radius is clamped
+        to `min(w, h) // 2`. The operator is not warned; the rendered shape
+        is the largest valid rounded rectangle. This honours operator intent
+        (cover a soft-cornered region) without erroring on the impossible
+        case of overlapping corner arcs.
+    """
+
+    x: int
+    y: int
+    w: int
+    h: int
+    corner_radius: int
+
+    mode: PrivacyMaskMode = "blur"
+    blur_radius: Optional[int] = None
+    solid_color: Tuple[int, int, int] = (0, 0, 0)
+    pixelate_factor: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.x, int) or self.x < 0:
+            raise ValueError(
+                f"PrivacyMaskRoundedRectangle.x must be a non-negative integer, "
+                f"got {self.x!r}"
+            )
+        if not isinstance(self.y, int) or self.y < 0:
+            raise ValueError(
+                f"PrivacyMaskRoundedRectangle.y must be a non-negative integer, "
+                f"got {self.y!r}"
+            )
+        if not isinstance(self.w, int) or self.w < 1:
+            raise ValueError(
+                f"PrivacyMaskRoundedRectangle.w must be a positive integer (>= 1), "
+                f"got {self.w!r}"
+            )
+        if not isinstance(self.h, int) or self.h < 1:
+            raise ValueError(
+                f"PrivacyMaskRoundedRectangle.h must be a positive integer (>= 1), "
+                f"got {self.h!r}"
+            )
+        if not isinstance(self.corner_radius, int) or self.corner_radius < 0:
+            raise ValueError(
+                f"PrivacyMaskRoundedRectangle.corner_radius must be a non-negative "
+                f"integer, got {self.corner_radius!r}"
+            )
+        _validate_shared_shape_fields(
+            "PrivacyMaskRoundedRectangle",
+            self.mode, self.blur_radius, self.solid_color, self.pixelate_factor,
+        )
+
+    # ----- PrivacyMaskShape Protocol implementation -----
+
+    def bounding_box(self) -> Tuple[int, int, int, int]:
+        """Return (x, y, w, h) — the rounded rect's curves are inside the bbox."""
+        return (self.x, self.y, self.w, self.h)
+
+    def alpha_mask(self, w: int, h: int) -> object:
+        """Draw the rounded rectangle as the alpha mask. Corner radius clamped."""
+        from PIL import Image, ImageDraw
+        # Apply-time clamp: corner_radius cannot exceed half the shorter side.
+        # min(w, h) // 2 is the largest valid corner_radius for which the four
+        # corner arcs do not overlap. corner_radius=0 produces a sharp rect.
+        eff_radius = min(self.corner_radius, min(w, h) // 2)
+        mask = Image.new("L", (w, h), 0)
+        draw = ImageDraw.Draw(mask)
+        # Pillow rounded_rectangle: (xy, radius, fill).
+        # xy is (x0, y0, x1, y1) inclusive — so we use (0, 0, w-1, h-1).
+        draw.rounded_rectangle(
+            (0, 0, w - 1, h - 1),
+            radius=eff_radius,
+            fill=255,
+        )
+        return mask
+
+
+# ---------------------------------------------------------------------------
+# PrivacyMaskEllipse (v0.5.5 — Mjúkblæja)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PrivacyMaskEllipse:
+    """An axis-aligned ellipse privacy mask region (v0.5.5 *Mjúkblæja*).
+
+    Defined by centre `(cx, cy)` and two distinct radii `(rx, ry)`. Strict
+    generalisation of `PrivacyMaskCircle`: the degenerate case `rx == ry`
+    is a valid ellipse and renders identically to the equivalent circle.
+    The two are independent dataclasses, not in a subtype relationship —
+    operator chooses the type that best names their intent.
+
+    Construction-time validation (raises `ValueError`):
+        - `cx`, `cy` non-negative ints
+        - `rx`, `ry` positive ints (>= 1)
+        - `mode`, `solid_color`, `blur_radius`, `pixelate_factor` validated
+          by `_validate_shared_shape_fields`
+    """
+
+    cx: int
+    cy: int
+    rx: int
+    ry: int
+
+    mode: PrivacyMaskMode = "blur"
+    blur_radius: Optional[int] = None
+    solid_color: Tuple[int, int, int] = (0, 0, 0)
+    pixelate_factor: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.cx, int) or self.cx < 0:
+            raise ValueError(
+                f"PrivacyMaskEllipse.cx must be a non-negative integer, "
+                f"got {self.cx!r}"
+            )
+        if not isinstance(self.cy, int) or self.cy < 0:
+            raise ValueError(
+                f"PrivacyMaskEllipse.cy must be a non-negative integer, "
+                f"got {self.cy!r}"
+            )
+        if not isinstance(self.rx, int) or self.rx < 1:
+            raise ValueError(
+                f"PrivacyMaskEllipse.rx must be a positive integer (>= 1), "
+                f"got {self.rx!r}"
+            )
+        if not isinstance(self.ry, int) or self.ry < 1:
+            raise ValueError(
+                f"PrivacyMaskEllipse.ry must be a positive integer (>= 1), "
+                f"got {self.ry!r}"
+            )
+        _validate_shared_shape_fields(
+            "PrivacyMaskEllipse",
+            self.mode, self.blur_radius, self.solid_color, self.pixelate_factor,
+        )
+
+    # ----- PrivacyMaskShape Protocol implementation -----
+
+    def bounding_box(self) -> Tuple[int, int, int, int]:
+        """Return (cx-rx, cy-ry, 2*rx, 2*ry) — axis-aligned ellipse bbox."""
+        return (
+            self.cx - self.rx,
+            self.cy - self.ry,
+            2 * self.rx,
+            2 * self.ry,
+        )
+
+    def alpha_mask(self, w: int, h: int) -> object:
+        """Draw a filled ellipse of size (w, h). Pillow's ellipse on a non-equal-
+        side bounding box produces a true ellipse (rx != ry case).
+        """
+        from PIL import Image, ImageDraw
+        mask = Image.new("L", (w, h), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0, w - 1, h - 1), fill=255)
+        return mask
+
+
+# ---------------------------------------------------------------------------
 # apply_privacy_masks
 # ---------------------------------------------------------------------------
 

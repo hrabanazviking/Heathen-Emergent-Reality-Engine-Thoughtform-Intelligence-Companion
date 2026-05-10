@@ -1,6 +1,6 @@
 # Sjón Module Interface
 
-**Last updated:** 2026-05-09 (v0.5.4 *Margblæja* non-rectangular shapes — Rúnhild Svartdóttir: PrivacyMaskShape Protocol added to Public API; PrivacyMaskCircle + PrivacyMaskPolygon dataclasses added; PrivacyMaskRegion now Protocol-conformant; apply_privacy_masks dispatches via Protocol — one pipeline three shapes; three new privacy invariants P-7..P-9) | 2026-05-09 (v0.5.3 *Blæja* privacy masks — Rúnhild Svartdóttir: added §Privacy Masks (Blæja) section; `PrivacyMaskRegion` and `apply_privacy_masks` added to Public API; `privacy_masks: list[PrivacyMaskRegion]` field added to both `SjonScreenConfig` and `SjonWebcamConfig`; six privacy invariants P-1..P-6 added; sjon/privacy.py module documented) | 2026-05-08 (v0.5.2 pre-stage — Rúnhild Svartdóttir: added §Webcam capture, extended §Public API, §Config Keys, §Optional Dependencies, §Error Model, §Privacy Invariant for webcam) | 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
+**Last updated:** 2026-05-09 (v0.5.5 *Mjúkblæja* soft-curved shapes — Rúnhild Svartdóttir: PrivacyMaskRoundedRectangle and PrivacyMaskEllipse added; five-shape vocabulary; corner_radius apply-time clamp documented; no new privacy invariants — P-1..P-9 inherited unchanged) | 2026-05-09 (v0.5.4 *Margblæja* non-rectangular shapes — Rúnhild Svartdóttir: PrivacyMaskShape Protocol added to Public API; PrivacyMaskCircle + PrivacyMaskPolygon dataclasses added; PrivacyMaskRegion now Protocol-conformant; apply_privacy_masks dispatches via Protocol — one pipeline three shapes; three new privacy invariants P-7..P-9) | 2026-05-09 (v0.5.3 *Blæja* privacy masks — Rúnhild Svartdóttir: added §Privacy Masks (Blæja) section; `PrivacyMaskRegion` and `apply_privacy_masks` added to Public API; `privacy_masks: list[PrivacyMaskRegion]` field added to both `SjonScreenConfig` and `SjonWebcamConfig`; six privacy invariants P-1..P-6 added; sjon/privacy.py module documented) | 2026-05-08 (v0.5.2 pre-stage — Rúnhild Svartdóttir: added §Webcam capture, extended §Public API, §Config Keys, §Optional Dependencies, §Error Model, §Privacy Invariant for webcam) | 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
 **Scope:** L3 Sjón — the vision layer Python module (`src/heretic/sjon/`)
 **Owner:** Architect (Rúnhild Svartdóttir)
 **Derives from:** `docs/architecture/LAYER_INTERFACES.md §L3 Sjón`
@@ -68,6 +68,8 @@ All of the following are re-exported from `heretic.sjon` directly.
 | `PrivacyMaskRegion` | `sjon.privacy` | Rectangular mask region. v0.5.3 (Protocol-conformant since v0.5.4). |
 | `PrivacyMaskCircle` | `sjon.privacy` | Circular mask region (cx, cy, radius). v0.5.4. |
 | `PrivacyMaskPolygon` | `sjon.privacy` | Polygonal mask region (points: list, len >= 3). v0.5.4. |
+| `PrivacyMaskRoundedRectangle` | `sjon.privacy` | Rounded-rectangle mask (x, y, w, h, corner_radius). v0.5.5. |
+| `PrivacyMaskEllipse` | `sjon.privacy` | Axis-aligned ellipse mask (cx, cy, rx, ry). v0.5.5. |
 | `apply_privacy_masks` | `sjon.privacy` | Pure function: applies a list of `PrivacyMaskShape` to a PIL.Image. v0.5.3 (multi-shape since v0.5.4). |
 
 ---
@@ -230,8 +232,10 @@ where each element is one of three concrete dataclasses:
 | Shape | Fields (geometric) | Notes |
 |---|---|---|
 | `PrivacyMaskRegion` | `x, y, w, h` (all int, w/h >= 1) | Rectangle. v0.5.3 base case. |
-| `PrivacyMaskCircle` | `cx, cy, radius` (radius >= 1) | Disc. Bounding box `(cx-r, cy-r, 2r, 2r)`. |
-| `PrivacyMaskPolygon` | `points: list[(int, int)]`, `len >= 3` | Filled polygon. Pillow auto-closes. |
+| `PrivacyMaskCircle` | `cx, cy, radius` (radius >= 1) | Disc. Bounding box `(cx-r, cy-r, 2r, 2r)`. v0.5.4. |
+| `PrivacyMaskPolygon` | `points: list[(int, int)]`, `len >= 3` | Filled polygon. Pillow auto-closes. v0.5.4. |
+| `PrivacyMaskRoundedRectangle` | `x, y, w, h, corner_radius` (cr >= 0) | Rounded-corner rect. corner_radius clamped at apply time to `min(w, h) // 2`. v0.5.5. |
+| `PrivacyMaskEllipse` | `cx, cy, rx, ry` (rx, ry >= 1) | Axis-aligned ellipse. Strict generalisation of Circle (degenerate rx==ry == circle). v0.5.5. |
 
 All three share the same mode + mode-param surface:
 - `mode: "blur" | "solid" | "pixelate"`
