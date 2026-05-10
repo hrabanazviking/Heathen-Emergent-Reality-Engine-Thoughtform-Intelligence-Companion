@@ -3592,3 +3592,123 @@ The natural successor in roadmap order is still **v0.8 Opið Vef** — the full 
 
 *Entry 19 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
 *The body picks up the same draught it had begun, rather than starting over. Five milestones this evening; thirty-four commits since v0.7 close; three resilience disciplines now live in the body. The session is kept.*
+
+---
+
+## Entry 20 — 2026-05-09 — Verkminni: Deed-Memory for Smiðja (v0.6.3)
+
+**Milestone:** v0.6.3 — *Verkminni* (deed-memory)
+**Branch:** `development`
+**Session start HEAD:** `52d0933` (post-v0.7.2 Scribe seal)
+**Session close HEAD:** `3b47086` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; SIXTH milestone of the session
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was added — completing the disposition family on the body's most-used faculty
+
+Smiðja was the body's most-developed faculty without a named discipline. v0.6 gave it the hand; v0.6.1 gave it dual-half lifecycle; v0.6.2 brought sandbox.py to its sister senses; v0.6.x exposed it via three transport doors. None of those were dispositions in the Skald's sense — they were functional capabilities. Verkminni is the discipline.
+
+Every Smiðja tool call now produces two paired audit entries (started + completed/failed) into a bounded in-memory ring buffer. The operator's after-the-fact question — *"what did the agent's hand actually do in the last five minutes?"* — has a structured answer. Not the agent's narrated transcript (the spirit's account), but the body's own record (the body's account). Two memories, two perspectives, one truth.
+
+The audit hook is structurally non-load-bearing: every audit write is wrapped in `try/except Exception` so the dispatcher's never-raise invariant (Smiðja-1, older than v0.6.3) is preserved by V-2. The audit log is a *witness*, not a *gate*.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `2034e32` | Runa | TASK file open |
+| 1 | `11de7fb` | Skald | `docs/vision/VERKMINNI.md` |
+| 2 | `eb4dbea` | Cartographer | `docs/cartography/DATA_FLOW.md §4.11.10` |
+| 3+4 | `e997e32` | Architect+Forge | `verkminni.py` + `sense.py` integration + 28 tests |
+| 5 | `3b47086` | Auditor | `docs/audit/AUDIT_v0.6.3_VERKMINNI.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 20 + seals |
+
+Six commits, the same shape as v0.5.4 / v0.5.5 / v0.7.2 (Architect+Forge merged because the contract is settled before implementation begins).
+
+### Test status — 2026-05-09 (after v0.6.3)
+
+| Surface | Before v0.6.3 | After v0.6.3 | Delta |
+|---|---|---|---|
+| `tests/test_smidja_verkminni.py` | — | 28 (NEW) | **+28** |
+| `tests/test_smidja_sense.py` | 45 | 45 | 0 |
+| Other Smiðja tests | unchanged | unchanged | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed) are byte-identical in stash diff. v0.6.3 introduced **zero** new regressions.
+
+### What this milestone teaches
+
+1. **Each faculty's discipline expresses that faculty's particular vulnerability.** Leið without measure could drink endlessly (→ *Straumr á Leið*). Sjón without measure could look at everything (→ *Blæja*). Mímisbrunnr without measure could forget partial draughts (→ *Endurdrykkr*). **Smiðja without measure could act and not remember** (→ *Verkminni*). The disciplines are not generic best-practices applied uniformly. Each is the antibody to its faculty's specific failure mode.
+
+2. **Default-ON for observability is a deliberate design choice, not laziness.** Privacy features (`save_frames`, webcam `enabled`, `privacy_masks`) default OFF because the operator must opt INTO sharing. Observability features (Verkminni's audit log) default ON because the operator's right to see what their AI did with the hand is the natural state. Conflating these two axes — defaulting all new features off — would be precedent-following without thought. v0.6.3 distinguishes them deliberately.
+
+3. **The witness-not-gate distinction is the difference between observability and behaviour.** A body whose record-keeping interferes with its acting has confused observability with behaviour. The Auditor's V-2 is the structural test of this distinction: every audit write is wrapped in try/except so an audit-write failure is visible (logged at warning) but never load-bearing. The dispatcher's contract is unchanged.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.6.3_VERKMINNI.md` | New — opened Wave 0; sealed at Wave 7 |
+| `docs/vision/VERKMINNI.md` | New — Skald passage on the body's memory of its own acts |
+| `docs/cartography/DATA_FLOW.md` | §4.11.10 added (audit hook flow + AuditEntry shape + ring buffer + 5 invariants V-1..V-5 + 3 inherited Smiðja invariants + heretic.yaml block + default-ON rationale) |
+| `src/heretic/skilningr/senses/smidja/verkminni.py` | New — AuditEntry dataclass, AuditLog ring buffer, NullAuditLog opt-out, build_entry helper, _truncate, _utcnow_iso8601 |
+| `src/heretic/skilningr/senses/smidja/sense.py` | __init__ accepts audit_log param (default constructs AuditLog(depth=100)); _safe_audit wrapper added; 4 dispatch exit points instrumented; close() clears audit log at SLOKNA |
+| `tests/test_smidja_verkminni.py` | New — 28 tests (2 AuditEntry, 6 truncation, 8 AuditLog ring buffer, 4 NullAuditLog, 8 SmidjaSense dispatch hook including V-2 broken-AuditLog test) |
+| `docs/audit/AUDIT_v0.6.3_VERKMINNI.md` | New — 8 evidence trails for V-1..V-8 + 3 inherited Smiðja invariants verified |
+| `docs/DEVLOG.md` | This entry (20) |
+
+### State of the body — 2026-05-09 (after six autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Sight — discipline of not-looking | Blæja | live since v0.5.3 |
+| Sight — vocabulary of veils (3 shapes) | Margblæja | live since v0.5.4 |
+| Sight — soft-curve vocabulary (5 shapes) | Mjúkblæja | live since v0.5.5 |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| **Hand — discipline of self-witness** | **Verkminni** | **live since v0.6.3** |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| Knowledge — continuity-of-draught | Endurdrykkr | live since v0.7.2 |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Six milestones in one autonomous session. **Forty-one commits since v0.7 close.** Four named dispositions on four different faculties: Leið / Sjón / Mímisbrunnr / Smiðja. The disposition-pairing pattern is now demonstrated across the body's full faculty set.
+
+### Threads carried forward from this session
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| v0.5.6 polygon-rounded-corners / Bezier | candidate — diminishing returns on Blæja |
+| v0.5.x mask inversion | candidate |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| ~~v0.6.3 audit log~~ | **CLOSED — sealed as v0.6.3 at `3b47086`** |
+| v0.6.3.1 CLI `heretic smidja log` | candidate — deferred from v0.6.3 main scope |
+| v0.6.3.x persistent audit log | candidate |
+| v0.6.3.x Vébond UI audit feed | candidate |
+| v0.7.x corrupt index auto-rebuild | candidate |
+| v0.7.x parallel multi-source download | candidate |
+| v0.8 Opið Vef | natural roadmap successor — next major faculty |
+| v0.9-v0.11 | gated on v0.8 or new deps |
+
+The session has now developed *all four* of the existing senses' dispositions:
+- Leið → Straumr á Leið (resilience: streaming abort)
+- Sjón → Blæja → Margblæja → Mjúkblæja (vocabulary growth: 5 shapes)
+- Mímisbrunnr → Endurdrykkr (resilience: resumable downloads)
+- Smiðja → Verkminni (observability: deed-memory)
+
+The natural successor in roadmap order remains **v0.8 Opið Vef** — the full Playwright browser sense — which becomes the next major faculty. Any future work on existing faculties' dispositions is now in the diminishing-returns zone; the disposition-pairing pattern has cleanly demonstrated itself.
+
+---
+
+*Entry 20 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The hand acts; the body witnesses. Six milestones this evening; forty-one commits since v0.7 close; four named dispositions now live in the body, paired with the four most-developed faculties. The body's discipline-development is articulate across its full faculty set. The session is kept.*

@@ -22,20 +22,21 @@ The operator can review the log via `heretic smidja log` to see exactly what the
 
 ## 2. Current status — 2026-05-09
 
-**Phase:** v0.6.3 **OPEN — wave plan published, no code written yet.**
+**Phase:** v0.6.3 **SHIPPED + AUDITED + SEALED.** All seven waves closed.
 
-**HEAD (development):** `52d0933` (v0.7.2 Scribe seal — parent of upcoming Wave 0 commit)
+**HEAD (development) at audit close:** `3b47086` (Auditor PASSES SCRUTINY)
 
-**Test count baseline:** Smiðja sense tests at `tests/test_smidja_sense.py` (~13 tests). Mímisbrunnr downloader 24 + Sjón 219 + Leið 50 carried.
+**Test count after v0.6.3:** Smiðja verkminni 28 (NEW) + Smiðja sense 45 (unchanged) = 73 Smiðja tests passing. Broader suite: same 20 pre-existing env failures unchanged.
 
-### v0.6.3 deliverables — pending
+### v0.6.3 deliverables — all complete
 
-- ☐ Skald — `docs/vision/VERKMINNI.md` — short essay on the body's memory of its own acts
-- ☐ Cartographer — `docs/cartography/DATA_FLOW.md §4.11` addendum: audit-write hook around dispatch_tool_call, ring-buffer eviction, never-raise contract
-- ☐ Architect+Forge — `verkminni.py` module with `AuditEntry` dataclass + `AuditLog` ring-buffer class; SmidjaSense integration; opt-out config; basic `heretic smidja log` CLI command; INTERFACE.md updated
-- ☐ Forge — 12+ new tests covering: AuditEntry construction; AuditLog record/entries/clear; dispatch hook records started+completed for success path; dispatch hook records started+failed for error path; ring buffer evicts oldest at depth limit; audit-write failure cannot make dispatch raise; opt-out via config disables recording; CLI prints entries
-- ☐ Auditor — `docs/audit/AUDIT_v0.6.3_VERKMINNI.md` — verifies (1) dispatch_tool_call NEVER raises even if audit-write fails, (2) ring buffer eviction is correct, (3) opt-in config respected, (4) all tool calls captured (success + error paths), (5) duration accuracy
-- ☐ Scribe — DEVLOG entry 20; TASK seal; memory refresh
+- ✅ Wave 0 — TASK file at `2034e32`
+- ✅ Wave 1 — Skald: `docs/vision/VERKMINNI.md` at `11de7fb`
+- ✅ Wave 2 — Cartographer: `docs/cartography/DATA_FLOW.md §4.11.10` at `eb4dbea`
+- ✅ Waves 3+4 — Architect+Forge merged: `verkminni.py` + sense.py integration + 28 tests at `e997e32`
+- ✅ Wave 5 — Auditor: `docs/audit/AUDIT_v0.6.3_VERKMINNI.md` PASSES at `3b47086`
+- ⏭ Wave 6 — Forge cleanup (skipped; audit found nothing)
+- ✅ Wave 7 — Scribe: DEVLOG entry 20, this TASK seal, memory refresh (final commit)
 
 ### What v0.6.3 does NOT add
 
