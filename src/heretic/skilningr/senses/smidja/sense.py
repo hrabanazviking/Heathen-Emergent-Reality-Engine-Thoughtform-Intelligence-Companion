@@ -117,6 +117,7 @@ class SmidjaSense:
         forge_client: ForgeHttpClient,
         logger: logging.Logger | None = None,
         event_emitter: Callable | None = None,
+        audit_log: Any = None,  # AuditLog | NullAuditLog | None
     ) -> None:
         """Initialise the Smiðja sense with both halves.
 
@@ -132,6 +133,12 @@ class SmidjaSense:
                            Signature: event_emitter(event: SenseToolCall) -> None.
                            If None, events are not emitted (useful in tests and
                            when the IPC bus is not active).
+            audit_log: v0.6.3 Verkminni — optional AuditLog or NullAuditLog
+                           instance for recording per-tool-call audit entries.
+                           If None (default), the sense constructs an AuditLog
+                           with default depth=100 (default ON; observability
+                           is a security discipline). Pass NullAuditLog() to
+                           explicitly opt out.
         """
         self._config = config
         self._client = client                   # Brúarhönd half
@@ -142,6 +149,13 @@ class SmidjaSense:
         # Independent per-half open state
         self._brunhand_open: bool = False
         self._forge_open: bool = False
+        # v0.6.3 Verkminni — audit log for per-tool-call deed-memory.
+        # If caller provided None, use default AuditLog (default ON).
+        if audit_log is None:
+            from heretic.skilningr.senses.smidja.verkminni import AuditLog
+            self._audit_log = AuditLog(depth=100)
+        else:
+            self._audit_log = audit_log
 
     @property
     def _is_open(self) -> bool:
@@ -280,6 +294,13 @@ class SmidjaSense:
         finally:
             self._forge_open = False
 
+        # --- v0.6.3 Verkminni — clear audit log at SLOKNA (V-4) ---
+        # Ceremony-scoped privacy: deed-memory does not persist across ceremonies.
+        try:
+            self._audit_log.clear()
+        except Exception as exc:
+            self._log.warning("Verkminni: audit clear failed at close: %s", exc)
+
     @property
     def tool_definitions(self) -> list[dict]:
         """Return the OpenAI tool schemas for enabled halves of the Smiðja sense.
@@ -350,12 +371,26 @@ class SmidjaSense:
                 f"Could not parse tool call arguments as JSON: {exc}",
             )
 
-        # Emit STARTED event
+        # Pre-serialise args for audit recording (truncated by build_entry).
+        try:
+            args_json_for_audit = json.dumps(args, default=str)
+        except (TypeError, ValueError):
+            args_json_for_audit = str(args)
+
+        # Emit STARTED event + audit "started" entry
         t_start = time.monotonic()
         self._emit_event(
             state="started",
             call_id=call_id,
             tool_name=tool_name,
+            duration_ms=None,
+            error=None,
+        )
+        self._safe_audit(
+            state="started",
+            call_id=call_id,
+            tool_name=tool_name,
+            arguments_json=args_json_for_audit,
             duration_ms=None,
             error=None,
         )
@@ -367,6 +402,14 @@ class SmidjaSense:
                 state="completed",
                 call_id=call_id,
                 tool_name=tool_name,
+                duration_ms=duration_ms,
+                error=None,
+            )
+            self._safe_audit(
+                state="completed",
+                call_id=call_id,
+                tool_name=tool_name,
+                arguments_json=args_json_for_audit,
                 duration_ms=duration_ms,
                 error=None,
             )
@@ -387,6 +430,14 @@ class SmidjaSense:
                 state="failed",
                 call_id=call_id,
                 tool_name=tool_name,
+                duration_ms=duration_ms,
+                error=str(exc),
+            )
+            self._safe_audit(
+                state="failed",
+                call_id=call_id,
+                tool_name=tool_name,
+                arguments_json=args_json_for_audit,
                 duration_ms=duration_ms,
                 error=str(exc),
             )
@@ -413,6 +464,14 @@ class SmidjaSense:
                     duration_ms=duration_ms,
                     error=str(exc),
                 )
+                self._safe_audit(
+                    state="failed",
+                    call_id=call_id,
+                    tool_name=tool_name,
+                    arguments_json=args_json_for_audit,
+                    duration_ms=duration_ms,
+                    error=str(exc),
+                )
                 return _error_tool_result(
                     call_id, tool_name,
                     _skilningr_error_code(exc),
@@ -431,10 +490,58 @@ class SmidjaSense:
                 duration_ms=duration_ms,
                 error=str(exc),
             )
+            self._safe_audit(
+                state="failed",
+                call_id=call_id,
+                tool_name=tool_name,
+                arguments_json=args_json_for_audit,
+                duration_ms=duration_ms,
+                error=str(exc),
+            )
             return _error_tool_result(
                 call_id, tool_name,
                 "SENSE_INTERNAL_ERROR",
                 f"Unexpected error during tool dispatch: {type(exc).__name__}",
+            )
+
+    # ------------------------------------------------------------------
+    # v0.6.3 Verkminni — non-load-bearing audit hook
+    # ------------------------------------------------------------------
+
+    def _safe_audit(
+        self,
+        *,
+        state: str,
+        call_id: str,
+        tool_name: str,
+        arguments_json: str,
+        duration_ms: int | None,
+        error: str | None,
+    ) -> None:
+        """Record an audit entry; never raise.
+
+        v0.6.3 Verkminni — the audit log is a witness, not a gate. If the
+        AuditLog instance is somehow corrupted or the deque mutation fails
+        or any other unexpected exception occurs in the audit-write path,
+        the exception is logged at warning level and dispatch_tool_call
+        continues normally. The Smiðja-1 invariant (dispatch never raises)
+        is preserved by V-2.
+        """
+        try:
+            from heretic.skilningr.senses.smidja.verkminni import build_entry
+            entry = build_entry(
+                state=state,
+                call_id=call_id,
+                tool_name=tool_name,
+                arguments_json=arguments_json,
+                duration_ms=duration_ms,
+                error=error,
+            )
+            self._audit_log.record(entry)
+        except Exception as exc:
+            # Witness, not gate. Audit failures must never break dispatch.
+            self._log.warning(
+                "Verkminni: audit write failed (dispatch continues): %s", exc,
             )
 
     # ------------------------------------------------------------------

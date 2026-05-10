@@ -295,10 +295,16 @@ class Sjón:
                 # for large frames — keep the event loop free).
                 max_w = self._config.screen.max_width
                 max_h = self._config.screen.max_height
+                # v0.5.3 Blæja — privacy masks from screen config; applied
+                # inside encode() before resize / PNG / save / data URL.
+                screen_privacy_masks = list(self._config.screen.privacy_masks)
                 try:
                     png_bytes = await loop.run_in_executor(
                         None,
-                        lambda: self._encoder.encode(raw_bgra, w, h),
+                        lambda: self._encoder.encode(
+                            raw_bgra, w, h,
+                            privacy_masks=screen_privacy_masks,
+                        ),
                     )
                 except FrameEncodingError as exc:
                     self._logger.warning(
@@ -328,6 +334,7 @@ class Sjón:
                                 h,
                                 max_width_override=half_w,
                                 max_height_override=half_h,
+                                privacy_masks=screen_privacy_masks,
                             ),
                         )
                     except FrameEncodingError as exc:
@@ -679,6 +686,13 @@ class Sjón:
 
         # Reconstruct PIL Image from raw RGB bytes.
         img = Image.frombytes("RGB", (width, height), rgb_bytes)
+
+        # v0.5.3 Blæja — privacy masks applied here, after decode and BEFORE
+        # resize / save / encode. Webcam masks are independent of screen masks.
+        webcam_masks = list(getattr(webcam_cfg, "privacy_masks", []))
+        if webcam_masks:
+            from heretic.sjon.privacy import apply_privacy_masks
+            img = apply_privacy_masks(img, webcam_masks)
 
         # Resize to fit within max dimensions, preserving aspect ratio.
         max_w = webcam_cfg.max_width

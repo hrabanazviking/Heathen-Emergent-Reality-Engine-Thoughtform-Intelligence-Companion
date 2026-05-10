@@ -3018,3 +3018,883 @@ These are the named open threads that any future session should be aware of:
 
 *Entry 14 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
 *The well is opened. Five milestones sealed. The body now carries five senses in Skilningr, three transport doors, and a well of knowledge drawn from the oldest stories in the tongue. Five rooms; three doors; eight faculties. The session is kept.*
+
+---
+
+## Entry 15 — 2026-05-09 — Straumr á Leið: Leið Streaming Closed, Audited, and Sealed (v0.7.1)
+
+**Milestone:** v0.7.1 — *Straumr á Leið* (the current on the road)
+**Branch:** `development`
+**Session start HEAD:** `9fadbf4` (post-v0.7 task-pointer commit)
+**Session close HEAD:** `c41cb9b` (audit close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was kept
+
+The audit-deferred N-2 finding from `AUDIT_v0.6.2_MORE_SENSES.md` was honoured. The v0.6.2 buffer-then-check pattern in `senses/leid/client.py` — which materialised the entire response body via `response.content` before checking against `max_response_bytes` — has been replaced with `httpx.AsyncClient.stream("GET", url)` + `aiter_bytes(65536)` streaming abort. When the streaming accumulator exceeds the cap, `LeidResponseTooLargeError` is raised mid-stream; the inner `async with` exit closes the connection during stack unwind; remaining bytes never travel.
+
+The disposition described in *Straumr á Leið* — that the body learns to stop drinking, not just to measure after — is now the actual disposition of the road sense.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `3fc9076` | Runa | TASK file open: `TASK_HERETIC_v0.7.1_LEID_STREAMING.md` |
+| 1 | `34bc171` | Skald | `docs/vision/STRAUMR_A_LEID.md` — milestone named, framing passage |
+| 2 | `4f88fd5` | Cartographer | `docs/cartography/DATA_FLOW.md` §4.12.2.1 added; §4.12.2 Step 4 + F-6 history corrected |
+| 3 | `431b51e` | Architect | `senses/leid/INTERFACE.md` v0.7.1 contract; L-7 streaming, L-7a Content-Length pre-cap; §5 drift correction; §8 rewritten |
+| 4 | `f3baf65` | Forge | `client.py` streaming impl; `tests/test_leid_client.py` 22 → 30 (+8 streaming tests, helpers added) |
+| 5 | `c41cb9b` | Auditor | `docs/audit/AUDIT_v0.7.1_LEID_STREAMING.md` — PASSES SCRUTINY (0 blockers / 0 findings) |
+| 6 | (skipped) | Forge cleanup | Audit found nothing to remediate |
+| 7 | this entry | Scribe | DEVLOG entry 15 + TASK seal + memory refresh |
+
+Seven commits on `development`, all pushed in real time. No wave waited overnight; no commit accumulated in the local working tree.
+
+### Test status — 2026-05-09
+
+| Surface | Before v0.7.1 | After v0.7.1 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 22 | 30 | **+8** |
+| `tests/test_leid_sense.py` | 20 | 20 | 0 |
+| **Leið scope total** | **42** | **50** | **+8** |
+| Frontend (`npm test`) | 91 | 91 | 0 |
+
+The full Python suite was 1231 passing on the v0.7 closing host. On the autonomous-session laptop, optional dependencies (`fastapi`, `mcp`) are not installed, so 20 tests fail to collect / run for environment reasons. **The pre-v0.7.1 stash baseline shows the same 20 environment failures.** v0.7.1 introduced **zero** new regressions in the broader suite. When the operator's full-extras environment runs `pip install heretic[serve,mcp]`, the count is expected to read 1239 passing (1231 + 8 new streaming tests), still 7 skipped, still 0 failures, still 0 open findings — see Auditor's evidence trail V-9 in `AUDIT_v0.7.1_LEID_STREAMING.md`.
+
+### What this milestone teaches
+
+The Skald observed in `STRAUMR_A_LEID.md §IV` that the Mythic Engineering pattern is for **the body itself to learn restraint**, not for an external counter to police the body. The streaming abort embodies this: act and judgement happen in the same gesture. The Auditor confirmed this in V-2 and V-3 — the raise is structurally inside the streaming context, not an after-the-fact test.
+
+A second teaching: a placeholder honestly named is not a failure of craft; it is a deferred chapter. The v0.6.2 buffer pattern was authored *as a placeholder*. The audit *named the placeholder*. The TASK file *referenced it*. The DEVLOG entry 12 *recorded the deferral*. And then, in proper Mythic Engineering rhythm, the deferral was kept. This is the continuity the MD Protocol exists to make possible — across multiple sessions, multiple roles, multiple weeks.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.7.1_LEID_STREAMING.md` | New — opened Wave 0; status updated through Wave 7 |
+| `docs/vision/STRAUMR_A_LEID.md` | New — milestone vision passage, six sections |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.1 added; §4.12.2 Step 4 + F-6 history annotated; "Last updated" addendum |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | L-7 expanded (streaming abort + memory bound); L-7a added (Content-Length pre-cap); §5 drift corrected; §8 rewritten with v0.7.1 contract; v0.6.2 history preserved as record |
+| `src/heretic/skilningr/senses/leid/client.py` | Module + `fetch_url` docstrings rewritten; body interior replaced with streaming pattern; two new class constants (`_STREAM_CHUNK_SIZE`, `_ERROR_PEEK_BYTES`) |
+| `tests/test_leid_client.py` | Helpers `make_streaming_response` + `make_streaming_mock_client` added; 9 existing fetch-driven tests rewritten to streaming mocks; new `TestLeidClientStreaming` class with 8 streaming-specific tests |
+| `docs/audit/AUDIT_v0.7.1_LEID_STREAMING.md` | New — twelve evidence trails; honest negative audit; N-2 closure statement |
+| `docs/DEVLOG.md` | This entry (15) |
+
+### State of the body — 2026-05-09
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| **Disposition — measured drinking** | **Straumr á Leið** | **live since v0.7.1** |
+
+Six commits since v0.7 close; one milestone closed; one audit deferral fulfilled.
+
+### Threads carried forward from this session
+
+The v0.7 closing entry's threads list is updated as follows:
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| ~~v0.6.2.1 Leið streaming~~ | **CLOSED — became v0.7.1, sealed at `c41cb9b`** |
+| v0.6.2.2 Leið headless browser | renamed → **v0.8 Opið Vef** in INTERFACE.md L-6 (canonical roadmap label) |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x.2 MCP prompts | unchanged |
+| v0.7.x download resume | unchanged — Mímisbrunnr backlog |
+| v0.8 full catalog | unchanged — Wikipedia ZIMs + full Gutenberg |
+| v0.9 vector index | unchanged |
+| v0.10 MindSpark backend | unchanged |
+| **NEW: v0.5.3 privacy masks** | candidate for next autonomous session — Pillow blur regions before frame send |
+
+The natural successor in roadmap order is **v0.8 Opið Vef** — the full Playwright browser sense — which subsumes the current httpx-only Leið and unlocks v0.9 Hönd (Photopea) downstream. The streaming temperament established here will be inherited.
+
+---
+
+*Entry 15 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The road learned to stop drinking. The body now lifts only what it has decided to bear. Six commits, one milestone, one keeping of a written promise. The session is kept.*
+
+---
+
+## Entry 16 — 2026-05-09 — Blæja: Privacy Masks for Sjón Shipped, Audited, and Sealed (v0.5.3)
+
+**Milestone:** v0.5.3 — *Blæja* (the veil)
+**Branch:** `development`
+**Session start HEAD:** `117f063` (post-v0.7.1 Scribe seal)
+**Session close HEAD:** `bc48e92` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was added
+
+The body learned a second discipline. v0.7.1 *Straumr á Leið* taught the road sense to stop drinking when the cup is too full; v0.5.3 *Blæja* teaches the eye sense to stop looking where the operator has declared a region veiled. Both are *dispositions* — internal restraints that make the body's faculties trustworthy in a real human life.
+
+A new optional configuration field, `privacy_masks: list[PrivacyMaskRegion]`, is available on both `SjonScreenConfig` and `SjonWebcamConfig` (independent lists — screen and webcam have different privacy concerns). Each region is a rectangle in source pixel space with a mode chosen from `blur`, `solid`, or `pixelate`. The mask layer is applied **inside `FrameEncoder.encode()` after PIL decoding the raw bytes and before any resize / save / encode / transport**. The unmasked frame never reaches disk; the unmasked frame never reaches the agent. The Auditor verified this in twelve evidence trails (V-1 through V-12).
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `1095374` | Runa | TASK file open: `TASK_HERETIC_v0.5.3_BLAEJA.md` |
+| 1 | `329a712` | Skald | `docs/vision/BLAEJA.md` — milestone named, framing passage |
+| 2 | `7478137` | Cartographer | `docs/cartography/DATA_FLOW.md §4.10.14` — pipeline sketch + 5 failure modes + 6 invariants |
+| 3 | `4c90cc2` | Architect | `sjon/privacy.py` scaffold (validated dataclass + sealed function signature); config wiring on both configs; INTERFACE.md update |
+| 4 | `9a7a641` | Forge | `sjon/privacy.py` body + encoder integration + webcam path + 27 new tests (24 privacy + 3 encoder) |
+| 5 | `bc48e92` | Auditor | `docs/audit/AUDIT_v0.5.3_BLAEJA.md` — PASSES SCRUTINY (0 blockers / 0 findings) |
+| 6 | (skipped) | Forge cleanup | Audit found nothing to remediate |
+| 7 | this entry | Scribe | DEVLOG entry 16 + TASK seal + memory refresh |
+
+Seven commits on `development`, all pushed in real time. Six push events before this Scribe close. No wave waited overnight; no commit accumulated unpushed.
+
+### Test status — 2026-05-09
+
+| Surface | Before v0.5.3 | After v0.5.3 | Delta |
+|---|---|---|---|
+| `tests/test_sjon_privacy.py` | — | 24 (NEW) | **+24** |
+| `tests/test_sjon_encoder.py` | 21 | 24 (3 integration) | **+3** |
+| `tests/test_sjon_orchestrator.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_capture.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_webcam.py` | unchanged | unchanged | 0 |
+| **Sjón scope new tests** | | | **+27** |
+| Frontend (`npm test`) | 91 | 91 | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed on the autonomous-session laptop) are byte-identical in stash diff. v0.5.3 introduced **zero** new regressions in the broader suite. On a full-extras host (`pip install heretic[serve,mcp]`), the count is expected to read 1239 + 27 = 1266 passing.
+
+### What this milestone teaches
+
+Two dispositions are now live in the body. The Skald's lineage observation — that **faculties grow outward and dispositions grow inward, and both must keep pace** — is now demonstrated, not just promised. v0.7.1 was the first; v0.5.3 is the second. Future milestones that add new senses will need to pair their faculty work with whatever disposition that sense requires (the hand needs *the discipline of not grabbing*; the painter needs *the discipline of not over-touching*; the mailer needs *the discipline of not over-sending*).
+
+A second teaching: **the mask must be structurally upstream of every leak path**. Not "mostly upstream." Not "upstream in the common case." Structurally upstream — meaning the audit can trace, line by line, that no codepath reaches a disk-save, encode, or transport without first passing through the mask step. The Auditor's V-1 through V-3 verified this for screen and webcam separately. The fail-safe in `apply_privacy_masks` (V-9) makes this true even when a Pillow primitive raises mid-mask: the region either succeeds or falls back to SOLID-fill or fails the encode entirely. There is no path in which an unmasked configured region emerges.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.5.3_BLAEJA.md` | New — opened Wave 0; status updated through Wave 7 |
+| `docs/vision/BLAEJA.md` | New — milestone vision passage, seven sections including "what v0.5.3 promises" |
+| `docs/cartography/DATA_FLOW.md` | §4.10.14 added (pipeline sketch + 5 failure modes + 6 invariants); "Last updated" header addendum |
+| `src/heretic/sjon/INTERFACE.md` | New §Privacy Masks section; Public API table extended; Config Keys block extended; backlog item marked DELIVERED |
+| `src/heretic/sjon/privacy.py` | New module — `PrivacyMaskRegion` dataclass + `apply_privacy_masks` function |
+| `src/heretic/sjon/config_model.py` | `privacy_masks: list[PrivacyMaskRegion]` field added to both `SjonScreenConfig` and `SjonWebcamConfig` |
+| `src/heretic/sjon/encoder.py` | `FrameEncoder.encode` and `encode_to_data_url` accept `privacy_masks`; `_privacy_state` instance dict; mask call inserted after PIL decode |
+| `src/heretic/sjon/sjon.py` | `Sjón.snapshot` and `Sjón._encode_webcam_frame` pass per-config masks through to mask step |
+| `tests/test_sjon_privacy.py` | New — 24 tests covering validation, modes, clamping, multi-region, state throttle |
+| `tests/test_sjon_encoder.py` | +3 integration tests covering mask survival through full encode + resize |
+| `docs/audit/AUDIT_v0.5.3_BLAEJA.md` | New — 12 evidence trails + honest negative audit |
+| `docs/DEVLOG.md` | This entry (16) |
+
+### State of the body — 2026-05-09 (after both autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| **Sight — discipline of not-looking** | **Blæja** | **live since v0.5.3** |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Two milestones in one autonomous session. **Ten commits since v0.7 close.** The body now carries two named dispositions alongside its faculties.
+
+### Threads carried forward from this session
+
+The v0.7.1 closing entry's threads list is updated as follows:
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic; X-1 NIT from v0.5.2 |
+| ~~v0.5.3 privacy masks~~ | **CLOSED — sealed at `bc48e92`** |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x.2 MCP prompts | unchanged |
+| v0.7.x download resume | unchanged — Mímisbrunnr backlog |
+| v0.8 full catalog | unchanged — Wikipedia ZIMs + full Gutenberg |
+| v0.9 vector index | unchanged |
+| v0.10 MindSpark backend | unchanged |
+| **NEW: v0.5.4 non-rectangular masks** | candidate for next autonomous session — circle + polygon shapes via Pillow ImageDraw |
+
+The natural successor in roadmap order is still **v0.8 Opið Vef** — the full Playwright browser sense — which is the next major faculty rather than a disposition. *Blæja*'s success means that when v0.8 ships, the new sense will be expected to inherit a comparable disposition (e.g., URL-allowlist-as-disposition is already partly there in v0.6.2's Leið).
+
+---
+
+*Entry 16 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*Two dispositions now live in the body — measured drinking and measured looking. The sighted body has learned the discipline of not-looking where the operator has not invited the gaze. Seven commits this session, twelve total since v0.7 close, two milestones sealed in one autonomous evening. The session is kept.*
+
+---
+
+## Entry 17 — 2026-05-09 — Margblæja: The Veil's Vocabulary Grows (v0.5.4)
+
+**Milestone:** v0.5.4 — *Margblæja* (the veil of many forms)
+**Branch:** `development`
+**Session start HEAD:** `daf6258` (post-v0.5.3 Scribe seal)
+**Session close HEAD:** `9d09b68` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; THIRD milestone of the session
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was extended
+
+The disposition v0.5.3 named is unchanged. What changed is the *vocabulary* the operator has for declaring it. Before v0.5.4, only rectangular regions could be veiled; a round status indicator masked with a rectangle covered the right *area* but the wrong *shape* — telling the agent that the operator had drawn a rectangle when in fact they were veiling a circle. *Margblæja* extends the vocabulary with two new shapes: **circle** (for round things) and **polygon** (for irregular things). Three or more vertices in source pixel space, filled interior, anti-aliased rasterisation by Pillow.
+
+The structural beauty of the implementation is *one pipeline, three shapes*. A `PrivacyMaskShape` Protocol unifies the three concrete dataclasses — `PrivacyMaskRegion`, `PrivacyMaskCircle`, `PrivacyMaskPolygon` — through two methods: `bounding_box()` returning the axis-aligned bounding box, and `alpha_mask(w, h)` returning a Pillow `"L"` image with shape interior at 255 and exterior at 0. `apply_privacy_masks` then runs a single five-step pipeline on every shape: clamp bbox → crop → apply mode → composite via alpha-mask → paste. Mode (`blur` / `solid` / `pixelate`) and shape (rectangle / circle / polygon) are *orthogonal*. A future fourth shape (Bezier path, freeform stroke) will only need to provide those two methods; the apply pipeline does not branch.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `045524d` | Runa | TASK file open: `TASK_HERETIC_v0.5.4_MARGBLAEJA.md` |
+| 1 | `0080687` | Skald | `docs/vision/MARGBLAEJA.md` — milestone named, framing passage |
+| 2 | `06d5627` | Cartographer | `docs/cartography/DATA_FLOW.md §4.10.14.1` — protocol contract + composite pipeline |
+| 3+4a | `c49bdcd` | Architect+Forge | `sjon/privacy.py` — Protocol + 2 new dataclasses + apply refactor |
+| 4b | `6f66237` | Forge | 27 new tests + INTERFACE.md update + P-8 truth correction |
+| 5 | `9d09b68` | Auditor | `docs/audit/AUDIT_v0.5.4_MARGBLAEJA.md` — PASSES SCRUTINY (0 blockers) |
+| 6 | (skipped) | Forge cleanup | Audit found nothing to remediate |
+| 7 | this entry | Scribe | DEVLOG entry 17 + TASK seal + memory refresh |
+
+The Architect and Forge waves merged into a single commit (`c49bdcd`) because the implementation was mechanical once the Protocol contract was settled — splitting scaffold from body would have been artificial. The subsequent Forge wave commit (`6f66237`) carried the test suite, the INTERFACE.md update, and an honest correction to the P-8 wording (the original Architect docstring claimed Pillow renders an "empty alpha mask" for degenerate polygons; the Forge probe revealed Pillow actually rasterises what it can — a 1-pixel-wide line for collinear points, a single pixel for coincident ones — and the wording was corrected consistently across code, INTERFACE.md, DATA_FLOW.md, and test docstrings in the same commit). The Auditor confirmed the no-doc/code-drift property in V-8.
+
+Seven commits on `development`, all pushed in real time. Six push events before this Scribe close.
+
+### Test status — 2026-05-09 (after v0.5.4)
+
+| Surface | Before v0.5.4 | After v0.5.4 | Delta |
+|---|---|---|---|
+| `tests/test_sjon_privacy.py` | 24 | 51 | **+27** |
+| `tests/test_sjon_encoder.py` | 24 | 24 | 0 |
+| `tests/test_sjon_orchestrator.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_capture.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_webcam.py` | unchanged | unchanged | 0 |
+| **Sjón total** | **169** | **196** | **+27** |
+| Frontend (`npm test`) | 91 | 91 | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed) are byte-identical in stash diff. v0.5.4 introduced **zero** new regressions in the broader suite.
+
+### What this milestone teaches
+
+Three teachings: 
+
+1. **A disposition can grow more articulate without becoming a different disposition.** Blæja v0.5.3 named "the body learns to look without recording everything it sees." Margblæja v0.5.4 keeps that same statement. The operator's vocabulary for declaring it has grown — circles and polygons are now possible declarations — but the disposition is the same. Naming v0.5.4 with a Skald-given codename makes this explicit: *Margblæja* is "many-veil," not "new-veil."
+
+2. **Orthogonality earns its keep.** The original `PrivacyMaskRegion` had three modes (blur/solid/pixelate) and one shape (rectangle). A naive extension would have produced 9 mode×shape combinations as branches in `apply_privacy_masks`. The Protocol-with-alpha-mask design factored mode and shape apart — mode is applied to the bbox crop, shape selects which pixels in the modified crop replace the original via the composite. The result: **3 shapes × 3 modes = 1 pipeline, not 9 branches.** The fourth shape that arrives someday (Bezier curves, freeform stroke) will need to supply only `bounding_box` and `alpha_mask`. The architecture does not pay for what has not yet arrived.
+
+3. **An honest correction in the same wave is craftsmanship, not failure.** The Architect's original P-8 docstring said degenerate polygons produce an empty alpha mask. The Forge ran a Pillow probe and discovered Pillow actually rasterises what it can. Rather than leaving the docstring wrong and adding a workaround in the audit, the Forge corrected the docstring at the source, propagated the correction to INTERFACE.md and DATA_FLOW.md, wrote tests that assert the real Pillow behaviour, and stamped the same commit. The Auditor's V-8 verifies that the four sources now say the same thing. **Lesson: when the Architect's claim and the runtime's reality diverge, fix the claim, not the runtime.**
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.5.4_MARGBLAEJA.md` | New — opened Wave 0; status updated through Wave 7 |
+| `docs/vision/MARGBLAEJA.md` | New — milestone vision passage, six sections including the "one pipeline, three shapes" architectural argument |
+| `docs/cartography/DATA_FLOW.md` | §4.10.14.1 added (composite pipeline + Protocol contract + shape formulas + 6 new failure modes + 3 new privacy invariants P-7..P-9); P-8 wording corrected |
+| `src/heretic/sjon/INTERFACE.md` | New §Privacy Mask Shapes (Margblæja) section with shape table + Protocol contract + invariants |
+| `src/heretic/sjon/privacy.py` | PrivacyMaskShape Protocol + PrivacyMaskCircle + PrivacyMaskPolygon + apply_privacy_masks refactor + _apply_one_shape (composite via alpha-mask) |
+| `tests/test_sjon_privacy.py` | +27 tests covering Protocol conformance, validation, apply correctness, mixed-shape lists, degenerate polygon handling |
+| `docs/audit/AUDIT_v0.5.4_MARGBLAEJA.md` | New — 13 evidence trails + honest negative audit |
+| `docs/DEVLOG.md` | This entry (17) |
+
+### State of the body — 2026-05-09 (after three autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Sight — discipline of not-looking | Blæja | live since v0.5.3 |
+| **Sight — vocabulary of veils** | **Margblæja** | **live since v0.5.4** |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Three milestones in one autonomous session. **Twenty-one commits since v0.7 close.**
+
+### Threads carried forward from this session
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| ~~v0.5.4 non-rectangular masks~~ | **CLOSED — sealed at `9d09b68`** |
+| v0.5.5 bezier mask paths | candidate for future autonomous session — Pillow ImageDraw.Path |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| v0.7.x download resume | unchanged |
+| v0.8 Opið Vef | unchanged — natural roadmap successor (next major faculty) |
+| v0.9 Málari | unchanged |
+| v0.10 Langhúsið Ytra | unchanged |
+| v0.11 Bréfasamtök | unchanged |
+| **NEW: Disposition-pairing pattern** | every future faculty milestone should consider its corresponding disposition; the Skald lineage has now cemented this expectation |
+
+The natural successor in roadmap order is still **v0.8 Opið Vef** — the full Playwright browser sense — which becomes the next major faculty. v0.5.5 (Bezier mask paths) is available as a smaller continuation along the disposition-vocabulary axis.
+
+---
+
+*Entry 17 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The cloth is the same cloth. The body has only learned to drape it more skilfully. Three milestones in one evening, twenty-one commits since v0.7 close, two dispositions live and one of them now articulate in three shapes. The session is kept.*
+
+---
+
+## Entry 18 — 2026-05-09 — Mjúkblæja: The Soft Veil (v0.5.5)
+
+**Milestone:** v0.5.5 — *Mjúkblæja* (the soft veil)
+**Branch:** `development`
+**Session start HEAD:** `e13407c` (post-v0.5.4 Scribe seal)
+**Session close HEAD:** `c8ec993` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; FOURTH milestone of the session
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was extended
+
+The *Blæja* lineage continues. v0.5.3 named the disposition (the body learns to look without recording everything it sees). v0.5.4 *Margblæja* gave that disposition a vocabulary of three shapes. v0.5.5 *Mjúkblæja* adds two more shapes drawn from soft curves: **rounded rectangle** (the dominant modern UI primitive — every chat window, every code panel, every dialog box) and **ellipse** (a strict generalisation of Circle, with separate `rx` and `ry` for oval-shaped UI elements). Five shapes total flow through the unchanged v0.5.4 pipeline.
+
+The structural test of the v0.5.4 architecture was: would adding new shapes require any change to the apply pipeline? The answer turned out to be no. `_apply_one_shape` and `apply_privacy_masks` are byte-identical between v0.5.4 and v0.5.5. The two new dataclasses each contributed exactly two methods (`bounding_box`, `alpha_mask`); the Protocol absorbed them. Five shapes, one pipeline, no branching.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `8a5e2be` | Runa | TASK file open |
+| 1 | `c56189d` | Skald | `docs/vision/MJUKBLAEJA.md` |
+| 2 | `b53d71c` | Cartographer | `docs/cartography/DATA_FLOW.md §4.10.14.2` |
+| 3+4 | `f66a11a` | Architect+Forge | privacy.py + INTERFACE.md + 23 new tests |
+| 5 | `c8ec993` | Auditor | `docs/audit/AUDIT_v0.5.5_MJUKBLAEJA.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 18 + seals |
+
+The Architect and Forge waves merged into a single commit (matching v0.5.4) because the implementation is mechanical once the Protocol contract is settled. Six commits total this milestone — one fewer than the typical 7-wave structure because Forge cleanup was skipped (audit found nothing to remediate, same as v0.5.4).
+
+### Test status — 2026-05-09 (after v0.5.5)
+
+| Surface | Before v0.5.5 | After v0.5.5 | Delta |
+|---|---|---|---|
+| `tests/test_sjon_privacy.py` | 51 | 74 | **+23** |
+| `tests/test_sjon_encoder.py` | 24 | 24 | 0 |
+| `tests/test_sjon_orchestrator.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_capture.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_webcam.py` | unchanged | unchanged | 0 |
+| **Sjón total** | **196** | **219** | **+23** |
+| Frontend (`npm test`) | 91 | 91 | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed) are byte-identical in stash diff. v0.5.5 introduced **zero** new regressions.
+
+### What this milestone teaches
+
+1. **Architecture is justified by what it accepts later.** The v0.5.4
+   "one pipeline, three shapes" design was a clean abstraction, but its
+   real value was not visible until v0.5.5 attempted to extend it. Two
+   new shapes added zero pipeline branching, zero coordination work, zero
+   refactoring. Each new shape is two methods on a dataclass. The Protocol
+   is doing the work the abstraction promised.
+
+2. **Vocabulary growth in service of a fixed disposition.** Four
+   *Blæja*-lineage milestones in one session (v0.5.3, v0.5.4, v0.5.5)
+   all dressed the same disposition (the body's discipline of not-looking
+   where the operator has not invited the gaze). The disposition is
+   stable; the operator's vocabulary for declaring it is what grew. This
+   is a healthy pattern: dispositions should be slow to change; the
+   words for them should be willing to grow.
+
+3. **Apply-time clamping is operator-intent honouring.** The
+   `corner_radius > min(w, h) // 2` case could have raised; it was
+   designed instead to silently clamp to the largest valid value. This
+   honours the operator's intent ("cover this soft-cornered region")
+   without erroring on the impossible-to-render case. Same family as
+   v0.5.3's "wholly off-frame is no-op" — the body forgives small
+   operator typos and renders what's renderable.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.5.5_MJUKBLAEJA.md` | New — opened Wave 0; sealed at Wave 7 |
+| `docs/vision/MJUKBLAEJA.md` | New — Skald passage; the modern world is built from soft curves |
+| `docs/cartography/DATA_FLOW.md` | §4.10.14.2 added (5-shape vocabulary table; corner_radius clamp; YAML loader heuristic) |
+| `src/heretic/sjon/INTERFACE.md` | Public API + shape table extended; "Last updated" addendum |
+| `src/heretic/sjon/privacy.py` | PrivacyMaskRoundedRectangle + PrivacyMaskEllipse dataclasses |
+| `tests/test_sjon_privacy.py` | +23 tests (7 RoundedRect validation, 5 RoundedRect apply, 6 Ellipse validation, 4 Ellipse apply, 1 mixed five-shape list) |
+| `docs/audit/AUDIT_v0.5.5_MJUKBLAEJA.md` | New — 13 evidence trails + honest negative audit |
+| `docs/DEVLOG.md` | This entry (18) |
+
+### State of the body — 2026-05-09 (after four autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Sight — discipline of not-looking | Blæja | live since v0.5.3 |
+| Sight — vocabulary of veils (3 shapes) | Margblæja | live since v0.5.4 |
+| **Sight — soft-curve vocabulary (5 shapes)** | **Mjúkblæja** | **live since v0.5.5** |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Four milestones in one autonomous session. **Twenty-eight commits since v0.7 close.**
+
+### Threads carried forward from this session
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| ~~v0.5.5 soft-curve shapes~~ | **CLOSED — sealed at `c8ec993`** |
+| v0.5.6 polygon-with-rounded-corners | candidate for future — custom alpha-mask painter |
+| v0.5.6 Bezier paths | candidate — Pillow ImageDraw.Path |
+| v0.5.x mask inversion | candidate — "show only this region; veil all else" |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| v0.7.x download resume | unchanged |
+| v0.8 Opið Vef | natural roadmap successor — next major faculty |
+| v0.9 Málari | unchanged |
+| v0.10 Langhúsið Ytra | unchanged |
+| v0.11 Bréfasamtök | unchanged |
+
+The natural successor in roadmap order is still **v0.8 Opið Vef** — the full Playwright browser sense — which becomes the next major faculty rather than a vocabulary extension. The *Blæja* lineage has now matured to the point where additional shape extensions (v0.5.6 Bezier curves, polygon with rounded corners) become diminishing-returns work; the body's veil-vocabulary is rich enough to express most operator privacy intents.
+
+---
+
+*Entry 18 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*Five shapes flow through one pipeline. The Architect's claim from v0.5.4 still holds, one milestone later, with two more shapes added. Four milestones this evening; twenty-eight commits since v0.7 close; the body's veil-vocabulary now rich enough for the rounded world it actually lives in. The session is kept.*
+
+---
+
+## Entry 19 — 2026-05-09 — Endurdrykkr: The Resumed Drink (v0.7.2)
+
+**Milestone:** v0.7.2 — *Endurdrykkr* (the resumed drink)
+**Branch:** `development`
+**Session start HEAD:** `2fff370` (post-v0.5.5 Scribe seal)
+**Session close HEAD:** `f6d31b3` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; FIFTH milestone of the session
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was added — and why this milestone moved off the Blæja axis
+
+After four consecutive *Blæja*-lineage milestones (v0.5.3 disposition, v0.5.4 + v0.5.5 vocabulary growth), continuing along that axis would have been padding. The v0.5.5 Skald already named the diminishing-returns moment: *"the body's veil-vocabulary is rich enough for the rounded world it actually lives in."* v0.7.2 deliberately pivots to a different system (Mímisbrunnr — the well of knowledge), a different concern (network resilience), and a different kind of disposition (resilience disciplines, not visual ones).
+
+The change: when a download from Mímisbrunnr's source URLs is interrupted — by a Tailscale flap, a host shutdown, a ceremony Slokna mid-fetch — the partial bytes already on disk are no longer thrown away. The next download attempt detects `.heretic_tmp`, hashes the existing bytes into a running SHA-256, sends `Range: bytes=N-` to the server, and continues from offset N. The body picks up the same draught it had begun, rather than starting over.
+
+For the Norse starter pack at a few megabytes per file, this is a comfort. For the v0.8 ZIM corpora at 100 GB each, it is the difference between feasible and infeasible.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `009dbc0` | Runa | TASK file open |
+| 1 | `9442ae6` | Skald | `docs/vision/ENDURDRYKKR.md` |
+| 2 | `fb3fa68` | Cartographer | `docs/cartography/DATA_FLOW.md §4.14.1.1` |
+| 3+4 | `6b7aad4` | Architect+Forge | `downloader.py` + 11 tests |
+| 5 | `f6d31b3` | Auditor | `docs/audit/AUDIT_v0.7.2_ENDURDRYKKR.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 19 + seals |
+
+Six commits, the same shape as v0.5.4 / v0.5.5 / v0.5.5 (Architect+Forge merged because the implementation is mechanical once the Protocol or contract is settled).
+
+### Test status — 2026-05-09 (after v0.7.2)
+
+| Surface | Before v0.7.2 | After v0.7.2 | Delta |
+|---|---|---|---|
+| `tests/test_mimisbrunnr_downloader.py` | 13 | 24 | **+11** |
+| `tests/test_sjon_*.py` (carried) | 219 | 219 | 0 |
+| Frontend | 91 | 91 | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed) are byte-identical in stash diff. v0.7.2 introduced **zero** new regressions.
+
+### What this milestone teaches
+
+1. **Knowing when to stop adding to the same axis is craftsmanship.** Five milestones along the same lineage in one session would have been padding even though each individual milestone might have looked clean. The Skald's v0.5.5 reflection on diminishing returns was a deliberate signal to pivot. *Endurdrykkr* honours that signal by opening a different axis (resilience disciplines) rather than continuing the existing one (vocabulary growth).
+
+2. **Continuity is a first-class concern, even at the byte layer.** Mythic Engineering already values continuity at the document layer (MD Protocol), the wave layer (commit trails), the role layer (hand-off rituals), the session layer (TASK files). v0.7.2 extends that respect for continuity to the byte layer of downloads. A body that loses partial bytes when interrupted treats its own past effort as nothing the moment a connection blinks. That is not the kind of body Mythic Engineering is building.
+
+3. **Resumable vs non-resumable failure is a real distinction worth honouring.** Network errors (TransportError, TimeoutException, generic RequestError) leave the partial bytes still good — they should be preserved. Integrity errors (SHA-256 mismatch, size cap exceeded, 416 Range Not Satisfiable) mean the partial bytes are wrong — they should be deleted. Conflating these two kinds of failure (the v0.7 code did, deleting on every failure) leaks effort to the operator without warrant. Disambiguating them is M-8.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.7.2_ENDURDRYKKR.md` | New — opened Wave 0; sealed at Wave 7 |
+| `docs/vision/ENDURDRYKKR.md` | New — Skald passage on continuity-of-draught + the five HTTP statuses + resumable/non-resumable distinction |
+| `docs/cartography/DATA_FLOW.md` | §4.14.1.1 added (resume flow + status disposition table + tmp-file disposition table); three new invariants M-7/M-8/M-9 |
+| `src/heretic/skilningr/mimisbrunnr/downloader.py` | Module docstring extended with ENDURDRYKKR section; resume detection block; status-dispatch refactor; failure-branch tmp preservation for resumable cases |
+| `tests/test_mimisbrunnr_downloader.py` | +11 tests (5 resume detection, 2 status dispatch, 3 integrity, 1 consent gate ordering) |
+| `docs/audit/AUDIT_v0.7.2_ENDURDRYKKR.md` | New — 12 evidence trails + honest negative audit |
+| `docs/DEVLOG.md` | This entry (19) |
+
+### State of the body — 2026-05-09 (after five autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Sight — discipline of not-looking | Blæja | live since v0.5.3 |
+| Sight — vocabulary of veils (3 shapes) | Margblæja | live since v0.5.4 |
+| Sight — soft-curve vocabulary (5 shapes) | Mjúkblæja | live since v0.5.5 |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| **Knowledge — continuity-of-draught** | **Endurdrykkr** | **live since v0.7.2** |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Five milestones in one autonomous session. **Thirty-four commits since v0.7 close.** Three resilience-or-restraint disciplines now live (Straumr á Leið, Blæja, Endurdrykkr); each pairs with a faculty (Leið, Sjón, Mímisbrunnr).
+
+### Threads carried forward from this session
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| v0.5.6 polygon-rounded-corners / Bezier paths | candidate — diminishing returns on Blæja |
+| v0.5.x mask inversion | candidate — "show only this region; veil all else" |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | candidate — could be a Smiðja resilience discipline ("measured reaching") |
+| ~~v0.7.x download resume~~ | **CLOSED — sealed as v0.7.2 at `f6d31b3`** |
+| v0.7.x corrupt index auto-rebuild | candidate — small, builds on v0.7.2 |
+| v0.7.x parallel multi-source download | candidate — `asyncio.gather` |
+| v0.8 Opið Vef | natural roadmap successor — next major faculty |
+| v0.9 Málari | unchanged |
+| v0.10 Langhúsið Ytra | unchanged |
+| v0.11 Bréfasamtök | unchanged |
+
+The natural successor in roadmap order is still **v0.8 Opið Vef** — the full Playwright browser sense — which becomes the next major faculty. The session has now demonstrated *both* axes of growth: vocabulary growth on a fixed disposition (Blæja → Margblæja → Mjúkblæja) AND resilience-discipline addition on a faculty (Mímisbrunnr → Endurdrykkr). Future milestones can choose either axis as the operator's needs and the world's demands warrant.
+
+---
+
+*Entry 19 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The body picks up the same draught it had begun, rather than starting over. Five milestones this evening; thirty-four commits since v0.7 close; three resilience disciplines now live in the body. The session is kept.*
+
+---
+
+## Entry 20 — 2026-05-09 — Verkminni: Deed-Memory for Smiðja (v0.6.3)
+
+**Milestone:** v0.6.3 — *Verkminni* (deed-memory)
+**Branch:** `development`
+**Session start HEAD:** `52d0933` (post-v0.7.2 Scribe seal)
+**Session close HEAD:** `3b47086` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; SIXTH milestone of the session
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was added — completing the disposition family on the body's most-used faculty
+
+Smiðja was the body's most-developed faculty without a named discipline. v0.6 gave it the hand; v0.6.1 gave it dual-half lifecycle; v0.6.2 brought sandbox.py to its sister senses; v0.6.x exposed it via three transport doors. None of those were dispositions in the Skald's sense — they were functional capabilities. Verkminni is the discipline.
+
+Every Smiðja tool call now produces two paired audit entries (started + completed/failed) into a bounded in-memory ring buffer. The operator's after-the-fact question — *"what did the agent's hand actually do in the last five minutes?"* — has a structured answer. Not the agent's narrated transcript (the spirit's account), but the body's own record (the body's account). Two memories, two perspectives, one truth.
+
+The audit hook is structurally non-load-bearing: every audit write is wrapped in `try/except Exception` so the dispatcher's never-raise invariant (Smiðja-1, older than v0.6.3) is preserved by V-2. The audit log is a *witness*, not a *gate*.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `2034e32` | Runa | TASK file open |
+| 1 | `11de7fb` | Skald | `docs/vision/VERKMINNI.md` |
+| 2 | `eb4dbea` | Cartographer | `docs/cartography/DATA_FLOW.md §4.11.10` |
+| 3+4 | `e997e32` | Architect+Forge | `verkminni.py` + `sense.py` integration + 28 tests |
+| 5 | `3b47086` | Auditor | `docs/audit/AUDIT_v0.6.3_VERKMINNI.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 20 + seals |
+
+Six commits, the same shape as v0.5.4 / v0.5.5 / v0.7.2 (Architect+Forge merged because the contract is settled before implementation begins).
+
+### Test status — 2026-05-09 (after v0.6.3)
+
+| Surface | Before v0.6.3 | After v0.6.3 | Delta |
+|---|---|---|---|
+| `tests/test_smidja_verkminni.py` | — | 28 (NEW) | **+28** |
+| `tests/test_smidja_sense.py` | 45 | 45 | 0 |
+| Other Smiðja tests | unchanged | unchanged | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed) are byte-identical in stash diff. v0.6.3 introduced **zero** new regressions.
+
+### What this milestone teaches
+
+1. **Each faculty's discipline expresses that faculty's particular vulnerability.** Leið without measure could drink endlessly (→ *Straumr á Leið*). Sjón without measure could look at everything (→ *Blæja*). Mímisbrunnr without measure could forget partial draughts (→ *Endurdrykkr*). **Smiðja without measure could act and not remember** (→ *Verkminni*). The disciplines are not generic best-practices applied uniformly. Each is the antibody to its faculty's specific failure mode.
+
+2. **Default-ON for observability is a deliberate design choice, not laziness.** Privacy features (`save_frames`, webcam `enabled`, `privacy_masks`) default OFF because the operator must opt INTO sharing. Observability features (Verkminni's audit log) default ON because the operator's right to see what their AI did with the hand is the natural state. Conflating these two axes — defaulting all new features off — would be precedent-following without thought. v0.6.3 distinguishes them deliberately.
+
+3. **The witness-not-gate distinction is the difference between observability and behaviour.** A body whose record-keeping interferes with its acting has confused observability with behaviour. The Auditor's V-2 is the structural test of this distinction: every audit write is wrapped in try/except so an audit-write failure is visible (logged at warning) but never load-bearing. The dispatcher's contract is unchanged.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.6.3_VERKMINNI.md` | New — opened Wave 0; sealed at Wave 7 |
+| `docs/vision/VERKMINNI.md` | New — Skald passage on the body's memory of its own acts |
+| `docs/cartography/DATA_FLOW.md` | §4.11.10 added (audit hook flow + AuditEntry shape + ring buffer + 5 invariants V-1..V-5 + 3 inherited Smiðja invariants + heretic.yaml block + default-ON rationale) |
+| `src/heretic/skilningr/senses/smidja/verkminni.py` | New — AuditEntry dataclass, AuditLog ring buffer, NullAuditLog opt-out, build_entry helper, _truncate, _utcnow_iso8601 |
+| `src/heretic/skilningr/senses/smidja/sense.py` | __init__ accepts audit_log param (default constructs AuditLog(depth=100)); _safe_audit wrapper added; 4 dispatch exit points instrumented; close() clears audit log at SLOKNA |
+| `tests/test_smidja_verkminni.py` | New — 28 tests (2 AuditEntry, 6 truncation, 8 AuditLog ring buffer, 4 NullAuditLog, 8 SmidjaSense dispatch hook including V-2 broken-AuditLog test) |
+| `docs/audit/AUDIT_v0.6.3_VERKMINNI.md` | New — 8 evidence trails for V-1..V-8 + 3 inherited Smiðja invariants verified |
+| `docs/DEVLOG.md` | This entry (20) |
+
+### State of the body — 2026-05-09 (after six autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Sight — discipline of not-looking | Blæja | live since v0.5.3 |
+| Sight — vocabulary of veils (3 shapes) | Margblæja | live since v0.5.4 |
+| Sight — soft-curve vocabulary (5 shapes) | Mjúkblæja | live since v0.5.5 |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| **Hand — discipline of self-witness** | **Verkminni** | **live since v0.6.3** |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| Knowledge — continuity-of-draught | Endurdrykkr | live since v0.7.2 |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Six milestones in one autonomous session. **Forty-one commits since v0.7 close.** Four named dispositions on four different faculties: Leið / Sjón / Mímisbrunnr / Smiðja. The disposition-pairing pattern is now demonstrated across the body's full faculty set.
+
+### Threads carried forward from this session
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| v0.5.6 polygon-rounded-corners / Bezier | candidate — diminishing returns on Blæja |
+| v0.5.x mask inversion | candidate |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| ~~v0.6.3 audit log~~ | **CLOSED — sealed as v0.6.3 at `3b47086`** |
+| v0.6.3.1 CLI `heretic smidja log` | candidate — deferred from v0.6.3 main scope |
+| v0.6.3.x persistent audit log | candidate |
+| v0.6.3.x Vébond UI audit feed | candidate |
+| v0.7.x corrupt index auto-rebuild | candidate |
+| v0.7.x parallel multi-source download | candidate |
+| v0.8 Opið Vef | natural roadmap successor — next major faculty |
+| v0.9-v0.11 | gated on v0.8 or new deps |
+
+The session has now developed *all four* of the existing senses' dispositions:
+- Leið → Straumr á Leið (resilience: streaming abort)
+- Sjón → Blæja → Margblæja → Mjúkblæja (vocabulary growth: 5 shapes)
+- Mímisbrunnr → Endurdrykkr (resilience: resumable downloads)
+- Smiðja → Verkminni (observability: deed-memory)
+
+The natural successor in roadmap order remains **v0.8 Opið Vef** — the full Playwright browser sense — which becomes the next major faculty. Any future work on existing faculties' dispositions is now in the diminishing-returns zone; the disposition-pairing pattern has cleanly demonstrated itself.
+
+---
+
+*Entry 20 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The hand acts; the body witnesses. Six milestones this evening; forty-one commits since v0.7 close; four named dispositions now live in the body, paired with the four most-developed faculties. The body's discipline-development is articulate across its full faculty set. The session is kept.*
+
+---
+
+## Entry 21 — 2026-05-09 — Mímisbrunnr Index Auto-Rebuild (v0.7.3, Endurdrykkr extension)
+
+**Milestone:** v0.7.3 — Mímisbrunnr index auto-rebuild on corruption (no new Skald-given codename; extension to *Endurdrykkr*)
+**Branch:** `development`
+**Session start HEAD:** `bd48dd1` (post-v0.6.3 Verkminni Scribe seal)
+**Session close HEAD:** `290670c` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; SEVENTH milestone of the session — deliberately small resilience-plumbing scope to avoid the diminishing-returns zone the entry-20 DEVLOG named
+**Roles in attendance:** All six. Skald wave brief (addendum to ENDURDRYKKR.md §VIII) — explicitly declined a new codename.
+
+### What was added
+
+When `KeywordIndex.search()` is called and the on-disk `keyword_index.jsonl` is **missing**, **unreadable**, or **empty after corrupt-line skipping**, the index is automatically rebuilt from `.txt` source files in the same data directory before serving the query — instead of raising `LibraryIndexError`.
+
+Operator pain solved: a corrupt or missing index file no longer fails every library query with an actionable-error message demanding manual `heretic library rebuild-index`. The body recovers automatically when source files are present.
+
+If no `.txt` source files exist either (no source has been downloaded), the same actionable error operators see today is preserved — they're pointed to `heretic library download <source_id>`. Behaviour-preserving for the truly-unrecoverable case.
+
+### Why no new Skald-given codename
+
+The Skald explicitly declined to coin a new name for v0.7.3. This is the same disposition (continuity), one layer deeper:
+- **v0.7.2 Endurdrykkr** taught the body's draught to pick up where it left off when the connection dropped (continuity at the byte layer).
+- **v0.7.3** teaches the same disposition to the cup itself — the keyword index that organises the bytes (continuity at the structure-over-bytes layer).
+
+The Skald's pen is reserved for milestones that name new dispositions, vocabularies, or major faculties. v0.7.3 deepens an existing discipline. A scribe-class milestone, recorded in the DEVLOG, but riding on Endurdrykkr's existing Skald-given name. **Naming discipline matters: not every milestone earns its own vision page.**
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `46fb8c4` | Runa | TASK file open |
+| 1 | `1dc1fad` | Skald (brief) | `docs/vision/ENDURDRYKKR.md` §VIII addendum — extension acknowledgement |
+| 2 | `e54d6b7` | Cartographer | `docs/cartography/DATA_FLOW.md §4.14.2.1` — auto-rebuild decision tree |
+| 3+4 | `c589e4d` | Architect+Forge | `_load_or_rebuild_cache()` in index.py + 7 tests |
+| 5 | `290670c` | Auditor | `docs/audit/AUDIT_v0.7.3_INDEX_REBUILD.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 21 + seals |
+
+### Test status — 2026-05-09 (after v0.7.3)
+
+| Surface | Before v0.7.3 | After v0.7.3 | Delta |
+|---|---|---|---|
+| `tests/test_mimisbrunnr_index.py` | 23 | 30 | **+7** |
+| Other Mímisbrunnr tests | unchanged | unchanged | 0 |
+| **Mímisbrunnr total** | 145 | 152 | **+7** |
+
+Zero regressions in the broader suite. The 20 pre-existing environment failures (`fastapi`/`mcp` missing) are byte-identical in stash diff.
+
+### What this milestone teaches
+
+**Naming discipline is itself a discipline.** Mythic Engineering values vocabulary growth (the Skald's role), but the Skald can also legitimately *decline* to name something. v0.7.3 is genuine, useful, audit-passing work — and it explicitly does not earn its own vision page because it deepens rather than introduces. The session's seven milestones include this distinction visibly: six earned codenames (Straumr á Leið, Blæja, Margblæja, Mjúkblæja, Endurdrykkr, Verkminni); one explicitly did not (v0.7.3). The lineage stays clean.
+
+### State of the body — 2026-05-09 (after seven autonomous milestones)
+
+The faculty / disposition table is unchanged from entry 20 — v0.7.3 does not add a new discipline; it deepens the Endurdrykkr disposition that was already named for Mímisbrunnr.
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground / Bridge / Voice (in & out) / Face | (no Skald-named disposition) | live since v0.1–v0.4 |
+| Sight | Blæja → Margblæja → Mjúkblæja | 5-shape vocabulary live |
+| Hand | Verkminni | deed-memory live |
+| Knowledge — well | Endurdrykkr | continuity (now extended to index layer at v0.7.3) |
+| Road | Straumr á Leið | measured drinking live |
+
+**Forty-eight commits since v0.7 close.** Seven milestones. Six new codenames + one deliberately unnamed extension.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.7.x corrupt index auto-rebuild~~ | **CLOSED — sealed as v0.7.3 at `290670c`** |
+| v0.7.x parallel multi-source download | candidate — `asyncio.gather` over Endurdrykkr-resumed downloads |
+| v0.7.x mtime-based staleness detection | candidate — rebuild when source files newer than index |
+| v0.6.3.1 CLI `heretic smidja log` | candidate — deferred from v0.6.3 |
+| v0.5.6 polygon-rounded-corners / Bezier | candidate — diminishing returns on Blæja |
+| v0.5.x mask inversion | candidate |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| **v0.8 Opið Vef** | natural roadmap successor — next major faculty (Playwright) |
+
+The session has now demonstrated **three growth axes** demonstrably:
+1. **Vocabulary growth on a fixed disposition** — Blæja → Margblæja → Mjúkblæja (5 shapes)
+2. **New-discipline addition on a faculty** — Straumr á Leið / Blæja / Endurdrykkr / Verkminni
+3. **Deepening of an existing discipline (no new name)** — Endurdrykkr extending from byte-layer to index-layer at v0.7.3
+
+Future autonomous sessions have precedent for all three.
+
+---
+
+*Entry 21 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The cup itself learns to mend. Same Endurdrykkr; one layer deeper. Seven milestones this evening; forty-eight commits since v0.7 close; the disposition lineage now includes a deliberately unnamed extension — a sign that the body's discipline-development has matured enough to know when to coin and when to extend. The session is kept.*
+
+---
+
+## Entry 22 — 2026-05-09 — Persistent Verkminni: deed-memory writes to disk by operator's choice (v0.6.3.1)
+
+**Milestone:** v0.6.3.1 — Persistent Verkminni (extension; no new Skald codename)
+**Branch:** `development`
+**Session start HEAD:** `4a6e578` (post-v0.7.3 Scribe seal)
+**Session close HEAD:** `236f569` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — EIGHTH milestone of the session
+**Roles in attendance:** All six. Skald wave brief (addendum to VERKMINNI.md §VIII) — explicitly declined a new codename. Same pattern as v0.7.3.
+
+### What was added
+
+`AuditLog` gains an optional `disk_log_path` parameter. When set, every `record()` call also appends a JSONL line to that file. When None (default), no disk I/O occurs and the v0.6.3 in-memory ring buffer behaviour is byte-equivalent. **Path-as-toggle:** the path itself IS the on/off switch — mirrors the v0.5.3 *Blæja* pattern where `privacy_masks: list[]` empty=off.
+
+The disk-mirror is **non-load-bearing**: every disk write is wrapped in `try/except Exception` so V-2 (audit-write failures cannot make dispatch raise) extends naturally to disk-write failures. Two layers of protection now: D-3 inside record() + V-2 in _safe_audit().
+
+The file is **NOT cleared at SLOKNA** (D-5). The in-memory ring buffer still clears at ceremony end (V-4 from v0.6.3, unchanged); only the disk file persists. The body honours the operator's choice across ceremony boundaries.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `e11dddf` | Runa | TASK file |
+| 1 | `c8be0e5` | Skald (brief) | `VERKMINNI.md §VIII` addendum |
+| 2 | `64ce538` | Cartographer | `DATA_FLOW.md §4.11.10.1` |
+| 3+4 | `a8e6256` | Architect+Forge | `AuditLog.disk_log_path` + 9 tests |
+| 5 | `236f569` | Auditor | `AUDIT_v0.6.3.1_PERSISTENT_VERKMINNI.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 22 + seals |
+
+### Test status — 2026-05-09 (after v0.6.3.1)
+
+| Surface | Before v0.6.3.1 | After v0.6.3.1 | Delta |
+|---|---|---|---|
+| `tests/test_smidja_verkminni.py` | 28 | 37 | **+9** |
+| Other Smiðja tests | unchanged | unchanged | 0 |
+| **Smiðja total** | 73 | 82 | **+9** |
+
+Zero regressions. The 20 pre-existing environment failures byte-identical in stash diff.
+
+### What this milestone teaches
+
+**Privacy thresholds matter.** The in-memory ring buffer of v0.6.3 was deliberately ceremony-scoped: clear at SLOKNA, no persistence between sessions. That was the right default for most operators. But for compliance officers, researchers, and investigators, ceremony-scoping is itself a constraint. v0.6.3.1 gives those operators a structural opt-in via path-as-toggle: configure a path → on; leave it None → off. **The discipline of self-witness becomes the discipline of operator-chosen self-witness.**
+
+**Two-layer defence is sometimes the right shape.** v0.6.3's `_safe_audit` already catches any exception from `record()`. v0.6.3.1's disk-write `try/except` is therefore redundant in the strict sense — even if it raised, _safe_audit would catch it. But putting the try/except *inside* record() is a different, more local kind of defence: it ensures the in-memory append always completes, even if the disk write fails. Layer D-3 inside record() + Layer V-2 in _safe_audit() both serve the same goal (Smiðja-1 dispatch never raises) but at different scopes. Belt and braces.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.6.3.1_PERSISTENT_VERKMINNI.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/VERKMINNI.md` | §VIII addendum — operator-chosen persistence |
+| `docs/cartography/DATA_FLOW.md` | §4.11.10.1 added (mirror flow + 5 D-invariants) |
+| `src/heretic/skilningr/senses/smidja/verkminni.py` | `disk_log_path` parameter + JSONL append-mode write inside lock |
+| `tests/test_smidja_verkminni.py` | +9 tests (TestPersistentVerkminni) |
+| `docs/audit/AUDIT_v0.6.3.1_PERSISTENT_VERKMINNI.md` | New — D-1..D-5 verified |
+| `docs/DEVLOG.md` | This entry (22) |
+
+### State of the body — 2026-05-09 (after eight autonomous milestones)
+
+The faculty / disposition table is unchanged from entry 21 — v0.6.3.1 deepens Verkminni rather than adding a new discipline.
+
+Verkminni is the second discipline in the session that has been *deepened by an unnamed extension*:
+- **Endurdrykkr** (v0.7.2) → **v0.7.3** (continuity from byte-layer to index-layer)
+- **Verkminni** (v0.6.3) → **v0.6.3.1** (deed-memory from in-memory to optional disk persistence)
+
+**Fifty-three commits since v0.7 close.** Eight milestones. Six Skald-given codenames + two deliberately unnamed extensions.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.6.3.x persistent disk audit log~~ | **CLOSED — sealed as v0.6.3.1 at `236f569`** |
+| v0.6.3.2 CLI `heretic smidja log` | candidate — reads the disk file from v0.6.3.1 |
+| v0.6.3.x file rotation / size cap | candidate — disk hygiene |
+| v0.7.x parallel multi-source download | candidate — `asyncio.gather` over Endurdrykkr |
+| v0.7.x mtime-based staleness detection | candidate |
+| v0.5.6 polygon-rounded-corners / Bezier | candidate — diminishing returns |
+| v0.5.x mask inversion | candidate |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| **v0.8 Opið Vef** | natural roadmap successor |
+
+The session has now demonstrated **two unnamed-extension milestones** following two named-discipline milestones. The pattern is becoming established: name the discipline once; extend it without coining as the discipline matures across layers. The Skald's pen stays disciplined.
+
+---
+
+*Entry 22 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The body's deed-memory now writes to disk when the operator asks. Same Verkminni; the persistence is the operator's extension. Eight milestones this evening; fifty-three commits since v0.7 close; six Skald-given codenames and two deliberately unnamed extensions. The session is kept.*

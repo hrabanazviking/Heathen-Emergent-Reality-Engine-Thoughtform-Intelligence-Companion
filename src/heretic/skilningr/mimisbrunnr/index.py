@@ -236,16 +236,10 @@ class KeywordIndex:
         if not query_folded:
             return []
 
-        # Load index (from cache or disk)
+        # Load index (from cache or disk).
+        # v0.7.3 — auto-rebuild when index is missing, empty, or all-corrupt.
         if self._cache is None:
-            index_path = self._data_dir / _INDEX_FILENAME
-            if not index_path.exists():
-                raise LibraryIndexError(
-                    f"No keyword index found at {index_path}. "
-                    "Run 'heretic library rebuild-index' to build the index "
-                    "after downloading sources."
-                )
-            self._cache = self._load_index_from_disk(index_path)
+            self._cache = self._load_or_rebuild_cache()
 
         # Build a line lookup for context: {source_id: {line_number: content}}
         # We build this lazily per source_id as hits accumulate.
@@ -311,6 +305,77 @@ class KeywordIndex:
     # -----------------------------------------------------------------------
     # Private helpers
     # -----------------------------------------------------------------------
+
+    def _load_or_rebuild_cache(self) -> list[dict]:
+        """Load the keyword index, rebuilding from sources if missing or corrupt.
+
+        v0.7.3 *Endurdrykkr* extension — continuity discipline applied to the
+        index layer. When the on-disk keyword_index.jsonl is:
+            - missing entirely, OR
+            - unreadable (OSError raised by _load_index_from_disk), OR
+            - present but contains zero usable entries after corrupt-line skip
+
+        ...this method auto-rebuilds the index from the .txt source files in
+        the data directory. The freshly-built cache is returned.
+
+        If no .txt source files exist either (no source has been downloaded),
+        the same actionable LibraryIndexError is raised as the v0.7 behaviour:
+        the operator is told to download a source first.
+
+        Returns:
+            list[dict] — the loaded or freshly-built index entries.
+
+        Raises:
+            LibraryIndexError: if the index cannot be loaded AND cannot be
+                rebuilt (no .txt source files in data_dir).
+        """
+        index_path = self._data_dir / _INDEX_FILENAME
+
+        # Try to load the existing index first.
+        loaded_entries: list[dict] | None = None
+        if index_path.exists():
+            try:
+                loaded_entries = self._load_index_from_disk(index_path)
+            except LibraryIndexError as exc:
+                logger.warning(
+                    "KeywordIndex: could not load index from %s (%s) — "
+                    "auto-rebuilding from source files",
+                    index_path, exc,
+                )
+                loaded_entries = None
+        else:
+            logger.info(
+                "KeywordIndex: no index file at %s — auto-building from "
+                "source files",
+                index_path,
+            )
+
+        # Happy path — index loaded with at least one valid entry.
+        if loaded_entries:
+            return loaded_entries
+
+        # Auto-rebuild path — index is missing, unreadable, or all-corrupt.
+        # Check that .txt source files exist before attempting rebuild.
+        if loaded_entries is not None and len(loaded_entries) == 0:
+            logger.warning(
+                "KeywordIndex: index file %s contained no usable entries "
+                "(empty or all lines corrupt) — auto-rebuilding from source files",
+                index_path,
+            )
+
+        txt_files = sorted(self._data_dir.glob("*.txt"))
+        if not txt_files:
+            raise LibraryIndexError(
+                f"No keyword index found at {index_path} and no .txt source "
+                f"files to rebuild from in {self._data_dir}. "
+                "Run 'heretic library download <source_id>' to fetch a source, "
+                "then 'heretic library rebuild-index' (or just run a query — "
+                "the index will rebuild automatically when sources are present)."
+            )
+
+        # build() refreshes self._cache as a side effect.
+        self.build(self._data_dir)
+        return self._cache or []
 
     @staticmethod
     def _load_index_from_disk(index_path: Path) -> list[dict]:

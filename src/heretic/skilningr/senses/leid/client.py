@@ -10,14 +10,23 @@ SANDBOX INVARIANT (DO NOT WEAKEN):
     be bypassed, reordered, or short-circuited.
 
 PROTOCOL INVARIANTS:
-    - GET only in v0.6.2. No POST, PUT, DELETE, or other methods.
+    - GET only. No POST, PUT, DELETE, or other methods.
     - HTTPS-only by default. HTTP requires LeidConfig.allow_http: true AND a
       matching allowlist pattern. HTTP URLs are always logged as warnings.
     - No cookies stored, sent, or accepted (stateless; httpx client cookies not set).
-    - No JavaScript execution (httpx only; playwright = v0.6.2.1+).
-    - Response body is capped at LeidConfig.max_response_bytes — v0.6.2: full body
-      is buffered then LeidResponseTooLargeError is raised if it exceeds the cap;
-      no partial content is returned. v0.6.2.1 will add streaming early termination.
+    - No JavaScript execution (httpx only; playwright/selenium = v0.8 Opið Vef).
+    - Response body is capped at LeidConfig.max_response_bytes — enforced via
+      streaming abort (httpx.AsyncClient.stream + aiter_bytes). When the
+      accumulator exceeds the cap, LeidResponseTooLargeError is raised mid-stream;
+      the connection closes during stack unwind; remaining bytes never travel.
+      Memory at moment of raise is bounded by max_response_bytes + chunk_size
+      (default ~1.06 MiB). Agent receives a structured error, never partial content.
+    - Content-Length pre-cap: if the response carries a Content-Length header
+      that already exceeds the cap, LeidResponseTooLargeError is raised before
+      any chunk is read. Malformed Content-Length values are ignored.
+    - 4xx/5xx status check runs before body accumulation. The error-message tail
+      is read via a bounded peek (max ~500 bytes) so a giant 4xx body cannot
+      blow memory.
     - Redirects followed up to LeidConfig.max_redirects (default 5).
     - Custom User-Agent: LeidConfig.user_agent.
 
@@ -26,13 +35,14 @@ HTML text extraction (extract_text):
     visible text. This is a shallow extraction — JS-rendered pages return
     near-empty text because httpx does not execute JavaScript.
     This boundary is documented as a known limit, NOT a bug.
-    playwright/selenium = v0.6.2.1+ for JS-rendered pages.
+    playwright/selenium = v0.8 Opið Vef for JS-rendered pages.
 
 A fresh httpx.AsyncClient is created per-request (no persistent connection pool
 across calls). This keeps the lifecycle simple and avoids stale connection issues.
 
 Ref: src/heretic/skilningr/senses/leid/INTERFACE.md
      src/heretic/skilningr/sandbox.py (url_matches_allowlist)
+     TASK_HERETIC_v0.7.1_LEID_STREAMING.md (Straumr á Leið — streaming abort)
      TASK_HERETIC_v0.6.2_MORE_SENSES.md §3 (Leið sandbox invariants)
 """
 
@@ -199,19 +209,34 @@ class LeidClient:
         ct_lower = content_type.lower()
         return "text/html" in ct_lower or "application/xhtml" in ct_lower
 
+    # Default chunk size for streaming reads. 64 KiB balances syscall
+    # overhead against early-termination latency at small response caps.
+    _STREAM_CHUNK_SIZE: int = 65536
+
+    # Bounded peek for 4xx/5xx error-body tail. Keeps a giant error response
+    # from blowing memory while still giving the agent a useful diagnostic.
+    _ERROR_PEEK_BYTES: int = 500
+
     async def fetch_url(self, url: str) -> dict[str, Any]:
-        """Fetch the raw content of a URL via HTTP GET.
+        """Fetch the raw content of a URL via HTTP GET (streaming).
 
-        Size-cap behaviour (v0.6.2):
-            The full response body is buffered into memory via response.content,
-            then its length is checked against LeidConfig.max_response_bytes.
-            If the body exceeds the cap, LeidResponseTooLargeError is raised —
-            the agent receives a structured error instead of a silently truncated
-            body. No partial content is returned.
+        Size-cap behaviour (v0.7.1 Straumr á Leið — streaming abort):
+            The body is read chunk-by-chunk via httpx.AsyncClient.stream() +
+            aiter_bytes(). Each chunk extends a bytearray accumulator. After
+            each extend, if the accumulator length exceeds
+            LeidConfig.max_response_bytes, LeidResponseTooLargeError is
+            raised immediately. The streaming context unwinds; the connection
+            closes; remaining bytes are not transferred.
 
-            v0.6.2.1 will replace this full-buffer-then-check pattern with true
-            streaming via aiter_bytes and early termination at the size cap,
-            which avoids materialising oversized bodies in memory at all.
+            Memory at moment of raise is bounded by
+                max_response_bytes + _STREAM_CHUNK_SIZE
+            because the chunk that pushes the accumulator past the cap is
+            appended before the comparison.
+
+            If the response carries a Content-Length header that already
+            exceeds the cap, LeidResponseTooLargeError is raised before any
+            chunk is read. Malformed Content-Length values are ignored
+            (fall through to the chunk loop).
 
         Args:
             url: URL to fetch. Must match url_allowlist_patterns.
@@ -229,19 +254,21 @@ class LeidClient:
             LeidTimeoutError: request timed out.
             LeidHttpError: 4xx or 5xx response status.
             LeidConnectionError: network-level error (DNS, TLS, TCP refused).
-            LeidResponseTooLargeError: response body exceeds max_response_bytes.
+            LeidResponseTooLargeError: response body exceeds max_response_bytes
+                (raised mid-stream as soon as the cap is breached).
         """
-        # Gate — allowlist and HTTPS policy
+        # Gate — allowlist and HTTPS policy. Runs BEFORE any httpx call.
         normalised_url = self._validate_url(url)
 
         self._log.debug(
-            "Leið fetch_url: %s (timeout=%ds, max_bytes=%d)",
+            "Leið fetch_url: %s (timeout=%ds, max_bytes=%d, stream_chunk=%d)",
             normalised_url, self._config.timeout_seconds,
-            self._config.max_response_bytes,
+            self._config.max_response_bytes, self._STREAM_CHUNK_SIZE,
         )
 
         timeout = httpx.Timeout(self._config.timeout_seconds)
         headers = {"User-Agent": self._config.user_agent}
+        max_bytes = self._config.max_response_bytes
 
         try:
             async with httpx.AsyncClient(
@@ -250,7 +277,71 @@ class LeidClient:
                 headers=headers,
                 follow_redirects=True,
             ) as client:
-                response = await client.get(normalised_url)
+                async with client.stream("GET", normalised_url) as response:
+                    # Pre-cap on Content-Length when present and well-formed.
+                    cl_header = response.headers.get("content-length")
+                    if cl_header is not None:
+                        try:
+                            declared = int(cl_header)
+                        except ValueError:
+                            declared = None
+                        if declared is not None and declared > max_bytes:
+                            self._log.warning(
+                                "Leið fetch_url: Content-Length %d exceeds "
+                                "max_response_bytes=%d for %s — aborting "
+                                "before body read",
+                                declared, max_bytes, normalised_url,
+                            )
+                            raise LeidResponseTooLargeError(
+                                f"Response from {normalised_url!r} declares "
+                                f"Content-Length {declared} bytes, which exceeds "
+                                f"max_response_bytes={max_bytes}. Aborted before "
+                                f"body read. Increase LeidConfig.max_response_bytes "
+                                f"or fetch a smaller resource."
+                            )
+
+                    # 4xx/5xx status check runs before body accumulation.
+                    if response.status_code >= 400:
+                        error_acc = bytearray()
+                        async for chunk in response.aiter_bytes(
+                            self._STREAM_CHUNK_SIZE
+                        ):
+                            error_acc.extend(chunk)
+                            if len(error_acc) >= self._ERROR_PEEK_BYTES:
+                                break
+                        peek = bytes(error_acc[: self._ERROR_PEEK_BYTES])
+                        peek_str = peek.decode("utf-8", errors="replace")
+                        raise LeidHttpError(
+                            f"HTTP {response.status_code} from "
+                            f"{normalised_url!r}. Response body (truncated): "
+                            f"{peek_str!r}"
+                        )
+
+                    content_type = response.headers.get("content-type", "")
+
+                    # Streaming accumulator with mid-stream cap enforcement.
+                    acc = bytearray()
+                    async for chunk in response.aiter_bytes(
+                        self._STREAM_CHUNK_SIZE
+                    ):
+                        acc.extend(chunk)
+                        if len(acc) > max_bytes:
+                            self._log.warning(
+                                "Leið fetch_url: streamed %d bytes from %s, "
+                                "exceeds max_response_bytes=%d — aborting "
+                                "stream and raising LeidResponseTooLargeError",
+                                len(acc), normalised_url, max_bytes,
+                            )
+                            raise LeidResponseTooLargeError(
+                                f"Response from {normalised_url!r} exceeds "
+                                f"max_response_bytes={max_bytes}; streamed "
+                                f"{len(acc)} bytes before abort. Increase "
+                                f"LeidConfig.max_response_bytes or fetch a "
+                                f"smaller resource."
+                            )
+                    size_bytes = len(acc)
+                    body = bytes(acc).decode("utf-8", errors="replace")
+                    status_code = response.status_code
         except httpx.TimeoutException as exc:
             raise LeidTimeoutError(
                 f"Request to {normalised_url!r} timed out after "
@@ -270,44 +361,14 @@ class LeidClient:
                 f"HTTP transport error fetching {normalised_url!r}: {exc}"
             ) from exc
 
-        # Check for error status codes
-        if response.status_code >= 400:
-            raise LeidHttpError(
-                f"HTTP {response.status_code} from {normalised_url!r}. "
-                f"Response body (truncated): {response.text[:500]!r}"
-            )
-
-        content_type = response.headers.get("content-type", "")
-
-        # Buffer the full response body then check size.
-        # v0.6.2: full buffering then check; v0.6.2.1: streaming via aiter_bytes.
-        raw_bytes = response.content
-        size_bytes = len(raw_bytes)
-        max_bytes = self._config.max_response_bytes
-
-        if size_bytes > max_bytes:
-            self._log.warning(
-                "Leið fetch_url: response from %s is %d bytes, exceeds "
-                "max_response_bytes=%d — raising LeidResponseTooLargeError",
-                normalised_url, size_bytes, max_bytes,
-            )
-            raise LeidResponseTooLargeError(
-                f"Response from {normalised_url!r} is {size_bytes} bytes, "
-                f"which exceeds max_response_bytes={max_bytes}. "
-                f"Increase LeidConfig.max_response_bytes or fetch a smaller resource."
-            )
-
-        # Decode as UTF-8 with replacement for non-decodable bytes
-        body = raw_bytes.decode("utf-8", errors="replace")
-
         self._log.debug(
             "Leið fetch_url: %s -> status=%d, size=%d",
-            normalised_url, response.status_code, size_bytes,
+            normalised_url, status_code, size_bytes,
         )
 
         return {
             "url": normalised_url,
-            "status_code": response.status_code,
+            "status_code": status_code,
             "content_type": content_type,
             "body": body,
             "size_bytes": size_bytes,

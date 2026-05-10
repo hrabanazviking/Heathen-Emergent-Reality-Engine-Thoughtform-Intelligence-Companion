@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
+**Last updated:** 2026-05-09 v0.6.3.1 addendum — Védis Eikleið: §4.11.10.1 (Verkminni opt-in persistent disk log) added; path-as-toggle convention; open-append-close per record; mkdir parents=True; disk write inside threading.Lock for ordering consistency; NOT cleared at SLOKNA (D-5); five new invariants D-1..D-5 (no-disk-no-IO; one-line-per-record; non-load-bearing failure; append-not-overwrite; persistent across ceremonies). | 2026-05-09 v0.7.3 addendum — Védis Eikleið: §4.14.2.1 (Index auto-rebuild on corruption) added; KeywordIndex.search() decision tree for missing/empty/all-corrupt index file; auto-rebuild from .txt source files; behaviour-preserving error for the truly-unrecoverable no-sources case; no new privacy invariants (behaviour extension on Endurdrykkr lineage). | 2026-05-09 v0.6.3 addendum — Védis Eikleið: §4.11.10 (Verkminni — deed-memory audit log for Smiðja) added; AuditEntry dataclass shape with paired-entries semantics; AuditLog ring buffer (collections.deque maxlen=100 default); five new invariants V-1..V-5 (paired entries; non-load-bearing audit writes; bounded eviction; ceremony-scoped clear; NullAuditLog opt-out); Smiðja-1/2/3 inherited invariants documented; default-ON rationale (observability is a security discipline, not privacy). | 2026-05-09 v0.7.2 addendum — Védis Eikleið: §4.14.1.1 (Endurdrykkr — resumable downloads for Mímisbrunnr) added; resume flow with partial-byte hashing, Range request, three-status dispatch (206/200/416); full HTTP status disposition table including 4xx/5xx and network-blink behaviour; resumable-vs-non-resumable failure mode dispositioning of `.heretic_tmp` documented; three new invariants M-7 (full SHA-256 across the seam), M-8 (failure-mode tmp disposition), M-9 (200-on-resume restart graceful). No new dependency. | 2026-05-09 v0.5.5 addendum — Védis Eikleið: §4.10.14.2 (Mjúkblæja — soft-curved mask shapes) added; PrivacyMaskRoundedRectangle bounding box and alpha mask formulas (Pillow rounded_rectangle primitive); PrivacyMaskEllipse bounding box and alpha mask formulas (Pillow ellipse primitive with non-equal radii); the unified pipeline now handles five shapes through the same five-step composite path. corner_radius clamping behaviour at apply time documented (clamped to min(w,h)//2). Pillow rounded_rectangle requires Pillow >=8.2.0 (already pinned >=10). | 2026-05-09 v0.5.4 addendum — Védis Eikleið: §4.10.14.1 (Margblæja — non-rectangular mask shapes) added; PrivacyMaskShape Protocol contract documented (bounding_box + alpha_mask methods); one-pipeline-three-shapes diagram drawn (rectangle, circle, polygon all flow through the same alpha-mask composite); circle and polygon bounding-box / alpha-mask formulas documented; six new failure modes F-Blæja-6..F-Blæja-11 added; three new privacy invariants P-7..P-9 (boundary preservation, degenerate-polygon handling, off-frame bounding box). Pillow ImageDraw already a dep; no new dependency. | 2026-05-09 v0.5.3 addendum — Védis Eikleið: §4.10.14 (Blæja — privacy mask application) added; mask application step diagrammed with explicit upstream-of-leak-paths position; three modes (blur, solid, pixelate) documented; coordinate space (source pixels) and clamping behaviour documented; five Blæja failure modes (F-Blæja-1..F-Blæja-5) documented; six privacy invariants (P-1..P-6) recorded; per-source independence (screen vs webcam mask lists) noted. Pillow already a dep; no new dependency. | 2026-05-09 v0.7.1 addendum — Védis Eikleið: §4.12.2.1 (Leið streaming body-read — *Straumr á Leið*) added; §4.12.2 Step 4 annotated with v0.6.2-shipped + v0.7.1-streaming history; §4.12.2 F-6 rewritten to record three-stage history (first sketch → v0.6.2 raise → v0.7.1 streaming abort); closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`. Memory-bound at moment of raise documented (max_response_bytes + chunk_size). Closing-on-unwind semantics of httpx.AsyncClient.stream + bytearray accumulator documented. | 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -3858,6 +3858,472 @@ HERETIC provides the privacy defaults; obtaining consent is an operator responsi
 
 ---
 
+#### 4.10.14 Privacy mask application (Blæja — v0.5.3)
+
+> **Added 2026-05-09 v0.5.3 (Védis Eikleið).** *Blæja* — the veil. The body
+> learns to look without recording everything it sees. A configurable mask
+> layer applies to captured frames *before* every leak path: encode, save,
+> transport. The unmasked frame never reaches disk; the unmasked frame
+> never reaches the agent.
+
+```
+  BLÆJA — PRIVACY MASK APPLICATION
+
+  Position in the pipeline:
+    raw bytes from MssBackend / WebcamBackend
+        │
+        ▼
+    PIL.Image decode  (Image.frombytes)
+        │
+        ▼  ╔═══════════════════════════════════════════════════════╗
+            ║   apply_privacy_masks(image, config.privacy_masks)    ║
+            ║   ← v0.5.3 — INSERTED HERE                            ║
+            ║   For each PrivacyMaskRegion:                         ║
+            ║     1. Clamp (x, y, w, h) to image bounds             ║
+            ║     2. If clamped area == 0:  log once, skip          ║
+            ║     3. Crop region from image                         ║
+            ║     4. Apply mode (blur / solid / pixelate)           ║
+            ║     5. Paste masked region back at (x, y)             ║
+            ╚═══════════════════════════════════════════════════════╝
+        │
+        ▼
+    resize_to_bounds(image, max_w, max_h)   (downstream of mask)
+        │
+        ▼
+    PNG / JPEG encode                        (downstream of mask)
+        │
+        ▼
+    base64 data URL → agent / disk-if-save_frames
+
+  Key property: every leak path is downstream of the mask step. There is
+  no codepath in which an unmasked frame reaches encode, save, or the
+  ring buffer.
+
+  Coordinate space:
+    - All region coords (x, y, w, h) are in SOURCE PIXEL SPACE — i.e., the
+      monitor or webcam's native resolution before any resize.
+    - This keeps operator authoring stable: if max_width changes from 1280
+      to 1920 in heretic.yaml, the operator's mask coordinates remain valid.
+    - The clamp is to image.size at decode time (which equals source
+      resolution before resize).
+
+  Modes (per region):
+
+    BLUR     — Gaussian blur of the cropped region.
+               Default radius: max(8, min(w, h) // 8). Manual override via
+               PrivacyMaskRegion.blur_radius.
+               Pillow primitive: image.filter(ImageFilter.GaussianBlur(r)).
+               Use when: agent should know "something is there" but cannot read it.
+
+    SOLID    — Region replaced with a uniform colour.
+               Default: (0, 0, 0) black. Override via PrivacyMaskRegion.solid_color.
+               Pillow primitive: ImageDraw.Draw(image).rectangle(..., fill=color).
+               Use when: even the region's silhouette must not leak.
+
+    PIXELATE — Region downsampled then upsampled with NEAREST resampling.
+               Factor: max(8, min(w, h) // 12). Override via PrivacyMaskRegion.pixelate_factor.
+               Pillow primitive: img.resize((w//f, h//f), NEAREST).resize((w, h), NEAREST).
+               Use when: gross composition is OK; fine detail must not leak.
+
+  Region clamping:
+    Out-of-bounds regions are clamped to image bounds silently. A region
+    wholly off-frame becomes a no-op. The first time a clamp or no-op
+    happens for a given encoder instance, a debug-level log records the
+    fact. Subsequent occurrences are silent (the operator's heretic.yaml
+    is presumed intentional).
+
+  Empty list:
+    privacy_masks=[] (the default for both SjonScreenConfig and
+    SjonWebcamConfig) returns the image untouched — early return inside
+    apply_privacy_masks before any per-region work. Zero overhead when
+    feature is unused.
+
+  Per-source independence:
+    SjonScreenConfig.privacy_masks and SjonWebcamConfig.privacy_masks
+    are independent lists. Screen and webcam have different privacy
+    concerns (a window in the corner vs a roommate in the background),
+    and the operator may want different region sets for each.
+```
+
+```
+  BLÆJA CONFIG (heretic.yaml — under sjon block)
+
+    sjon:
+      screen:
+        # ... (existing fields unchanged)
+        privacy_masks:
+          - x: 0
+            y: 0
+            w: 320
+            h: 200
+            mode: blur
+            # blur_radius optional; defaults to max(8, min(w,h)//8)
+          - x: 1600
+            y: 100
+            w: 200
+            h: 80
+            mode: solid
+            solid_color: [0, 0, 0]   # default; can be omitted
+          - x: 800
+            y: 600
+            w: 400
+            h: 300
+            mode: pixelate
+            # pixelate_factor optional; defaults to max(8, min(w,h)//12)
+      webcam:
+        # ... (existing fields unchanged)
+        privacy_masks:
+          - x: 0
+            y: 0
+            w: 1280
+            h: 200
+            mode: blur     # blur top strip — covers a roommate behind the operator
+```
+
+```
+  BLÆJA FAILURE MODES
+
+  F-Blæja-1 — region wholly off-frame
+    Cause: operator defines x=2000, y=2000, w=100, h=100 on a 1920×1080 monitor.
+    Behaviour: clamping yields zero area; region is a no-op.
+    Logging: debug-level message logged once per encoder lifetime.
+    No exception; ceremony continues.
+
+  F-Blæja-2 — region partially off-frame
+    Cause: x=1800, w=400 on a 1920-wide monitor — extends 280 pixels past the right edge.
+    Behaviour: w clamped to 120 (1920 - 1800). Visible part of the region is masked correctly.
+    Logging: debug-level message logged once per encoder lifetime.
+    No exception; ceremony continues.
+
+  F-Blæja-3 — invalid mode at config load
+    Cause: operator types `mode: blue` in heretic.yaml.
+    Behaviour: PrivacyMaskRegion.__post_init__ raises ValueError.
+    HereticConfig load fails fast at Kynding. Operator sees a clear error
+    naming the bad value and listing valid modes.
+
+  F-Blæja-4 — zero-width or zero-height region at config load
+    Cause: operator types w=0 or h=0.
+    Behaviour: PrivacyMaskRegion.__post_init__ raises ValueError.
+    HereticConfig load fails fast at Kynding.
+
+  F-Blæja-5 — Pillow filter raises during apply
+    Cause: extreme blur radius on a tiny region, or other Pillow edge case.
+    Behaviour: apply_privacy_masks catches the exception, logs at warning
+    level, and falls back to SOLID-mask the region (fail-safe: any failure
+    of the mask step still results in the region being veiled, never in
+    the unmasked content reaching downstream).
+    Ceremony continues.
+```
+
+> **Privacy invariants added by v0.5.3:**
+> - **P-1:** Unmasked frame bytes never reach disk if any privacy mask is configured.
+>   The mask runs before every save/transport path.
+> - **P-2:** Unmasked frame bytes never reach the agent. The mask runs before encoding.
+> - **P-3:** `privacy_masks` defaults to `[]` (empty) — feature is opt-in.
+> - **P-4:** Mask coordinates in source pixel space; clamping is silent except for a
+>   one-time debug log per encoder lifetime.
+> - **P-5:** Zero-area regions (`w == 0` or `h == 0`) are rejected at config-construction
+>   with `ValueError`.
+> - **P-6:** Existing privacy invariants preserved: `save_frames` defaults False,
+>   webcam `enabled` defaults False, in-memory ring buffer only.
+
+---
+
+#### 4.10.14.1 Margblæja — non-rectangular mask shapes (v0.5.4)
+
+> **Added 2026-05-09 v0.5.4 (Védis Eikleið).** *Margblæja* — the veil of many
+> forms. Extends v0.5.3 with two new shape types (circle, polygon) under a
+> `PrivacyMaskShape` Protocol. The disposition is unchanged; the operator's
+> vocabulary for declaring it has expanded.
+
+```
+  ONE PIPELINE — THREE SHAPES (rectangle, circle, polygon)
+
+  apply_privacy_masks(image, masks):
+      for shape in masks:                          # Protocol-typed iteration
+          bx, by, bw, bh = shape.bounding_box()
+          clamp (bx, by, bw, bh) to image bounds
+          if w_eff <= 0 or h_eff <= 0:
+              log clamp once; skip
+
+          crop_original = image.crop(...)           # bounding-box crop
+          modified      = apply_mode(crop_original, shape)
+                                                    # blur / solid / pixelate
+                                                    # mode is orthogonal to shape
+
+          alpha = shape.alpha_mask(w_eff, h_eff)    # "L" mode 0..255
+                                                    # in-shape = 255, out = 0
+          composited = Image.composite(modified, crop_original, alpha)
+                                                    # pixel-exact:
+                                                    #   alpha[p]=255 → modified
+                                                    #   alpha[p]=  0 → original
+
+          image.paste(composited, (x_eff, y_eff))   # paste-back
+
+  Shape contributions:
+    Rectangle  bounding_box = (x, y, w, h)              ; alpha = full white
+    Circle     bounding_box = (cx-r, cy-r, 2r, 2r)      ; alpha = filled disc
+    Polygon    bounding_box = (min_x..max_x bbox)       ; alpha = filled poly
+```
+
+The structural property: **mode and shape are orthogonal**. The composite
+math is uniform across all three shapes; only the alpha mask differs. A
+fourth shape (e.g. v0.5.5 Bezier) would only need to provide a `bounding_box`
+and an `alpha_mask` — no new pipeline branch.
+
+```
+  PROTOCOL CONTRACT — PrivacyMaskShape
+
+  bounding_box() -> (x, y, w, h)
+      Returns the source-pixel bounds of the smallest axis-aligned rectangle
+      containing the entire shape. Coordinates are pre-clamp; the apply
+      step clamps them to image bounds.
+
+  alpha_mask(w, h) -> PIL.Image
+      Returns an "L" mode image of size (w, h). In-shape pixels = 255;
+      out-of-shape pixels = 0. The image's coordinate system is the
+      bounding-box-relative — i.e., (0, 0) of the alpha mask corresponds
+      to (x, y) of the bounding box on the source image.
+      For the rectangle case, alpha_mask is a fully-opaque white image
+      (the entire bounding box equals the shape).
+
+  Shared field surface (all three shapes):
+      mode             : "blur" | "solid" | "pixelate"
+      blur_radius      : Optional[int >= 1]    (auto if None)
+      solid_color      : tuple[int, int, int]  (default black)
+      pixelate_factor  : Optional[int >= 2]    (auto if None)
+```
+
+```
+  CIRCLE                                 POLYGON
+  ─────────                              ─────────
+  fields:                                fields:
+    cx, cy     : non-neg int               points : list[(int, int)]
+    radius     : >= 1                              len >= 3, all coords >= 0
+
+  bounding_box():                        bounding_box():
+    return (cx - radius,                   xs = [p[0] for p in points]
+            cy - radius,                   ys = [p[1] for p in points]
+            2 * radius,                    return (min(xs), min(ys),
+            2 * radius)                            max(xs) - min(xs) + 1,
+                                                   max(ys) - min(ys) + 1)
+  alpha_mask(w, h):                      alpha_mask(w, h):
+    mask = Image.new("L", (w, h), 0)       mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)            draw = ImageDraw.Draw(mask)
+    draw.ellipse(                          # translate points into bbox-local
+      (0, 0, w-1, h-1),                    local_pts = [(p[0]-min_x,
+      fill=255,                                          p[1]-min_y)
+    )                                                    for p in points]
+    return mask                            draw.polygon(local_pts, fill=255)
+                                           return mask
+```
+
+```
+  MARGBLÆJA FAILURE MODES (additions to v0.5.3 F-Blæja-1..F-Blæja-5)
+
+  F-Blæja-6 — circle wholly off-frame
+    Cause: cx + radius < 0 or cx - radius > image_width (etc.).
+    Behaviour: bounding box clamps to zero area; region is a no-op.
+    Same one-time debug log as v0.5.3.
+    No exception; ceremony continues.
+
+  F-Blæja-7 — polygon wholly off-frame
+    Cause: every vertex outside image bounds AND the polygon's bbox does
+    not overlap the image.
+    Behaviour: bounding box clamps to zero area; region is a no-op.
+    Same one-time debug log.
+
+  F-Blæja-8 — degenerate polygon (co-linear or coincident vertices)
+    Cause: operator types points like [(0,0), (10,0), (20,0)] (all colinear)
+    or [(50,50), (50,50), (50,50)] (all coincident).
+    Behaviour: Pillow's polygon rasteriser draws what it can — a 1-pixel-wide
+    line for collinear points, a single pixel for coincident ones. The mask
+    covers exactly that, and the rest of the image is unchanged.
+    apply does not raise; ceremony continues.
+    Operator can fix by adjusting vertices; no fatal error.
+
+  F-Blæja-9 — invalid circle radius at config load
+    Cause: PrivacyMaskCircle(radius=0) or radius=-3.
+    Behaviour: __post_init__ raises ValueError. HereticConfig load fails
+    fast at Kynding.
+
+  F-Blæja-10 — polygon with < 3 points at config load
+    Cause: PrivacyMaskPolygon(points=[(0,0), (10,10)]).
+    Behaviour: __post_init__ raises ValueError. HereticConfig load fails
+    fast.
+
+  F-Blæja-11 — polygon point with non-int coordinate at config load
+    Cause: PrivacyMaskPolygon(points=[(0, 0), (10, "10"), (20, 20)]).
+    Behaviour: __post_init__ raises ValueError. HereticConfig load fails
+    fast.
+```
+
+> **Privacy invariants added by v0.5.4 (alongside the v0.5.3 P-1..P-6 inheritance):**
+> - **P-7:** The alpha-mask composite step preserves shape boundaries pixel-exactly.
+>   A pixel inside the bounding box but outside the shape must be unchanged after apply.
+>   A pixel inside the shape must equal the modified-crop pixel.
+> - **P-8:** A degenerate polygon (co-linear or coincident vertices) is a valid
+>   construction. Pillow rasterises what it can — a thin line for collinear
+>   points, a single pixel for coincident ones. apply does not raise; the
+>   mask covers Pillow's output exactly; the rest of the image is unchanged.
+> - **P-9:** A circle / polygon whose bounding box is wholly off-frame is a no-op
+>   (matches the F-Blæja-1 rectangle case).
+
+```
+  MARGBLÆJA CONFIG (heretic.yaml example with all three shape kinds)
+
+    sjon:
+      screen:
+        privacy_masks:
+          - x: 0                  # rectangle (v0.5.3, unchanged)
+            y: 0
+            w: 320
+            h: 200
+            mode: blur
+          - cx: 1700              # circle (v0.5.4 NEW)
+            cy: 200
+            radius: 80
+            mode: solid
+            solid_color: [0, 0, 0]
+          - points:               # polygon (v0.5.4 NEW)
+              - [800, 600]
+              - [1000, 580]
+              - [1100, 700]
+              - [950, 800]
+              - [820, 750]
+            mode: pixelate
+            pixelate_factor: 12
+
+  Note: dispatching by YAML schema is the operator's loader concern; the
+  Python types (PrivacyMaskRegion, PrivacyMaskCircle, PrivacyMaskPolygon)
+  are independent dataclasses. The YAML loader code identifies the shape
+  by which fields are present (presence of `cx`/`radius` → circle; presence
+  of `points` → polygon; otherwise rectangle).
+```
+
+---
+
+#### 4.10.14.2 Mjúkblæja — soft-curved mask shapes (v0.5.5)
+
+> **Added 2026-05-09 v0.5.5 (Védis Eikleið).** *Mjúkblæja* — the soft veil.
+> Two new shapes both built on Pillow's curve primitives. Five shapes total
+> in the vocabulary. The unified pipeline does not branch.
+
+```
+  ROUNDED RECTANGLE                   ELLIPSE
+  ──────────────────                  ───────
+  fields:                             fields:
+    x, y      : non-neg int             cx, cy   : non-neg int
+    w, h      : >= 1                    rx, ry   : >= 1 (separate radii)
+    corner_radius : >= 0
+
+  bounding_box():                     bounding_box():
+    return (x, y, w, h)                 return (cx - rx,
+    (curves are inside the bbox)                cy - ry,
+                                                2 * rx,
+                                                2 * ry)
+
+  apply-time corner clamp:            (no apply-time clamp needed)
+    eff_radius = min(corner_radius,
+                     min(w, h) // 2)
+    (operator never sees an error;
+     the rendered shape is the
+     largest valid rounded rect)
+
+  alpha_mask(w, h):                   alpha_mask(w, h):
+    mask = Image.new("L", (w, h), 0)    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)         draw = ImageDraw.Draw(mask)
+    draw.rounded_rectangle(             draw.ellipse(
+      (0, 0, w-1, h-1),                   (0, 0, w-1, h-1),
+      radius=eff_radius,                  fill=255,
+      fill=255,                         )
+    )                                   return mask
+    return mask
+
+  Pillow primitives used:
+    ImageDraw.rounded_rectangle()  — since Pillow 8.2.0 (we pin >=10)
+    ImageDraw.ellipse()            — since early Pillow versions
+```
+
+```
+  THE FIVE-SHAPE VOCABULARY (post-v0.5.5)
+
+  | Shape                        | Bounding box                         | Alpha mask primitive            |
+  | ---------------------------- | ------------------------------------ | ------------------------------- |
+  | PrivacyMaskRegion            | (x, y, w, h)                         | full-white (composite=identity) |
+  | PrivacyMaskCircle            | (cx-r, cy-r, 2r, 2r)                 | ellipse on equal-side bbox      |
+  | PrivacyMaskPolygon           | min/max of vertex coords + 1         | polygon with bbox-local pts     |
+  | PrivacyMaskRoundedRectangle  | (x, y, w, h)                         | rounded_rectangle               |
+  | PrivacyMaskEllipse           | (cx-rx, cy-ry, 2rx, 2ry)             | ellipse                         |
+
+  Five shapes → one pipeline → identical privacy invariants. The apply
+  pipeline (clamp → crop → mode → alpha-composite → paste) is unchanged
+  from v0.5.4. Each new shape contributed exactly two methods.
+```
+
+```
+  MJÚKBLÆJA FAILURE MODES (additions to v0.5.4 F-Blæja-6..F-Blæja-11)
+
+  F-Blæja-12 — invalid corner_radius at config load
+    Cause: PrivacyMaskRoundedRectangle(corner_radius=-1).
+    Behaviour: __post_init__ raises ValueError.
+    HereticConfig load fails fast at Kynding.
+
+  F-Blæja-13 — corner_radius larger than half the shorter side
+    Cause: operator sets corner_radius=200 on a 50x50 rounded rect.
+    Behaviour: NOT an error. apply-time clamp reduces eff_radius to
+    min(corner_radius, min(w,h)//2). The operator's intent is honoured
+    as much as Pillow can honour it. Clamp is silent (no debug log
+    distinct from the v0.5.3 clamp_logged throttle — corner_radius
+    clamp is treated as part of the same family of operator-intent-
+    versus-image-reality reconciliations).
+
+  F-Blæja-14 — invalid ellipse rx or ry at config load
+    Cause: PrivacyMaskEllipse(rx=0) or ry=-3.
+    Behaviour: __post_init__ raises ValueError. Same shape as the
+    Circle radius-validation rule, generalised to two axes.
+
+  F-Blæja-15 — ellipse with rx == ry (degenerate but valid)
+    Cause: operator types PrivacyMaskEllipse(cx=10, cy=10, rx=5, ry=5).
+    Behaviour: VALID. The ellipse renders as a circle. This is an
+    intentionally redundant case — the operator's choice to use Ellipse
+    over Circle is honoured even when the radii happen to match. No
+    log; no warning; ceremony continues normally.
+```
+
+> **No new privacy invariants in v0.5.5.** The shape extension does not
+> change the structural property that the mask runs upstream of every
+> leak path. P-1 through P-9 from v0.5.3 + v0.5.4 are inherited unchanged
+> and re-verified by the v0.5.5 audit across all five shapes.
+
+```
+  MJÚKBLÆJA CONFIG (heretic.yaml example with all five shape kinds)
+
+    sjon:
+      screen:
+        privacy_masks:
+          # rectangle (v0.5.3, unchanged)
+          - {x: 0, y: 0, w: 320, h: 200, mode: blur}
+          # circle (v0.5.4)
+          - {cx: 1700, cy: 200, radius: 80, mode: solid}
+          # polygon (v0.5.4)
+          - {points: [[800,600],[1000,580],[1100,700],[950,800]],
+             mode: pixelate}
+          # rounded rectangle (v0.5.5 NEW) — for a chat window
+          - {x: 100, y: 800, w: 600, h: 200, corner_radius: 16, mode: blur}
+          # ellipse (v0.5.5 NEW) — for an oval avatar
+          - {cx: 1500, cy: 900, rx: 80, ry: 60, mode: solid}
+
+  YAML loader heuristic for distinguishing the five shapes:
+    presence of `corner_radius` AND `x`/`w`/`h`  → RoundedRectangle
+    presence of `rx`/`ry`                        → Ellipse
+    presence of `radius` AND `cx`/`cy`           → Circle
+    presence of `points`                         → Polygon
+    presence of `x`/`y`/`w`/`h` only             → Region (rectangle)
+```
+
+---
+
 ### 4.11 Tool Flow (v0.6 — outbound, on agent demand)
 
 > **Added 2026-05-08 v0.6 (Védis Eikleið).** This section maps the fourth sense river: the hand that
@@ -4823,6 +5289,290 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.11.10 Verkminni — deed-memory audit log (v0.6.3)
+
+> **Added 2026-05-09 v0.6.3 (Védis Eikleið).** *Verkminni* — deed-memory.
+> Smiðja's first named discipline. The body keeps memory of what its hand
+> has done, in a bounded in-memory ring buffer, parallel to (not instead of)
+> the agent's narrated memory. Default ON; opt-out via config.
+
+```
+  VERKMINNI — AUDIT HOOK FLOW
+
+  SmidjaSense.dispatch_tool_call(tool_call):
+      call_id, tool_name, args = parse(tool_call)
+
+      # NEW v0.6.3 — audit "started" recording (non-load-bearing)
+      _safe_audit(state="started", call_id=call_id, tool_name=tool_name,
+                  args_json=truncate_500(json.dumps(args)),
+                  duration_ms=None, error=None)
+
+      t_start = time.monotonic()
+      _emit_event("started", ...)            # IPC event (existing v0.6)
+
+      try:
+          content = await self._route(tool_name, args)
+          duration_ms = int((time.monotonic() - t_start) * 1000)
+
+          # NEW v0.6.3 — audit "completed" recording
+          _safe_audit(state="completed", call_id=call_id, tool_name=tool_name,
+                      args_json=truncate_500(json.dumps(args)),
+                      duration_ms=duration_ms, error=None)
+
+          _emit_event("completed", ...)      # IPC event (existing)
+          return success_tool_result(call_id, content)
+
+      except SmidjaError as exc:
+          duration_ms = int((time.monotonic() - t_start) * 1000)
+
+          # NEW v0.6.3 — audit "failed" recording
+          _safe_audit(state="failed", call_id=call_id, tool_name=tool_name,
+                      args_json=truncate_500(json.dumps(args)),
+                      duration_ms=duration_ms,
+                      error=truncate_500(str(exc)))
+
+          _emit_event("failed", ...)         # IPC event (existing)
+          return error_tool_result(...)
+
+      except Exception as exc:               # generic / unexpected
+          duration_ms = int((time.monotonic() - t_start) * 1000)
+          _safe_audit(state="failed", call_id=call_id, tool_name=tool_name,
+                      args_json=truncate_500(json.dumps(args)),
+                      duration_ms=duration_ms,
+                      error=truncate_500(str(exc)))
+          _emit_event("failed", ...)
+          return error_tool_result(...)
+
+  # Helper — non-load-bearing wrapper around AuditLog.record():
+  _safe_audit(state, call_id, tool_name, args_json, duration_ms, error):
+      try:
+          self._audit_log.record(AuditEntry(
+              timestamp=utcnow_iso8601(),
+              call_id=call_id,
+              tool_name=tool_name,
+              arguments_json=args_json,
+              state=state,
+              duration_ms=duration_ms,
+              error=error,
+          ))
+      except Exception as exc:
+          # Audit failure must NEVER make dispatch raise.
+          self._log.warning(
+              "Verkminni: audit write failed (dispatch continues): %s", exc,
+          )
+```
+
+```
+  AUDIT ENTRY SHAPE
+
+  AuditEntry dataclass fields:
+    timestamp        : str        # UTC ISO8601, e.g. "2026-05-09T18:42:13.184Z"
+    call_id          : str        # OpenAI tool_call id, links matched pairs
+    tool_name        : str        # e.g. "smidja.click"
+    arguments_json   : str        # JSON-serialised args, truncated to 500 chars
+    state            : str        # "started" | "completed" | "failed"
+    duration_ms      : int | None # None for "started"; int milliseconds for completed/failed
+    error            : str | None # None on success/started; truncated str on failed
+
+  TRUNCATION POLICY:
+    arguments_json and error are each capped at 500 characters.
+    If longer, the trailing portion is replaced with "... (N more chars)"
+    where N is the number of characters dropped.
+
+  PAIRED ENTRIES:
+    Each tool call produces exactly TWO entries: one "started" and one
+    of "completed" or "failed". Both share the same call_id, so a query
+    can correlate them as a pair.
+```
+
+```
+  RING BUFFER — AuditLog
+
+  AuditLog uses collections.deque(maxlen=depth) under a threading.Lock
+  for thread-safe mutation.
+
+  Methods:
+    record(entry: AuditEntry) -> None
+        Appends entry; evicts oldest if at depth.
+    entries(limit: int | None = None) -> list[AuditEntry]
+        Returns a snapshot copy of the last `limit` entries (all if None).
+        Caller can mutate the returned list without affecting the buffer.
+    clear() -> None
+        Empties the buffer. Called at SmidjaSense.close() / SLOKNA.
+    __len__() -> int
+        Current entry count.
+
+  EVICTION:
+    When depth=N entries are recorded and a new entry arrives, the oldest
+    is automatically removed by deque(maxlen) semantics. No memory growth
+    beyond N entries.
+
+  DEFAULT DEPTH:
+    100 — covers most operator sessions which see dozens to low-hundreds
+    of tool calls.
+
+  CEREMONY-SCOPED:
+    AuditLog.clear() is called at SLOKNA (Smiðja sense close). The body's
+    deed-memory does not persist across ceremonies. Privacy-by-disposition.
+```
+
+```
+  VERKMINNI INVARIANTS (Auditor verification subjects)
+
+  V-1: Every dispatched tool call produces exactly two paired audit entries
+       with the same call_id (started + completed OR started + failed).
+       No tool call escapes the audit log when verkminni.enabled = True.
+
+  V-2: Audit-write failures (any Exception inside _safe_audit) are caught
+       and logged at warning level. dispatch_tool_call's never-raise
+       invariant is preserved. The audit log is a witness, not a gate.
+
+  V-3: Ring buffer evicts oldest at maxlen=depth. No unbounded growth.
+
+  V-4: SmidjaSense.close() (SLOKNA) calls AuditLog.clear(). Ceremony-scoped.
+
+  V-5: When verkminni.enabled = False, AuditLog is replaced with a
+       NullAuditLog whose record() is a no-op. dispatch path unchanged.
+
+  Smiðja-1 INHERITED: dispatch_tool_call NEVER raises (preserved by V-2).
+  Smiðja-2 INHERITED: bearer token never logged (audit records args dict
+                      only; token lives in env var, fetched by client at
+                      request time, never appears in args).
+  Smiðja-3 INHERITED: tool_result return shape unchanged (audit is
+                      additive instrumentation).
+```
+
+```
+  CONFIG (heretic.yaml)
+
+    skilningr:
+      smidja:
+        enabled: true                        # existing
+        endpoint: http://...                 # existing
+        token_env: BRUNHAND_TOKEN_HERETIC    # existing
+        max_tool_call_rounds: 5              # existing
+        verkminni:                           # NEW v0.6.3
+          enabled: true                      # default ON; opt-out for no-log
+          depth: 100                         # ring buffer max entries
+
+  When verkminni.enabled = false, no audit hooks fire; NullAuditLog
+  no-op record() preserves the dispatch shape exactly.
+```
+
+> **Note on default-ON:** Unlike privacy features (`save_frames`, webcam
+> `enabled`, `privacy_masks` list) which default OFF for privacy-first
+> reasons, observability features default ON because operator-visibility-
+> into-agent-acts is a security discipline, not a privacy concern. The
+> body keeps memory of its acts by default; the operator who wants no
+> log explicitly disables it.
+
+---
+
+#### 4.11.10.1 Verkminni — opt-in persistent disk log (v0.6.3.1)
+
+> **Added 2026-05-09 v0.6.3.1 (Védis Eikleið).** Extension to v0.6.3
+> Verkminni. When the operator sets `disk_log_path`, every recorded
+> entry is also appended to a JSONL file. Ceremony-scoped in-memory
+> behaviour unchanged; disk file persists across ceremonies (point of
+> the extension). Default OFF — disk persistence crosses a real privacy
+> threshold the operator must explicitly opt into.
+
+```
+  PERSISTENT-LOG MIRROR FLOW (best-effort, non-load-bearing)
+
+  AuditLog.record(entry):
+      with self._lock:
+          self._buffer.append(entry)         # in-memory (V-3 ring buffer)
+
+          if self._disk_log_path is not None:
+              try:
+                  # Open-append-close per record — survives crashes
+                  # better than holding a long-lived file handle
+                  self._disk_log_path.parent.mkdir(
+                      parents=True, exist_ok=True,
+                  )
+                  with self._disk_log_path.open("a", encoding="utf-8") as fh:
+                      fh.write(json.dumps({
+                          "timestamp":      entry.timestamp,
+                          "call_id":        entry.call_id,
+                          "tool_name":      entry.tool_name,
+                          "arguments_json": entry.arguments_json,
+                          "state":          entry.state,
+                          "duration_ms":    entry.duration_ms,
+                          "error":          entry.error,
+                      }))
+                      fh.write("\n")
+              except Exception as exc:
+                  # D-3: disk-write failures are non-load-bearing.
+                  # Log warning; in-memory record already succeeded.
+                  log.warning(
+                      "Verkminni: disk write failed (in-memory record "
+                      "completed normally): %s", exc,
+                  )
+
+  KEY PROPERTIES:
+
+    1. Path-as-toggle: disk_log_path=None means OFF; setting any path
+       turns it ON. Mirrors the Blæja privacy_masks: list[] empty=off
+       convention.
+
+    2. Open-append-close per record: minimises file-handle hold time;
+       resilient to crashes (worst case: lose the in-flight write).
+
+    3. mkdir parents=True: operator can configure a path whose parent
+       doesn't exist yet; auto-created on first write.
+
+    4. Disk write happens INSIDE the threading.Lock, so entry ordering
+       on disk matches in-memory ordering exactly.
+
+    5. NOT cleared at SLOKNA: SmidjaSense.close() clears the in-memory
+       ring buffer (V-4) but does NOT touch the disk file. The
+       persistent record outlives the ceremony — that IS the point.
+
+    6. Best-effort: any I/O exception is caught and logged at warning;
+       the in-memory record still succeeds; the dispatcher never raises.
+       V-2 (witness, not gate) is preserved through the disk extension.
+```
+
+```
+  D-INVARIANTS (Auditor verification subjects)
+
+  D-1: When disk_log_path is None, behaviour is byte-equivalent to
+       v0.6.3. No file is created; no disk I/O occurs.
+
+  D-2: When disk_log_path is set, every successful record() produces
+       exactly one new JSONL line in the file. The line is the JSON
+       serialisation of the AuditEntry's seven fields.
+
+  D-3: Disk-write failures (OSError, PermissionError, file-system-full,
+       directory missing after mkdir) are caught and logged at warning.
+       The in-memory record completes normally. Dispatch never raises.
+
+  D-4: The disk file is APPENDED. Recording N entries on a fresh
+       AuditLog whose disk_log_path points to a pre-existing file with
+       M lines results in M+N total lines.
+
+  D-5: The disk file is NOT cleared at SLOKNA. The persistent record
+       outlives the ceremony — the operator chose persistence; the
+       body honours that choice across ceremony boundaries.
+```
+
+```
+  CONFIG (heretic.yaml)
+
+    skilningr:
+      smidja:
+        verkminni:
+          enabled: true                               # existing v0.6.3
+          depth: 100                                  # existing v0.6.3
+          persistent_log_path: ~/.local/share/heretic/audit/smidja.jsonl
+                                                      # NEW v0.6.3.1
+                                                      # Default null/None.
+                                                      # When set, mirrors
+                                                      # in-memory log to
+                                                      # this JSONL file.
+```
+
 ---
 
 #### 4.12 Minni filesystem flow (v0.6.2)
@@ -5189,16 +5939,24 @@ is empty and tool calls can never arrive.
     Timeout: 30s end-to-end (connection + response). httpx.TimeoutException raised on breach.
 
   Step 4 — response body size cap
-    MAX_RESPONSE = 1_048_576   # 1 MB
-    body = await response.aread()
-    IF len(body) > MAX_RESPONSE:
-      body = body[:MAX_RESPONSE]
-      truncated = True
-    ELSE:
-      truncated = False
+    NOTE (2026-05-09 v0.7.1): The body-read pattern shown below is HISTORICAL.
+    The shipped v0.6.2 code (post audit cleanup at 6a027f3) does NOT silently
+    truncate — it raises LeidResponseTooLargeError on cap breach. v0.7.1 then
+    replaces the buffer-then-check with a streaming abort. The canonical flow
+    is now §4.12.2.1 — Streaming body-read (Straumr á Leið). Read this Step 4
+    only as a record of the very-first sketch.
 
-    This cap prevents a large response (e.g., a 50 MB HTML page) from consuming agent context.
-    Truncation is noted in the tool_result; agent can report to user.
+    MAX_RESPONSE = 1_048_576   # 1 MB  (configurable)
+    [historical sketch] body = await response.aread()
+                       IF len(body) > MAX_RESPONSE:
+                         body = body[:MAX_RESPONSE]; truncated = True
+                       ELSE:
+                         truncated = False
+
+    The cap prevents a large response (e.g., a 50 MB HTML page) from consuming
+    agent context. v0.7.1 onwards: cap is enforced by streaming abort; the agent
+    receives a structured LeidResponseTooLargeError ToolResult instead of partial
+    content. See §4.12.2.1.
 
   Step 5 — text extraction (leid.fetch_url returns raw decoded text)
     text = body.decode(response.encoding or "utf-8", errors="replace")
@@ -5289,12 +6047,108 @@ is empty and tool calls can never arrive.
                   "detail": "<exception message>"}
     Turn continues.
 
-  F-6: Response body oversize (truncated)
-    Cause: response body exceeds 1 MB.
-    Body silently truncated; {"truncated": true} in result. No error. Turn continues.
+  F-6: Response body oversize
+    Cause: response body exceeds max_response_bytes (default 1 MB).
+    Behaviour history:
+      v0.6.2 first sketch — silently truncated (this section's old text).
+      v0.6.2 shipped (6a027f3) — full-buffer-then-check; raises LeidResponseTooLargeError;
+        no partial content returned to the agent.
+      v0.7.1 (Straumr á Leið) — true streaming abort via aiter_bytes; same exception
+        class raised mid-stream as soon as accumulator exceeds the cap; connection
+        closed during stack unwind. See §4.12.2.1 for the full streaming flow.
+    LeidSense catches LeidResponseTooLargeError and returns:
+      tool_result: {"error": "leid_response_too_large",
+                    "url": "<url>",
+                    "max_response_bytes": <cap>}
+    Turn continues.
 
   NOTE: No cookie leakage is possible. LeidSense uses a fresh httpx.AsyncClient per call
     with no persistent CookieJar. Each fetch_url call is fully stateless.
+```
+
+---
+
+#### 4.12.2.1 Leið streaming body-read (Straumr á Leið — v0.7.1)
+
+> **Added 2026-05-09 v0.7.1 (Védis Eikleið).** *Straumr á Leið* — the current on the road.
+> Replaces the v0.6.2 buffer-then-check pattern with a true streaming abort.
+> The body no longer needs to wait until the cup is full to know if it can be lifted.
+> Closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`.
+
+```
+  STRAUMR Á LEIÐ — STREAMING BODY-READ
+
+  v0.6.2 sketch (now historical):
+    response = await client.get(url)         # entire body lands in memory
+    if len(response.content) > cap:
+        raise LeidResponseTooLargeError(...)  # checked AFTER full intake
+    body = response.content.decode(...)
+
+    Defect: a 500 MB response is fully transferred and held before the cap raises.
+
+  v0.7.1 streaming pattern:
+    async with httpx.AsyncClient(...) as client:
+      async with client.stream("GET", url) as response:
+        # Pre-cap on Content-Length when present (saves the first chunk too):
+        cl_header = response.headers.get("content-length")
+        if cl_header is not None:
+          try:
+            if int(cl_header) > max_response_bytes:
+              raise LeidResponseTooLargeError(...)
+          except ValueError:
+            pass   # malformed header — ignore, fall through to chunk loop
+
+        # Status-code check uses the response object before any body iteration:
+        if response.status_code >= 400:
+          # Bound the error-text peek so a giant 4xx body cannot blow memory:
+          error_acc = bytearray()
+          async for chunk in response.aiter_bytes(4096):
+            error_acc.extend(chunk)
+            if len(error_acc) >= 500:
+              break
+          raise LeidHttpError(f"HTTP {status} from {url}; body[:500]={error_acc[:500]!r}")
+
+        # Streaming accumulator:
+        acc = bytearray()
+        async for chunk in response.aiter_bytes(65536):
+          acc.extend(chunk)
+          if len(acc) > max_response_bytes:
+            raise LeidResponseTooLargeError(
+              f"Response from {url} exceeds max_response_bytes={cap}; "
+              f"streamed {len(acc)} bytes before abort"
+            )
+        body = bytes(acc).decode("utf-8", errors="replace")
+        size_bytes = len(acc)
+
+  Position of the raise:
+    - The raise happens INSIDE the `async with client.stream(...)` block.
+    - On `raise`, Python unwinds the stack: the inner `__aexit__` of the
+      stream context cancels the response and CLOSES the connection.
+    - No further bytes are read from the network. The remote endpoint is
+      not asked to send what it would have sent next.
+
+  Memory bound at moment of raise:
+    Worst case: max_response_bytes + chunk_size (because the chunk that
+    pushes us over the cap is appended before the comparison).
+    For default chunk_size=65536 and max_response_bytes=1_048_576, the
+    bound is 1_114_112 bytes (~1.06 MB) — bounded, predictable, well below
+    the unbounded 500 MB of the v0.6.2 worst case.
+
+  Invariants preserved:
+    - Allowlist gate runs BEFORE httpx.stream() opens
+    - HTTPS-only check runs in the same gate
+    - No cookies (httpx.AsyncClient configured without cookie jar)
+    - GET only (client.stream("GET", url))
+    - 4xx/5xx status raised as LeidHttpError before body accumulation
+    - LeidResponseTooLargeError class shape unchanged; agent contract unchanged
+    - All other LeidError subclasses still rise from their respective httpx exceptions
+    - extract_text inherits streaming for free (it routes through fetch_url)
+
+  Why bytearray, not list-of-bytes:
+    - O(1) amortised extend
+    - Single contiguous buffer at decode time (no per-chunk copy chain)
+    - bytes(acc) is a single materialisation only on the success path
+    - No hidden per-chunk Python object overhead
 ```
 
 ---
@@ -6117,6 +6971,138 @@ The MCP server carries forward the same auth model as the existing REST surfaces
 
 ---
 
+#### 4.14.1.1 Endurdrykkr — Resumable Downloads (v0.7.2)
+
+> **Added 2026-05-09 v0.7.2 (Védis Eikleið).** *Endurdrykkr* — the resumed
+> drink. When `.heretic_tmp` exists from an interrupted prior download, the
+> next download attempt continues from the offset rather than starting over.
+> Same Mímisbrunnr Downloader; new failure-recovery path.
+
+```
+  ENDURDRYKKR — RESUME FLOW
+
+  Step 1 — Consent gate (UNCHANGED from v0.7)
+    prompt_for_download(source, auto_yes=auto_yes)
+    # M-1: gate runs FIRST, before any disk inspection or network activity.
+
+  Step 2 — Resume detection (NEW v0.7.2)
+    tmp_path = dest_path.with_suffix(".heretic_tmp")
+    partial_size = tmp_path.stat().st_size if tmp_path.exists() else 0
+
+    if partial_size > 0:
+        # Hash existing partial bytes BEFORE any network call
+        # so the running SHA-256 produces the full-file digest.
+        hasher = hashlib.sha256()
+        with tmp_path.open("rb") as fh:
+            while chunk := fh.read(_CHUNK_SIZE):
+                hasher.update(chunk)
+        total_bytes = partial_size
+        request_headers = {"Range": f"bytes={partial_size}-"}
+        write_mode = "ab"   # APPEND
+        log.info("Resuming download of %r from byte %d", source.id, partial_size)
+    else:
+        hasher = hashlib.sha256()
+        total_bytes = 0
+        request_headers = {}
+        write_mode = "wb"   # WRITE FRESH
+
+  Step 3 — HTTP stream + status dispatch (NEW v0.7.2)
+    async with httpx.AsyncClient(...) as client:
+        async with client.stream("GET", source.url, headers=request_headers) as resp:
+
+            # 206 Partial Content — server honoured Range; append to tmp
+            if resp.status_code == 206:
+                pass  # write_mode already "ab"
+
+            # 200 OK — server returned full body. If we asked for Range and got 200,
+            # the server doesn't support Range. Reset hasher; truncate tmp; restart.
+            elif resp.status_code == 200:
+                if partial_size > 0:
+                    log.info(
+                        "Resume requested but server returned 200; "
+                        "restarting fresh download of %r", source.id,
+                    )
+                    hasher = hashlib.sha256()
+                    total_bytes = 0
+                    write_mode = "wb"   # truncate
+
+            # 416 Range Not Satisfiable — partial bytes don't align with current source.
+            # Delete tmp and raise a recoverable error.
+            elif resp.status_code == 416:
+                tmp_path.unlink(missing_ok=True)
+                raise LibraryDownloadError(
+                    "Range not satisfiable; partial removed; retry fresh"
+                )
+
+            # All other status codes — error
+            else:
+                raise LibraryDownloadError(...)
+
+            # Step 3a — Stream body, append/write, update hasher
+            with tmp_path.open(write_mode) as fh:
+                async for chunk in resp.aiter_bytes(chunk_size=_CHUNK_SIZE):
+                    total_bytes += len(chunk)
+                    if total_bytes > size_cap:
+                        # NON-RESUMABLE failure — delete tmp
+                        fh.close()
+                        self._cleanup_tmp(tmp_path)
+                        raise IntegrityError(...)
+                    hasher.update(chunk)
+                    fh.write(chunk)
+
+  Step 4 — SHA-256 verify (UNCHANGED contract; correctness preserved by Step 2 + 3)
+    computed_sha256 = hasher.hexdigest()
+    if source.sha256 is not None and computed_sha256 != source.sha256:
+        # NON-RESUMABLE failure — partial bytes are poisoned
+        self._cleanup_tmp(tmp_path)
+        raise IntegrityError(...)
+
+  Step 5 — Atomic rename (UNCHANGED)
+    os.replace(str(tmp_path), str(dest_path))
+```
+
+```
+  HTTP STATUS DISPATCH TABLE
+
+  | Status                          | partial_size > 0   | partial_size == 0 |
+  |---------------------------------|--------------------|-------------------|
+  | 206 Partial Content             | resume (append)    | (server gave 206  |
+  |                                 |                    |  unprovoked —     |
+  |                                 |                    |  treat as 200)    |
+  | 200 OK                          | RESTART FRESH      | normal fresh DL   |
+  | 416 Range Not Satisfiable       | delete + raise     | n/a (we sent no   |
+  |                                 |                    |  Range header)    |
+  | 4xx (other)                     | preserve tmp +     | preserve any tmp  |
+  |                                 | raise              | + raise           |
+  | 5xx                             | preserve tmp +     | preserve any tmp  |
+  |                                 | raise              | + raise           |
+
+  RESUMABLE vs NON-RESUMABLE FAILURE — tmp file disposition:
+
+    Resumable (preserve .heretic_tmp):
+      - httpx.TransportError  (DNS / TCP / TLS)
+      - httpx.TimeoutException
+      - httpx.RequestError    (any other request-level error)
+      - OSError during disk write (transient I/O)
+      - 4xx / 5xx HTTP status (other than 416)
+
+    Non-resumable (delete .heretic_tmp):
+      - IntegrityError from SHA-256 mismatch  (file at source has changed)
+      - IntegrityError from safety size cap   (response body too large)
+      - 416 Range Not Satisfiable             (partial bytes don't align)
+```
+
+> **New invariants added by v0.7.2:**
+> - **M-7:** Full-file SHA-256 after resume equals SHA-256 of the bytes that
+>   would have been written by a single uninterrupted download. Partial-byte
+>   hashing across the seam is the load-bearing mechanism.
+> - **M-8:** Resumable failures preserve `.heretic_tmp`; non-resumable
+>   failures delete it. The dispositioning table above is the canonical record.
+> - **M-9:** Server returns 200 in response to a Range request → reset hasher,
+>   truncate tmp, restart streaming write — without raising.
+
+---
+
 #### 4.14.2 Storage Layout
 
 > **Added 2026-05-08 v0.7 (Védis Eikleið).** The library root lives under the
@@ -6201,6 +7187,83 @@ The MCP server carries forward the same auth model as the existing REST surfaces
   with their URLs and expected SHA-256 hashes. The operator-local manifest.yaml tracks
   what has actually been downloaded. store.py merges the two on load.
 ```
+
+---
+
+#### 4.14.2.1 Index auto-rebuild on corruption (v0.7.3)
+
+> **Added 2026-05-09 v0.7.3 (Védis Eikleið).** Continuity discipline extension —
+> the Endurdrykkr disposition (v0.7.2) now applies to the keyword index as well
+> as the source bytes. When the index is missing or corrupt but source files
+> are present, search() rebuilds automatically.
+
+```
+  KEYWORDINDEX.search() — AUTO-REBUILD FLOW (v0.7.3)
+
+  if self._cache is None:
+      self._cache = self._load_or_rebuild_cache()
+
+  _load_or_rebuild_cache() decision tree:
+
+      index_path = data_dir / "keyword_index.jsonl"
+
+      ┌─────────────────────────────────────────────────┐
+      │ index_path.exists() ?                           │
+      └─────────────────────────────────────────────────┘
+                  │            │
+                  ▼ yes        ▼ no
+        ┌──────────────────┐  ┌──────────────────────────┐
+        │ load entries     │  │ log INFO "no index file" │
+        │ from disk        │  │ proceed to rebuild path  │
+        └──────────────────┘  └──────────────────────────┘
+                  │
+                  ▼
+        ┌──────────────────────────────────┐
+        │ entries non-empty?                │
+        └──────────────────────────────────┘
+                  │            │
+                  ▼ yes        ▼ no (or load raised LibraryIndexError)
+        ┌──────────────────┐  ┌──────────────────────────────┐
+        │ return entries   │  │ log WARNING "index empty/    │
+        │ (happy path —    │  │  corrupt" — proceed to       │
+        │  no rebuild)     │  │  rebuild path                │
+        └──────────────────┘  └──────────────────────────────┘
+                                          │
+                                          ▼
+                              ┌──────────────────────────────┐
+                              │ txt_files in data_dir?       │
+                              └──────────────────────────────┘
+                                          │            │
+                                          ▼ yes        ▼ no
+                              ┌──────────────────┐  ┌──────────────────┐
+                              │ self.build()     │  │ raise            │
+                              │ (rebuild from    │  │ LibraryIndexError│
+                              │  source files)   │  │ — operator must  │
+                              │ return _cache    │  │  download first  │
+                              └──────────────────┘  └──────────────────┘
+
+  KEY PROPERTIES:
+
+    1. Non-disruptive: search() returns hits as if the rebuild were
+       transparent. The operator may not even notice it happened
+       (only the INFO/WARNING logs reveal it).
+
+    2. Behaviour-preserving on the truly-unrecoverable case: if no
+       .txt files exist either (no source has been downloaded), the
+       same actionable LibraryIndexError is raised as before — the
+       operator gets pointed to 'heretic library download'.
+
+    3. Manual rebuild-index CLI unchanged: 'heretic library rebuild-index'
+       still works for operators who want to force a rebuild.
+
+    4. Atomic rebuild: build() writes to a .heretic_tmp file and renames
+       atomically. If the rebuild itself fails partway, the existing
+       (possibly stale) index is preserved.
+```
+
+> **No new privacy invariants in v0.7.3.** This is a behaviour extension on the
+> Endurdrykkr lineage, not a new discipline. The Mímisbrunnr offline / consent /
+> SHA-256 / privacy invariants from v0.7 are untouched.
 
 ---
 

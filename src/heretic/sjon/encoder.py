@@ -77,6 +77,9 @@ class FrameEncoder:
         self._max_width = max_width
         self._max_height = max_height
         self._logger = logger or logging.getLogger(__name__)
+        # v0.5.3 Blæja — per-encoder state dict consumed by apply_privacy_masks
+        # to throttle clamp/no-op debug logs to one per encoder lifetime.
+        self._privacy_state: dict = {}
 
     def encode(
         self,
@@ -86,6 +89,7 @@ class FrameEncoder:
         pixel_format: str = "BGRA",
         max_width_override: int | None = None,
         max_height_override: int | None = None,
+        privacy_masks: list | None = None,
     ) -> bytes:
         """Convert raw pixel bytes to compressed PNG bytes.
 
@@ -146,6 +150,17 @@ class FrameEncoder:
                 img = Image.frombuffer(pixel_format, (width, height), frame_bytes)
                 if img.mode != "RGB":
                     img = img.convert("RGB")
+
+            # v0.5.3 Blæja — privacy masks applied here, AFTER decode and
+            # BEFORE resize / encode / save. There is no codepath in which
+            # an unmasked frame can reach the rest of the pipeline.
+            if privacy_masks:
+                from heretic.sjon.privacy import apply_privacy_masks
+                img = apply_privacy_masks(
+                    img, privacy_masks,
+                    log=self._logger,
+                    _state=self._privacy_state,
+                )
 
             img = self._resize_to_bounds(img, effective_max_w, effective_max_h)
 
@@ -250,16 +265,23 @@ class FrameEncoder:
         width: int,
         height: int,
         pixel_format: str = "BGRA",
+        privacy_masks: list | None = None,
     ) -> str:
         """Convenience method: encode raw bytes directly to a data URL string.
 
-        Equivalent to: self.to_data_url(self.encode(frame_bytes, width, height, pixel_format))
+        Equivalent to:
+            self.to_data_url(self.encode(frame_bytes, width, height, pixel_format,
+                                         privacy_masks=privacy_masks))
 
         Args:
             frame_bytes: Raw pixel data.
             width: Frame width in pixels.
             height: Frame height in pixels.
             pixel_format: PIL mode string. Default 'BGRA'.
+            privacy_masks: Optional list of PrivacyMaskRegion (v0.5.3 Blæja).
+                When provided and non-empty, masks are applied after decode
+                and before resize / encode / save — i.e., the unmasked frame
+                bytes never reach the encoded output or any save path.
 
         Returns:
             Inline base64 PNG data URL string.
@@ -267,5 +289,8 @@ class FrameEncoder:
         Raises:
             FrameEncodingError: if any encoding step fails.
         """
-        png = self.encode(frame_bytes, width, height, pixel_format)
+        png = self.encode(
+            frame_bytes, width, height, pixel_format,
+            privacy_masks=privacy_masks,
+        )
         return self.to_data_url(png)

@@ -22,6 +22,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
+from heretic.sjon.privacy import PrivacyMaskRegion
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -117,6 +119,19 @@ class SjonScreenConfig:
     """Minimum milliseconds between any two captures (throttle guard). No capture
     will be initiated within this window of the previous one, regardless of trigger.
     Must be >= 0. Default 1000 ms prevents rapid-fire spam."""
+
+    privacy_masks: list[PrivacyMaskRegion] = field(default_factory=list)
+    """v0.5.3 — list of privacy mask regions applied to captured screen frames.
+
+    Each region is a PrivacyMaskRegion specifying (x, y, w, h, mode) in source
+    pixel space. Default is `[]` (empty) — opt-in. When non-empty, masks are
+    applied inside FrameEncoder.encode() after PIL decode and before resize,
+    so unmasked frame bytes never reach disk or the agent.
+
+    Independent from sjon.webcam.privacy_masks — the two senses have different
+    privacy concerns and may have different region sets.
+
+    Ref: docs/vision/BLAEJA.md, src/heretic/sjon/privacy.py."""
 
     def __post_init__(self) -> None:
         """Validate field ranges. Non-fatal warnings for unsafe opt-ins."""
@@ -247,6 +262,21 @@ class SjonWebcamConfig:
 
     Valid values: "screen_only" | "webcam_only" | "alongside" | "alternate".
     Any other value raises SjonConfigError at construction time."""
+
+    privacy_masks: list[PrivacyMaskRegion] = field(default_factory=list)
+    """v0.5.3 — list of privacy mask regions applied to captured webcam frames.
+
+    Each region is a PrivacyMaskRegion specifying (x, y, w, h, mode) in source
+    pixel space (the webcam's native resolution before resize). Default is `[]`
+    (empty) — opt-in. When non-empty, masks are applied inside FrameEncoder
+    after decode and before resize, so unmasked webcam bytes never reach disk
+    or the agent.
+
+    Independent from sjon.screen.privacy_masks — webcam privacy concerns
+    (background, roommate, identity) often differ from screen-capture concerns
+    (password manager, private chat).
+
+    Ref: docs/vision/BLAEJA.md, src/heretic/sjon/privacy.py."""
 
     def __post_init__(self) -> None:
         """Validate field ranges and log privacy notice when enabled is True."""

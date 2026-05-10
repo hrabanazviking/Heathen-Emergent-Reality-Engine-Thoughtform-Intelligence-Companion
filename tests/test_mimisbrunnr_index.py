@@ -271,3 +271,149 @@ class TestKeywordIndexSearch:
     ) -> None:
         hits = built_index.search("   ")
         assert hits == []
+
+
+# ---------------------------------------------------------------------------
+# v0.7.3 — Index auto-rebuild on corruption
+# ---------------------------------------------------------------------------
+
+class TestIndexAutoRebuild:
+    """v0.7.3 — KeywordIndex.search() auto-rebuilds when index is missing/corrupt
+    but .txt source files are present. Continuity discipline (Endurdrykkr lineage)
+    extended to the index layer."""
+
+    def test_search_auto_rebuilds_when_index_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """Source files present, no keyword_index.jsonl → search() auto-builds."""
+        _write_source(tmp_path, "prose_edda_brodeur",
+                      "Odin went to Yggdrasil.\nHe drank from the well.")
+        # Critically: do NOT call build()
+        idx = KeywordIndex(tmp_path)
+        # Index file must not exist yet
+        assert not (tmp_path / "keyword_index.jsonl").exists()
+
+        hits = idx.search("Odin")
+
+        # search() auto-rebuilt; results are correct
+        assert len(hits) >= 1
+        assert "Odin" in hits[0].context_text
+        # Index file now exists (build() wrote it)
+        assert (tmp_path / "keyword_index.jsonl").exists()
+
+    def test_search_auto_rebuilds_when_index_empty(
+        self, tmp_path: Path
+    ) -> None:
+        """Zero-byte keyword_index.jsonl + source files → auto-rebuild."""
+        _write_source(tmp_path, "prose_edda_brodeur",
+                      "Loki tricked Thor.\nMjölnir was lost.")
+        # Create an empty index file
+        index_path = tmp_path / "keyword_index.jsonl"
+        index_path.write_text("")
+        assert index_path.stat().st_size == 0
+
+        idx = KeywordIndex(tmp_path)
+        hits = idx.search("Mjölnir")
+
+        # Auto-rebuilt and found the line
+        assert len(hits) == 1
+        assert "Mjölnir" in hits[0].context_text
+        # Index file now has entries
+        assert (tmp_path / "keyword_index.jsonl").stat().st_size > 0
+
+    def test_search_auto_rebuilds_when_index_all_corrupt(
+        self, tmp_path: Path
+    ) -> None:
+        """Index file with all malformed JSON lines → auto-rebuild."""
+        _write_source(tmp_path, "prose_edda_brodeur",
+                      "Freya wept golden tears.\nThe world tree shook.")
+        # Write a corrupt index — all lines are malformed JSON
+        index_path = tmp_path / "keyword_index.jsonl"
+        index_path.write_text(
+            "this is not json\n"
+            "{broken: 'syntax'}\n"
+            "definitely not jsonl\n"
+        )
+
+        idx = KeywordIndex(tmp_path)
+        hits = idx.search("Freya")
+
+        # Auto-rebuilt; result is correct
+        assert len(hits) == 1
+        assert "Freya" in hits[0].context_text
+
+    def test_search_raises_when_no_txt_files_and_no_index(
+        self, tmp_path: Path
+    ) -> None:
+        """Empty data_dir → LibraryIndexError with actionable message."""
+        idx = KeywordIndex(tmp_path)
+        with pytest.raises(LibraryIndexError) as exc_info:
+            idx.search("Odin")
+        msg = str(exc_info.value)
+        # Operator gets pointed to the download command
+        assert "library download" in msg
+        assert "No keyword index" in msg
+
+    def test_search_raises_when_no_txt_files_and_corrupt_index(
+        self, tmp_path: Path
+    ) -> None:
+        """Corrupt index but no .txt files to rebuild from → raise."""
+        # Write a corrupt index but no source files
+        index_path = tmp_path / "keyword_index.jsonl"
+        index_path.write_text("garbage\n{broken}\n")
+
+        idx = KeywordIndex(tmp_path)
+        with pytest.raises(LibraryIndexError) as exc_info:
+            idx.search("Odin")
+        msg = str(exc_info.value)
+        assert "library download" in msg
+        # Operator told the index can be auto-rebuilt
+        assert ("rebuild" in msg.lower()) or ("no .txt" in msg.lower())
+
+    def test_auto_rebuild_index_equivalent_to_manual_build(
+        self, tmp_path: Path
+    ) -> None:
+        """Auto-rebuilt index produces same entry count + ordering as manual build."""
+        _write_source(tmp_path, "src_a", "Line A1\nLine A2 has Odin\nLine A3")
+        _write_source(tmp_path, "src_b", "Line B1 with Odin\nLine B2")
+
+        # Manual build, capture entries
+        manual_idx = KeywordIndex(tmp_path)
+        manual_idx.build(tmp_path)
+        manual_entries = list(manual_idx._cache or [])
+
+        # Wipe the index file; create new instance; auto-rebuild via search()
+        index_path = tmp_path / "keyword_index.jsonl"
+        index_path.unlink()
+        auto_idx = KeywordIndex(tmp_path)
+        auto_idx.search("Odin")  # triggers auto-rebuild
+        auto_entries = list(auto_idx._cache or [])
+
+        # Same entry count and same entries in same order
+        assert len(manual_entries) == len(auto_entries)
+        for m, a in zip(manual_entries, auto_entries):
+            assert m["source_id"] == a["source_id"]
+            assert m["line_number"] == a["line_number"]
+            assert m["content"] == a["content"]
+
+    def test_auto_rebuild_logs_warning_or_info(
+        self, tmp_path: Path, caplog
+    ) -> None:
+        """Auto-rebuild emits an INFO or WARNING log so operator can trace."""
+        import logging
+        _write_source(tmp_path, "prose_edda_brodeur",
+                      "Sif had golden hair.\nLoki cut it off.")
+        idx = KeywordIndex(tmp_path)
+
+        with caplog.at_level(
+            logging.INFO,
+            logger="heretic.skilningr.mimisbrunnr.index",
+        ):
+            idx.search("Sif")
+
+        # At least one INFO or WARNING from the auto-rebuild path
+        log_messages = [r.message for r in caplog.records]
+        assert any(
+            "auto-build" in m.lower() or "auto-rebuild" in m.lower()
+            for m in log_messages
+        ), f"Expected auto-rebuild log; got: {log_messages}"
