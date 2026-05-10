@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-09 v0.5.5 addendum — Védis Eikleið: §4.10.14.2 (Mjúkblæja — soft-curved mask shapes) added; PrivacyMaskRoundedRectangle bounding box and alpha mask formulas (Pillow rounded_rectangle primitive); PrivacyMaskEllipse bounding box and alpha mask formulas (Pillow ellipse primitive with non-equal radii); the unified pipeline now handles five shapes through the same five-step composite path. corner_radius clamping behaviour at apply time documented (clamped to min(w,h)//2). Pillow rounded_rectangle requires Pillow >=8.2.0 (already pinned >=10). | 2026-05-09 v0.5.4 addendum — Védis Eikleið: §4.10.14.1 (Margblæja — non-rectangular mask shapes) added; PrivacyMaskShape Protocol contract documented (bounding_box + alpha_mask methods); one-pipeline-three-shapes diagram drawn (rectangle, circle, polygon all flow through the same alpha-mask composite); circle and polygon bounding-box / alpha-mask formulas documented; six new failure modes F-Blæja-6..F-Blæja-11 added; three new privacy invariants P-7..P-9 (boundary preservation, degenerate-polygon handling, off-frame bounding box). Pillow ImageDraw already a dep; no new dependency. | 2026-05-09 v0.5.3 addendum — Védis Eikleið: §4.10.14 (Blæja — privacy mask application) added; mask application step diagrammed with explicit upstream-of-leak-paths position; three modes (blur, solid, pixelate) documented; coordinate space (source pixels) and clamping behaviour documented; five Blæja failure modes (F-Blæja-1..F-Blæja-5) documented; six privacy invariants (P-1..P-6) recorded; per-source independence (screen vs webcam mask lists) noted. Pillow already a dep; no new dependency. | 2026-05-09 v0.7.1 addendum — Védis Eikleið: §4.12.2.1 (Leið streaming body-read — *Straumr á Leið*) added; §4.12.2 Step 4 annotated with v0.6.2-shipped + v0.7.1-streaming history; §4.12.2 F-6 rewritten to record three-stage history (first sketch → v0.6.2 raise → v0.7.1 streaming abort); closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`. Memory-bound at moment of raise documented (max_response_bytes + chunk_size). Closing-on-unwind semantics of httpx.AsyncClient.stream + bytearray accumulator documented. | 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
+**Last updated:** 2026-05-09 v0.7.2 addendum — Védis Eikleið: §4.14.1.1 (Endurdrykkr — resumable downloads for Mímisbrunnr) added; resume flow with partial-byte hashing, Range request, three-status dispatch (206/200/416); full HTTP status disposition table including 4xx/5xx and network-blink behaviour; resumable-vs-non-resumable failure mode dispositioning of `.heretic_tmp` documented; three new invariants M-7 (full SHA-256 across the seam), M-8 (failure-mode tmp disposition), M-9 (200-on-resume restart graceful). No new dependency. | 2026-05-09 v0.5.5 addendum — Védis Eikleið: §4.10.14.2 (Mjúkblæja — soft-curved mask shapes) added; PrivacyMaskRoundedRectangle bounding box and alpha mask formulas (Pillow rounded_rectangle primitive); PrivacyMaskEllipse bounding box and alpha mask formulas (Pillow ellipse primitive with non-equal radii); the unified pipeline now handles five shapes through the same five-step composite path. corner_radius clamping behaviour at apply time documented (clamped to min(w,h)//2). Pillow rounded_rectangle requires Pillow >=8.2.0 (already pinned >=10). | 2026-05-09 v0.5.4 addendum — Védis Eikleið: §4.10.14.1 (Margblæja — non-rectangular mask shapes) added; PrivacyMaskShape Protocol contract documented (bounding_box + alpha_mask methods); one-pipeline-three-shapes diagram drawn (rectangle, circle, polygon all flow through the same alpha-mask composite); circle and polygon bounding-box / alpha-mask formulas documented; six new failure modes F-Blæja-6..F-Blæja-11 added; three new privacy invariants P-7..P-9 (boundary preservation, degenerate-polygon handling, off-frame bounding box). Pillow ImageDraw already a dep; no new dependency. | 2026-05-09 v0.5.3 addendum — Védis Eikleið: §4.10.14 (Blæja — privacy mask application) added; mask application step diagrammed with explicit upstream-of-leak-paths position; three modes (blur, solid, pixelate) documented; coordinate space (source pixels) and clamping behaviour documented; five Blæja failure modes (F-Blæja-1..F-Blæja-5) documented; six privacy invariants (P-1..P-6) recorded; per-source independence (screen vs webcam mask lists) noted. Pillow already a dep; no new dependency. | 2026-05-09 v0.7.1 addendum — Védis Eikleið: §4.12.2.1 (Leið streaming body-read — *Straumr á Leið*) added; §4.12.2 Step 4 annotated with v0.6.2-shipped + v0.7.1-streaming history; §4.12.2 F-6 rewritten to record three-stage history (first sketch → v0.6.2 raise → v0.7.1 streaming abort); closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`. Memory-bound at moment of raise documented (max_response_bytes + chunk_size). Closing-on-unwind semantics of httpx.AsyncClient.stream + bytearray accumulator documented. | 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -6684,6 +6684,138 @@ The MCP server carries forward the same auth model as the existing REST surfaces
     heretic library download --all                download all manifest sources (each prompts)
     heretic library download --all --yes           download all, no prompts (batch mode)
 ```
+
+---
+
+#### 4.14.1.1 Endurdrykkr — Resumable Downloads (v0.7.2)
+
+> **Added 2026-05-09 v0.7.2 (Védis Eikleið).** *Endurdrykkr* — the resumed
+> drink. When `.heretic_tmp` exists from an interrupted prior download, the
+> next download attempt continues from the offset rather than starting over.
+> Same Mímisbrunnr Downloader; new failure-recovery path.
+
+```
+  ENDURDRYKKR — RESUME FLOW
+
+  Step 1 — Consent gate (UNCHANGED from v0.7)
+    prompt_for_download(source, auto_yes=auto_yes)
+    # M-1: gate runs FIRST, before any disk inspection or network activity.
+
+  Step 2 — Resume detection (NEW v0.7.2)
+    tmp_path = dest_path.with_suffix(".heretic_tmp")
+    partial_size = tmp_path.stat().st_size if tmp_path.exists() else 0
+
+    if partial_size > 0:
+        # Hash existing partial bytes BEFORE any network call
+        # so the running SHA-256 produces the full-file digest.
+        hasher = hashlib.sha256()
+        with tmp_path.open("rb") as fh:
+            while chunk := fh.read(_CHUNK_SIZE):
+                hasher.update(chunk)
+        total_bytes = partial_size
+        request_headers = {"Range": f"bytes={partial_size}-"}
+        write_mode = "ab"   # APPEND
+        log.info("Resuming download of %r from byte %d", source.id, partial_size)
+    else:
+        hasher = hashlib.sha256()
+        total_bytes = 0
+        request_headers = {}
+        write_mode = "wb"   # WRITE FRESH
+
+  Step 3 — HTTP stream + status dispatch (NEW v0.7.2)
+    async with httpx.AsyncClient(...) as client:
+        async with client.stream("GET", source.url, headers=request_headers) as resp:
+
+            # 206 Partial Content — server honoured Range; append to tmp
+            if resp.status_code == 206:
+                pass  # write_mode already "ab"
+
+            # 200 OK — server returned full body. If we asked for Range and got 200,
+            # the server doesn't support Range. Reset hasher; truncate tmp; restart.
+            elif resp.status_code == 200:
+                if partial_size > 0:
+                    log.info(
+                        "Resume requested but server returned 200; "
+                        "restarting fresh download of %r", source.id,
+                    )
+                    hasher = hashlib.sha256()
+                    total_bytes = 0
+                    write_mode = "wb"   # truncate
+
+            # 416 Range Not Satisfiable — partial bytes don't align with current source.
+            # Delete tmp and raise a recoverable error.
+            elif resp.status_code == 416:
+                tmp_path.unlink(missing_ok=True)
+                raise LibraryDownloadError(
+                    "Range not satisfiable; partial removed; retry fresh"
+                )
+
+            # All other status codes — error
+            else:
+                raise LibraryDownloadError(...)
+
+            # Step 3a — Stream body, append/write, update hasher
+            with tmp_path.open(write_mode) as fh:
+                async for chunk in resp.aiter_bytes(chunk_size=_CHUNK_SIZE):
+                    total_bytes += len(chunk)
+                    if total_bytes > size_cap:
+                        # NON-RESUMABLE failure — delete tmp
+                        fh.close()
+                        self._cleanup_tmp(tmp_path)
+                        raise IntegrityError(...)
+                    hasher.update(chunk)
+                    fh.write(chunk)
+
+  Step 4 — SHA-256 verify (UNCHANGED contract; correctness preserved by Step 2 + 3)
+    computed_sha256 = hasher.hexdigest()
+    if source.sha256 is not None and computed_sha256 != source.sha256:
+        # NON-RESUMABLE failure — partial bytes are poisoned
+        self._cleanup_tmp(tmp_path)
+        raise IntegrityError(...)
+
+  Step 5 — Atomic rename (UNCHANGED)
+    os.replace(str(tmp_path), str(dest_path))
+```
+
+```
+  HTTP STATUS DISPATCH TABLE
+
+  | Status                          | partial_size > 0   | partial_size == 0 |
+  |---------------------------------|--------------------|-------------------|
+  | 206 Partial Content             | resume (append)    | (server gave 206  |
+  |                                 |                    |  unprovoked —     |
+  |                                 |                    |  treat as 200)    |
+  | 200 OK                          | RESTART FRESH      | normal fresh DL   |
+  | 416 Range Not Satisfiable       | delete + raise     | n/a (we sent no   |
+  |                                 |                    |  Range header)    |
+  | 4xx (other)                     | preserve tmp +     | preserve any tmp  |
+  |                                 | raise              | + raise           |
+  | 5xx                             | preserve tmp +     | preserve any tmp  |
+  |                                 | raise              | + raise           |
+
+  RESUMABLE vs NON-RESUMABLE FAILURE — tmp file disposition:
+
+    Resumable (preserve .heretic_tmp):
+      - httpx.TransportError  (DNS / TCP / TLS)
+      - httpx.TimeoutException
+      - httpx.RequestError    (any other request-level error)
+      - OSError during disk write (transient I/O)
+      - 4xx / 5xx HTTP status (other than 416)
+
+    Non-resumable (delete .heretic_tmp):
+      - IntegrityError from SHA-256 mismatch  (file at source has changed)
+      - IntegrityError from safety size cap   (response body too large)
+      - 416 Range Not Satisfiable             (partial bytes don't align)
+```
+
+> **New invariants added by v0.7.2:**
+> - **M-7:** Full-file SHA-256 after resume equals SHA-256 of the bytes that
+>   would have been written by a single uninterrupted download. Partial-byte
+>   hashing across the seam is the load-bearing mechanism.
+> - **M-8:** Resumable failures preserve `.heretic_tmp`; non-resumable
+>   failures delete it. The dispositioning table above is the canonical record.
+> - **M-9:** Server returns 200 in response to a Range request → reset hasher,
+>   truncate tmp, restart streaming write — without raising.
 
 ---
 
