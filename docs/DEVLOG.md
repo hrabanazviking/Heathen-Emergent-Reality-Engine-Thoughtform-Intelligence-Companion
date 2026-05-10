@@ -3806,3 +3806,95 @@ Future autonomous sessions have precedent for all three.
 
 *Entry 21 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
 *The cup itself learns to mend. Same Endurdrykkr; one layer deeper. Seven milestones this evening; forty-eight commits since v0.7 close; the disposition lineage now includes a deliberately unnamed extension — a sign that the body's discipline-development has matured enough to know when to coin and when to extend. The session is kept.*
+
+---
+
+## Entry 22 — 2026-05-09 — Persistent Verkminni: deed-memory writes to disk by operator's choice (v0.6.3.1)
+
+**Milestone:** v0.6.3.1 — Persistent Verkminni (extension; no new Skald codename)
+**Branch:** `development`
+**Session start HEAD:** `4a6e578` (post-v0.7.3 Scribe seal)
+**Session close HEAD:** `236f569` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — EIGHTH milestone of the session
+**Roles in attendance:** All six. Skald wave brief (addendum to VERKMINNI.md §VIII) — explicitly declined a new codename. Same pattern as v0.7.3.
+
+### What was added
+
+`AuditLog` gains an optional `disk_log_path` parameter. When set, every `record()` call also appends a JSONL line to that file. When None (default), no disk I/O occurs and the v0.6.3 in-memory ring buffer behaviour is byte-equivalent. **Path-as-toggle:** the path itself IS the on/off switch — mirrors the v0.5.3 *Blæja* pattern where `privacy_masks: list[]` empty=off.
+
+The disk-mirror is **non-load-bearing**: every disk write is wrapped in `try/except Exception` so V-2 (audit-write failures cannot make dispatch raise) extends naturally to disk-write failures. Two layers of protection now: D-3 inside record() + V-2 in _safe_audit().
+
+The file is **NOT cleared at SLOKNA** (D-5). The in-memory ring buffer still clears at ceremony end (V-4 from v0.6.3, unchanged); only the disk file persists. The body honours the operator's choice across ceremony boundaries.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `e11dddf` | Runa | TASK file |
+| 1 | `c8be0e5` | Skald (brief) | `VERKMINNI.md §VIII` addendum |
+| 2 | `64ce538` | Cartographer | `DATA_FLOW.md §4.11.10.1` |
+| 3+4 | `a8e6256` | Architect+Forge | `AuditLog.disk_log_path` + 9 tests |
+| 5 | `236f569` | Auditor | `AUDIT_v0.6.3.1_PERSISTENT_VERKMINNI.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 22 + seals |
+
+### Test status — 2026-05-09 (after v0.6.3.1)
+
+| Surface | Before v0.6.3.1 | After v0.6.3.1 | Delta |
+|---|---|---|---|
+| `tests/test_smidja_verkminni.py` | 28 | 37 | **+9** |
+| Other Smiðja tests | unchanged | unchanged | 0 |
+| **Smiðja total** | 73 | 82 | **+9** |
+
+Zero regressions. The 20 pre-existing environment failures byte-identical in stash diff.
+
+### What this milestone teaches
+
+**Privacy thresholds matter.** The in-memory ring buffer of v0.6.3 was deliberately ceremony-scoped: clear at SLOKNA, no persistence between sessions. That was the right default for most operators. But for compliance officers, researchers, and investigators, ceremony-scoping is itself a constraint. v0.6.3.1 gives those operators a structural opt-in via path-as-toggle: configure a path → on; leave it None → off. **The discipline of self-witness becomes the discipline of operator-chosen self-witness.**
+
+**Two-layer defence is sometimes the right shape.** v0.6.3's `_safe_audit` already catches any exception from `record()`. v0.6.3.1's disk-write `try/except` is therefore redundant in the strict sense — even if it raised, _safe_audit would catch it. But putting the try/except *inside* record() is a different, more local kind of defence: it ensures the in-memory append always completes, even if the disk write fails. Layer D-3 inside record() + Layer V-2 in _safe_audit() both serve the same goal (Smiðja-1 dispatch never raises) but at different scopes. Belt and braces.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.6.3.1_PERSISTENT_VERKMINNI.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/VERKMINNI.md` | §VIII addendum — operator-chosen persistence |
+| `docs/cartography/DATA_FLOW.md` | §4.11.10.1 added (mirror flow + 5 D-invariants) |
+| `src/heretic/skilningr/senses/smidja/verkminni.py` | `disk_log_path` parameter + JSONL append-mode write inside lock |
+| `tests/test_smidja_verkminni.py` | +9 tests (TestPersistentVerkminni) |
+| `docs/audit/AUDIT_v0.6.3.1_PERSISTENT_VERKMINNI.md` | New — D-1..D-5 verified |
+| `docs/DEVLOG.md` | This entry (22) |
+
+### State of the body — 2026-05-09 (after eight autonomous milestones)
+
+The faculty / disposition table is unchanged from entry 21 — v0.6.3.1 deepens Verkminni rather than adding a new discipline.
+
+Verkminni is the second discipline in the session that has been *deepened by an unnamed extension*:
+- **Endurdrykkr** (v0.7.2) → **v0.7.3** (continuity from byte-layer to index-layer)
+- **Verkminni** (v0.6.3) → **v0.6.3.1** (deed-memory from in-memory to optional disk persistence)
+
+**Fifty-three commits since v0.7 close.** Eight milestones. Six Skald-given codenames + two deliberately unnamed extensions.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.6.3.x persistent disk audit log~~ | **CLOSED — sealed as v0.6.3.1 at `236f569`** |
+| v0.6.3.2 CLI `heretic smidja log` | candidate — reads the disk file from v0.6.3.1 |
+| v0.6.3.x file rotation / size cap | candidate — disk hygiene |
+| v0.7.x parallel multi-source download | candidate — `asyncio.gather` over Endurdrykkr |
+| v0.7.x mtime-based staleness detection | candidate |
+| v0.5.6 polygon-rounded-corners / Bezier | candidate — diminishing returns |
+| v0.5.x mask inversion | candidate |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| **v0.8 Opið Vef** | natural roadmap successor |
+
+The session has now demonstrated **two unnamed-extension milestones** following two named-discipline milestones. The pattern is becoming established: name the discipline once; extend it without coining as the discipline matures across layers. The Skald's pen stays disciplined.
+
+---
+
+*Entry 22 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The body's deed-memory now writes to disk when the operator asks. Same Verkminni; the persistence is the operator's extension. Eight milestones this evening; fifty-three commits since v0.7 close; six Skald-given codenames and two deliberately unnamed extensions. The session is kept.*

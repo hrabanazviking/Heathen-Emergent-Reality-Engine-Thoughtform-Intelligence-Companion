@@ -22,17 +22,21 @@ The disk-write path is **best-effort** and **non-load-bearing**: any I/O excepti
 
 ## 2. Current status — 2026-05-09
 
-**Phase:** v0.6.3.1 **OPEN — wave plan published, no code written yet.**
+**Phase:** v0.6.3.1 **SHIPPED + AUDITED + SEALED.** All seven waves closed.
 
-**HEAD (development):** `4a6e578` (v0.7.3 Scribe seal — parent of upcoming Wave 0 commit)
+**HEAD (development) at audit close:** `236f569` (Auditor PASSES SCRUTINY)
 
-### v0.6.3.1 deliverables — pending
+**Test count after v0.6.3.1:** Smiðja verkminni 28 → 37 (+9). Smiðja total 82.
 
-- ☐ Skald (brief) — `docs/vision/VERKMINNI.md` addendum: when does the body's deed-memory persist beyond the ceremony? Operator's choice.
-- ☐ Cartographer — `docs/cartography/DATA_FLOW.md §4.11.10` addendum: disk-mirror flow + best-effort write semantics
-- ☐ Architect+Forge — `AuditLog.__init__` accepts `disk_log_path: Path | None = None`; `record()` appends JSONL line if path is set; failures don't propagate; tests
-- ☐ Auditor — `docs/audit/AUDIT_v0.6.3.1_PERSISTENT_VERKMINNI.md` — verifies (1) opt-in default OFF, (2) disk write failures don't break dispatch, (3) JSONL is parseable, (4) file appended (not overwritten) across multiple records, (5) atomic file creation if directory missing
-- ☐ Scribe — DEVLOG entry 22; TASK seal; memory refresh
+### v0.6.3.1 deliverables — all complete
+
+- ✅ Wave 0 — TASK file at `e11dddf`
+- ✅ Wave 1 — Skald (brief): `docs/vision/VERKMINNI.md §VIII` addendum at `c8be0e5`. No new codename.
+- ✅ Wave 2 — Cartographer: `docs/cartography/DATA_FLOW.md §4.11.10.1` at `64ce538`
+- ✅ Waves 3+4 — Architect+Forge merged: `AuditLog.disk_log_path` + 9 tests at `a8e6256`
+- ✅ Wave 5 — Auditor: `docs/audit/AUDIT_v0.6.3.1_PERSISTENT_VERKMINNI.md` PASSES at `236f569`
+- ⏭ Wave 6 — Forge cleanup (skipped; audit found nothing)
+- ✅ Wave 7 — Scribe: DEVLOG entry 22, this TASK seal, memory refresh (final commit)
 
 ### What v0.6.3.1 does NOT add
 
