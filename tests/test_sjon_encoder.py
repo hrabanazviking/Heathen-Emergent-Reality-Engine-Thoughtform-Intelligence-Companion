@@ -320,3 +320,104 @@ class TestFrameEncoderEncodeOverride:
         assert img_b.size[0] <= 32 and img_b.size[1] <= 32
         # Both must produce the same output dimensions (override is the only cap in play).
         assert img_a.size == img_b.size
+
+
+# ---------------------------------------------------------------------------
+# v0.5.3 Blæja — integration test: mask applied through encoder
+# ---------------------------------------------------------------------------
+
+class TestFrameEncoderPrivacyMasks:
+    """The encoder applies privacy masks AFTER decode and BEFORE resize.
+
+    The integration test must verify that a mask placed in source-pixel space
+    successfully obscures the corresponding region in the encoded PNG (which
+    is post-resize). Coordinates are translated by the resize ratio.
+    """
+
+    def _make_bgra_checkerboard(self, w: int, h: int, square: int = 4) -> bytes:
+        """Produce a high-frequency BGRA checkerboard suitable for blur tests."""
+        out = bytearray(w * h * 4)
+        for y in range(h):
+            for x in range(w):
+                cell = ((x // square) + (y // square)) % 2
+                v = 255 if cell else 0
+                idx = (y * w + x) * 4
+                out[idx + 0] = v   # B
+                out[idx + 1] = v   # G
+                out[idx + 2] = v   # R
+                out[idx + 3] = 255  # X (alpha; ignored by BGRX decoder)
+        return bytes(out)
+
+    def test_solid_mask_obscures_region_after_encode(self) -> None:
+        """A solid mask in source-pixel space appears as a uniform region in PNG."""
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+        from heretic.sjon.privacy import PrivacyMaskRegion
+
+        # 200x200 source. Mask the top-left 100x100 with a known colour.
+        bgra = self._make_bgra_checkerboard(200, 200, square=4)
+        masks = [PrivacyMaskRegion(
+            x=0, y=0, w=100, h=100,
+            mode="solid", solid_color=(73, 137, 211),
+        )]
+        # No resize so the source-pixel coords map 1:1 to PNG coords.
+        encoder = FrameEncoder(max_width=200, max_height=200)
+        png = encoder.encode(bgra, 200, 200, "BGRA", privacy_masks=masks)
+        decoded = Image.open(io.BytesIO(png))
+
+        # All pixels in the top-left 100x100 must be the mask colour.
+        for y in (0, 50, 99):
+            for x in (0, 50, 99):
+                assert decoded.getpixel((x, y)) == (73, 137, 211), (
+                    f"Pixel at ({x},{y}) is {decoded.getpixel((x,y))!r} — "
+                    f"expected solid mask colour"
+                )
+
+    def test_mask_runs_before_resize(self) -> None:
+        """Mask covers the right region even when the encoder resizes after.
+
+        Setup: 200x200 source, max_width/max_height = 100 (so resize to 100x100,
+        ratio 1:2). Mask source pixels (0,0,100,100) — half the source — with
+        solid red. After resize, the masked region should occupy the top-left
+        50x50 of the 100x100 PNG.
+        """
+        from PIL import Image
+        from heretic.sjon.encoder import FrameEncoder
+        from heretic.sjon.privacy import PrivacyMaskRegion
+
+        bgra = self._make_bgra_checkerboard(200, 200, square=4)
+        masks = [PrivacyMaskRegion(
+            x=0, y=0, w=100, h=100,
+            mode="solid", solid_color=(200, 30, 30),
+        )]
+        encoder = FrameEncoder(max_width=100, max_height=100)
+        png = encoder.encode(bgra, 200, 200, "BGRA", privacy_masks=masks)
+        decoded = Image.open(io.BytesIO(png))
+
+        assert decoded.size == (100, 100)
+        # Interior of the resized mask block must be the solid-mask colour.
+        # We sample the interior only because LANCZOS resampling blends the
+        # very-edge pixels with the unmasked checkerboard outside the region;
+        # the *interior* of the resized mask region is not affected by edge
+        # blending and remains the pure mask colour.
+        for y in (5, 25, 40):
+            for x in (5, 25, 40):
+                assert decoded.getpixel((x, y)) == (200, 30, 30), (
+                    f"Interior pixel at ({x},{y}) is {decoded.getpixel((x,y))!r} — "
+                    f"expected solid mask colour after resize"
+                )
+
+    def test_no_masks_argument_means_no_masking(self) -> None:
+        """encode() without privacy_masks (or with None) leaves frames unchanged."""
+        from heretic.sjon.encoder import FrameEncoder
+
+        bgra = self._make_bgra_checkerboard(64, 64, square=4)
+        encoder = FrameEncoder(max_width=64, max_height=64)
+        # Implicit None
+        png_implicit = encoder.encode(bgra, 64, 64, "BGRA")
+        # Explicit None
+        png_none = encoder.encode(bgra, 64, 64, "BGRA", privacy_masks=None)
+        # Empty list
+        png_empty = encoder.encode(bgra, 64, 64, "BGRA", privacy_masks=[])
+        # All three must be byte-identical.
+        assert png_implicit == png_none == png_empty

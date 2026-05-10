@@ -200,7 +200,156 @@ def apply_privacy_masks(
     the body in Wave 4 (mask cropping, mode application via Pillow primitives,
     paste-back).
     """
-    raise NotImplementedError(
-        "Architect scaffold (Wave 3): function signature is sealed; "
-        "Forge implements body in Wave 4."
+    log = log if log is not None else _LOG
+
+    # Empty list is the early-return fast path. No Pillow imports happen here.
+    if not masks:
+        return image
+
+    # Lazy import — Pillow is an optional dep but here is required because we
+    # already have a PIL.Image in hand from upstream decode.
+    from PIL import Image, ImageDraw, ImageFilter
+
+    img: "Image.Image" = image  # type: ignore[assignment]
+    w_img, h_img = img.size
+
+    for region in masks:
+        # Clamp region to image bounds. Returns (x, y, w, h) of effective
+        # region. If w_eff or h_eff is 0, region is wholly off-frame.
+        x_eff = max(0, min(region.x, w_img))
+        y_eff = max(0, min(region.y, h_img))
+        x_end = max(x_eff, min(region.x + region.w, w_img))
+        y_end = max(y_eff, min(region.y + region.h, h_img))
+        w_eff = x_end - x_eff
+        h_eff = y_end - y_eff
+
+        if w_eff <= 0 or h_eff <= 0:
+            _maybe_log_clamp_once(
+                log, _state,
+                "wholly off-frame", region, w_img, h_img,
+            )
+            continue
+
+        clamped = (w_eff != region.w) or (h_eff != region.h) or (
+            x_eff != region.x or y_eff != region.y
+        )
+        if clamped:
+            _maybe_log_clamp_once(
+                log, _state,
+                "partially off-frame (clamped)", region, w_img, h_img,
+            )
+
+        try:
+            _apply_one_region(img, region, x_eff, y_eff, w_eff, h_eff)
+        except Exception as exc:
+            # Fail-safe: if any Pillow primitive raises during the mask
+            # application, fall back to SOLID-fill so the unmasked region
+            # never propagates downstream.
+            log.warning(
+                "Blæja: mask application raised for region "
+                "(x=%d, y=%d, w=%d, h=%d, mode=%r): %s — falling back to SOLID",
+                region.x, region.y, region.w, region.h, region.mode, exc,
+            )
+            try:
+                draw = ImageDraw.Draw(img)
+                draw.rectangle(
+                    (x_eff, y_eff, x_eff + w_eff - 1, y_eff + h_eff - 1),
+                    fill=region.solid_color,
+                )
+            except Exception as exc2:
+                # If even SOLID-fill fails, the whole encoder fails — but
+                # we never let an unmasked region pass downstream silently.
+                # This branch should be unreachable in practice because
+                # ImageDraw.rectangle on a valid PIL image cannot fail given
+                # validated inputs.
+                raise RuntimeError(
+                    f"Blæja: SOLID-fill fallback failed for region "
+                    f"({region.x}, {region.y}, {region.w}, {region.h}): {exc2}"
+                ) from exc2
+
+    return img
+
+
+def _maybe_log_clamp_once(
+    log: logging.Logger,
+    state: Optional[dict],
+    kind: str,
+    region: PrivacyMaskRegion,
+    w_img: int,
+    h_img: int,
+) -> None:
+    """Emit one-time-per-encoder debug log on clamp / no-op events.
+
+    `state` is the encoder's persistent state dict (passed by the caller).
+    When `state["clamp_logged"]` is already True, this is a no-op.
+    Without a `state` dict, the log fires every time (used in pure-function
+    tests where there's no encoder lifetime).
+    """
+    if state is not None and state.get("clamp_logged"):
+        return
+    log.debug(
+        "Blæja: privacy mask region %s on %dx%d image: "
+        "x=%d, y=%d, w=%d, h=%d, mode=%r. Subsequent clamp events suppressed.",
+        kind, w_img, h_img,
+        region.x, region.y, region.w, region.h, region.mode,
     )
+    if state is not None:
+        state["clamp_logged"] = True
+
+
+def _apply_one_region(
+    img: object,
+    region: PrivacyMaskRegion,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+) -> None:
+    """Apply a single mask region in place on the given PIL.Image.
+
+    Uses the post-clamp coordinates (x, y, w, h). Dispatches by mode.
+    """
+    from PIL import Image, ImageDraw, ImageFilter
+
+    image: "Image.Image" = img  # type: ignore[assignment]
+
+    if region.mode == "solid":
+        draw = ImageDraw.Draw(image)
+        # Pillow rectangle uses inclusive (x0, y0, x1, y1) coords — the
+        # bottom-right point IS painted, so we use w-1 / h-1 as the offset.
+        draw.rectangle(
+            (x, y, x + w - 1, y + h - 1),
+            fill=region.solid_color,
+        )
+        return
+
+    if region.mode == "blur":
+        radius = (
+            region.blur_radius
+            if region.blur_radius is not None
+            else max(8, min(w, h) // 8)
+        )
+        # Crop region, blur the crop, paste back at (x, y).
+        crop = image.crop((x, y, x + w, y + h))
+        blurred = crop.filter(ImageFilter.GaussianBlur(radius=radius))
+        image.paste(blurred, (x, y))
+        return
+
+    if region.mode == "pixelate":
+        factor = (
+            region.pixelate_factor
+            if region.pixelate_factor is not None
+            else max(8, min(w, h) // 12)
+        )
+        small_w = max(1, w // factor)
+        small_h = max(1, h // factor)
+        crop = image.crop((x, y, x + w, y + h))
+        # Down-sample to coarse grid, then up-sample with NEAREST so the
+        # pixelation blocks are crisp.
+        small = crop.resize((small_w, small_h), Image.Resampling.NEAREST)
+        pixelated = small.resize((w, h), Image.Resampling.NEAREST)
+        image.paste(pixelated, (x, y))
+        return
+
+    # Should be unreachable — mode is validated at PrivacyMaskRegion.__post_init__.
+    raise ValueError(f"Blæja: unknown mask mode {region.mode!r}")
