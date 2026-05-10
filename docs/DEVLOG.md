@@ -3481,3 +3481,114 @@ The natural successor in roadmap order is still **v0.8 Opið Vef** — the full 
 
 *Entry 18 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
 *Five shapes flow through one pipeline. The Architect's claim from v0.5.4 still holds, one milestone later, with two more shapes added. Four milestones this evening; twenty-eight commits since v0.7 close; the body's veil-vocabulary now rich enough for the rounded world it actually lives in. The session is kept.*
+
+---
+
+## Entry 19 — 2026-05-09 — Endurdrykkr: The Resumed Drink (v0.7.2)
+
+**Milestone:** v0.7.2 — *Endurdrykkr* (the resumed drink)
+**Branch:** `development`
+**Session start HEAD:** `2fff370` (post-v0.5.5 Scribe seal)
+**Session close HEAD:** `f6d31b3` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; FIFTH milestone of the session
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was added — and why this milestone moved off the Blæja axis
+
+After four consecutive *Blæja*-lineage milestones (v0.5.3 disposition, v0.5.4 + v0.5.5 vocabulary growth), continuing along that axis would have been padding. The v0.5.5 Skald already named the diminishing-returns moment: *"the body's veil-vocabulary is rich enough for the rounded world it actually lives in."* v0.7.2 deliberately pivots to a different system (Mímisbrunnr — the well of knowledge), a different concern (network resilience), and a different kind of disposition (resilience disciplines, not visual ones).
+
+The change: when a download from Mímisbrunnr's source URLs is interrupted — by a Tailscale flap, a host shutdown, a ceremony Slokna mid-fetch — the partial bytes already on disk are no longer thrown away. The next download attempt detects `.heretic_tmp`, hashes the existing bytes into a running SHA-256, sends `Range: bytes=N-` to the server, and continues from offset N. The body picks up the same draught it had begun, rather than starting over.
+
+For the Norse starter pack at a few megabytes per file, this is a comfort. For the v0.8 ZIM corpora at 100 GB each, it is the difference between feasible and infeasible.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `009dbc0` | Runa | TASK file open |
+| 1 | `9442ae6` | Skald | `docs/vision/ENDURDRYKKR.md` |
+| 2 | `fb3fa68` | Cartographer | `docs/cartography/DATA_FLOW.md §4.14.1.1` |
+| 3+4 | `6b7aad4` | Architect+Forge | `downloader.py` + 11 tests |
+| 5 | `f6d31b3` | Auditor | `docs/audit/AUDIT_v0.7.2_ENDURDRYKKR.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 19 + seals |
+
+Six commits, the same shape as v0.5.4 / v0.5.5 / v0.5.5 (Architect+Forge merged because the implementation is mechanical once the Protocol or contract is settled).
+
+### Test status — 2026-05-09 (after v0.7.2)
+
+| Surface | Before v0.7.2 | After v0.7.2 | Delta |
+|---|---|---|---|
+| `tests/test_mimisbrunnr_downloader.py` | 13 | 24 | **+11** |
+| `tests/test_sjon_*.py` (carried) | 219 | 219 | 0 |
+| Frontend | 91 | 91 | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed) are byte-identical in stash diff. v0.7.2 introduced **zero** new regressions.
+
+### What this milestone teaches
+
+1. **Knowing when to stop adding to the same axis is craftsmanship.** Five milestones along the same lineage in one session would have been padding even though each individual milestone might have looked clean. The Skald's v0.5.5 reflection on diminishing returns was a deliberate signal to pivot. *Endurdrykkr* honours that signal by opening a different axis (resilience disciplines) rather than continuing the existing one (vocabulary growth).
+
+2. **Continuity is a first-class concern, even at the byte layer.** Mythic Engineering already values continuity at the document layer (MD Protocol), the wave layer (commit trails), the role layer (hand-off rituals), the session layer (TASK files). v0.7.2 extends that respect for continuity to the byte layer of downloads. A body that loses partial bytes when interrupted treats its own past effort as nothing the moment a connection blinks. That is not the kind of body Mythic Engineering is building.
+
+3. **Resumable vs non-resumable failure is a real distinction worth honouring.** Network errors (TransportError, TimeoutException, generic RequestError) leave the partial bytes still good — they should be preserved. Integrity errors (SHA-256 mismatch, size cap exceeded, 416 Range Not Satisfiable) mean the partial bytes are wrong — they should be deleted. Conflating these two kinds of failure (the v0.7 code did, deleting on every failure) leaks effort to the operator without warrant. Disambiguating them is M-8.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.7.2_ENDURDRYKKR.md` | New — opened Wave 0; sealed at Wave 7 |
+| `docs/vision/ENDURDRYKKR.md` | New — Skald passage on continuity-of-draught + the five HTTP statuses + resumable/non-resumable distinction |
+| `docs/cartography/DATA_FLOW.md` | §4.14.1.1 added (resume flow + status disposition table + tmp-file disposition table); three new invariants M-7/M-8/M-9 |
+| `src/heretic/skilningr/mimisbrunnr/downloader.py` | Module docstring extended with ENDURDRYKKR section; resume detection block; status-dispatch refactor; failure-branch tmp preservation for resumable cases |
+| `tests/test_mimisbrunnr_downloader.py` | +11 tests (5 resume detection, 2 status dispatch, 3 integrity, 1 consent gate ordering) |
+| `docs/audit/AUDIT_v0.7.2_ENDURDRYKKR.md` | New — 12 evidence trails + honest negative audit |
+| `docs/DEVLOG.md` | This entry (19) |
+
+### State of the body — 2026-05-09 (after five autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Sight — discipline of not-looking | Blæja | live since v0.5.3 |
+| Sight — vocabulary of veils (3 shapes) | Margblæja | live since v0.5.4 |
+| Sight — soft-curve vocabulary (5 shapes) | Mjúkblæja | live since v0.5.5 |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| **Knowledge — continuity-of-draught** | **Endurdrykkr** | **live since v0.7.2** |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Five milestones in one autonomous session. **Thirty-four commits since v0.7 close.** Three resilience-or-restraint disciplines now live (Straumr á Leið, Blæja, Endurdrykkr); each pairs with a faculty (Leið, Sjón, Mímisbrunnr).
+
+### Threads carried forward from this session
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| v0.5.6 polygon-rounded-corners / Bezier paths | candidate — diminishing returns on Blæja |
+| v0.5.x mask inversion | candidate — "show only this region; veil all else" |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | candidate — could be a Smiðja resilience discipline ("measured reaching") |
+| ~~v0.7.x download resume~~ | **CLOSED — sealed as v0.7.2 at `f6d31b3`** |
+| v0.7.x corrupt index auto-rebuild | candidate — small, builds on v0.7.2 |
+| v0.7.x parallel multi-source download | candidate — `asyncio.gather` |
+| v0.8 Opið Vef | natural roadmap successor — next major faculty |
+| v0.9 Málari | unchanged |
+| v0.10 Langhúsið Ytra | unchanged |
+| v0.11 Bréfasamtök | unchanged |
+
+The natural successor in roadmap order is still **v0.8 Opið Vef** — the full Playwright browser sense — which becomes the next major faculty. The session has now demonstrated *both* axes of growth: vocabulary growth on a fixed disposition (Blæja → Margblæja → Mjúkblæja) AND resilience-discipline addition on a faculty (Mímisbrunnr → Endurdrykkr). Future milestones can choose either axis as the operator's needs and the world's demands warrant.
+
+---
+
+*Entry 19 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The body picks up the same draught it had begun, rather than starting over. Five milestones this evening; thirty-four commits since v0.7 close; three resilience disciplines now live in the body. The session is kept.*

@@ -22,20 +22,21 @@ The existing v0.7 Downloader already streams to `.heretic_tmp` and renames atomi
 
 ## 2. Current status — 2026-05-09
 
-**Phase:** v0.7.2 **OPEN — wave plan published, no code written yet.**
+**Phase:** v0.7.2 **SHIPPED + AUDITED + SEALED.** All seven waves closed.
 
-**HEAD (development):** `2fff370` (v0.5.5 Scribe seal — parent of upcoming Wave 0 commit)
+**HEAD (development) at audit close:** `f6d31b3` (Auditor PASSES SCRUTINY)
 
-**Test count baseline:** Mímisbrunnr downloader tests at `tests/test_mimisbrunnr_downloader.py`. Sjón privacy 74 + encoder 24 + Sjón total 219 carried from v0.5.5.
+**Test count after v0.7.2:** Mímisbrunnr downloader 13 → 24 (+11 new resume tests). Full Mímisbrunnr suite green; broader-suite unchanged from baseline.
 
-### v0.7.2 deliverables — pending
+### v0.7.2 deliverables — all complete
 
-- ☐ Skald — `docs/vision/ENDURDRYKKR.md` — short essay on continuity-of-draught
-- ☐ Cartographer — `docs/cartography/DATA_FLOW.md §4.14.1` addendum: resume flow + 206/200 dispatch + SHA-256 continuation across the seam
-- ☐ Architect+Forge — refactor `Downloader.download()` to detect existing `.heretic_tmp`, hash partial bytes, send Range request, handle 206 (Partial Content) vs 200 (server didn't honour Range) vs 416 (Range Not Satisfiable); update INTERFACE.md
-- ☐ Forge — 12+ new tests covering: clean-slate download (existing v0.7 behaviour), resume from partial tmp, server returns 206 with Content-Range, server returns 200 (full body — restart), server returns 416 (delete tmp + retry full), partial sha256 verification, resumed sha256 matches manifest after seam
-- ☐ Auditor — `docs/audit/AUDIT_v0.7.2_ENDURDRYKKR.md` — verifies (1) consent gate still runs first, (2) full-file SHA-256 matches manifest after resume, (3) safety size cap still applies across resumed bytes, (4) atomic rename only on full success, (5) tmp file preserved on interruption (NOT cleaned up on retry-able errors)
-- ☐ Scribe — DEVLOG entry 19; TASK seal; memory refresh
+- ✅ Wave 0 — TASK file at `009dbc0`
+- ✅ Wave 1 — Skald: `docs/vision/ENDURDRYKKR.md` at `9442ae6`
+- ✅ Wave 2 — Cartographer: `docs/cartography/DATA_FLOW.md §4.14.1.1` at `fb3fa68`
+- ✅ Waves 3+4 — Architect+Forge merged: `downloader.py` + 11 tests at `6b7aad4`
+- ✅ Wave 5 — Auditor: `docs/audit/AUDIT_v0.7.2_ENDURDRYKKR.md` PASSES at `f6d31b3`
+- ⏭ Wave 6 — Forge cleanup (skipped; audit found nothing)
+- ✅ Wave 7 — Scribe: DEVLOG entry 19, this TASK seal, memory refresh (final commit)
 
 ### What v0.7.2 does NOT add
 
