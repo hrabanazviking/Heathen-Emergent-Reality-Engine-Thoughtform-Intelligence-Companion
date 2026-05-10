@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-09 v0.5.3 addendum — Védis Eikleið: §4.10.14 (Blæja — privacy mask application) added; mask application step diagrammed with explicit upstream-of-leak-paths position; three modes (blur, solid, pixelate) documented; coordinate space (source pixels) and clamping behaviour documented; five Blæja failure modes (F-Blæja-1..F-Blæja-5) documented; six privacy invariants (P-1..P-6) recorded; per-source independence (screen vs webcam mask lists) noted. Pillow already a dep; no new dependency. | 2026-05-09 v0.7.1 addendum — Védis Eikleið: §4.12.2.1 (Leið streaming body-read — *Straumr á Leið*) added; §4.12.2 Step 4 annotated with v0.6.2-shipped + v0.7.1-streaming history; §4.12.2 F-6 rewritten to record three-stage history (first sketch → v0.6.2 raise → v0.7.1 streaming abort); closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`. Memory-bound at moment of raise documented (max_response_bytes + chunk_size). Closing-on-unwind semantics of httpx.AsyncClient.stream + bytearray accumulator documented. | 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
+**Last updated:** 2026-05-09 v0.5.4 addendum — Védis Eikleið: §4.10.14.1 (Margblæja — non-rectangular mask shapes) added; PrivacyMaskShape Protocol contract documented (bounding_box + alpha_mask methods); one-pipeline-three-shapes diagram drawn (rectangle, circle, polygon all flow through the same alpha-mask composite); circle and polygon bounding-box / alpha-mask formulas documented; six new failure modes F-Blæja-6..F-Blæja-11 added; three new privacy invariants P-7..P-9 (boundary preservation, degenerate-polygon handling, off-frame bounding box). Pillow ImageDraw already a dep; no new dependency. | 2026-05-09 v0.5.3 addendum — Védis Eikleið: §4.10.14 (Blæja — privacy mask application) added; mask application step diagrammed with explicit upstream-of-leak-paths position; three modes (blur, solid, pixelate) documented; coordinate space (source pixels) and clamping behaviour documented; five Blæja failure modes (F-Blæja-1..F-Blæja-5) documented; six privacy invariants (P-1..P-6) recorded; per-source independence (screen vs webcam mask lists) noted. Pillow already a dep; no new dependency. | 2026-05-09 v0.7.1 addendum — Védis Eikleið: §4.12.2.1 (Leið streaming body-read — *Straumr á Leið*) added; §4.12.2 Step 4 annotated with v0.6.2-shipped + v0.7.1-streaming history; §4.12.2 F-6 rewritten to record three-stage history (first sketch → v0.6.2 raise → v0.7.1 streaming abort); closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`. Memory-bound at moment of raise documented (max_response_bytes + chunk_size). Closing-on-unwind semantics of httpx.AsyncClient.stream + bytearray accumulator documented. | 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -4026,6 +4026,178 @@ HERETIC provides the privacy defaults; obtaining consent is an operator responsi
 >   with `ValueError`.
 > - **P-6:** Existing privacy invariants preserved: `save_frames` defaults False,
 >   webcam `enabled` defaults False, in-memory ring buffer only.
+
+---
+
+#### 4.10.14.1 Margblæja — non-rectangular mask shapes (v0.5.4)
+
+> **Added 2026-05-09 v0.5.4 (Védis Eikleið).** *Margblæja* — the veil of many
+> forms. Extends v0.5.3 with two new shape types (circle, polygon) under a
+> `PrivacyMaskShape` Protocol. The disposition is unchanged; the operator's
+> vocabulary for declaring it has expanded.
+
+```
+  ONE PIPELINE — THREE SHAPES (rectangle, circle, polygon)
+
+  apply_privacy_masks(image, masks):
+      for shape in masks:                          # Protocol-typed iteration
+          bx, by, bw, bh = shape.bounding_box()
+          clamp (bx, by, bw, bh) to image bounds
+          if w_eff <= 0 or h_eff <= 0:
+              log clamp once; skip
+
+          crop_original = image.crop(...)           # bounding-box crop
+          modified      = apply_mode(crop_original, shape)
+                                                    # blur / solid / pixelate
+                                                    # mode is orthogonal to shape
+
+          alpha = shape.alpha_mask(w_eff, h_eff)    # "L" mode 0..255
+                                                    # in-shape = 255, out = 0
+          composited = Image.composite(modified, crop_original, alpha)
+                                                    # pixel-exact:
+                                                    #   alpha[p]=255 → modified
+                                                    #   alpha[p]=  0 → original
+
+          image.paste(composited, (x_eff, y_eff))   # paste-back
+
+  Shape contributions:
+    Rectangle  bounding_box = (x, y, w, h)              ; alpha = full white
+    Circle     bounding_box = (cx-r, cy-r, 2r, 2r)      ; alpha = filled disc
+    Polygon    bounding_box = (min_x..max_x bbox)       ; alpha = filled poly
+```
+
+The structural property: **mode and shape are orthogonal**. The composite
+math is uniform across all three shapes; only the alpha mask differs. A
+fourth shape (e.g. v0.5.5 Bezier) would only need to provide a `bounding_box`
+and an `alpha_mask` — no new pipeline branch.
+
+```
+  PROTOCOL CONTRACT — PrivacyMaskShape
+
+  bounding_box() -> (x, y, w, h)
+      Returns the source-pixel bounds of the smallest axis-aligned rectangle
+      containing the entire shape. Coordinates are pre-clamp; the apply
+      step clamps them to image bounds.
+
+  alpha_mask(w, h) -> PIL.Image
+      Returns an "L" mode image of size (w, h). In-shape pixels = 255;
+      out-of-shape pixels = 0. The image's coordinate system is the
+      bounding-box-relative — i.e., (0, 0) of the alpha mask corresponds
+      to (x, y) of the bounding box on the source image.
+      For the rectangle case, alpha_mask is a fully-opaque white image
+      (the entire bounding box equals the shape).
+
+  Shared field surface (all three shapes):
+      mode             : "blur" | "solid" | "pixelate"
+      blur_radius      : Optional[int >= 1]    (auto if None)
+      solid_color      : tuple[int, int, int]  (default black)
+      pixelate_factor  : Optional[int >= 2]    (auto if None)
+```
+
+```
+  CIRCLE                                 POLYGON
+  ─────────                              ─────────
+  fields:                                fields:
+    cx, cy     : non-neg int               points : list[(int, int)]
+    radius     : >= 1                              len >= 3, all coords >= 0
+
+  bounding_box():                        bounding_box():
+    return (cx - radius,                   xs = [p[0] for p in points]
+            cy - radius,                   ys = [p[1] for p in points]
+            2 * radius,                    return (min(xs), min(ys),
+            2 * radius)                            max(xs) - min(xs) + 1,
+                                                   max(ys) - min(ys) + 1)
+  alpha_mask(w, h):                      alpha_mask(w, h):
+    mask = Image.new("L", (w, h), 0)       mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)            draw = ImageDraw.Draw(mask)
+    draw.ellipse(                          # translate points into bbox-local
+      (0, 0, w-1, h-1),                    local_pts = [(p[0]-min_x,
+      fill=255,                                          p[1]-min_y)
+    )                                                    for p in points]
+    return mask                            draw.polygon(local_pts, fill=255)
+                                           return mask
+```
+
+```
+  MARGBLÆJA FAILURE MODES (additions to v0.5.3 F-Blæja-1..F-Blæja-5)
+
+  F-Blæja-6 — circle wholly off-frame
+    Cause: cx + radius < 0 or cx - radius > image_width (etc.).
+    Behaviour: bounding box clamps to zero area; region is a no-op.
+    Same one-time debug log as v0.5.3.
+    No exception; ceremony continues.
+
+  F-Blæja-7 — polygon wholly off-frame
+    Cause: every vertex outside image bounds AND the polygon's bbox does
+    not overlap the image.
+    Behaviour: bounding box clamps to zero area; region is a no-op.
+    Same one-time debug log.
+
+  F-Blæja-8 — degenerate polygon (co-linear or coincident vertices)
+    Cause: operator types points like [(0,0), (10,0), (20,0)] (all colinear).
+    Behaviour: Pillow's polygon rasterises to an empty alpha mask; the
+    composite is identity (no pixels modified). This is a no-op, not an
+    error. Debug log fires once for "degenerate polygon" via the same
+    one-time clamp-log throttle.
+    Operator can fix by adjusting vertices; no fatal error.
+
+  F-Blæja-9 — invalid circle radius at config load
+    Cause: PrivacyMaskCircle(radius=0) or radius=-3.
+    Behaviour: __post_init__ raises ValueError. HereticConfig load fails
+    fast at Kynding.
+
+  F-Blæja-10 — polygon with < 3 points at config load
+    Cause: PrivacyMaskPolygon(points=[(0,0), (10,10)]).
+    Behaviour: __post_init__ raises ValueError. HereticConfig load fails
+    fast.
+
+  F-Blæja-11 — polygon point with non-int coordinate at config load
+    Cause: PrivacyMaskPolygon(points=[(0, 0), (10, "10"), (20, 20)]).
+    Behaviour: __post_init__ raises ValueError. HereticConfig load fails
+    fast.
+```
+
+> **Privacy invariants added by v0.5.4 (alongside the v0.5.3 P-1..P-6 inheritance):**
+> - **P-7:** The alpha-mask composite step preserves shape boundaries pixel-exactly.
+>   A pixel inside the bounding box but outside the shape must be unchanged after apply.
+>   A pixel inside the shape must equal the modified-crop pixel.
+> - **P-8:** A degenerate polygon (co-linear or coincident vertices) is a valid
+>   construction; Pillow's polygon-rasteriser handles it as an empty alpha mask;
+>   apply continues; debug log fires once.
+> - **P-9:** A circle / polygon whose bounding box is wholly off-frame is a no-op
+>   (matches the F-Blæja-1 rectangle case).
+
+```
+  MARGBLÆJA CONFIG (heretic.yaml example with all three shape kinds)
+
+    sjon:
+      screen:
+        privacy_masks:
+          - x: 0                  # rectangle (v0.5.3, unchanged)
+            y: 0
+            w: 320
+            h: 200
+            mode: blur
+          - cx: 1700              # circle (v0.5.4 NEW)
+            cy: 200
+            radius: 80
+            mode: solid
+            solid_color: [0, 0, 0]
+          - points:               # polygon (v0.5.4 NEW)
+              - [800, 600]
+              - [1000, 580]
+              - [1100, 700]
+              - [950, 800]
+              - [820, 750]
+            mode: pixelate
+            pixelate_factor: 12
+
+  Note: dispatching by YAML schema is the operator's loader concern; the
+  Python types (PrivacyMaskRegion, PrivacyMaskCircle, PrivacyMaskPolygon)
+  are independent dataclasses. The YAML loader code identifies the shape
+  by which fields are present (presence of `cx`/`radius` → circle; presence
+  of `points` → polygon; otherwise rectangle).
+```
 
 ---
 
