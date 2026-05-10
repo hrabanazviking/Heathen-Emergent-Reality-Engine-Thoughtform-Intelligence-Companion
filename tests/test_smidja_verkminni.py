@@ -441,3 +441,168 @@ class TestSmidjaSenseDispatchHook:
 
         # Default audit log captured the paired entries
         assert len(sense._audit_log) == 2
+
+
+# ---------------------------------------------------------------------------
+# v0.6.3.1 Persistent Verkminni — opt-in disk JSONL log
+# ---------------------------------------------------------------------------
+
+import json as _json
+from pathlib import Path as _Path
+
+
+class TestPersistentVerkminni:
+    """v0.6.3.1 — AuditLog gains optional disk_log_path for JSONL mirror."""
+
+    def test_default_no_disk_path_writes_no_file(self, tmp_path: _Path):
+        """D-1: AuditLog() without disk_log_path produces no file."""
+        log = AuditLog(depth=10)
+        e = build_entry(state="started", call_id="c1", tool_name="t",
+                        arguments_json="{}")
+        log.record(e)
+        # No file in tmp_path was created
+        files = list(tmp_path.iterdir())
+        assert files == [], f"Unexpected files: {files}"
+
+    def test_disk_path_writes_jsonl_lines(self, tmp_path: _Path):
+        """D-2: each record() produces exactly one JSON line on disk."""
+        log_path = tmp_path / "audit.jsonl"
+        log = AuditLog(depth=10, disk_log_path=log_path)
+
+        for i in range(3):
+            log.record(build_entry(
+                state="started", call_id=f"c{i}", tool_name="smidja.click",
+                arguments_json='{"x": 1}',
+            ))
+
+        assert log_path.exists()
+        lines = log_path.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 3
+        # Each line is valid JSON with the expected fields
+        for i, line in enumerate(lines):
+            parsed = _json.loads(line)
+            assert parsed["call_id"] == f"c{i}"
+            assert parsed["tool_name"] == "smidja.click"
+            assert parsed["state"] == "started"
+            assert "timestamp" in parsed
+
+    def test_disk_path_creates_parent_directory(self, tmp_path: _Path):
+        """mkdir parents=True — operator can configure a path with non-existent parent."""
+        nested = tmp_path / "a" / "b" / "c"
+        log_path = nested / "audit.jsonl"
+        assert not nested.exists()  # parent does not exist
+
+        log = AuditLog(depth=10, disk_log_path=log_path)
+        log.record(build_entry(state="started", call_id="c", tool_name="t",
+                                arguments_json="{}"))
+
+        assert log_path.exists()
+        assert nested.is_dir()
+
+    def test_disk_path_appends_to_existing_file(self, tmp_path: _Path):
+        """D-4: file is APPENDED, not overwritten."""
+        log_path = tmp_path / "audit.jsonl"
+        # Pre-existing content
+        log_path.write_text('{"pre_existing": 1}\n{"pre_existing": 2}\n')
+        assert len(log_path.read_text().splitlines()) == 2
+
+        log = AuditLog(depth=10, disk_log_path=log_path)
+        for i in range(5):
+            log.record(build_entry(state="started", call_id=f"c{i}",
+                                    tool_name="t", arguments_json="{}"))
+
+        lines = log_path.read_text(encoding="utf-8").splitlines()
+        # 2 pre-existing + 5 new = 7 total
+        assert len(lines) == 7
+
+    def test_disk_write_failure_does_not_raise(self, tmp_path: _Path):
+        """D-3: disk-write failures are caught; record() returns normally."""
+        # Use a path that will fail to write (a directory, not a file)
+        # Create a directory with the same name as the intended log file
+        bad_path = tmp_path / "audit.jsonl"
+        bad_path.mkdir()  # now opening as a file fails
+
+        log = AuditLog(depth=10, disk_log_path=bad_path)
+        # record() must NOT raise even though the write fails
+        log.record(build_entry(state="started", call_id="c1", tool_name="t",
+                                arguments_json="{}"))
+        # And the in-memory record still happened
+        assert len(log) == 1
+
+    def test_disk_write_failure_preserves_in_memory(self, tmp_path: _Path):
+        """D-3 corollary: when disk write fails, in-memory entry is still recorded."""
+        bad_path = tmp_path / "audit.jsonl"
+        bad_path.mkdir()  # broken target
+
+        log = AuditLog(depth=10, disk_log_path=bad_path)
+        for i in range(3):
+            log.record(build_entry(state="started", call_id=f"c{i}",
+                                    tool_name="t", arguments_json="{}"))
+        # All three in-memory
+        assert len(log) == 3
+        ids = [e.call_id for e in log.entries()]
+        assert ids == ["c0", "c1", "c2"]
+
+    def test_jsonl_format_matches_entry_fields(self, tmp_path: _Path):
+        """Parsed JSONL line has all 7 AuditEntry fields with correct types."""
+        log_path = tmp_path / "audit.jsonl"
+        log = AuditLog(depth=10, disk_log_path=log_path)
+
+        log.record(build_entry(
+            state="completed", call_id="c1", tool_name="smidja.screenshot",
+            arguments_json='{"region": null}',
+            duration_ms=42, error=None,
+        ))
+
+        line = log_path.read_text(encoding="utf-8").strip()
+        parsed = _json.loads(line)
+
+        # All 7 fields present
+        for field in (
+            "timestamp", "call_id", "tool_name", "arguments_json",
+            "state", "duration_ms", "error",
+        ):
+            assert field in parsed
+
+        # Types match
+        assert isinstance(parsed["timestamp"], str)
+        assert parsed["call_id"] == "c1"
+        assert parsed["tool_name"] == "smidja.screenshot"
+        assert parsed["state"] == "completed"
+        assert parsed["duration_ms"] == 42
+        assert parsed["error"] is None
+
+    @pytest.mark.asyncio
+    async def test_disk_file_not_cleared_at_slokna(self, tmp_path: _Path):
+        """D-5: SmidjaSense.close() clears in-memory but NOT the disk file."""
+        log_path = tmp_path / "audit.jsonl"
+        cfg = make_config(enabled=True)
+        bc = make_mock_brunhand_client()
+        bc.click = AsyncMock(return_value={"x": 1, "y": 2, "clicks_delivered": 1})
+
+        log = AuditLog(depth=100, disk_log_path=log_path)
+        sense = make_sense_with_audit(audit_log=log, cfg=cfg, brunhand_client=bc)
+        sense._brunhand_open = True
+
+        tc = make_tool_call("smidja.click", {"x": 1, "y": 2})
+        await sense.dispatch_tool_call(tc)
+        # 2 in-memory + 2 on disk
+        assert len(log) == 2
+        assert len(log_path.read_text().splitlines()) == 2
+
+        await sense.close()
+        # In-memory cleared
+        assert len(log) == 0
+        # But disk file STILL has its 2 lines (D-5)
+        assert log_path.exists()
+        assert len(log_path.read_text().splitlines()) == 2
+
+    def test_path_as_toggle_none_means_off(self, tmp_path: _Path):
+        """Explicit None disk_log_path is treated as OFF, no file created."""
+        log = AuditLog(depth=10, disk_log_path=None)
+        log.record(build_entry(state="started", call_id="c", tool_name="t",
+                                arguments_json="{}"))
+        # No file
+        assert list(tmp_path.iterdir()) == []
+        # In-memory worked
+        assert len(log) == 1

@@ -44,11 +44,13 @@ Ref: src/heretic/skilningr/senses/smidja/sense.py (integration site)
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 
@@ -155,11 +157,34 @@ class AuditLog:
     Default depth is set by the caller (typically 100, from VerkminniConfig).
     """
 
-    def __init__(self, depth: int = 100) -> None:
+    def __init__(
+        self,
+        depth: int = 100,
+        disk_log_path: Optional[Path] = None,
+    ) -> None:
         """Initialise the audit log with the given ring buffer depth.
 
         Args:
-            depth: Maximum entries retained. Must be >= 1. Default 100.
+            depth: Maximum entries retained in memory. Must be >= 1. Default 100.
+            disk_log_path: v0.6.3.1 — optional path to a JSONL file. When set,
+                every record() call ALSO appends a JSON line to this file.
+                When None (default), no disk I/O occurs and behaviour is
+                byte-equivalent to v0.6.3.
+
+                The path-as-toggle convention mirrors v0.5.3 Blæja's
+                `privacy_masks: list[]` empty=off pattern. Operators who
+                want persistent audit records configure a path; others
+                pay nothing.
+
+                The disk write is best-effort and non-load-bearing: I/O
+                failures are caught and logged at warning; the in-memory
+                record completes normally. V-2 (witness, not gate) is
+                preserved through the disk extension.
+
+                The file is APPENDED to, not overwritten (D-4). It is
+                NOT cleared at SLOKNA (D-5) — the operator chose
+                persistence; the body honours that choice across
+                ceremony boundaries.
 
         Raises:
             ValueError: if depth < 1.
@@ -171,6 +196,9 @@ class AuditLog:
         self._depth = depth
         self._buffer: deque[AuditEntry] = deque(maxlen=depth)
         self._lock = threading.Lock()
+        self._disk_log_path: Optional[Path] = (
+            Path(disk_log_path) if disk_log_path is not None else None
+        )
 
     @property
     def depth(self) -> int:
@@ -178,16 +206,50 @@ class AuditLog:
         return self._depth
 
     def record(self, entry: AuditEntry) -> None:
-        """Append an entry to the ring buffer.
+        """Append an entry to the ring buffer (and disk file if configured).
 
         At maxlen, the oldest entry is evicted automatically (deque semantics).
         Thread-safe.
+
+        v0.6.3.1: when `disk_log_path` is set on this AuditLog, each call also
+        appends a JSON line to that file. Disk-write failures are caught and
+        logged at warning; the in-memory record always completes (D-3).
 
         Args:
             entry: AuditEntry to record. Must be a valid AuditEntry instance.
         """
         with self._lock:
             self._buffer.append(entry)
+
+            # v0.6.3.1 — opt-in disk mirror (path-as-toggle).
+            if self._disk_log_path is not None:
+                try:
+                    # Ensure parent directory exists. Idempotent.
+                    self._disk_log_path.parent.mkdir(
+                        parents=True, exist_ok=True,
+                    )
+                    # Open-append-close per record. Survives crashes better
+                    # than holding a long-lived file handle.
+                    line = json.dumps({
+                        "timestamp":      entry.timestamp,
+                        "call_id":        entry.call_id,
+                        "tool_name":      entry.tool_name,
+                        "arguments_json": entry.arguments_json,
+                        "state":          entry.state,
+                        "duration_ms":    entry.duration_ms,
+                        "error":          entry.error,
+                    }, ensure_ascii=False)
+                    with self._disk_log_path.open("a", encoding="utf-8") as fh:
+                        fh.write(line)
+                        fh.write("\n")
+                except Exception as exc:
+                    # D-3: disk-write failures are non-load-bearing.
+                    # In-memory record already succeeded above.
+                    _LOG.warning(
+                        "Verkminni: disk write to %s failed (in-memory "
+                        "record completed normally): %s",
+                        self._disk_log_path, exc,
+                    )
 
     def entries(self, limit: Optional[int] = None) -> list[AuditEntry]:
         """Return a snapshot list of recent entries, oldest-to-newest.
