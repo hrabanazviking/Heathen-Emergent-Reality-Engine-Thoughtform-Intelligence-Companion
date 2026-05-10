@@ -1,6 +1,6 @@
 # H.E.R.E.T.I.C. — Data Flow Map
 
-**Last updated:** 2026-05-09 v0.7.1 addendum — Védis Eikleið: §4.12.2.1 (Leið streaming body-read — *Straumr á Leið*) added; §4.12.2 Step 4 annotated with v0.6.2-shipped + v0.7.1-streaming history; §4.12.2 F-6 rewritten to record three-stage history (first sketch → v0.6.2 raise → v0.7.1 streaming abort); closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`. Memory-bound at moment of raise documented (max_response_bytes + chunk_size). Closing-on-unwind semantics of httpx.AsyncClient.stream + bytearray accumulator documented. | 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
+**Last updated:** 2026-05-09 v0.5.3 addendum — Védis Eikleið: §4.10.14 (Blæja — privacy mask application) added; mask application step diagrammed with explicit upstream-of-leak-paths position; three modes (blur, solid, pixelate) documented; coordinate space (source pixels) and clamping behaviour documented; five Blæja failure modes (F-Blæja-1..F-Blæja-5) documented; six privacy invariants (P-1..P-6) recorded; per-source independence (screen vs webcam mask lists) noted. Pillow already a dep; no new dependency. | 2026-05-09 v0.7.1 addendum — Védis Eikleið: §4.12.2.1 (Leið streaming body-read — *Straumr á Leið*) added; §4.12.2 Step 4 annotated with v0.6.2-shipped + v0.7.1-streaming history; §4.12.2 F-6 rewritten to record three-stage history (first sketch → v0.6.2 raise → v0.7.1 streaming abort); closes audit-deferred N-2 from `AUDIT_v0.6.2_MORE_SENSES.md`. Memory-bound at moment of raise documented (max_response_bytes + chunk_size). Closing-on-unwind semantics of httpx.AsyncClient.stream + bytearray accumulator documented. | 2026-05-08 v0.7 addendum — Védis Eikleið: §4.14 (library flow — Mímisbrunnr light tier, three agent tool paths) added; §4.14.1 (operator-driven download flow — consent + SHA-256 streaming verify + atomic replace) added; §4.14.2 (storage layout — cross-platform user-data dirs) added; §4.14.3 (privacy invariants — offline-by-design, local-only search, per-source consent, disabled by default) added; §16 rewritten as Five Senses Component Diagram (adding LibrarySense + mimisbrunnr/ subsystem alongside Smiðja/Minni/Skepja/Leið); Mímisbrunnr failure modes table (F-1 through F-7) documented; SYSTEM_OVERVIEW.md §7 updated to mark v0.7 IN PROGRESS. | 2026-05-08 v0.6.x addendum — Védis Eikleið: §4.13 (MCP transport flow — three-door coexistence) added; §16 rewritten as Four Senses + MCP Server Component Diagram; McpServer module mapped parallel to ToolDispatcher; three-door transport diagram drawn (Door 1: OpenAI tool_use via Bifröst; Door 2: MCP stdio; Door 3: MCP HTTP/SSE); tool schema conversion (OpenAI tool_use → MCP inputSchema) documented; four MCP failure modes (F-MCP-1 through F-MCP-4) documented; McpServerConfig dataclass, McpServerError hierarchy, and MCP lifecycle at TENGSL/SLOKNA mapped. The ToolDispatcher invariant — single execution backend across all three transport doors — is sealed. SYSTEM_OVERVIEW.md §7 updated to mark v0.6.x IN PROGRESS. | 2026-05-07 (corrective pass — Védis Eikleið, resolving audit findings A-2 + A-1 config key drift; tool routing format canonicalized to two-part `<sense_id>.<action>`; sense process labels de-prefixed; Kynding config keys aligned with LAYER_INTERFACES.md post-2d1312f) | 2026-05-07 v0.2 addendum — Védis Eikleið: voice flow mapped in full; §4.6 (voice flow, outbound only) added; §11 (L2 Rödd Tunga internal diagram) added; ChatterBox live contract (`/v1/audio/speech`) cross-referenced; stale `/tts` path references annotated; SYSTEM_OVERVIEW.md §7 updated | 2026-05-07 v0.3 addendum — Védis Eikleið: §4.7 (listening flow, inbound) added; §12 (L2 Rödd Hlust component diagram) added; §4.6.4 config table expanded to full 17-field schema matching RoddTtsConfig; §4.6.1 voice_id annotation corrected to WAV-path semantics; v0.2.x backlog items closed | 2026-05-07 v0.4.0 addendum — Védis Eikleið: §4.8 (UI flow — Summoning Circle substrate) added; §13 (L4 Vébond Eldahús component diagram) added; SYSTEM_OVERVIEW.md §7 updated with v0.4.0 in-progress status. Scope: WebSocket connection lifecycle, all server-push events (7) and client commands (5), reconnection semantics, failure modes, React component subscriptions, Zustand store as single UI truth, aesthetic token cross-reference. No Tauri shell in this map — v0.4.0 is browser-served. Tauri wrap deferred to v0.4.1. | 2026-05-07 v0.4.1 addendum — Védis Eikleið: §4.9 (Tauri shell flow — pre-staged) added; §14 (Tauri shell wrapper diagram) added; cross-references from §4.8 and §13 updated. Scope: full Tauri-startup → sidecar-spawn → WebView-load → shutdown sequence; all five failure modes; PID-file orphan recovery; Tauri command surface. WS protocol unchanged — the shell is a wrapper, not a new seam. SYSTEM_OVERVIEW.md §7 updated to reflect pre-stage status. | 2026-05-08 v0.5 addendum — Védis Eikleið: §4.10 (sight flow — on-demand, outbound vision) added; §15 (Sjón component diagram) added. Three sense rivers now charted: Tunga (out), Hlust (in voice), Sjón (in image). Cross-references added in §4.6 and §4.7 pointing to §4.10 as the third sense flow. Capability flag naming gap documented in §4.10.5 (LAYER_INTERFACES.md §L3 carries `?vision_screen`; AGENT_AGNOSTIC_PROTOCOL.md and §L1 carry `?vision_in` — gap flagged to Architect). SYSTEM_OVERVIEW.md §7 updated to mark v0.5 IN PROGRESS. | 2026-05-08 v0.5.1 addendum — Védis Eikleið: §4.10 extended with four new subsections (§4.10.7–§4.10.10) mapping periodic capture lifecycle, ring buffer, attach-policy decision tree, and the critical multi-monitor index asymmetry between on-demand and continuous modes. §15 Sjón component diagram extended with continuous-task pump and ring buffer. §4.10.10 is the key Forge contract: config.monitor_index=0 means different things in each mode (primary single screen in on-demand; all-monitors composite in continuous) — intentional by mss convention; documented explicitly so the implementation carries the correct semantics. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.1 IN PROGRESS. | 2026-05-08 v0.6 addendum — Védis Eikleið: §4.11 (tool flow — outbound, on agent demand) added; §16 (L5 Skilningr Smiðja component diagram) added. The fourth sense river is mapped: the hand that reaches. L5 Skilningr substrate ships for the first time; Smiðja is the first sense within it. Seven failure modes documented (F-1 through F-7). API path discrepancy between TASK §4 shorthand and actual Brúarhönd daemon INTERFACE.md documented in §4.11.6 — Forge Worker must use the daemon INTERFACE.md paths. Auth invariant sealed. Multi-round loop capped at max_tool_call_rounds. SYSTEM_OVERVIEW.md §7 updated to mark v0.6 IN PROGRESS. | 2026-05-08 v0.5.2 addendum — Védis Eikleið: §4.10.11 (webcam capture pipeline) added; §4.10.12 (webcam/screen attach_policy decision tree) added; §4.10.13 (webcam privacy stance) added; §15 extended with WebcamCaptureBackend (OpenCvBackend / NullBackend) parallel to MssBackend. The eye gains a second source: the user's physical presence, only when explicitly invited. SYSTEM_OVERVIEW.md §7 updated to mark v0.5.2 IN PROGRESS. | 2026-05-08 v0.6.1 addendum — Védis Eikleið: §4.11.7 (Forge dispatch — headless Blender pipeline) added; §4.11.8 (dual-half lifecycle — each arm opens/closes independently) added; §4.11.9 (Forge-specific failure modes F-1 through F-5) added; §16 (Smiðja component diagram) extended with ForgeHttpClient parallel to BrunhandHttpClient, dual-arm tool routing, forge sub-block in SmidjaConfig, and nine-tool SMIDJA_TOOLS list (6 Brúarhönd + 3 Forge). The workshop now holds two anvils. SYSTEM_OVERVIEW.md updated to mark v0.6.1 IN PROGRESS. | 2026-05-08 v0.6.2 addendum — Védis Eikleið: §4.12 (Minni filesystem flow) added; §4.12.1 (Skepja terminal flow) added; §4.12.2 (Leið HTTP fetch flow) added; §4.12.3 (cross-cutting sandbox invariants) added; §16 rewritten as Four Senses Component Diagram (Smiðja + Minni + Skepja + Leið); sandbox.py shared primitives mapped; 16 total tools charted; four-sense TENGSL/SLOKNA lifecycle added. Three new rooms open in the longhouse: Minni (library), Skepja (kitchen), Leið (road). SYSTEM_OVERVIEW.md updated to mark v0.6.2 IN PROGRESS.
 **Scope:** All data in motion during a ceremony — every wire, every river, every direction
 **Cartographer:** Védis Eikleið
 **Status:** Pre-implementation specification. Rivers are drawn from canonical docs
@@ -3855,6 +3855,177 @@ HERETIC provides the privacy defaults; obtaining consent is an operator responsi
     snapshot_webcam() is on-demand only; no continuous webcam task.
     Periodic webcam with ring buffer is backlog item v0.5.x.
 ```
+
+---
+
+#### 4.10.14 Privacy mask application (Blæja — v0.5.3)
+
+> **Added 2026-05-09 v0.5.3 (Védis Eikleið).** *Blæja* — the veil. The body
+> learns to look without recording everything it sees. A configurable mask
+> layer applies to captured frames *before* every leak path: encode, save,
+> transport. The unmasked frame never reaches disk; the unmasked frame
+> never reaches the agent.
+
+```
+  BLÆJA — PRIVACY MASK APPLICATION
+
+  Position in the pipeline:
+    raw bytes from MssBackend / WebcamBackend
+        │
+        ▼
+    PIL.Image decode  (Image.frombytes)
+        │
+        ▼  ╔═══════════════════════════════════════════════════════╗
+            ║   apply_privacy_masks(image, config.privacy_masks)    ║
+            ║   ← v0.5.3 — INSERTED HERE                            ║
+            ║   For each PrivacyMaskRegion:                         ║
+            ║     1. Clamp (x, y, w, h) to image bounds             ║
+            ║     2. If clamped area == 0:  log once, skip          ║
+            ║     3. Crop region from image                         ║
+            ║     4. Apply mode (blur / solid / pixelate)           ║
+            ║     5. Paste masked region back at (x, y)             ║
+            ╚═══════════════════════════════════════════════════════╝
+        │
+        ▼
+    resize_to_bounds(image, max_w, max_h)   (downstream of mask)
+        │
+        ▼
+    PNG / JPEG encode                        (downstream of mask)
+        │
+        ▼
+    base64 data URL → agent / disk-if-save_frames
+
+  Key property: every leak path is downstream of the mask step. There is
+  no codepath in which an unmasked frame reaches encode, save, or the
+  ring buffer.
+
+  Coordinate space:
+    - All region coords (x, y, w, h) are in SOURCE PIXEL SPACE — i.e., the
+      monitor or webcam's native resolution before any resize.
+    - This keeps operator authoring stable: if max_width changes from 1280
+      to 1920 in heretic.yaml, the operator's mask coordinates remain valid.
+    - The clamp is to image.size at decode time (which equals source
+      resolution before resize).
+
+  Modes (per region):
+
+    BLUR     — Gaussian blur of the cropped region.
+               Default radius: max(8, min(w, h) // 8). Manual override via
+               PrivacyMaskRegion.blur_radius.
+               Pillow primitive: image.filter(ImageFilter.GaussianBlur(r)).
+               Use when: agent should know "something is there" but cannot read it.
+
+    SOLID    — Region replaced with a uniform colour.
+               Default: (0, 0, 0) black. Override via PrivacyMaskRegion.solid_color.
+               Pillow primitive: ImageDraw.Draw(image).rectangle(..., fill=color).
+               Use when: even the region's silhouette must not leak.
+
+    PIXELATE — Region downsampled then upsampled with NEAREST resampling.
+               Factor: max(8, min(w, h) // 12). Override via PrivacyMaskRegion.pixelate_factor.
+               Pillow primitive: img.resize((w//f, h//f), NEAREST).resize((w, h), NEAREST).
+               Use when: gross composition is OK; fine detail must not leak.
+
+  Region clamping:
+    Out-of-bounds regions are clamped to image bounds silently. A region
+    wholly off-frame becomes a no-op. The first time a clamp or no-op
+    happens for a given encoder instance, a debug-level log records the
+    fact. Subsequent occurrences are silent (the operator's heretic.yaml
+    is presumed intentional).
+
+  Empty list:
+    privacy_masks=[] (the default for both SjonScreenConfig and
+    SjonWebcamConfig) returns the image untouched — early return inside
+    apply_privacy_masks before any per-region work. Zero overhead when
+    feature is unused.
+
+  Per-source independence:
+    SjonScreenConfig.privacy_masks and SjonWebcamConfig.privacy_masks
+    are independent lists. Screen and webcam have different privacy
+    concerns (a window in the corner vs a roommate in the background),
+    and the operator may want different region sets for each.
+```
+
+```
+  BLÆJA CONFIG (heretic.yaml — under sjon block)
+
+    sjon:
+      screen:
+        # ... (existing fields unchanged)
+        privacy_masks:
+          - x: 0
+            y: 0
+            w: 320
+            h: 200
+            mode: blur
+            # blur_radius optional; defaults to max(8, min(w,h)//8)
+          - x: 1600
+            y: 100
+            w: 200
+            h: 80
+            mode: solid
+            solid_color: [0, 0, 0]   # default; can be omitted
+          - x: 800
+            y: 600
+            w: 400
+            h: 300
+            mode: pixelate
+            # pixelate_factor optional; defaults to max(8, min(w,h)//12)
+      webcam:
+        # ... (existing fields unchanged)
+        privacy_masks:
+          - x: 0
+            y: 0
+            w: 1280
+            h: 200
+            mode: blur     # blur top strip — covers a roommate behind the operator
+```
+
+```
+  BLÆJA FAILURE MODES
+
+  F-Blæja-1 — region wholly off-frame
+    Cause: operator defines x=2000, y=2000, w=100, h=100 on a 1920×1080 monitor.
+    Behaviour: clamping yields zero area; region is a no-op.
+    Logging: debug-level message logged once per encoder lifetime.
+    No exception; ceremony continues.
+
+  F-Blæja-2 — region partially off-frame
+    Cause: x=1800, w=400 on a 1920-wide monitor — extends 280 pixels past the right edge.
+    Behaviour: w clamped to 120 (1920 - 1800). Visible part of the region is masked correctly.
+    Logging: debug-level message logged once per encoder lifetime.
+    No exception; ceremony continues.
+
+  F-Blæja-3 — invalid mode at config load
+    Cause: operator types `mode: blue` in heretic.yaml.
+    Behaviour: PrivacyMaskRegion.__post_init__ raises ValueError.
+    HereticConfig load fails fast at Kynding. Operator sees a clear error
+    naming the bad value and listing valid modes.
+
+  F-Blæja-4 — zero-width or zero-height region at config load
+    Cause: operator types w=0 or h=0.
+    Behaviour: PrivacyMaskRegion.__post_init__ raises ValueError.
+    HereticConfig load fails fast at Kynding.
+
+  F-Blæja-5 — Pillow filter raises during apply
+    Cause: extreme blur radius on a tiny region, or other Pillow edge case.
+    Behaviour: apply_privacy_masks catches the exception, logs at warning
+    level, and falls back to SOLID-mask the region (fail-safe: any failure
+    of the mask step still results in the region being veiled, never in
+    the unmasked content reaching downstream).
+    Ceremony continues.
+```
+
+> **Privacy invariants added by v0.5.3:**
+> - **P-1:** Unmasked frame bytes never reach disk if any privacy mask is configured.
+>   The mask runs before every save/transport path.
+> - **P-2:** Unmasked frame bytes never reach the agent. The mask runs before encoding.
+> - **P-3:** `privacy_masks` defaults to `[]` (empty) — feature is opt-in.
+> - **P-4:** Mask coordinates in source pixel space; clamping is silent except for a
+>   one-time debug log per encoder lifetime.
+> - **P-5:** Zero-area regions (`w == 0` or `h == 0`) are rejected at config-construction
+>   with `ValueError`.
+> - **P-6:** Existing privacy invariants preserved: `save_frames` defaults False,
+>   webcam `enabled` defaults False, in-memory ring buffer only.
 
 ---
 
