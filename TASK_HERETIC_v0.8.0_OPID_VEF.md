@@ -9,6 +9,16 @@
 > **Umbrella milestone (per ROADMAP.md):** v0.8 *Opið Vef* — "the open web." This task opens the milestone with its first vertical slice (`v0.8.0`). Subsequent slices (v0.8.1 screenshot, v0.8.2 click+type, v0.8.3 query) follow.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Volmarr asleep / hands-off. All six roles run on this single milestone within one session. Operator-side dependency (Playwright + Chromium runtime install) is documented but optional; the sense degrades gracefully when absent — the existing v0.7.1 httpx tools continue to work unchanged.
+>
+> **STATUS — 2026-05-10:** **SHIPPED + AUDITED + CLEANED + SEALED.** All seven waves closed. Wave 6 closed Auditor N-1 (config validation tests); Auditor N-2 (B-10 regression-guard) deferred to v0.8.x per Auditor recommendation.
+>
+> **Final HEAD:** `8a82bc7` (Wave 6 Forge cleanup) — final Scribe push will advance.
+>
+> **Test status:** Leid scope 83 + 1 skip (was 52 — `+31` plus the real-Chromium smoke skip). Full suite 1404 + 8 skip (was 1399 — `+5` from Wave 6). Zero regressions on the v0.7.1 streaming-httpx code path; `client.py` byte-untouched per D-14.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 2 NIT — 1 closed at Wave 6, 1 deferred per recommendation). See `docs/audit/AUDIT_v0.8.0_OPID_VEF.md`.
+>
+> **DEVLOG:** Entry 23 — `docs/DEVLOG.md`.
 
 ---
 
@@ -211,25 +221,26 @@ Each wave commits and pushes. Cumulative work is recoverable at any wave boundar
 
 ---
 
-## 9. Exit criteria (this milestone is sealed when all are true)
+## 9. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `playwright_client.py` exists with `PlaywrightLeidClient.render_url()` implementation
-- [ ] `LeidPlaywrightUnavailableError` defined and re-exported
-- [ ] `leid.render_url` registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches `leid.render_url` correctly
-- [ ] `LeidConfig` has `browser_navigation_timeout_seconds` and `browser_load_state` fields
-- [ ] `[browser]` extra in `pyproject.toml`
-- [ ] `THIRD_PARTY_NOTICES.md` lists Playwright (Apache-2.0)
-- [ ] `tests/test_leid_playwright_client.py` exists with all 17 mock-based tests passing
-- [ ] `tests/test_leid_sense.py` has 2 new dispatch tests passing
-- [ ] All 30 existing `test_leid_client.py` tests pass unchanged (no httpx regression)
-- [ ] All 20 existing `test_leid_sense.py` tests pass unchanged
-- [ ] `docs/vision/OPID_VEF.md` exists
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.3 exists
-- [ ] `senses/leid/INTERFACE.md` v0.8.0 addendum exists with B-1..B-10
-- [ ] `docs/audit/AUDIT_v0.8.0_OPID_VEF.md` PASSES SCRUTINY (0 BLOCKER, 0 SERIOUS)
-- [ ] DEVLOG entry 23 written
-- [ ] All commits pushed to `development`
+- [x] `playwright_client.py` exists with `PlaywrightLeidClient.render_url()` implementation — `73cbaac`
+- [x] `LeidPlaywrightUnavailableError` defined and re-exported — `4c817e2`
+- [x] `leid.render_url` registered in `LEID_TOOL_DEFINITIONS` — `4c817e2`
+- [x] `LeidSense._route` dispatches `leid.render_url` correctly — `73cbaac`
+- [x] `LeidConfig` has `browser_navigation_timeout_seconds` and `browser_load_state` fields — `4c817e2`
+- [x] `[browser]` extra in `pyproject.toml` — `4c817e2`
+- [x] `THIRD_PARTY_NOTICES.md` lists Playwright (Apache-2.0) — `4c817e2`
+- [x] `tests/test_leid_playwright_client.py` exists with **26 mock-based tests + 1 skipped real-Chromium smoke** passing (the §6 plan estimated "17"; actual coverage exceeded plan) — `73cbaac`
+- [x] `tests/test_leid_sense.py` has 2 new dispatch tests + (Wave 6) 5 new config validation tests passing — `73cbaac` + `8a82bc7`
+- [x] All 30 existing `test_leid_client.py` tests pass unchanged (no httpx regression) — verified at `73cbaac`
+- [x] All 20 existing `test_leid_sense.py` tests pass unchanged — verified at `73cbaac`
+- [x] `docs/vision/OPID_VEF.md` exists — `4a57de4`
+- [x] `docs/cartography/DATA_FLOW.md` browser-render flow exists — at `§4.12.2.2` (the §4.12.3 sandbox-invariants section was already used for v0.6.2 cross-cutting invariants; the new flow slotted as §4.12.2.2 to preserve that anchor) — `01bc78e`
+- [x] `senses/leid/INTERFACE.md` v0.8.0 addendum exists with B-1..B-10 (now §10) — `4c817e2`
+- [x] `docs/audit/AUDIT_v0.8.0_OPID_VEF.md` PASSES SCRUTINY (0 BLOCKER, 0 SERIOUS) — `c923985`
+- [x] Audit N-1 closed (config validation tests) — `8a82bc7`
+- [x] DEVLOG entry 23 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
 
 ---
 

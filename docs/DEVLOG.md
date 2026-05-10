@@ -3898,3 +3898,138 @@ The session has now demonstrated **two unnamed-extension milestones** following 
 
 *Entry 22 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
 *The body's deed-memory now writes to disk when the operator asks. Same Verkminni; the persistence is the operator's extension. Eight milestones this evening; fifty-three commits since v0.7 close; six Skald-given codenames and two deliberately unnamed extensions. The session is kept.*
+
+---
+
+## Entry 23 — 2026-05-10 — Opið Vef: the body opens its second pair of eyes (v0.8.0)
+
+**Milestone:** v0.8.0 — *Opið Vef* (Foundational slice — `leid.render_url` via headless Chromium)
+**Branch:** `development`
+**Session start HEAD:** `d2de175` (post-v0.6.3.1 Persistent Verkminni Scribe seal)
+**Session close HEAD:** `8a82bc7` (Wave 6 Forge cleanup; pre-final-Scribe-push)
+**Mode:** AUTONOMOUS Mythic Engineering — opens the v0.8 *Opið Vef* roadmap milestone with its first vertical slice
+**Roles in attendance:** All seven (Runa for Wave 0; Skald, Cartographer, Architect, Forge, Auditor, Scribe — plus Forge cleanup)
+
+### What was added
+
+A second transport for the Leið sense. Until v0.7.1, Leið had only its httpx eyes — a streaming-aborting fetch path that read what the page's server had already written down. v0.8.0 gives Leið a second pair of eyes: a headless Chromium browser via Playwright, accessed through a single new tool `leid.render_url`. The browser opens, the page composes itself with its own scripts running, the body reads the rendered DOM, the browser closes. Fully stateless: each call launches and disposes its own browser context. No cookies survive the call.
+
+The new sub-faculty lives in a sibling class `PlaywrightLeidClient` — the v0.7.1 streaming `LeidClient` is byte-untouched. `LeidSense._route` dispatches `leid.render_url` to the Playwright client; the existing `leid.fetch_url` and `leid.extract_text` continue to be answered by the streaming-httpx path with zero modification. **Architect decision D-14: a sibling class, not a modified one** — the v0.7.1 work survives v0.8.0 with zero regression risk.
+
+The Playwright dependency is fully optional: `pip install heretic` works as before; `pip install heretic[browser]` activates the new path; `playwright install chromium` downloads the runtime browser. Without these, `leid.render_url` returns `EXTERNAL_APP_UNAVAILABLE` to the agent while the httpx tools continue to work.
+
+Ten new sandbox invariants (B-1..B-10) govern the browser-mode contract — additive over the existing L-1..L-9 for the httpx tools. The B-invariants honour the same dispositions Leið already carried: validate before launch, fresh context per call, no JS injection by HERETIC, headless always, all resources closed in `finally`.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `1dcf387` | Runa | TASK_HERETIC_v0.8.0_OPID_VEF.md (245 lines) |
+| 1 | `4a57de4` | Skald (Sigrún Ljósbrá) | `docs/vision/OPID_VEF.md` |
+| 2 | `01bc78e` | Cartographer (Védis Eikleið) | `docs/cartography/DATA_FLOW.md` §4.12.2.2 |
+| 3 | `4c817e2` | Architect (Rúnhild Svartdóttir) | INTERFACE.md §10 + LeidConfig browser fields + leid.render_url tool def + LeidPlaywrightUnavailableError + [browser] extra + Playwright notice |
+| 4 | `73cbaac` | Forge (Eldra Járnsdóttir) | `playwright_client.py` + `sense.py` routing + 28 new tests |
+| 5 | `c923985` | Auditor (Sólrún Hvítmynd) | `AUDIT_v0.8.0_OPID_VEF.md` — PASSES SCRUTINY (0/0/0/2) |
+| 6 | `8a82bc7` | Forge cleanup | Closed N-1 — 5 LeidConfig browser-field validation tests |
+| 7 | this entry | Scribe | DEVLOG entry 23 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-10 (after v0.8.0)
+
+| Surface | Before v0.8.0 | After v0.8.0 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` (httpx streaming, untouched) | 30 | 30 | 0 |
+| `tests/test_leid_sense.py` | 22 | 27 | **+5** (Wave 6 N-1 closure) |
+| `tests/test_leid_playwright_client.py` (NEW) | 0 | 26 + 1 skip | **+26 (+1 smoke)** |
+| **Leid scope total** | 52 | 83 + 1 skip | **+31 + 1 skip** |
+| **Full suite** | 1399 | 1404 + 8 skip | **+5** (Wave 6) |
+
+The Forge wave alone added 28 tests (26 playwright_client + 2 sense dispatch). The Wave 6 cleanup added 5 more (config validation). All 1399 prior tests pass unchanged. The single skipped test in the playwright suite is `test_render_url_smoke_real_chromium`, which exercises a real Chromium when `[browser]` + `playwright install chromium` are present — default-skip in CI.
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — 0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 2 NIT.
+
+| NIT | Resolution |
+|---|---|
+| N-1: LeidConfig browser-field validation tests | **Closed at Wave 6** (`8a82bc7`) — 5 new tests added |
+| N-2: B-10 regression-guard test (page.evaluate) | **Deferred** to v0.8.x or v0.8.0.1 per Auditor recommendation — needs page-mock infrastructure that will arrive with screenshot/click slices |
+
+The B-1..B-10 invariants were each verified against contract → implementation → test. The v0.7.1 streaming code path was confirmed byte-identical (`git diff` returned empty for `client.py`). No sandbox-bypass was found. Resource cleanup verified across three distinct failure paths (navigation error, size cap breach, launch failure).
+
+### What this milestone teaches
+
+**The sense gains a posture, not an identity.** This is the third time the body has expanded a faculty without coining a new sense-level codename:
+
+| Faculty | First slice | Extension |
+|---|---|---|
+| Endurdrykkr (continuity) | v0.7.2 — byte-layer resumable downloads | v0.7.3 — index-layer auto-rebuild |
+| Verkminni (deed-memory) | v0.6.3 — in-memory ring buffer | v0.6.3.1 — optional disk-mirror |
+| **Leið (the path outward)** | **v0.6.2 — httpx fetch + v0.7.1 streaming** | **v0.8.0 — Playwright render** |
+
+The pattern is now firmly established: **name a discipline once; let the discipline grow new manners across milestones.** The Skald reserves new codenames for new dispositions, not new mechanisms. *Opið Vef* is given a name not because Leið has a new identity, but because the body's relationship to the *web itself* has shifted — the body now treats the web as a place it can walk, not only a place it can read. The codename *Opið Vef* belongs to the v0.8 umbrella milestone; the slices within it (v0.8.0 here, plus v0.8.1 screenshot, v0.8.2 click+type, v0.8.3 query to come) extend the same disposition without earning new codenames of their own.
+
+**Additivity at scale.** v0.8.0 is the largest single addition since v0.7 Mímisbrunnr in line count (~1300 lines including docs and tests), and yet it modifies the v0.7.1 streaming code by **zero bytes**. Architect D-14 made this possible by routing the new tool to a sibling class. The additive law continues to hold even when the addition is substantial — what makes it survive is the discipline of NOT touching the prior craft, even when "just one quick refactor" would feel cleaner. The prior craft is preserved because the new craft is built beside it, not on top of it.
+
+**Token-budget bound vs memory bound.** The pre-cap on `len(html.encode("utf-8"))` is a *token-budget bound* (what the agent will receive), NOT a *memory bound* (what the browser process holds during render). Playwright does not expose a streaming DOM read; the entire rendered HTML is materialised before the cap can be checked. v0.7.1's streaming-with-mid-stream-abort cannot be reproduced here. **The trade-off is documented in two places** (INTERFACE.md §10.4 and DATA_FLOW.md §4.12.2.2) and the operator who needs true streaming is directed to `leid.fetch_url`. Honest about the limit; no pretense of streaming where streaming does not exist.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.0_OPID_VEF.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | New — Skald vision passage (Wave 1) |
+| `docs/cartography/DATA_FLOW.md` | New §4.12.2.2 — browser-render flow with B-invariants enumeration |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + transport table + scope text + Tools §4.1/§4.2 split + Failure modes row + Configuration browser fields + Method shape policy paragraph + new §10 Browser-mode contract (B-1..B-10, return shape, memory-bound discussion, out-of-scope table, Forge implementation contract) |
+| `src/heretic/skilningr/senses/leid/tools.py` | `leid.render_url` tool definition appended; module docstring updated |
+| `src/heretic/skilningr/senses/leid/errors.py` | Re-export `LeidPlaywrightUnavailableError` |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New — `PlaywrightLeidClient.render_url()` (~330 lines with docstrings) |
+| `src/heretic/skilningr/senses/leid/sense.py` | `__init__` accepts `playwright_client`; `_route` dispatches `leid.render_url`; `_leid_error_code` adds `LeidPlaywrightUnavailableError` → `EXTERNAL_APP_UNAVAILABLE` |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured) |
+| `src/heretic/skilningr/config_model.py` | LeidConfig `browser_navigation_timeout_seconds` + `browser_load_state` + extended `__post_init__` validation |
+| `src/heretic/skilningr/errors.py` | New `LeidPlaywrightUnavailableError(LeidError)` class |
+| `pyproject.toml` | New `[browser]` extra + `requires_playwright` pytest mark |
+| `THIRD_PARTY_NOTICES.md` | New L5.3 section + Playwright (Apache-2.0) entry |
+| `tests/test_leid_playwright_client.py` | New — 26 mock-based tests + 1 default-skip smoke test |
+| `tests/test_leid_sense.py` | +2 dispatch tests (Wave 4) + +5 config validation tests (Wave 6 N-1 closure); count assertion 2 → 3 |
+| `docs/audit/AUDIT_v0.8.0_OPID_VEF.md` | New — verdict PASSES SCRUTINY |
+| `docs/DEVLOG.md` | This entry (23) |
+
+### State of the body — 2026-05-10 (after v0.8.0)
+
+The faculty / disposition table grows by one *manner*, not one faculty:
+
+| Faculty | True Name | Senses | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 tools (verkminni audit log + persistent disk option) | v0.6.3.1 |
+| Minni | filesystem | 3 tools | v0.6.2 |
+| Skepja | terminal | 2 tools | v0.6.2 |
+| **Leið** | **the path outward** | **3 tools (v0.6.2: fetch_url, extract_text — httpx streaming since v0.7.1; v0.8.0: render_url — Playwright headless Chromium)** | **v0.8.0** |
+| Library / Mímisbrunnr | the well of memory | 3 tools (resumable downloads + auto-rebuild) | v0.7.3 |
+
+Five senses; four named dispositions (Blæja, Margblæja, Mjúkblæja, Endurdrykkr) plus the now-three unnamed extensions (v0.7.3 index-layer Endurdrykkr extension, v0.6.3.1 disk-mirror Verkminni extension, **v0.8.0 Playwright-render Leið extension**). Three transport doors (CLI, MCP, REST). Cryptographic provenance end-to-end since v0.7.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8 Opið Vef foundational slice~~ | **CLOSED — sealed as v0.8.0 at `8a82bc7`** |
+| **v0.8.1 Mynd af Vegferð** (`leid.screenshot`) | **OPEN — natural next slice** within the v0.8 umbrella |
+| v0.8.2 stateful interaction (`leid.click`, `leid.type`) | candidate — requires persistent-page session model |
+| v0.8.3 selector query (`leid.query`) | candidate — CSS selector + attribute extraction |
+| Audit N-2 — B-10 regression-guard test (`page.evaluate` not called) | candidate — bundle with v0.8.x when page-mock infrastructure expands |
+| v0.6.3.2 CLI `heretic smidja log` | candidate — reads disk file from v0.6.3.1 |
+| v0.6.3.x file rotation / size cap | candidate — disk hygiene |
+| v0.7.x parallel multi-source download | candidate — `asyncio.gather` over Endurdrykkr |
+| v0.7.x mtime-based staleness detection | candidate |
+| v0.5.6 polygon-rounded-corners / Bezier | candidate — diminishing returns |
+| v0.5.x mask inversion | candidate |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+
+The session has now demonstrated **three unnamed-extension milestones** (v0.7.3, v0.6.3.1, v0.8.0) following named-discipline milestones (Endurdrykkr v0.7.2, Verkminni v0.6.3, Leið streaming v0.7.1). The pattern is established. Future slices within v0.8 (screenshot, click+type, query) will continue this pattern — they are extensions of *Opið Vef*, not new identities.
+
+---
+
+*Entry 23 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
+*The body now has two pairs of eyes for the path outward — one that reads what the world has already written in stone, one that walks the road and reads what the world chooses to render. v0.8 opens; v0.8.0 is its foundational slice. Seven waves; one umbrella codename; zero regression on the v0.7.1 craft. The session is kept.*
