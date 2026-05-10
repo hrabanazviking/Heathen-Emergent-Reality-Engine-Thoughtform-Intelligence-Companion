@@ -1,6 +1,6 @@
 # Sjón Module Interface
 
-**Last updated:** 2026-05-08 (v0.5.2 pre-stage — Rúnhild Svartdóttir: added §Webcam capture, extended §Public API, §Config Keys, §Optional Dependencies, §Error Model, §Privacy Invariant for webcam) | 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
+**Last updated:** 2026-05-09 (v0.5.3 *Blæja* privacy masks — Rúnhild Svartdóttir: added §Privacy Masks (Blæja) section; `PrivacyMaskRegion` and `apply_privacy_masks` added to Public API; `privacy_masks: list[PrivacyMaskRegion]` field added to both `SjonScreenConfig` and `SjonWebcamConfig`; six privacy invariants P-1..P-6 added; sjon/privacy.py module documented) | 2026-05-08 (v0.5.2 pre-stage — Rúnhild Svartdóttir: added §Webcam capture, extended §Public API, §Config Keys, §Optional Dependencies, §Error Model, §Privacy Invariant for webcam) | 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
 **Scope:** L3 Sjón — the vision layer Python module (`src/heretic/sjon/`)
 **Owner:** Architect (Rúnhild Svartdóttir)
 **Derives from:** `docs/architecture/LAYER_INTERFACES.md §L3 Sjón`
@@ -64,6 +64,8 @@ All of the following are re-exported from `heretic.sjon` directly.
 | `ThrottleRejectedError` | `sjon.errors` | Snapshot rejected within min_interval_ms window. |
 | `WebcamCaptureError` | `sjon.errors` | Webcam capture operation failure (v0.5.2). |
 | `WebcamBackendUnavailableError` | `sjon.errors` | No webcam backend / cv2 absent / device missing (v0.5.2). |
+| `PrivacyMaskRegion` | `sjon.privacy` | Rectangular mask region with mode (blur/solid/pixelate). v0.5.3. |
+| `apply_privacy_masks` | `sjon.privacy` | Pure function: applies a list of `PrivacyMaskRegion` to a PIL.Image. v0.5.3. |
 
 ---
 
@@ -160,7 +162,60 @@ sjon:
     format: jpeg              # "jpeg" | "png"; jpeg = smaller payload; png = lossless
     jpeg_quality: 85          # int 1-100; JPEG quality; ignored when format: png
     attach_policy: screen_only  # "screen_only" | "webcam_only" | "alongside" | "alternate"
+    # v0.5.3 — privacy masks (also available under sjon.screen.privacy_masks)
+    privacy_masks: []           # list of PrivacyMaskRegion; default empty = no masks
+      # - {x, y, w, h, mode: "blur" | "solid" | "pixelate",
+      #    blur_radius?, solid_color?, pixelate_factor?}
 ```
+
+---
+
+## Privacy Masks (Blæja — v0.5.3)
+
+A new field `privacy_masks: list[PrivacyMaskRegion]` is available on both
+`SjonScreenConfig` and `SjonWebcamConfig`. Default `[]` (empty) — opt-in.
+
+`PrivacyMaskRegion` fields:
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `x` | `int >= 0` | required | Left edge of region in source pixels |
+| `y` | `int >= 0` | required | Top edge of region in source pixels |
+| `w` | `int >= 1` | required | Width of region in source pixels |
+| `h` | `int >= 1` | required | Height of region in source pixels |
+| `mode` | `"blur" \| "solid" \| "pixelate"` | required | Application mode |
+| `blur_radius` | `int >= 1 \| None` | `None` (auto: `max(8, min(w,h) // 8)`) | Used when `mode="blur"` |
+| `solid_color` | `tuple[int, int, int]` | `(0, 0, 0)` | RGB; used when `mode="solid"` |
+| `pixelate_factor` | `int >= 2 \| None` | `None` (auto: `max(8, min(w,h) // 12)`) | Used when `mode="pixelate"` |
+
+`apply_privacy_masks(image: PIL.Image, masks: list[PrivacyMaskRegion]) -> PIL.Image`:
+
+- Pure function. Applies each region to the image in order; returns the image
+  (modified in place, returned for chaining).
+- Empty list — early return; image returned unchanged.
+- Out-of-bounds regions clamped silently; wholly-off-frame regions no-op with a
+  one-time debug log per encoder lifetime.
+- On Pillow filter exception inside a region, the region falls back to SOLID
+  mask (fail-safe) rather than letting the unmasked region propagate.
+
+Six privacy invariants (Auditor verification subject):
+
+| # | Invariant |
+|---|-----------|
+| P-1 | Unmasked frame bytes never reach disk if any privacy mask is configured. |
+| P-2 | Unmasked frame bytes never reach the agent. |
+| P-3 | `privacy_masks` defaults to `[]` — feature is opt-in. |
+| P-4 | Mask coordinates in source pixel space; clamping silent except one-time debug log. |
+| P-5 | Zero-area regions rejected at config-construction with `ValueError`. |
+| P-6 | Existing privacy invariants preserved (`save_frames` False, webcam `enabled` False, in-memory ring buffer only). |
+
+**Mask integration with `FrameEncoder.encode()`:**
+
+The encoder accepts an optional `privacy_masks` parameter (default `None`).
+When present and non-empty, it is applied **after PIL decode** and **before
+resize / save / encode**. There is no codepath in which an unmasked frame can
+bypass the mask step. `Sjón.snapshot()` and `Sjón.snapshot_webcam()` pass the
+respective config's `privacy_masks` to the encoder.
 
 ---
 
@@ -418,7 +473,7 @@ pool executor to avoid blocking the asyncio event loop (matching the `snapshot()
 - Multi-monitor enumeration beyond monitor_index selection
 - Continuous webcam capture + ring buffer (mirrors v0.5.1 for screen)
 - Multi-camera support (device_index > 0 combinations)
-- Privacy modes (blur/mask configurable regions before send — v0.5.3)
+- Privacy modes (blur/mask configurable regions before send — DELIVERED in v0.5.3 *Blæja*)
 
 **Deferred (v0.7+):**
 - `auga.snapshot` MCP tool (L5 Skilningr — agent-on-demand capture)
