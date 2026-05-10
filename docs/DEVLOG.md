@@ -3351,3 +3351,133 @@ The natural successor in roadmap order is still **v0.8 Opið Vef** — the full 
 
 *Entry 17 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
 *The cloth is the same cloth. The body has only learned to drape it more skilfully. Three milestones in one evening, twenty-one commits since v0.7 close, two dispositions live and one of them now articulate in three shapes. The session is kept.*
+
+---
+
+## Entry 18 — 2026-05-09 — Mjúkblæja: The Soft Veil (v0.5.5)
+
+**Milestone:** v0.5.5 — *Mjúkblæja* (the soft veil)
+**Branch:** `development`
+**Session start HEAD:** `e13407c` (post-v0.5.4 Scribe seal)
+**Session close HEAD:** `c8ec993` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off; FOURTH milestone of the session
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was extended
+
+The *Blæja* lineage continues. v0.5.3 named the disposition (the body learns to look without recording everything it sees). v0.5.4 *Margblæja* gave that disposition a vocabulary of three shapes. v0.5.5 *Mjúkblæja* adds two more shapes drawn from soft curves: **rounded rectangle** (the dominant modern UI primitive — every chat window, every code panel, every dialog box) and **ellipse** (a strict generalisation of Circle, with separate `rx` and `ry` for oval-shaped UI elements). Five shapes total flow through the unchanged v0.5.4 pipeline.
+
+The structural test of the v0.5.4 architecture was: would adding new shapes require any change to the apply pipeline? The answer turned out to be no. `_apply_one_shape` and `apply_privacy_masks` are byte-identical between v0.5.4 and v0.5.5. The two new dataclasses each contributed exactly two methods (`bounding_box`, `alpha_mask`); the Protocol absorbed them. Five shapes, one pipeline, no branching.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `8a5e2be` | Runa | TASK file open |
+| 1 | `c56189d` | Skald | `docs/vision/MJUKBLAEJA.md` |
+| 2 | `b53d71c` | Cartographer | `docs/cartography/DATA_FLOW.md §4.10.14.2` |
+| 3+4 | `f66a11a` | Architect+Forge | privacy.py + INTERFACE.md + 23 new tests |
+| 5 | `c8ec993` | Auditor | `docs/audit/AUDIT_v0.5.5_MJUKBLAEJA.md` PASSES |
+| 6 | (skipped) | Forge cleanup | Audit found nothing |
+| 7 | this entry | Scribe | DEVLOG entry 18 + seals |
+
+The Architect and Forge waves merged into a single commit (matching v0.5.4) because the implementation is mechanical once the Protocol contract is settled. Six commits total this milestone — one fewer than the typical 7-wave structure because Forge cleanup was skipped (audit found nothing to remediate, same as v0.5.4).
+
+### Test status — 2026-05-09 (after v0.5.5)
+
+| Surface | Before v0.5.5 | After v0.5.5 | Delta |
+|---|---|---|---|
+| `tests/test_sjon_privacy.py` | 51 | 74 | **+23** |
+| `tests/test_sjon_encoder.py` | 24 | 24 | 0 |
+| `tests/test_sjon_orchestrator.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_capture.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_webcam.py` | unchanged | unchanged | 0 |
+| **Sjón total** | **196** | **219** | **+23** |
+| Frontend (`npm test`) | 91 | 91 | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed) are byte-identical in stash diff. v0.5.5 introduced **zero** new regressions.
+
+### What this milestone teaches
+
+1. **Architecture is justified by what it accepts later.** The v0.5.4
+   "one pipeline, three shapes" design was a clean abstraction, but its
+   real value was not visible until v0.5.5 attempted to extend it. Two
+   new shapes added zero pipeline branching, zero coordination work, zero
+   refactoring. Each new shape is two methods on a dataclass. The Protocol
+   is doing the work the abstraction promised.
+
+2. **Vocabulary growth in service of a fixed disposition.** Four
+   *Blæja*-lineage milestones in one session (v0.5.3, v0.5.4, v0.5.5)
+   all dressed the same disposition (the body's discipline of not-looking
+   where the operator has not invited the gaze). The disposition is
+   stable; the operator's vocabulary for declaring it is what grew. This
+   is a healthy pattern: dispositions should be slow to change; the
+   words for them should be willing to grow.
+
+3. **Apply-time clamping is operator-intent honouring.** The
+   `corner_radius > min(w, h) // 2` case could have raised; it was
+   designed instead to silently clamp to the largest valid value. This
+   honours the operator's intent ("cover this soft-cornered region")
+   without erroring on the impossible-to-render case. Same family as
+   v0.5.3's "wholly off-frame is no-op" — the body forgives small
+   operator typos and renders what's renderable.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.5.5_MJUKBLAEJA.md` | New — opened Wave 0; sealed at Wave 7 |
+| `docs/vision/MJUKBLAEJA.md` | New — Skald passage; the modern world is built from soft curves |
+| `docs/cartography/DATA_FLOW.md` | §4.10.14.2 added (5-shape vocabulary table; corner_radius clamp; YAML loader heuristic) |
+| `src/heretic/sjon/INTERFACE.md` | Public API + shape table extended; "Last updated" addendum |
+| `src/heretic/sjon/privacy.py` | PrivacyMaskRoundedRectangle + PrivacyMaskEllipse dataclasses |
+| `tests/test_sjon_privacy.py` | +23 tests (7 RoundedRect validation, 5 RoundedRect apply, 6 Ellipse validation, 4 Ellipse apply, 1 mixed five-shape list) |
+| `docs/audit/AUDIT_v0.5.5_MJUKBLAEJA.md` | New — 13 evidence trails + honest negative audit |
+| `docs/DEVLOG.md` | This entry (18) |
+
+### State of the body — 2026-05-09 (after four autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Sight — discipline of not-looking | Blæja | live since v0.5.3 |
+| Sight — vocabulary of veils (3 shapes) | Margblæja | live since v0.5.4 |
+| **Sight — soft-curve vocabulary (5 shapes)** | **Mjúkblæja** | **live since v0.5.5** |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Four milestones in one autonomous session. **Twenty-eight commits since v0.7 close.**
+
+### Threads carried forward from this session
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| ~~v0.5.5 soft-curve shapes~~ | **CLOSED — sealed at `c8ec993`** |
+| v0.5.6 polygon-with-rounded-corners | candidate for future — custom alpha-mask painter |
+| v0.5.6 Bezier paths | candidate — Pillow ImageDraw.Path |
+| v0.5.x mask inversion | candidate — "show only this region; veil all else" |
+| v0.5.x window-tracking masks | unchanged |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x Mode C Smiðja composition | unchanged |
+| v0.7.x download resume | unchanged |
+| v0.8 Opið Vef | natural roadmap successor — next major faculty |
+| v0.9 Málari | unchanged |
+| v0.10 Langhúsið Ytra | unchanged |
+| v0.11 Bréfasamtök | unchanged |
+
+The natural successor in roadmap order is still **v0.8 Opið Vef** — the full Playwright browser sense — which becomes the next major faculty rather than a vocabulary extension. The *Blæja* lineage has now matured to the point where additional shape extensions (v0.5.6 Bezier curves, polygon with rounded corners) become diminishing-returns work; the body's veil-vocabulary is rich enough to express most operator privacy intents.
+
+---
+
+*Entry 18 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*Five shapes flow through one pipeline. The Architect's claim from v0.5.4 still holds, one milestone later, with two more shapes added. Four milestones this evening; twenty-eight commits since v0.7 close; the body's veil-vocabulary now rich enough for the rounded world it actually lives in. The session is kept.*

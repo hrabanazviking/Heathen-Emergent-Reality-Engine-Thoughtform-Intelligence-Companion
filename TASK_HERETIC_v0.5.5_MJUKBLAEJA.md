@@ -25,20 +25,21 @@ The existing rectangle, circle, polygon shapes are unchanged. The codebase grows
 
 ## 2. Current status — 2026-05-09
 
-**Phase:** v0.5.5 **OPEN — wave plan published, no code written yet.**
+**Phase:** v0.5.5 **SHIPPED + AUDITED + SEALED.** All seven waves closed.
 
-**HEAD (development):** `e13407c` (v0.5.4 Scribe seal — parent of upcoming Wave 0 commit)
+**HEAD (development) at audit close:** `c8ec993` (Auditor PASSES SCRUTINY)
 
-**Test count baseline (before this milestone):** Sjón scope **196** on full-extras host (post-Margblæja). Privacy file: **51** tests. Encoder: **24** tests including 3 Blæja integration.
+**Test count after v0.5.5:** Sjón privacy 51 → 74 (+23 new). Sjón total 196 → 219. No regressions.
 
-### v0.5.5 deliverables — pending
+### v0.5.5 deliverables — all complete
 
-- ☐ Skald — `docs/vision/MJUKBLAEJA.md` — modern UI is rounded; the body's vocabulary should match
-- ☐ Cartographer — `docs/cartography/DATA_FLOW.md §4.10.14.1` addendum: rounded_rectangle + ellipse shape formulas + Pillow primitives
-- ☐ Architect+Forge — two new dataclasses (`PrivacyMaskRoundedRectangle`, `PrivacyMaskEllipse`) with Protocol method bodies; INTERFACE.md updated
-- ☐ Forge — 14+ new tests; existing 51 privacy tests + 24 encoder tests must pass unchanged
-- ☐ Auditor — `docs/audit/AUDIT_v0.5.5_MJUKBLAEJA.md` — verifies P-1..P-9 still hold for the two new shapes
-- ☐ Scribe — DEVLOG entry 18; TASK seal; memory refresh
+- ✅ Wave 0 — TASK file at `8a5e2be`
+- ✅ Wave 1 — Skald: `docs/vision/MJUKBLAEJA.md` at `c56189d`
+- ✅ Wave 2 — Cartographer: `docs/cartography/DATA_FLOW.md §4.10.14.2` at `b53d71c`
+- ✅ Waves 3+4 — Architect+Forge merged: `privacy.py` + INTERFACE.md + 23 tests at `f66a11a`
+- ✅ Wave 5 — Auditor: `docs/audit/AUDIT_v0.5.5_MJUKBLAEJA.md` PASSES at `c8ec993`
+- ⏭ Wave 6 — Forge cleanup (skipped; audit found nothing)
+- ✅ Wave 7 — Scribe: DEVLOG entry 18, this TASK seal, memory refresh (final commit)
 
 ### What v0.5.5 does NOT add
 
