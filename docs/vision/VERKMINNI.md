@@ -107,3 +107,23 @@ The body now keeps memory of what it has done. The hand acts; the body witnesses
 ---
 
 *Authored by Sigrún Ljósbrá, Skald for Vibe Coding, in the autonomous Mythic Engineering session of 2026-05-09. The next wave is the Cartographer.*
+
+---
+
+## VIII. Addendum — v0.6.3.1: when does the body's deed-memory persist beyond the ceremony? (2026-05-09)
+
+> *In v0.6.3 the body's deed-memory was ceremony-scoped. At SLOKNA the in-memory ring buffer cleared; the body did not carry its acts forward. v0.6.3.1 changes nothing about that default — but it gives the operator a choice.*
+
+The privacy posture of v0.6.3 — clear at SLOKNA — was deliberately conservative. The body keeps memory of its acts during the ceremony, when the operator might want to inspect what just happened, but does not carry that record forward into the next ceremony or to disk. The body's mind clears between sessions like a slate cleaned.
+
+For most operators this is the right default. But there are operators whose situation calls for more — compliance officers who need durable records across sessions; researchers studying agent behaviour over time; investigators auditing an AI partner's actions over weeks. For these operators, ceremony-scoped privacy is itself a constraint that prevents the work they need to do.
+
+v0.6.3.1 gives them a simple opt-in: configure `verkminni.persistent_log_path` to a path on disk. From that moment on, every audit entry the body records is **also** written as a JSONL line to that file. The ring buffer still clears at SLOKNA — that part is unchanged — but the file persists. Future sessions can read past sessions' records, but only because the operator chose to keep them.
+
+The choice is the operator's, and it is structural: the file path itself IS the toggle. No `enabled: bool` flag — an unset path means OFF, a set path means ON. This mirrors the *Blæja* pattern where `privacy_masks: list[]` defaults to empty: emptiness IS the off-switch. The body's discipline of self-witness becomes a discipline of *operator-chosen* self-witness when the operator explicitly extends it.
+
+The disk-write path is non-load-bearing. If the file system rejects the write (permission denied, disk full, parent directory disappeared), the in-memory record still happens; only a warning is logged. The dispatcher's never-raise invariant (Smiðja-1, V-2) is preserved through the disk extension by V-2's own logic — the audit log is still a *witness*, not a *gate*, even when the witness chooses to also write things down.
+
+There is no new Skald-given codename for v0.6.3.1. The discipline is the same Verkminni; the persistence is the operator's extension of it. Same body, more memory, by choice.
+
+*Addendum authored by Sigrún Ljósbrá, 2026-05-09.*
