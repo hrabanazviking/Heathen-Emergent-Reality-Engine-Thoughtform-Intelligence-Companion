@@ -3018,3 +3018,108 @@ These are the named open threads that any future session should be aware of:
 
 *Entry 14 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-08.*
 *The well is opened. Five milestones sealed. The body now carries five senses in Skilningr, three transport doors, and a well of knowledge drawn from the oldest stories in the tongue. Five rooms; three doors; eight faculties. The session is kept.*
+
+---
+
+## Entry 15 — 2026-05-09 — Straumr á Leið: Leið Streaming Closed, Audited, and Sealed (v0.7.1)
+
+**Milestone:** v0.7.1 — *Straumr á Leið* (the current on the road)
+**Branch:** `development`
+**Session start HEAD:** `9fadbf4` (post-v0.7 task-pointer commit)
+**Session close HEAD:** `c41cb9b` (audit close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was kept
+
+The audit-deferred N-2 finding from `AUDIT_v0.6.2_MORE_SENSES.md` was honoured. The v0.6.2 buffer-then-check pattern in `senses/leid/client.py` — which materialised the entire response body via `response.content` before checking against `max_response_bytes` — has been replaced with `httpx.AsyncClient.stream("GET", url)` + `aiter_bytes(65536)` streaming abort. When the streaming accumulator exceeds the cap, `LeidResponseTooLargeError` is raised mid-stream; the inner `async with` exit closes the connection during stack unwind; remaining bytes never travel.
+
+The disposition described in *Straumr á Leið* — that the body learns to stop drinking, not just to measure after — is now the actual disposition of the road sense.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `3fc9076` | Runa | TASK file open: `TASK_HERETIC_v0.7.1_LEID_STREAMING.md` |
+| 1 | `34bc171` | Skald | `docs/vision/STRAUMR_A_LEID.md` — milestone named, framing passage |
+| 2 | `4f88fd5` | Cartographer | `docs/cartography/DATA_FLOW.md` §4.12.2.1 added; §4.12.2 Step 4 + F-6 history corrected |
+| 3 | `431b51e` | Architect | `senses/leid/INTERFACE.md` v0.7.1 contract; L-7 streaming, L-7a Content-Length pre-cap; §5 drift correction; §8 rewritten |
+| 4 | `f3baf65` | Forge | `client.py` streaming impl; `tests/test_leid_client.py` 22 → 30 (+8 streaming tests, helpers added) |
+| 5 | `c41cb9b` | Auditor | `docs/audit/AUDIT_v0.7.1_LEID_STREAMING.md` — PASSES SCRUTINY (0 blockers / 0 findings) |
+| 6 | (skipped) | Forge cleanup | Audit found nothing to remediate |
+| 7 | this entry | Scribe | DEVLOG entry 15 + TASK seal + memory refresh |
+
+Seven commits on `development`, all pushed in real time. No wave waited overnight; no commit accumulated in the local working tree.
+
+### Test status — 2026-05-09
+
+| Surface | Before v0.7.1 | After v0.7.1 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 22 | 30 | **+8** |
+| `tests/test_leid_sense.py` | 20 | 20 | 0 |
+| **Leið scope total** | **42** | **50** | **+8** |
+| Frontend (`npm test`) | 91 | 91 | 0 |
+
+The full Python suite was 1231 passing on the v0.7 closing host. On the autonomous-session laptop, optional dependencies (`fastapi`, `mcp`) are not installed, so 20 tests fail to collect / run for environment reasons. **The pre-v0.7.1 stash baseline shows the same 20 environment failures.** v0.7.1 introduced **zero** new regressions in the broader suite. When the operator's full-extras environment runs `pip install heretic[serve,mcp]`, the count is expected to read 1239 passing (1231 + 8 new streaming tests), still 7 skipped, still 0 failures, still 0 open findings — see Auditor's evidence trail V-9 in `AUDIT_v0.7.1_LEID_STREAMING.md`.
+
+### What this milestone teaches
+
+The Skald observed in `STRAUMR_A_LEID.md §IV` that the Mythic Engineering pattern is for **the body itself to learn restraint**, not for an external counter to police the body. The streaming abort embodies this: act and judgement happen in the same gesture. The Auditor confirmed this in V-2 and V-3 — the raise is structurally inside the streaming context, not an after-the-fact test.
+
+A second teaching: a placeholder honestly named is not a failure of craft; it is a deferred chapter. The v0.6.2 buffer pattern was authored *as a placeholder*. The audit *named the placeholder*. The TASK file *referenced it*. The DEVLOG entry 12 *recorded the deferral*. And then, in proper Mythic Engineering rhythm, the deferral was kept. This is the continuity the MD Protocol exists to make possible — across multiple sessions, multiple roles, multiple weeks.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.7.1_LEID_STREAMING.md` | New — opened Wave 0; status updated through Wave 7 |
+| `docs/vision/STRAUMR_A_LEID.md` | New — milestone vision passage, six sections |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.1 added; §4.12.2 Step 4 + F-6 history annotated; "Last updated" addendum |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | L-7 expanded (streaming abort + memory bound); L-7a added (Content-Length pre-cap); §5 drift corrected; §8 rewritten with v0.7.1 contract; v0.6.2 history preserved as record |
+| `src/heretic/skilningr/senses/leid/client.py` | Module + `fetch_url` docstrings rewritten; body interior replaced with streaming pattern; two new class constants (`_STREAM_CHUNK_SIZE`, `_ERROR_PEEK_BYTES`) |
+| `tests/test_leid_client.py` | Helpers `make_streaming_response` + `make_streaming_mock_client` added; 9 existing fetch-driven tests rewritten to streaming mocks; new `TestLeidClientStreaming` class with 8 streaming-specific tests |
+| `docs/audit/AUDIT_v0.7.1_LEID_STREAMING.md` | New — twelve evidence trails; honest negative audit; N-2 closure statement |
+| `docs/DEVLOG.md` | This entry (15) |
+
+### State of the body — 2026-05-09
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| **Disposition — measured drinking** | **Straumr á Leið** | **live since v0.7.1** |
+
+Six commits since v0.7 close; one milestone closed; one audit deferral fulfilled.
+
+### Threads carried forward from this session
+
+The v0.7 closing entry's threads list is updated as follows:
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic |
+| ~~v0.6.2.1 Leið streaming~~ | **CLOSED — became v0.7.1, sealed at `c41cb9b`** |
+| v0.6.2.2 Leið headless browser | renamed → **v0.8 Opið Vef** in INTERFACE.md L-6 (canonical roadmap label) |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x.2 MCP prompts | unchanged |
+| v0.7.x download resume | unchanged — Mímisbrunnr backlog |
+| v0.8 full catalog | unchanged — Wikipedia ZIMs + full Gutenberg |
+| v0.9 vector index | unchanged |
+| v0.10 MindSpark backend | unchanged |
+| **NEW: v0.5.3 privacy masks** | candidate for next autonomous session — Pillow blur regions before frame send |
+
+The natural successor in roadmap order is **v0.8 Opið Vef** — the full Playwright browser sense — which subsumes the current httpx-only Leið and unlocks v0.9 Hönd (Photopea) downstream. The streaming temperament established here will be inherited.
+
+---
+
+*Entry 15 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*The road learned to stop drinking. The body now lifts only what it has decided to bear. Six commits, one milestone, one keeping of a written promise. The session is kept.*

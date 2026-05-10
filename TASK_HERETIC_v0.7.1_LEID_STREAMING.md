@@ -24,21 +24,22 @@ The error class `LeidResponseTooLargeError` and its existing semantics are prese
 
 ## 2. Current status — 2026-05-09
 
-**Phase:** v0.7.1 **OPEN — wave plan published, no code written yet.**
+**Phase:** v0.7.1 **SHIPPED + AUDITED + SEALED.** All seven waves closed.
 
-**HEAD (development):** `9fadbf4` (parent of upcoming Wave 0 task-file commit)
+**HEAD (development) at session close:** `c41cb9b` (Auditor close, PASSES SCRUTINY)
 
-**Test count baseline (before this milestone):** Python **1231** passed + 7 skipped + 91 frontend = **1329 total. 0 failures. 0 open findings.**
+**Test count after v0.7.1:** Leið scope 50/50 passing (`test_leid_client.py` 22 → 30, `test_leid_sense.py` 20 unchanged); broader Python suite expected 1239 passing on full-extras host (1231 + 8 new streaming tests) when `pip install heretic[serve,mcp]` is run; frontend 91/91 passing. Auditor verdict: 0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.
 
-### v0.7.1 deliverables — pending
+### v0.7.1 deliverables — all complete
 
-- ☐ Skald — name sealed in `docs/vision/` (or in this TASK §3 if no separate vision file)
-- ☐ Cartographer — `docs/cartography/DATA_FLOW.md` Leið HTTP fetch sub-section updated to show streaming flow + early-termination cut
-- ☐ Architect — `INTERFACE.md` for `senses/leid/` updated; method shape decided (single `fetch_url` with internal streaming, OR a new private `_stream_into_body` helper); signature of public surface unchanged
-- ☐ Forge — `client.py` `fetch_url` rewritten to use `client.stream("GET", url)` + `aiter_bytes(chunk_size=...)`; accumulator raises mid-stream
-- ☐ Forge — tests added: streaming early-termination, mid-stream raise position, backpressure-safe accumulator, byte-exact boundary at the cap
-- ☐ Auditor — `docs/audit/AUDIT_v0.7.1_LEID_STREAMING.md` written; verifies no regression, verifies real early termination (not just rearranged buffering), confirms invariants intact
-- ☐ Scribe — `docs/DEVLOG.md` entry 15; this TASK sealed; `project_heretic_status.md` memory updated; `MEMORY.md` quick-facts line refreshed
+- ✅ Wave 0 — `chore: open v0.7.1 ...` at `3fc9076` (TASK file)
+- ✅ Wave 1 — Skald: `docs/vision/STRAUMR_A_LEID.md` at `34bc171`
+- ✅ Wave 2 — Cartographer: `docs/cartography/DATA_FLOW.md` §4.12.2.1 at `4f88fd5`
+- ✅ Wave 3 — Architect: `senses/leid/INTERFACE.md` v0.7.1 contract at `431b51e`
+- ✅ Wave 4 — Forge: `client.py` streaming impl + 8 new tests at `f3baf65`
+- ✅ Wave 5 — Auditor: `docs/audit/AUDIT_v0.7.1_LEID_STREAMING.md` PASSES at `c41cb9b`
+- ⏭ Wave 6 — Forge cleanup (skipped; audit found nothing to remediate)
+- ✅ Wave 7 — Scribe: DEVLOG entry 15, this TASK seal, memory refresh (final commit)
 
 ### What v0.7.1 does NOT add
 
