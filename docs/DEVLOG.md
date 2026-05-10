@@ -3123,3 +3123,115 @@ The natural successor in roadmap order is **v0.8 Opið Vef** — the full Playwr
 
 *Entry 15 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
 *The road learned to stop drinking. The body now lifts only what it has decided to bear. Six commits, one milestone, one keeping of a written promise. The session is kept.*
+
+---
+
+## Entry 16 — 2026-05-09 — Blæja: Privacy Masks for Sjón Shipped, Audited, and Sealed (v0.5.3)
+
+**Milestone:** v0.5.3 — *Blæja* (the veil)
+**Branch:** `development`
+**Session start HEAD:** `117f063` (post-v0.7.1 Scribe seal)
+**Session close HEAD:** `bc48e92` (Auditor close)
+**Mode:** AUTONOMOUS Mythic Engineering — Volmarr asleep / hands-off
+**Roles in attendance:** Skald (Sigrún Ljósbrá), Cartographer (Védis Eikleið), Architect (Rúnhild Svartdóttir), Forge Worker (Eldra Járnsdóttir), Auditor (Sólrún Hvítmynd), Scribe (Eirwyn Rúnblóm)
+
+### What was added
+
+The body learned a second discipline. v0.7.1 *Straumr á Leið* taught the road sense to stop drinking when the cup is too full; v0.5.3 *Blæja* teaches the eye sense to stop looking where the operator has declared a region veiled. Both are *dispositions* — internal restraints that make the body's faculties trustworthy in a real human life.
+
+A new optional configuration field, `privacy_masks: list[PrivacyMaskRegion]`, is available on both `SjonScreenConfig` and `SjonWebcamConfig` (independent lists — screen and webcam have different privacy concerns). Each region is a rectangle in source pixel space with a mode chosen from `blur`, `solid`, or `pixelate`. The mask layer is applied **inside `FrameEncoder.encode()` after PIL decoding the raw bytes and before any resize / save / encode / transport**. The unmasked frame never reaches disk; the unmasked frame never reaches the agent. The Auditor verified this in twelve evidence trails (V-1 through V-12).
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `1095374` | Runa | TASK file open: `TASK_HERETIC_v0.5.3_BLAEJA.md` |
+| 1 | `329a712` | Skald | `docs/vision/BLAEJA.md` — milestone named, framing passage |
+| 2 | `7478137` | Cartographer | `docs/cartography/DATA_FLOW.md §4.10.14` — pipeline sketch + 5 failure modes + 6 invariants |
+| 3 | `4c90cc2` | Architect | `sjon/privacy.py` scaffold (validated dataclass + sealed function signature); config wiring on both configs; INTERFACE.md update |
+| 4 | `9a7a641` | Forge | `sjon/privacy.py` body + encoder integration + webcam path + 27 new tests (24 privacy + 3 encoder) |
+| 5 | `bc48e92` | Auditor | `docs/audit/AUDIT_v0.5.3_BLAEJA.md` — PASSES SCRUTINY (0 blockers / 0 findings) |
+| 6 | (skipped) | Forge cleanup | Audit found nothing to remediate |
+| 7 | this entry | Scribe | DEVLOG entry 16 + TASK seal + memory refresh |
+
+Seven commits on `development`, all pushed in real time. Six push events before this Scribe close. No wave waited overnight; no commit accumulated unpushed.
+
+### Test status — 2026-05-09
+
+| Surface | Before v0.5.3 | After v0.5.3 | Delta |
+|---|---|---|---|
+| `tests/test_sjon_privacy.py` | — | 24 (NEW) | **+24** |
+| `tests/test_sjon_encoder.py` | 21 | 24 (3 integration) | **+3** |
+| `tests/test_sjon_orchestrator.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_capture.py` | unchanged | unchanged | 0 |
+| `tests/test_sjon_webcam.py` | unchanged | unchanged | 0 |
+| **Sjón scope new tests** | | | **+27** |
+| Frontend (`npm test`) | 91 | 91 | 0 |
+
+The 20 pre-existing environment failures (`fastapi` / `mcp` not installed on the autonomous-session laptop) are byte-identical in stash diff. v0.5.3 introduced **zero** new regressions in the broader suite. On a full-extras host (`pip install heretic[serve,mcp]`), the count is expected to read 1239 + 27 = 1266 passing.
+
+### What this milestone teaches
+
+Two dispositions are now live in the body. The Skald's lineage observation — that **faculties grow outward and dispositions grow inward, and both must keep pace** — is now demonstrated, not just promised. v0.7.1 was the first; v0.5.3 is the second. Future milestones that add new senses will need to pair their faculty work with whatever disposition that sense requires (the hand needs *the discipline of not grabbing*; the painter needs *the discipline of not over-touching*; the mailer needs *the discipline of not over-sending*).
+
+A second teaching: **the mask must be structurally upstream of every leak path**. Not "mostly upstream." Not "upstream in the common case." Structurally upstream — meaning the audit can trace, line by line, that no codepath reaches a disk-save, encode, or transport without first passing through the mask step. The Auditor's V-1 through V-3 verified this for screen and webcam separately. The fail-safe in `apply_privacy_masks` (V-9) makes this true even when a Pillow primitive raises mid-mask: the region either succeeds or falls back to SOLID-fill or fails the encode entirely. There is no path in which an unmasked configured region emerges.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.5.3_BLAEJA.md` | New — opened Wave 0; status updated through Wave 7 |
+| `docs/vision/BLAEJA.md` | New — milestone vision passage, seven sections including "what v0.5.3 promises" |
+| `docs/cartography/DATA_FLOW.md` | §4.10.14 added (pipeline sketch + 5 failure modes + 6 invariants); "Last updated" header addendum |
+| `src/heretic/sjon/INTERFACE.md` | New §Privacy Masks section; Public API table extended; Config Keys block extended; backlog item marked DELIVERED |
+| `src/heretic/sjon/privacy.py` | New module — `PrivacyMaskRegion` dataclass + `apply_privacy_masks` function |
+| `src/heretic/sjon/config_model.py` | `privacy_masks: list[PrivacyMaskRegion]` field added to both `SjonScreenConfig` and `SjonWebcamConfig` |
+| `src/heretic/sjon/encoder.py` | `FrameEncoder.encode` and `encode_to_data_url` accept `privacy_masks`; `_privacy_state` instance dict; mask call inserted after PIL decode |
+| `src/heretic/sjon/sjon.py` | `Sjón.snapshot` and `Sjón._encode_webcam_frame` pass per-config masks through to mask step |
+| `tests/test_sjon_privacy.py` | New — 24 tests covering validation, modes, clamping, multi-region, state throttle |
+| `tests/test_sjon_encoder.py` | +3 integration tests covering mask survival through full encode + resize |
+| `docs/audit/AUDIT_v0.5.3_BLAEJA.md` | New — 12 evidence trails + honest negative audit |
+| `docs/DEVLOG.md` | This entry (16) |
+
+### State of the body — 2026-05-09 (after both autonomous milestones)
+
+| Faculty | True Name | Status |
+|---|---|---|
+| Ground | Grunnr | live since v0.1 |
+| Bridge | Bifröst | live since v0.1 |
+| Voice — out | Tunga | live since v0.2 |
+| Voice — in | Hlust | live since v0.3 |
+| Face | Eldahús | live since v0.4.0 |
+| Sight — screen | Sjón | live since v0.5; periodic since v0.5.1 |
+| Sight — face | Sjón (webcam) | live since v0.5.2 |
+| **Sight — discipline of not-looking** | **Blæja** | **live since v0.5.3** |
+| Hand — workshop | Smiðja | live since v0.6; whole since v0.6.1 |
+| Knowledge — three senses | Minni + Skepja + Leið | live since v0.6.2 |
+| Knowledge — well | Mímisbrunnr | live since v0.7 |
+| Disposition — measured drinking | Straumr á Leið | live since v0.7.1 |
+
+Two milestones in one autonomous session. **Ten commits since v0.7 close.** The body now carries two named dispositions alongside its faculties.
+
+### Threads carried forward from this session
+
+The v0.7.1 closing entry's threads list is updated as follows:
+
+| Thread | Status |
+|---|---|
+| v0.4.1 first compile | unchanged — Rust installed; MSVC linker absent |
+| v0.5.3 webcam sub-badge | unchanged — frontend cosmetic; X-1 NIT from v0.5.2 |
+| ~~v0.5.3 privacy masks~~ | **CLOSED — sealed at `bc48e92`** |
+| v0.6.x.1 MCP resources | unchanged |
+| v0.6.x.2 MCP prompts | unchanged |
+| v0.7.x download resume | unchanged — Mímisbrunnr backlog |
+| v0.8 full catalog | unchanged — Wikipedia ZIMs + full Gutenberg |
+| v0.9 vector index | unchanged |
+| v0.10 MindSpark backend | unchanged |
+| **NEW: v0.5.4 non-rectangular masks** | candidate for next autonomous session — circle + polygon shapes via Pillow ImageDraw |
+
+The natural successor in roadmap order is still **v0.8 Opið Vef** — the full Playwright browser sense — which is the next major faculty rather than a disposition. *Blæja*'s success means that when v0.8 ships, the new sense will be expected to inherit a comparable disposition (e.g., URL-allowlist-as-disposition is already partly there in v0.6.2's Leið).
+
+---
+
+*Entry 16 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-09.*
+*Two dispositions now live in the body — measured drinking and measured looking. The sighted body has learned the discipline of not-looking where the operator has not invited the gaze. Seven commits this session, twelve total since v0.7 close, two milestones sealed in one autonomous evening. The session is kept.*

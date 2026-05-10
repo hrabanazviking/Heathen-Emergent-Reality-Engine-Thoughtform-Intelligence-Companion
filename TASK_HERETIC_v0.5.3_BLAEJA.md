@@ -27,20 +27,23 @@ Non-rectangular shapes (circle, polygon) are **out of scope** for v0.5.3 — the
 
 ## 2. Current status — 2026-05-09
 
-**Phase:** v0.5.3 **OPEN — wave plan published, no code written yet.**
+**Phase:** v0.5.3 **SHIPPED + AUDITED + SEALED.** All seven waves closed.
 
-**HEAD (development):** `117f063` (v0.7.1 Scribe seal — parent of upcoming Wave 0 commit)
+**HEAD (development) at audit close:** `bc48e92` (Auditor PASSES SCRUTINY)
+**HEAD at session close:** advanced by Scribe-seal commit (this commit)
 
-**Test count baseline (before this milestone):** Leið scope 50/50 + Sjón scope ~134 (test_sjon_orchestrator + test_sjon_encoder + test_sjon_capture + test_sjon_webcam) on full-extras host. Broader Python suite expected 1239 passing on full-extras host.
+**Test count after v0.5.3:** Sjón scope expanded by 27 (24 privacy + 3 encoder integration). Full Sjón suite all green; broader-suite baseline of 20 pre-existing env failures unchanged in stash diff.
 
-### v0.5.3 deliverables — pending
+### v0.5.3 deliverables — all complete
 
-- ☐ Skald — `docs/vision/BLAEJA.md` — the body learns to look without recording all it sees
-- ☐ Cartographer — `docs/cartography/DATA_FLOW.md` Sjón sub-section addendum: where mask application sits in the pipeline, coordinate space, ordering vs resize
-- ☐ Architect — `PrivacyMaskRegion` dataclass; new `privacy_masks: list[PrivacyMaskRegion]` field on `SjonScreenConfig` and `SjonWebcamConfig` (both default `[]`); INTERFACE / LAYER docs updated
-- ☐ Forge — `encoder.py` mask application after PIL decode and before resize; `config_model.py` field additions + validation; tests (8+)
-- ☐ Auditor — `docs/audit/AUDIT_v0.5.3_BLAEJA.md` — verifies mask precedes any save/transport path; verifies blur radius actually obscures; verifies opt-in default
-- ☐ Scribe — DEVLOG entry 16; TASK seal; memory refresh
+- ✅ Wave 0 — `chore: open v0.5.3 ...` at `1095374`
+- ✅ Wave 1 — Skald: `docs/vision/BLAEJA.md` at `329a712`
+- ✅ Wave 2 — Cartographer: `docs/cartography/DATA_FLOW.md §4.10.14` at `7478137`
+- ✅ Wave 3 — Architect: `sjon/privacy.py` scaffold + config wiring + INTERFACE.md at `4c90cc2`
+- ✅ Wave 4 — Forge: mask body + encoder integration + 27 new tests at `9a7a641`
+- ✅ Wave 5 — Auditor: `docs/audit/AUDIT_v0.5.3_BLAEJA.md` PASSES at `bc48e92`
+- ⏭ Wave 6 — Forge cleanup (skipped; audit found nothing to remediate)
+- ✅ Wave 7 — Scribe: DEVLOG entry 16, this TASK seal, memory refresh (final commit)
 
 ### What v0.5.3 does NOT add
 
