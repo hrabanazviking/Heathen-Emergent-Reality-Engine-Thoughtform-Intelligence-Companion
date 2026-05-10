@@ -29,8 +29,10 @@ Privacy invariants:
     P-7: Alpha-mask composite preserves shape boundaries pixel-exactly.
                                                                     (v0.5.4)
     P-8: Degenerate polygon (co-linear/coincident vertices) is a
-         valid construction; rendered alpha mask is empty; apply
-         continues; debug log fires once.                           (v0.5.4)
+         valid construction. Pillow rasterises whatever it can (a thin
+         line for collinear points, a single pixel for coincident ones).
+         apply does not raise; mask covers Pillow's output; the rest of
+         the image is unchanged.                                     (v0.5.4)
     P-9: A shape whose bounding box is wholly off-frame is a no-op. (v0.5.4)
 
 Ref: src/heretic/sjon/INTERFACE.md §Privacy Masks (Blæja + Margblæja)
@@ -328,9 +330,10 @@ class PrivacyMaskPolygon:
         - `blur_radius` positive int or None
         - `pixelate_factor` int >= 2 or None
 
-    A degenerate polygon (co-linear vertices, coincident vertices) is a valid
-    construction; Pillow renders an empty alpha mask, the apply step composites
-    nothing, and a one-time debug log fires (P-8).
+    A degenerate polygon (co-linear vertices or coincident vertices) is a valid
+    construction. Pillow rasterises what it can — a thin line for collinear
+    points, a single pixel for coincident vertices. apply does not raise; the
+    mask covers Pillow's output exactly (P-8).
     """
 
     points: list

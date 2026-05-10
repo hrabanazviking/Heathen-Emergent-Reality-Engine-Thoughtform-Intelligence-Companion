@@ -4134,11 +4134,12 @@ and an `alpha_mask` — no new pipeline branch.
     Same one-time debug log.
 
   F-Blæja-8 — degenerate polygon (co-linear or coincident vertices)
-    Cause: operator types points like [(0,0), (10,0), (20,0)] (all colinear).
-    Behaviour: Pillow's polygon rasterises to an empty alpha mask; the
-    composite is identity (no pixels modified). This is a no-op, not an
-    error. Debug log fires once for "degenerate polygon" via the same
-    one-time clamp-log throttle.
+    Cause: operator types points like [(0,0), (10,0), (20,0)] (all colinear)
+    or [(50,50), (50,50), (50,50)] (all coincident).
+    Behaviour: Pillow's polygon rasteriser draws what it can — a 1-pixel-wide
+    line for collinear points, a single pixel for coincident ones. The mask
+    covers exactly that, and the rest of the image is unchanged.
+    apply does not raise; ceremony continues.
     Operator can fix by adjusting vertices; no fatal error.
 
   F-Blæja-9 — invalid circle radius at config load
@@ -4162,8 +4163,9 @@ and an `alpha_mask` — no new pipeline branch.
 >   A pixel inside the bounding box but outside the shape must be unchanged after apply.
 >   A pixel inside the shape must equal the modified-crop pixel.
 > - **P-8:** A degenerate polygon (co-linear or coincident vertices) is a valid
->   construction; Pillow's polygon-rasteriser handles it as an empty alpha mask;
->   apply continues; debug log fires once.
+>   construction. Pillow rasterises what it can — a thin line for collinear
+>   points, a single pixel for coincident ones. apply does not raise; the
+>   mask covers Pillow's output exactly; the rest of the image is unchanged.
 > - **P-9:** A circle / polygon whose bounding box is wholly off-frame is a no-op
 >   (matches the F-Blæja-1 rectangle case).
 

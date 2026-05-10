@@ -1,6 +1,6 @@
 # Sjón Module Interface
 
-**Last updated:** 2026-05-09 (v0.5.3 *Blæja* privacy masks — Rúnhild Svartdóttir: added §Privacy Masks (Blæja) section; `PrivacyMaskRegion` and `apply_privacy_masks` added to Public API; `privacy_masks: list[PrivacyMaskRegion]` field added to both `SjonScreenConfig` and `SjonWebcamConfig`; six privacy invariants P-1..P-6 added; sjon/privacy.py module documented) | 2026-05-08 (v0.5.2 pre-stage — Rúnhild Svartdóttir: added §Webcam capture, extended §Public API, §Config Keys, §Optional Dependencies, §Error Model, §Privacy Invariant for webcam) | 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
+**Last updated:** 2026-05-09 (v0.5.4 *Margblæja* non-rectangular shapes — Rúnhild Svartdóttir: PrivacyMaskShape Protocol added to Public API; PrivacyMaskCircle + PrivacyMaskPolygon dataclasses added; PrivacyMaskRegion now Protocol-conformant; apply_privacy_masks dispatches via Protocol — one pipeline three shapes; three new privacy invariants P-7..P-9) | 2026-05-09 (v0.5.3 *Blæja* privacy masks — Rúnhild Svartdóttir: added §Privacy Masks (Blæja) section; `PrivacyMaskRegion` and `apply_privacy_masks` added to Public API; `privacy_masks: list[PrivacyMaskRegion]` field added to both `SjonScreenConfig` and `SjonWebcamConfig`; six privacy invariants P-1..P-6 added; sjon/privacy.py module documented) | 2026-05-08 (v0.5.2 pre-stage — Rúnhild Svartdóttir: added §Webcam capture, extended §Public API, §Config Keys, §Optional Dependencies, §Error Model, §Privacy Invariant for webcam) | 2026-05-08 (v0.5.1 pre-stage — Rúnhild Svartdóttir: added §Continuous mode, extended Config Keys with new fields, extended Public API table) | 2026-05-08 (v0.5 scaffold — Rúnhild Svartdóttir)
 **Scope:** L3 Sjón — the vision layer Python module (`src/heretic/sjon/`)
 **Owner:** Architect (Rúnhild Svartdóttir)
 **Derives from:** `docs/architecture/LAYER_INTERFACES.md §L3 Sjón`
@@ -64,8 +64,11 @@ All of the following are re-exported from `heretic.sjon` directly.
 | `ThrottleRejectedError` | `sjon.errors` | Snapshot rejected within min_interval_ms window. |
 | `WebcamCaptureError` | `sjon.errors` | Webcam capture operation failure (v0.5.2). |
 | `WebcamBackendUnavailableError` | `sjon.errors` | No webcam backend / cv2 absent / device missing (v0.5.2). |
-| `PrivacyMaskRegion` | `sjon.privacy` | Rectangular mask region with mode (blur/solid/pixelate). v0.5.3. |
-| `apply_privacy_masks` | `sjon.privacy` | Pure function: applies a list of `PrivacyMaskRegion` to a PIL.Image. v0.5.3. |
+| `PrivacyMaskShape` | `sjon.privacy` | Protocol — structural type any shape obeys (bounding_box + alpha_mask). v0.5.4. |
+| `PrivacyMaskRegion` | `sjon.privacy` | Rectangular mask region. v0.5.3 (Protocol-conformant since v0.5.4). |
+| `PrivacyMaskCircle` | `sjon.privacy` | Circular mask region (cx, cy, radius). v0.5.4. |
+| `PrivacyMaskPolygon` | `sjon.privacy` | Polygonal mask region (points: list, len >= 3). v0.5.4. |
+| `apply_privacy_masks` | `sjon.privacy` | Pure function: applies a list of `PrivacyMaskShape` to a PIL.Image. v0.5.3 (multi-shape since v0.5.4). |
 
 ---
 
@@ -216,6 +219,51 @@ When present and non-empty, it is applied **after PIL decode** and **before
 resize / save / encode**. There is no codepath in which an unmasked frame can
 bypass the mask step. `Sjón.snapshot()` and `Sjón.snapshot_webcam()` pass the
 respective config's `privacy_masks` to the encoder.
+
+---
+
+## Privacy Mask Shapes (Margblæja — v0.5.4)
+
+`apply_privacy_masks` accepts a heterogeneous list — `list[PrivacyMaskShape]` —
+where each element is one of three concrete dataclasses:
+
+| Shape | Fields (geometric) | Notes |
+|---|---|---|
+| `PrivacyMaskRegion` | `x, y, w, h` (all int, w/h >= 1) | Rectangle. v0.5.3 base case. |
+| `PrivacyMaskCircle` | `cx, cy, radius` (radius >= 1) | Disc. Bounding box `(cx-r, cy-r, 2r, 2r)`. |
+| `PrivacyMaskPolygon` | `points: list[(int, int)]`, `len >= 3` | Filled polygon. Pillow auto-closes. |
+
+All three share the same mode + mode-param surface:
+- `mode: "blur" | "solid" | "pixelate"`
+- `blur_radius: int >= 1 | None` (auto if None)
+- `solid_color: tuple[int, int, int]` (default `(0, 0, 0)`)
+- `pixelate_factor: int >= 2 | None` (auto if None)
+
+All three implement the `PrivacyMaskShape` Protocol:
+- `bounding_box() -> (x, y, w, h)` — pre-clamp source-pixel bounds
+- `alpha_mask(w, h) -> PIL.Image` — `"L"` mode mask sized `(w, h)`, in-shape=255
+
+**One pipeline, three shapes.** `apply_privacy_masks`:
+1. Calls `shape.bounding_box()` to get the bbox in source coords
+2. Clamps the bbox to image bounds (silent except one-time debug log)
+3. Crops the bbox region from the image
+4. Applies the chosen mode (blur / solid / pixelate) to the cropped rectangle
+5. Calls `shape.alpha_mask(w_eff, h_eff)` to get the carve-out mask
+6. `Image.composite(modified, crop_original, alpha)` — pixel-exact carve
+7. Pastes the composited region back at clamped (x, y)
+
+Mode and shape are **orthogonal**: blur on a circle, solid on a polygon,
+pixelate on a rectangle — every combination flows through the same five-step
+pipeline. A future fourth shape (e.g. Bezier path) only needs to provide a
+`bounding_box` and `alpha_mask`; no apply-pipeline changes.
+
+**Privacy invariants added by v0.5.4 (alongside v0.5.3 P-1..P-6):**
+
+| # | Invariant |
+|---|-----------|
+| P-7 | Alpha-mask composite preserves shape boundaries pixel-exactly. Pixel inside bbox but outside shape == original; pixel inside shape == modified. |
+| P-8 | Degenerate polygon (co-linear/coincident vertices) is a valid construction. Pillow renders empty alpha mask. Apply skips composite, fires one-time debug log. |
+| P-9 | A shape whose bounding box is wholly off-frame is a no-op (matches F-Blæja-1 rectangle case). |
 
 ---
 

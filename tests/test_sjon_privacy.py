@@ -331,3 +331,282 @@ class TestApplyFailSafe:
             f"State throttle failed — got {len(debug_msgs)} debug logs"
         )
         assert state.get("clamp_logged") is True
+
+
+# ---------------------------------------------------------------------------
+# v0.5.4 Margblæja — Protocol + Circle + Polygon tests
+# ---------------------------------------------------------------------------
+
+from heretic.sjon.privacy import (
+    PrivacyMaskCircle, PrivacyMaskPolygon, PrivacyMaskShape,
+)
+
+
+class TestPrivacyMaskShapeProtocol:
+    """Verify all three shape classes conform to the Protocol."""
+
+    def test_region_is_shape(self):
+        r = PrivacyMaskRegion(x=0, y=0, w=10, h=10)
+        assert isinstance(r, PrivacyMaskShape)
+
+    def test_circle_is_shape(self):
+        c = PrivacyMaskCircle(cx=10, cy=10, radius=5)
+        assert isinstance(c, PrivacyMaskShape)
+
+    def test_polygon_is_shape(self):
+        p = PrivacyMaskPolygon(points=[(0, 0), (10, 0), (5, 10)])
+        assert isinstance(p, PrivacyMaskShape)
+
+    def test_rectangle_alpha_mask_is_fully_opaque(self):
+        """PrivacyMaskRegion.alpha_mask returns an L image where every pixel is 255."""
+        r = PrivacyMaskRegion(x=0, y=0, w=20, h=15)
+        am = r.alpha_mask(20, 15)
+        assert am.mode == "L"
+        assert am.size == (20, 15)
+        # Every pixel must be 255 (full opacity)
+        pixels = list(am.getdata())
+        assert all(p == 255 for p in pixels)
+
+
+class TestPrivacyMaskCircleValidation:
+
+    def test_default_construction_succeeds(self):
+        c = PrivacyMaskCircle(cx=50, cy=50, radius=20)
+        assert c.mode == "blur"
+        assert c.bounding_box() == (30, 30, 40, 40)
+
+    def test_zero_radius_raises(self):
+        with pytest.raises(ValueError) as exc_info:
+            PrivacyMaskCircle(cx=10, cy=10, radius=0)
+        assert "radius" in str(exc_info.value)
+
+    def test_negative_radius_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskCircle(cx=10, cy=10, radius=-5)
+
+    def test_negative_cx_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskCircle(cx=-1, cy=10, radius=5)
+
+    def test_invalid_mode_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskCircle(cx=10, cy=10, radius=5, mode="rainbow")
+
+
+class TestPrivacyMaskPolygonValidation:
+
+    def test_minimal_triangle_succeeds(self):
+        p = PrivacyMaskPolygon(points=[(0, 0), (10, 0), (5, 10)])
+        assert p.bounding_box() == (0, 0, 11, 11)
+
+    def test_two_points_raises(self):
+        with pytest.raises(ValueError) as exc_info:
+            PrivacyMaskPolygon(points=[(0, 0), (10, 10)])
+        assert "3" in str(exc_info.value)
+
+    def test_zero_points_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskPolygon(points=[])
+
+    def test_non_int_coordinate_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskPolygon(points=[(0, 0), (10, "10"), (20, 20)])
+
+    def test_negative_coordinate_raises(self):
+        with pytest.raises(ValueError):
+            PrivacyMaskPolygon(points=[(0, 0), (-1, 10), (5, 5)])
+
+
+class TestPrivacyMaskCircleApply:
+
+    def test_solid_circle_interior_is_mask_color(self):
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskCircle(
+            cx=100, cy=100, radius=40,
+            mode="solid", solid_color=(255, 0, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Pixel at the centre of the circle must be the mask colour.
+        assert img.getpixel((100, 100)) == (255, 0, 0)
+
+    def test_solid_circle_corner_of_bbox_unchanged(self):
+        """The four corners of the bounding box are OUTSIDE the disc."""
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskCircle(
+            cx=100, cy=100, radius=40,
+            mode="solid", solid_color=(255, 0, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Corners of bbox: (60,60), (139,60), (60,139), (139,139) — outside disc.
+        for corner in [(60, 60), (139, 60), (60, 139), (139, 139)]:
+            assert img.getpixel(corner) == (50, 50, 50), (
+                f"Corner {corner} was masked but should be outside the disc"
+            )
+
+    def test_solid_circle_outside_bbox_unchanged(self):
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskCircle(
+            cx=100, cy=100, radius=40,
+            mode="solid", solid_color=(255, 0, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Far outside the bbox
+        assert img.getpixel((10, 10)) == (50, 50, 50)
+        assert img.getpixel((180, 180)) == (50, 50, 50)
+
+    def test_circle_blur_reduces_centre_variance(self):
+        img = _make_checkerboard(200, 200, square=4)
+        var_before = _region_pixel_variance(img, 60, 60, 80, 80)
+        masks = [PrivacyMaskCircle(cx=100, cy=100, radius=35, mode="blur")]
+        apply_privacy_masks(img, masks)
+        # Variance over the centre region (which lies entirely inside the disc)
+        var_after = _region_pixel_variance(img, 80, 80, 40, 40)
+        assert var_after < var_before * 0.5, (
+            f"Blur on circle did not reduce centre variance: "
+            f"before={var_before:.1f}, after={var_after:.1f}"
+        )
+
+    def test_circle_partially_off_frame_clamps(self):
+        """Circle whose centre is near the edge clamps to image bounds."""
+        img = _make_test_image(100, 100, fill=(50, 50, 50))
+        # Circle centred at (10, 10) radius 30 — extends to (-20, -20) ... (40, 40)
+        masks = [PrivacyMaskCircle(
+            cx=10, cy=10, radius=30,
+            mode="solid", solid_color=(255, 0, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Pixel at (10, 10) — circle centre — must be masked
+        assert img.getpixel((10, 10)) == (255, 0, 0)
+        # A pixel far away (90, 90) must be unchanged
+        assert img.getpixel((90, 90)) == (50, 50, 50)
+
+    def test_circle_wholly_off_frame_is_noop(self):
+        img = _make_test_image(50, 50, fill=(100, 100, 100))
+        masks = [PrivacyMaskCircle(
+            cx=200, cy=200, radius=10,
+            mode="solid", solid_color=(0, 0, 0),
+        )]
+        original = list(img.getdata())
+        apply_privacy_masks(img, masks)
+        assert list(img.getdata()) == original
+
+
+class TestPrivacyMaskPolygonApply:
+
+    def test_solid_triangle_interior_is_mask_color(self):
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskPolygon(
+            points=[(50, 50), (150, 50), (100, 150)],
+            mode="solid", solid_color=(0, 200, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Centroid of the triangle — clearly interior
+        assert img.getpixel((100, 80)) == (0, 200, 0)
+
+    def test_solid_polygon_outside_unchanged(self):
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        masks = [PrivacyMaskPolygon(
+            points=[(50, 50), (150, 50), (100, 150)],
+            mode="solid", solid_color=(0, 200, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Pixel inside the polygon's bbox but clearly OUTSIDE the triangle.
+        # Triangle edges: top y=50 (x in [50,150]); left edge (50,50)→(100,150);
+        # right edge (150,50)→(100,150). At y=140, the left edge has x ≈ 95.
+        # (55, 140) is well to the left of the edge — outside the triangle but
+        # inside the bbox (bbox = (50, 50) to (150, 150)).
+        assert img.getpixel((55, 140)) == (50, 50, 50), (
+            "Pixel inside bbox but outside triangle should be unchanged "
+            "(P-7 — alpha-mask boundary preservation)"
+        )
+        # Pixel outside the bbox entirely
+        assert img.getpixel((10, 10)) == (50, 50, 50)
+
+    def test_solid_pentagon_interior_masked(self):
+        img = _make_test_image(200, 200, fill=(50, 50, 50))
+        # Regular-ish pentagon
+        masks = [PrivacyMaskPolygon(
+            points=[(100, 30), (150, 70), (130, 130), (70, 130), (50, 70)],
+            mode="solid", solid_color=(255, 255, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # Centre of the pentagon
+        assert img.getpixel((100, 90)) == (255, 255, 0)
+
+    def test_polygon_partially_off_frame_clamps(self):
+        img = _make_test_image(100, 100, fill=(50, 50, 50))
+        # Triangle with vertices outside the image
+        masks = [PrivacyMaskPolygon(
+            points=[(50, 50), (200, 50), (50, 200)],
+            mode="solid", solid_color=(0, 0, 200),
+        )]
+        apply_privacy_masks(img, masks)
+        # The interior of the visible portion (around (60, 60)) should be masked.
+        # Note the visible interior is roughly the "near corner" of the triangle.
+        assert img.getpixel((60, 60)) == (0, 0, 200)
+
+
+class TestMixedShapeList:
+
+    def test_mixed_shape_list_all_applied(self):
+        img = _make_test_image(300, 300, fill=(50, 50, 50))
+        masks = [
+            PrivacyMaskRegion(
+                x=10, y=10, w=40, h=40,
+                mode="solid", solid_color=(255, 0, 0),
+            ),
+            PrivacyMaskCircle(
+                cx=200, cy=50, radius=25,
+                mode="solid", solid_color=(0, 255, 0),
+            ),
+            PrivacyMaskPolygon(
+                points=[(50, 200), (100, 200), (75, 250)],
+                mode="solid", solid_color=(0, 0, 255),
+            ),
+        ]
+        apply_privacy_masks(img, masks)
+        assert img.getpixel((30, 30)) == (255, 0, 0), "Rectangle interior wrong"
+        assert img.getpixel((200, 50)) == (0, 255, 0), "Circle interior wrong"
+        assert img.getpixel((75, 220)) == (0, 0, 255), "Polygon interior wrong"
+        # Untouched
+        assert img.getpixel((280, 280)) == (50, 50, 50)
+
+
+class TestDegeneratePolygon:
+
+    def test_collinear_polygon_renders_thin_line(self):
+        """A polygon with all-collinear vertices renders the bounding line.
+
+        Pillow's polygon rasteriser draws collinear points as a 1-pixel-wide
+        line through the points. This is degenerate but well-defined Pillow
+        behaviour — apply continues, masks the line pixels, leaves the rest
+        of the image unchanged. P-8 (apply does not raise on degenerate input).
+        """
+        img = _make_test_image(100, 100, fill=(200, 200, 200))
+        masks = [PrivacyMaskPolygon(
+            points=[(10, 50), (50, 50), (90, 50)],
+            mode="solid", solid_color=(0, 0, 0),
+        )]
+        apply_privacy_masks(img, masks)
+        # The collinear line at y=50, x in [10..90] is masked.
+        assert img.getpixel((50, 50)) == (0, 0, 0)
+        # Pixels off the line are unchanged.
+        assert img.getpixel((50, 30)) == (200, 200, 200)
+        assert img.getpixel((50, 70)) == (200, 200, 200)
+
+    def test_coincident_points_polygon_does_not_crash(self):
+        """A polygon with all coincident vertices is a valid construction.
+
+        Pillow renders a single pixel at the coincident location. The apply
+        path continues; no exception. P-8 (no crash on degenerate input).
+        """
+        img = _make_test_image(100, 100, fill=(200, 200, 200))
+        masks = [PrivacyMaskPolygon(
+            points=[(50, 50), (50, 50), (50, 50)],
+            mode="solid", solid_color=(0, 0, 0),
+        )]
+        # Should not raise.
+        apply_privacy_masks(img, masks)
+        # The single pixel at (50, 50) is masked; the rest is unchanged.
+        assert img.getpixel((50, 50)) == (0, 0, 0)
+        assert img.getpixel((30, 30)) == (200, 200, 200)
