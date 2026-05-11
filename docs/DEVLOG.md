@@ -4994,3 +4994,122 @@ The autonomous arc continues into its SEVENTEENTH sealed milestone, now spanning
 
 *Entry 31 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
 *The body's eye and portrait turned upon the present room land cleanly. Nine unnamed extensions, six consecutive zero-findings audits, the second bundled-pair milestone shipped cleanly. The body now has three distinct ways to look — stateless, selector-scoped, and full-page-mid-flow — each with its right use case. Seventeenth milestone in the autonomous arc; the LeidClient stands byte-untouched for ten milestones running. The session is kept.*
+
+---
+
+## Entry 32 — 2026-05-11 — leid.reload: the body's footstep in place (v0.8.7)
+
+**Milestone:** v0.8.7 — `leid.reload` (tenth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `b9389c6` (post-v0.8.6 Scribe seal)
+**Session close HEAD:** `731d182` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — EIGHTEENTH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — seventh consecutive)
+
+### What was added
+
+The body's footstep in place. `leid.reload(session_id)` re-fetches the current page through Playwright's `page.reload()` — equivalent to the user pressing F5 or the browser's reload button. The session keeps its identity, cookies, and localStorage; the URL stays the same in normal cases; only the page content is fetched anew.
+
+This rounds out the motion vocabulary inside the door. After v0.8.7, every browser button of motion has a tool:
+
+| Browser button | HERETIC tool | Slice |
+|---|---|---|
+| Address bar (forward to URL) | `leid.navigate` | v0.8.2.2 |
+| Back | `leid.go_back` | v0.8.5 |
+| Forward | `leid.go_forward` | v0.8.5 |
+| Reload (F5) | **`leid.reload`** | **v0.8.7** |
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `37286b0` | Runa | TASK_HERETIC_v0.8.7_RELOAD.md |
+| 1 | `29552f1` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `445ee4f` | Cartographer | DATA_FLOW.md §4.12.2.11 — reload flow + B-25 |
+| 3 | `f1f5aaa` | Architect | INTERFACE.md §12.13 + B-25 + leid.reload tool def |
+| 4 | `a20ef68` | Forge | reload() method + sense routing + 10 method tests + 1 dispatch |
+| 5 | `731d182` | Auditor | AUDIT_v0.8.7_RELOAD.md — **PASSES SCRUTINY (0/0/0/0)** — SEVENTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 32 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.7)
+
+| Surface | Before v0.8.7 | After v0.8.7 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 52 | 53 | **+1** (1 dispatch) |
+| `tests/test_leid_playwright_client.py` | 139 + 2 skip | 149 + 2 skip | **+10** (TestReload class) |
+| **Leid scope total** | 240 + 2 skip | 251 + 2 skip | **+11** |
+| **Full suite** | 1561 + 9 skip | 1572 + 9 skip | **+11** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Seventh consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7). The Auditor noted that v0.8.7's structural simplicity (one Playwright primitive call wrapped in standard Innan Hurðar discipline) made this another clean shipment. The Forge correctly inherited navigate's discipline through B-25's contract; the Architect's three intentional differences from navigate (no URL parameter, no URL gate, simpler return shape) were all justified at TASK time and verified at audit time.
+
+### What this milestone teaches
+
+**The motion vocabulary is now complete; refinements remain.** v0.8.7 closes a real conceptual gap — until this slice, an agent that wanted to refresh a session page had to either close+reopen (losing cookies) or use `leid.press(session_id, "F5")` (which works but feels indirect). With `leid.reload`, the motion vocabulary inside the door now matches every browser button of motion: forward (navigate), back (go_back), forward-again (go_forward), and in-place (reload). This is structural completeness — the body's small motion vocabulary is now isomorphic to the user's mental model of a browser. Subsequent v0.8.x slices are pure refinements (JPEG/WebP screenshots, configurable viewport, multi-element query, element-targeted press) — none close conceptual gaps; each adds a richer expression of what the body can already do.
+
+**Three intentional differences from navigate, all explicitly justified.** Reload is structurally similar to navigate — same primitive family, same discipline, same error mapping. The differences are explicit and small: no URL parameter (it's in-place); no URL gate (the URL was already gated when first navigated to, same posture as go_back/go_forward at D-92); simpler return shape (no previous_url because in-place; no moved boolean because reload is not a probe-and-act primitive). The Architect documented each difference in TASK design (D-107/108/109/110/111); the Auditor verified each at audit time. The discipline of "justify what you DON'T inherit, not just what you DO" is what makes sibling-style design auditable.
+
+**Seven consecutive zero-findings audits is now the norm, not the streak.** The v0.8 umbrella has shipped 7 milestones in a row with no audit findings of any severity (after the substantive v0.8.2 audit's NOTABLE-1 was closed at its own Wave 6). The pattern is structural: when a new tool is mechanical extension of an already-vetted disposition through a parallel Playwright primitive, the audit pass is mechanical too. Future v0.8.x refinements should expect the same outcome — and any deviation (a v0.8.x audit that DOES find something) would be a signal that the slice introduced more novelty than the TASK design anticipated.
+
+**The slow-and-careful arc has now spanned eighteen milestones across three days.** The autonomous arc began 2026-05-09 with a marathon evening of 8 milestones (v0.7.1 + v0.5.3-5 + v0.7.2 + v0.6.3 + v0.7.3 + v0.6.3.1). Day 2 (2026-05-10) added 8 more (v0.8.0 → v0.8.5). Day 3 (2026-05-11) has now added v0.8.6 + v0.8.7, with the same disciplined waves and the same shipping cadence. Eighteen milestones; eighteen audits passed; one substantive cleanup (v0.8.2 NOTABLE-1) closed at its own Wave 6; ten consecutive zero-findings audits since (v0.8.2.1 onward, plus v0.8.2 itself if we count its closing PASSES verdict). The arc proves that disciplined iteration produces shipping cadence WITH audit rigor — the two are not in tension when the discipline is right.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.7_RELOAD.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.11 added — reload flow + B-25 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 row + new §12.13 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.reload tool definition appended |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `reload()` method between `session_screenshot()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds 1 branch |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the ELEVENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-110 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-108 — no new fields) |
+| `tests/test_leid_playwright_client.py` | Helper extended (page.reload mock); new TestReload class with 10 tests |
+| `tests/test_leid_sense.py` | Tool-count check 16 → 17; tool-names check; 1 dispatch test |
+| `docs/audit/AUDIT_v0.8.7_RELOAD.md` | New — verdict PASSES SCRUTINY (zero findings, seventh consecutive) |
+| `docs/DEVLOG.md` | This entry (32) |
+
+### State of the body — 2026-05-11 (after v0.8.7)
+
+The Leið faculty now has SEVENTEEN tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (13):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **17 — 2 httpx + 2 stateless browser + 13 stateful browser (open + navigate + go_back + go_forward + reload + status + click + type + query + press + session_render + session_screenshot + close)** | **v0.8.7** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **ten unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7).
+
+**Motion vocabulary inside the door is COMPLETE:** every browser button of motion (forward / back / forward-again / in-place) has a tool. Subsequent v0.8.x slices are pure refinements rather than foundational additions.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.7 leid.reload~~ | **CLOSED — sealed at `731d182`** |
+| **v0.8.x JPEG/WebP screenshot output** | candidate — small refinement |
+| v0.8.x configurable viewport size | candidate — small refinement |
+| v0.8.x multi-element query (return list of matches) | candidate — natural follow-up to v0.8.3 |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its EIGHTEENTH sealed milestone, now spanning three calendar days. Ten slices into v0.8 *Opið Vef*; the motion vocabulary is complete; subsequent slices are refinements with diminishing marginal value.
+
+---
+
+*Entry 32 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The body's footstep in place lands cleanly. Ten unnamed extensions, seven consecutive zero-findings audits, the motion vocabulary inside the door is complete — every browser button of motion has its tool. Eighteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for eleven milestones running. The session is kept.*

@@ -9,6 +9,16 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — tenth slice within the umbrella.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Eighteenth milestone in the autonomous arc.
+>
+> **STATUS — 2026-05-11:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — seventh consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `731d182` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 251 + 2 skip (was 240 + 2 — `+11`). Full suite 1572 + 9 skip (was 1561 + 9). Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Seventh consecutive zero-findings audit. **Motion vocabulary inside the door now COMPLETE** — every browser button of motion has a tool. See `docs/audit/AUDIT_v0.8.7_RELOAD.md`.
+>
+> **DEVLOG:** Entry 32 — `docs/DEVLOG.md`.
 
 ---
 
@@ -104,19 +114,19 @@ Extend `tests/test_leid_playwright_client.py` with `TestReload` class (~9 tests)
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `reload()` method on `PlaywrightLeidClient`
-- [ ] `leid.reload` registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches `leid.reload`
-- [ ] No new error classes (D-110)
-- [ ] No new config fields (D-108)
-- [ ] B-25 added to INTERFACE.md §12.13
-- [ ] All 240 existing leid tests pass unchanged
-- [ ] At least 9 new method tests passing
-- [ ] 1 new dispatch test passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.11 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.7_RELOAD.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 32 written
-- [ ] All commits pushed to `development`
+- [x] `reload()` method on `PlaywrightLeidClient` — `a20ef68`
+- [x] `leid.reload` registered in `LEID_TOOL_DEFINITIONS` — `f1f5aaa`
+- [x] `LeidSense._route` dispatches `leid.reload` — `a20ef68`
+- [x] No new error classes (D-110) — confirmed
+- [x] No new config fields (D-108) — confirmed
+- [x] B-25 added to INTERFACE.md §12.13 — `f1f5aaa`
+- [x] All 240 existing leid tests pass unchanged — verified at `a20ef68`
+- [x] 10 new method tests passing — `a20ef68`
+- [x] 1 new dispatch test passing — `a20ef68`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.11 exists — `445ee4f`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `29552f1`
+- [x] `docs/audit/AUDIT_v0.8.7_RELOAD.md` PASSES SCRUTINY (0/0/0/0) — `731d182`
+- [x] DEVLOG entry 32 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
