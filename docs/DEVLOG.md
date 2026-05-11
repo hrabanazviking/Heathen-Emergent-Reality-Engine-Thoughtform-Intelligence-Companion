@@ -4403,3 +4403,122 @@ The autonomous arc that began 2026-05-09 continues into its twelfth sealed miles
 
 *Entry 26 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
 *The body's two hands now work in the same room. Sibling extension worked cleanly because the disposition was already vetted; the first zero-findings audit in the v0.8 umbrella reflects mechanical extension done well. Twelfth milestone in the autonomous arc; fourth slice in the v0.8 Opið Vef umbrella; the body's interactive faculty is now complete for canonical agent flows. The session is kept.*
+
+---
+
+## Entry 27 — 2026-05-10 — leid.navigate: the body walks to a new room without leaving the building (v0.8.2.2)
+
+**Milestone:** v0.8.2.2 — `leid.navigate` (fifth unnamed extension within v0.8.2 *Innan Hurðar* disposition)
+**Branch:** `development`
+**Session start HEAD:** `c1897d5` (post-v0.8.2.1 Scribe seal)
+**Session close HEAD:** `898a4d3` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — THIRTEENTH milestone in the autonomous arc that began 2026-05-09
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — second consecutive)
+
+### What was added
+
+In-session navigation. Until now the body, once inside an Innan Hurðar session, could touch (`click`) and shape (`type`) what was in front of it but could not move — wherever the session opened, that was where it lived until close. v0.8.2.2 adds `leid.navigate(session_id, url)`: the session keeps its identity, its cookies, its localStorage; only the page URL changes. The agent that logged in at `/login` can now walk to `/dashboard` without losing session state.
+
+`leid.navigate(session_id, url) → {session_id, previous_url, final_url, title}`. Returns `previous_url` (captured BEFORE the goto) so the agent has a coherent record of the navigation transition. Reuses the existing browser quartet of the session (no new launch). Reuses existing error classes — no new error class needed. Reuses `browser_navigation_timeout_seconds` config — no new field needed.
+
+**Key order discipline:** URL validation runs FIRST, BEFORE session lookup. An invalid URL fails loudly even if the session_id is also bogus — the operator's allowlist gate is unconditional. This is not symmetric with click/type (which validate session before doing anything else); navigate has to validate the URL first because the URL is the action's primary target.
+
+**Failure model:** A navigation failure does NOT close the session. The session stays open at whatever URL it had before the failed goto, ready for the agent to retry or try a different navigate. Agents should not lose their entire session state because of a single failed navigation. (Verified by inspection: `navigate()` has no `try/finally` around session resources — failures propagate as exceptions; the session remains registered in the manager.)
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `92bfec2` | Runa | TASK_HERETIC_v0.8.2.2_NAVIGATE.md |
+| 1 | `63867fe` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph (no new section) |
+| 2 | `9c1ad75` | Cartographer | DATA_FLOW.md §4.12.2.6 — navigate flow + B-20 |
+| 3 | `16a87cd` | Architect | INTERFACE.md §12.8 + B-20 + leid.navigate tool def |
+| 4 | `5caabe8` | Forge | navigate() method + sense routing + 11 TestNavigate + 1 dispatch |
+| 5 | `898a4d3` | Auditor | AUDIT_v0.8.2.2_NAVIGATE.md — **PASSES SCRUTINY (0/0/0/0)** — SECOND CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 27 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-10 (after v0.8.2.2)
+
+| Surface | Before v0.8.2.2 | After v0.8.2.2 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 44 | 45 | **+1** (1 dispatch) |
+| `tests/test_leid_playwright_client.py` | 74 + 2 skip | 85 + 2 skip | **+11** (TestNavigate class) |
+| **Leid scope total** | 167 + 2 skip | 179 + 2 skip | **+12** |
+| **Full suite** | 1488 + 9 skip | **1500 + 9 skip** | **+12** (suite crosses 1500) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Second consecutive zero-findings audit** in the v0.8 umbrella. The pattern of "novel work earns scrutiny notes; mechanical extension earns the right to ship without remark" is now established at two milestones in a row. The Forge's discipline of staying inside an already-vetted disposition pays off in audit time; the Auditor has nothing to report when nothing was novel.
+
+### What this milestone teaches
+
+**Order matters when one validation gate is unconditional and the other is contingent.** URL validation is unconditional — every URL the body visits must be operator-allowlisted, regardless of session state. Session validation is contingent — only matters if the agent is trying to operate on a known session. The order in `navigate()` reflects this: URL gate FIRST (so even bogus session_id calls report the URL problem honestly), then session lookup. This is not what click/type do (they have no URL parameter — only selectors), and it's not what open_session does (it validates URL early but in a different order because there's no session yet). navigate is the one tool with both an external URL AND a session_id, so the order question matters here uniquely. The Forge got it right; the Auditor verified the order via both code inspection and a side_effect test.
+
+**Sessions that survive failures are agents that can recover.** A navigation failure that closed the session would force the agent to start over — re-open at some URL, re-do whatever in-session work led up to the failed navigate. Sessions that stay open after a failed navigate let the agent retry (maybe the network blipped) or pivot (maybe the URL was wrong; try a different one). The cost is small (the session was already alive); the recovery surface is much larger. This is the right disposition for the body's interactive presence.
+
+**The unnamed-extension pattern is now the dominant pattern in v0.8.** Five of the six v0.8 slices (v0.8.0 named umbrella, v0.8.1 unnamed, v0.8.2 named within umbrella, v0.8.2.1 unnamed, v0.8.2.2 unnamed) — that's three unnamed extensions in a row inside the v0.8 umbrella. The umbrella codename *Opið Vef* still does the work; the named-within-umbrella codename *Innan Hurðar* still does its work; everything else is unnamed because nothing else has needed naming. This is the right ratio: name what is genuinely new, leave the rest to the DEVLOG.
+
+**Suite crosses 1500 tests.** An arbitrary milestone but a real one. The body's behaviours are now anchored by 1500 small assertions across 27 DEVLOG-recorded sessions. Each invariant has at least one test; the most-load-bearing invariants (B-1 URL gate, B-7 resource cleanup, B-10 no-script-injection) have multiple tests across multiple methods.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.2.2_NAVIGATE.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.6 added — navigate flow + B-20 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 row + new §12.8 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.navigate tool definition appended; module docstring updated |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `navigate()` method between `type()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds `leid.navigate` branch |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the SIXTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (no new error classes — D-66) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (no new config fields — D-65) |
+| `tests/test_leid_playwright_client.py` | New TestNavigate class with 11 tests |
+| `tests/test_leid_sense.py` | Tool-count check 9 → 10; tool-names check; 1 dispatch test |
+| `docs/audit/AUDIT_v0.8.2.2_NAVIGATE.md` | New — verdict PASSES SCRUTINY (zero findings, second consecutive) |
+| `docs/DEVLOG.md` | This entry (27) |
+
+### State of the body — 2026-05-10 (after v0.8.2.2)
+
+The Leið faculty now has TEN tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful interactive (6):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **10 — 2 httpx + 2 stateless browser + 6 stateful browser (open + navigate + status + click + type + close)** | **v0.8.2.2** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **five unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2).
+
+**Innan Hurðar is now feature-complete for canonical agent flows.** A complete login → navigate → click → type → submit → navigate → read receipt flow can be expressed in 6-7 tool calls. Read-only operations (`leid.query`) and special-key operations (`leid.press`) remain for v0.8.3 and beyond.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.2.2 leid.navigate~~ | **CLOSED — sealed at `898a4d3`** |
+| **v0.8.3 `leid.query`** (selector + attribute extraction — read-only sibling of click/type) | **OPEN — natural next slice** |
+| v0.8.x `leid.press` (special keys: Enter, Tab, Escape) | candidate — small focused slice |
+| v0.8.x `leid.go_back` / `leid.go_forward` (browser history) | candidate — small focused slice |
+| v0.8.x `leid.session_render` (re-extract HTML in session) | candidate — useful pair with screenshot |
+| v0.8.x `leid.session_screenshot` (mid-session screenshot) | candidate — pair with above |
+| v0.8.x JPEG/WebP screenshot output | candidate |
+| v0.8.x configurable viewport size | candidate |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its thirteenth sealed milestone. Five slices into v0.8 *Opið Vef*; the umbrella's interactive sub-section (Innan Hurðar) is now feature-complete for canonical agent flows. The query/read sibling and the special-keys + history primitives remain as smaller focused additions.
+
+---
+
+*Entry 27 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
+*The body now walks within the building. Five unnamed extensions, two consecutive zero-findings audits, the suite crosses 1500 tests, the LeidClient stands byte-untouched for six milestones running. Thirteenth milestone in the autonomous arc; the Innan Hurðar disposition is complete for canonical agent flows. The session is kept.*

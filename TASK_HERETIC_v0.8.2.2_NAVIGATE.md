@@ -9,6 +9,16 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — fifth slice within the umbrella.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Thirteenth milestone in the autonomous arc that began 2026-05-09.
+>
+> **STATUS — 2026-05-10:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — second consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `898a4d3` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 179 + 2 skip (was 167 + 2 — `+12`). Full suite **1500 + 9 skip** (was 1488 + 9). Suite has crossed 1500 tests. Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Second consecutive zero-findings audit. See `docs/audit/AUDIT_v0.8.2.2_NAVIGATE.md`.
+>
+> **DEVLOG:** Entry 27 — `docs/DEVLOG.md`.
 
 ---
 
@@ -104,18 +114,18 @@ Extend `tests/test_leid_playwright_client.py` with `TestNavigate` class.
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `navigate()` method on `PlaywrightLeidClient`
-- [ ] `leid.navigate` registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches `leid.navigate`
-- [ ] No new error classes (reuses LeidTimeoutError / LeidConnectionError / LeidHttpError / LeidSessionExpiredError)
-- [ ] B-20 added to INTERFACE.md §12
-- [ ] All 167 existing leid tests pass unchanged
-- [ ] At least 11 new navigate tests passing
-- [ ] 1 new dispatch test passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.6 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.2.2_NAVIGATE.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 27 written
-- [ ] All commits pushed to `development`
+- [x] `navigate()` method on `PlaywrightLeidClient` — `5caabe8`
+- [x] `leid.navigate` registered in `LEID_TOOL_DEFINITIONS` — `16a87cd`
+- [x] `LeidSense._route` dispatches `leid.navigate` — `5caabe8`
+- [x] No new error classes (reuses 5 existing ones) — confirmed
+- [x] B-20 added to INTERFACE.md §12.8 — `16a87cd`
+- [x] All 167 existing leid tests pass unchanged — verified at `5caabe8`
+- [x] 11 new navigate tests passing — `5caabe8`
+- [x] 1 new dispatch test passing — `5caabe8`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.6 exists — `9c1ad75`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `63867fe`
+- [x] `docs/audit/AUDIT_v0.8.2.2_NAVIGATE.md` PASSES SCRUTINY (0/0/0/0) — `898a4d3`
+- [x] DEVLOG entry 27 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
