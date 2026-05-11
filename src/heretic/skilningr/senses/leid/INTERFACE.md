@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.0 *Opið Vef* browser-render addendum — Rúnhild Svartdóttir) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming addendum) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot addendum — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render addendum) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming addendum) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -69,17 +69,19 @@ for the v0.8.0 browser-mode contract.
 | `leid.fetch_url`   | Raw HTTP GET        | `url` (string)   | —               | httpx     |
 | `leid.extract_text`| GET + strip HTML    | `url` (string)   | —               | httpx     |
 
-### 4.2 Browser tool (added at v0.8.0 — *Opið Vef*)
+### 4.2 Browser tools (added at v0.8.0+ — *Opið Vef*)
 
-| Tool name          | Action                                          | Required params  | Optional params | Transport          |
-|--------------------|-------------------------------------------------|------------------|-----------------|--------------------|
-| `leid.render_url`  | Headless Chromium navigate + extract rendered text | `url` (string) | —               | Playwright (Chromium) |
+| Tool name          | Action                                          | Required params  | Optional params | Transport          | Added |
+|--------------------|-------------------------------------------------|------------------|-----------------|--------------------|-------|
+| `leid.render_url`  | Headless Chromium navigate + extract rendered text | `url` (string) | —               | Playwright (Chromium) | v0.8.0 |
+| `leid.screenshot`  | Headless Chromium navigate + return base64 PNG of rendered page | `url` (string) | — | Playwright (Chromium) | v0.8.1 |
 
-**Availability:** `leid.render_url` is registered in `LEID_TOOL_DEFINITIONS` whenever
-`config.enabled: true`, but a tool call to it raises
+**Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
+whenever `config.enabled: true`, but a tool call to either raises
 `LeidPlaywrightUnavailableError → EXTERNAL_APP_UNAVAILABLE` if the operator has
 not installed the `[browser]` extra (`pip install heretic[browser]`) and run
-`playwright install chromium`. The httpx tools work unaffected.
+`playwright install chromium`. The httpx tools (`leid.fetch_url`,
+`leid.extract_text`) work unaffected regardless.
 
 ---
 
@@ -149,9 +151,12 @@ skilningr:
     user_agent: "HERETIC/0.6.2 (heretic-summoning-circle)"
     allow_http: false                     # HTTPS-only by default
 
-    # v0.8.0 Opið Vef — browser-render fields (apply to leid.render_url only)
+    # v0.8.0 Opið Vef — browser-render fields (apply to all browser tools)
     browser_navigation_timeout_seconds: 30   # max wall-clock for page.goto(); separate from httpx timeout
     browser_load_state: "domcontentloaded"   # one of: commit, domcontentloaded, load, networkidle
+
+    # v0.8.1 Mynd af Vegferð — screenshot field (applies to leid.screenshot only)
+    browser_screenshot_full_page: true       # true=capture full scrollable page; false=viewport only
 ```
 
 ---
@@ -301,3 +306,77 @@ DATA_FLOW.md §4.12.2.2.
 - The 17 mock-based tests in `tests/test_leid_playwright_client.py` exhaust the
   invariants. The `@pytest.mark.requires_playwright` smoke test exercises a
   real Chromium when the operator has installed it; it is default-skip in CI.
+
+---
+
+## 11. Browser-mode contract addendum (v0.8.1 — *Mynd af Vegferð*)
+
+> **Added 2026-05-10 v0.8.1.** Adds `leid.screenshot` as a sibling method on
+> `PlaywrightLeidClient`. Same lifecycle as `render_url`; one new invariant.
+
+### 11.1 New tool
+
+| Field    | Value                                                 |
+|----------|-------------------------------------------------------|
+| Tool     | `leid.screenshot`                                     |
+| Method   | `PlaywrightLeidClient.screenshot(url: str) -> dict`   |
+| Engine   | Chromium (headless) via Playwright (same as `render_url`) |
+
+### 11.2 New B-Invariant
+
+| #    | B-Invariant |
+|------|-----------|
+| B-11 | `screenshot()` enforces the same size cap as `render_url`, applied to the **raw PNG bytes BEFORE base64 encoding**. If `len(png_bytes) > config.max_response_bytes`, `LeidResponseTooLargeError` is raised BEFORE the `base64.b64encode` call. The B-7 cleanup invariant continues to hold: context/browser/pw all closed during stack unwind. |
+
+B-1..B-10 from §10.2 govern `screenshot()` unchanged. B-10 in particular gains a regression-guard test at this milestone (`page.evaluate` is asserted not-called for both methods), closing Audit N-2 from `AUDIT_v0.8.0_OPID_VEF.md`.
+
+### 11.3 Success response shape
+
+```json
+{
+  "url": "https://example.com/dashboard",
+  "final_url": "https://example.com/dashboard",
+  "image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "image_format": "png",
+  "size_bytes": 45678,
+  "full_page": true
+}
+```
+
+| Key              | Type   | Meaning                                                         |
+|------------------|--------|-----------------------------------------------------------------|
+| `url`            | string | Validated URL passed in (post normalisation)                    |
+| `final_url`      | string | `page.url` after navigation; differs on client-side redirect    |
+| `image_base64`   | string | Base64-encoded PNG bytes (ASCII-safe)                           |
+| `image_format`   | string | Always `"png"` at v0.8.1 (JPEG/WebP deferred)                   |
+| `size_bytes`     | int    | Length of the **raw PNG bytes** (before base64 expansion)       |
+| `full_page`      | bool   | Echo of `config.browser_screenshot_full_page` actually used     |
+
+### 11.4 Why the cap is on raw PNG bytes, not base64 length
+
+Base64 expands by approximately 4/3 (33% growth). Capping on the encoded length would force operators to set `max_response_bytes` 33% higher to allow the same actual image content, conflating *content size* with *transport encoding overhead*. The v0.8.1 contract caps on what the body actually fetched (PNG bytes), not on what the body re-encoded for the agent. This is consistent with how `render_url` caps on the UTF-8 byte length of `page.content()` (the rendered content), not on a downstream encoding step.
+
+### 11.5 New configuration field
+
+| Field                            | Type | Default | Meaning                                                |
+|----------------------------------|------|---------|--------------------------------------------------------|
+| `browser_screenshot_full_page`   | bool | `True`  | `True`: capture entire scrollable page. `False`: viewport only (1280x720 default). |
+
+### 11.6 Out of scope at v0.8.1
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| `leid.click`, `leid.type`   | v0.8.2            |
+| `leid.query`                | v0.8.3            |
+| Element/region screenshots  | v0.8.x+           |
+| JPEG / WebP output formats  | v0.8.x+           |
+| Configurable viewport size  | v0.8.x+           |
+| Screenshot quality settings | v0.8.x+ (PNG is lossless; quality applies to JPEG only) |
+
+### 11.7 Forge implementation contract
+
+- `screenshot()` lives as a sibling method on `PlaywrightLeidClient`. The v0.8.0 `render_url()` is byte-untouched (Architect D-23: strict additive law honoured at v0.8.1; refactor question revisited at v0.8.2 if patterns coalesce).
+- `_validate_url()` is reused from the existing v0.8.0 implementation.
+- Resource cleanup uses the same `try/finally` shape as `render_url()`.
+- `await page.screenshot(full_page=config.browser_screenshot_full_page, type="png")` returns `bytes`; the cap check then compares `len(png_bytes)` to `config.max_response_bytes`; on success `image_base64 = base64.b64encode(png_bytes).decode("ascii")`.
+- Tests live in `tests/test_leid_playwright_client.py::TestScreenshot` and exhaust B-1..B-10 + the new B-11. Two B-10 regression-guard tests are added (`test_render_url_does_not_call_page_evaluate`, `test_screenshot_does_not_call_page_evaluate`) closing Audit N-2.

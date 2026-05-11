@@ -16,6 +16,10 @@ v0.8.0 (1 added tool — LOCKED):
                         text + title from the post-JS DOM (Playwright, opt-in
                         via `pip install heretic[browser]`)
 
+v0.8.1 (1 added tool — LOCKED):
+    leid.screenshot   — navigate via headless Chromium, return a base64-encoded
+                        PNG of the rendered page (Playwright; same opt-in)
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -151,8 +155,52 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+
+    # ------------------------------------------------------------------
+    # leid.screenshot  (v0.8.1 Mynd af Vegferð — second browser tool)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.screenshot",
+            "description": (
+                "Navigate to a URL in a headless Chromium browser and return a "
+                "base64-encoded PNG screenshot of the rendered page. Use this when "
+                "you need to see what the page looks like — layout, fonts, images, "
+                "spatial arrangement, visual indicators — not just its text content. "
+                "By default captures the full scrollable page (configurable via "
+                "browser_screenshot_full_page). The URL must match "
+                "url_allowlist_patterns. Each call uses a fresh, isolated browser "
+                "context — no cookies persist. Browser is always headless. "
+                "HERETIC injects no JavaScript; only the page's own scripts run. "
+                "PNG byte size is capped at max_response_bytes (BEFORE base64 "
+                "encoding). The result includes image_base64 (PNG bytes encoded as "
+                "ASCII base64), image_format ('png'), size_bytes (raw PNG length), "
+                "and full_page (echo of the config value used). Significantly more "
+                "expensive than leid.fetch_url. Requires the [browser] extra "
+                "(`pip install heretic[browser]` and `playwright install chromium`); "
+                "returns EXTERNAL_APP_UNAVAILABLE if absent."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": (
+                            "The URL to screenshot in a headless Chromium browser. "
+                            "Must start with https:// (or http:// if allow_http: true). "
+                            "Must match at least one pattern in url_allowlist_patterns. "
+                            "Example: 'https://example.com/dashboard'"
+                        ),
+                    },
+                },
+                "required": ["url"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
-"""The 3 OpenAI tool schemas for the Leið sense.
+"""The 4 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -160,4 +208,7 @@ Tool names locked at v0.6.2:
 
 Tool name added at v0.8.0 (LOCKED):
     leid.render_url
+
+Tool name added at v0.8.1 (LOCKED):
+    leid.screenshot
 """

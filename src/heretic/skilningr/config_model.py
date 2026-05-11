@@ -542,6 +542,16 @@ class LeidConfig:
     to extract" vs "no waiting forever for trackers." Must be one of the four
     documented values."""
 
+    # ----- v0.8.1 Mynd af Vegferð — screenshot field (applies to leid.screenshot only) -----
+
+    browser_screenshot_full_page: bool = True
+    """Whether ``leid.screenshot`` captures the full scrollable page (True) or
+    only the current viewport (False, default 1280x720). Default True — matches
+    the typical "show me the page" agent intent. Set False for SPAs whose full
+    page is enormous; the viewport-only screenshot is bounded in size by the
+    viewport dimensions and tends to fit within smaller ``max_response_bytes``
+    caps. Has no effect on ``leid.render_url`` or the httpx tools."""
+
     def __post_init__(self) -> None:
         """Validate config fields at construction time.
 
