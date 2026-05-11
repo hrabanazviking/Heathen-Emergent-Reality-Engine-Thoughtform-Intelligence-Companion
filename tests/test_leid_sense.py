@@ -197,13 +197,13 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 12 tools when enabled
+        """tool_definitions returns 14 tools when enabled
         (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4 + v0.8.2.1: 1 +
-         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1)."""
+         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1 + v0.8.5: 2)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 12
+        assert len(sense.tool_definitions) == 14
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -213,11 +213,11 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """All twelve Leið tool names are locked as specified
+        """All fourteen Leið tool names are locked as specified
         (v0.6.2: fetch_url, extract_text; v0.8.0: render_url;
          v0.8.1: screenshot; v0.8.2: open_session, session_status, click,
          close_session; v0.8.2.1: type; v0.8.2.2: navigate; v0.8.3: query;
-         v0.8.4: press)."""
+         v0.8.4: press; v0.8.5: go_back, go_forward)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
@@ -230,6 +230,8 @@ class TestLeidSenseToolDefinitions:
         assert "leid.navigate" in names
         assert "leid.query" in names
         assert "leid.press" in names
+        assert "leid.go_back" in names
+        assert "leid.go_forward" in names
         assert "leid.close_session" in names
 
 
@@ -819,3 +821,53 @@ class TestLeidSenseDispatch:
         mock_pw_client.press.assert_awaited_once_with(
             session_id="leid-x", key="Enter"
         )
+
+    # -------------------------------------------------------------------
+    # v0.8.5 — leid.go_back + leid.go_forward dispatch (paired)
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_go_back_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.go_back = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "moved": True,
+            "previous_url": "https://example.com/page2",
+            "current_url": "https://example.com/page1",
+            "title": "Page 1",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.go_back", {"session_id": "leid-x"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["moved"] is True
+        assert parsed["current_url"] == "https://example.com/page1"
+        mock_pw_client.go_back.assert_awaited_once_with(session_id="leid-x")
+
+    @pytest.mark.asyncio
+    async def test_dispatch_go_forward_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.go_forward = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "moved": False,
+            "previous_url": "https://example.com/page2",
+            "current_url": "https://example.com/page2",
+            "title": "Page 2",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.go_forward", {"session_id": "leid-x"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        # Verifies the moved=false case is routed correctly (NOT an error)
+        assert parsed["moved"] is False
+        mock_pw_client.go_forward.assert_awaited_once_with(session_id="leid-x")

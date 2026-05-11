@@ -297,6 +297,29 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.go_back":
+            # v0.8.5 — eighth unnamed extension (paired with go_forward).
+            # Browser history step backward.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.go_back(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.go_forward":
+            # v0.8.5 — paired with go_back. Browser history step forward.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.go_forward(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.close_session":
             if self._playwright_client is None:
                 self._playwright_client = PlaywrightLeidClient(

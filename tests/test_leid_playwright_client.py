@@ -147,6 +147,12 @@ def _install_fake_playwright(
     else:
         page_mock.goto = AsyncMock(return_value=response_mock)
 
+    # v0.8.5 — page.go_back / page.go_forward defaults: return response_mock
+    # (mimics successful history navigation). Tests override to None for
+    # "no history" cases or to side_effect for failure cases.
+    page_mock.go_back = AsyncMock(return_value=response_mock)
+    page_mock.go_forward = AsyncMock(return_value=response_mock)
+
     # Build the context mock
     context_mock = MagicMock()
     context_mock.new_page = AsyncMock(return_value=page_mock)
@@ -1680,6 +1686,225 @@ class TestPress:
         opened = await client.open_session("https://example.com/page")
         await client.press(opened["session_id"], "Control+A")
         page_mock.keyboard.press.assert_awaited_once_with("Control+A")
+
+
+class TestGoBack:
+    """B-23 + D-88..D-93 for v0.8.5 leid.go_back. Paired with TestGoForward;
+    tests are structurally identical to verify symmetry."""
+
+    @pytest.mark.asyncio
+    async def test_go_back_unknown_session_raises_expired(self, fake_playwright):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.go_back("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_go_back_calls_page_go_back(self, fake_playwright):
+        """D-88: underlying primitive is page.go_back."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.go_back.reset_mock()
+        await client.go_back(opened["session_id"])
+        page_mock.go_back.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_go_back_returns_moved_true_on_success(self, fake_playwright):
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.go_back(opened["session_id"])
+        assert result["moved"] is True
+
+    @pytest.mark.asyncio
+    async def test_go_back_returns_moved_false_when_no_history(
+        self, fake_playwright
+    ):
+        """D-89: Playwright returns None → moved: false; NOT an exception."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        # Override: page.go_back returns None (no history to go back to)
+        page_mock.go_back = AsyncMock(return_value=None)
+        # Must NOT raise
+        result = await client.go_back(opened["session_id"])
+        assert result["moved"] is False
+        assert result["previous_url"] == result["current_url"]  # didn't move
+
+    @pytest.mark.asyncio
+    async def test_go_back_returns_previous_and_current_url(self, fake_playwright):
+        """D-64-mirror: previous_url captured before; current_url after."""
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/page1"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page1")
+
+        async def _go_back_changes_url(*_args, **_kwargs):
+            page_mock.url = "https://example.com/page0"
+            return response_mock
+
+        page_mock.go_back = AsyncMock(side_effect=_go_back_changes_url)
+
+        result = await client.go_back(opened["session_id"])
+        assert result["previous_url"] == "https://example.com/page1"
+        assert result["current_url"] == "https://example.com/page0"
+
+    @pytest.mark.asyncio
+    async def test_go_back_timeout_raises_leid_timeout(self, fake_playwright):
+        """B-5 inherited via B-23: TimeoutError → LeidTimeoutError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.go_back = AsyncMock(
+            side_effect=_FakePlaywrightTimeoutError("Navigation timeout 30000ms")
+        )
+        with pytest.raises(LeidTimeoutError, match="timed out"):
+            await client.go_back(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_go_back_updates_last_activity(self, fake_playwright):
+        """B-17 / B-23 on the moved-true path."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.go_back(session_id)
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+
+class TestGoForward:
+    """B-23 + D-88..D-93 for v0.8.5 leid.go_forward. Paired with TestGoBack;
+    tests are structurally identical to verify symmetry."""
+
+    @pytest.mark.asyncio
+    async def test_go_forward_unknown_session_raises_expired(self, fake_playwright):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.go_forward("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_go_forward_calls_page_go_forward(self, fake_playwright):
+        """D-88: underlying primitive is page.go_forward."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.go_forward.reset_mock()
+        await client.go_forward(opened["session_id"])
+        page_mock.go_forward.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_go_forward_returns_moved_true_on_success(self, fake_playwright):
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.go_forward(opened["session_id"])
+        assert result["moved"] is True
+
+    @pytest.mark.asyncio
+    async def test_go_forward_returns_moved_false_when_no_history(
+        self, fake_playwright
+    ):
+        """D-89: Playwright returns None → moved: false; NOT an exception.
+        Typical state after a fresh navigation that did not branch."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.go_forward = AsyncMock(return_value=None)
+        result = await client.go_forward(opened["session_id"])
+        assert result["moved"] is False
+        assert result["previous_url"] == result["current_url"]
+
+    @pytest.mark.asyncio
+    async def test_go_forward_returns_previous_and_current_url(
+        self, fake_playwright
+    ):
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/page1"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page1")
+
+        async def _go_forward_changes_url(*_args, **_kwargs):
+            page_mock.url = "https://example.com/page2"
+            return response_mock
+
+        page_mock.go_forward = AsyncMock(side_effect=_go_forward_changes_url)
+
+        result = await client.go_forward(opened["session_id"])
+        assert result["previous_url"] == "https://example.com/page1"
+        assert result["current_url"] == "https://example.com/page2"
+
+    @pytest.mark.asyncio
+    async def test_go_forward_timeout_raises_leid_timeout(self, fake_playwright):
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.go_forward = AsyncMock(
+            side_effect=_FakePlaywrightTimeoutError("Navigation timeout 30000ms")
+        )
+        with pytest.raises(LeidTimeoutError, match="timed out"):
+            await client.go_forward(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_go_forward_updates_last_activity(self, fake_playwright):
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)
+        await client.go_forward(session_id)
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+
+class TestGoHistoryShared:
+    """Tests covering the shared error-mapping and B-10 inheritance of the
+    paired history-nav tools. One regression-guard each direction is enough."""
+
+    @pytest.mark.asyncio
+    async def test_go_back_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inherited: history nav must never call page.evaluate."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.go_back(opened["session_id"])
+        page_mock.evaluate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_go_back_http_error_raises_leid_http_error(self, fake_playwright):
+        """response.status >= 400 → LeidHttpError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        error_response = MagicMock()
+        error_response.status = 500
+        page_mock.go_back = AsyncMock(return_value=error_response)
+        with pytest.raises(LeidHttpError, match="500"):
+            await client.go_back(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_go_back_network_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """PlaywrightError (non-timeout) → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.go_back = AsyncMock(
+            side_effect=_FakePlaywrightError("net::ERR_NETWORK_CHANGED")
+        )
+        with pytest.raises(LeidConnectionError, match="network layer"):
+            await client.go_back(opened["session_id"])
 
 
 class TestM1PageExceptionTyping:

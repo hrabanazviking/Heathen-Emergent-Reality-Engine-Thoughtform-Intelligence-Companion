@@ -1334,6 +1334,152 @@ class PlaywrightLeidClient:
             "current_title": current_title,
         }
 
+    async def _go_history(
+        self, session_id: str, direction: str
+    ) -> dict[str, Any]:
+        """Shared private helper for go_back / go_forward. (B-23, D-88..D-93)
+
+        Both go_back and go_forward share identical structure differing
+        only in the Playwright primitive used. This helper centralises
+        the discipline; the public methods are thin wrappers (D-90).
+
+        Args:
+            session_id: A session_id from a prior open_session call.
+            direction:  Either "back" or "forward". Selects which
+                        Playwright primitive to call.
+
+        Returns:
+            dict with keys: session_id, moved, previous_url, current_url, title.
+
+        Raises:
+            LeidSessionExpiredError, LeidTimeoutError, LeidHttpError,
+            LeidConnectionError.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"go_{direction}: {exc}"
+            ) from exc
+
+        # Capture previous URL BEFORE the history step (D-64 mirror).
+        previous_url = session.page.url
+
+        # Select the Playwright primitive (D-88, D-90).
+        if direction == "back":
+            primitive = session.page.go_back
+        elif direction == "forward":
+            primitive = session.page.go_forward
+        else:
+            # Defensive — this function is private and only called with
+            # "back" or "forward", but be explicit.
+            raise ValueError(
+                f"_go_history: invalid direction {direction!r}; "
+                f"expected 'back' or 'forward'."
+            )
+
+        navigation_timeout_ms = (
+            self._config.browser_navigation_timeout_seconds * 1000
+        )
+
+        try:
+            response = await primitive(
+                wait_until=self._config.browser_load_state,
+                timeout=navigation_timeout_ms,
+            )
+        except PlaywrightTimeoutError as exc:
+            raise LeidTimeoutError(
+                f"go_{direction} on session {session_id!r} timed out after "
+                f"{self._config.browser_navigation_timeout_seconds}s "
+                f"(load_state={self._config.browser_load_state!r}): {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"go_{direction} on session {session_id!r} failed at the "
+                f"network layer: {exc}"
+            ) from exc
+
+        # D-89 — detect "no history in this direction".
+        # Playwright returns None when there's no history entry.
+        if response is None:
+            session.mark_activity()  # B-17 (still counts as activity)
+            # Read title defensively — page didn't move, but title can change
+            try:
+                title = await session.page.title()
+            except Exception:
+                title = None
+            self._log.debug(
+                "Leið go_%s: session=%s -> no history (moved: false)",
+                direction, session_id,
+            )
+            return {
+                "session_id": session_id,
+                "moved": False,
+                "previous_url": previous_url,
+                "current_url": previous_url,  # didn't move
+                "title": title,
+            }
+
+        # Status check on successful move.
+        if response.status >= 400:
+            raise LeidHttpError(
+                f"HTTP {response.status} during go_{direction} on session "
+                f"{session_id!r}."
+            )
+
+        # B-17 / B-23 — successful history nav counts as activity.
+        session.mark_activity()
+
+        final_url = session.page.url
+        try:
+            title = await session.page.title()
+        except Exception:
+            title = None
+
+        self._log.debug(
+            "Leið go_%s: session=%s prev=%s -> final=%s",
+            direction, session_id, previous_url, final_url,
+        )
+
+        return {
+            "session_id": session_id,
+            "moved": True,
+            "previous_url": previous_url,
+            "current_url": final_url,
+            "title": title,
+        }
+
+    async def go_back(self, session_id: str) -> dict[str, Any]:
+        """Step backward in the session's browser history. (B-23, D-89)
+
+        Returns ``{moved: false, ...}`` (NOT an error) when there's no
+        history entry to go back to.
+
+        See ``_go_history`` for the full contract.
+        """
+        return await self._go_history(session_id, "back")
+
+    async def go_forward(self, session_id: str) -> dict[str, Any]:
+        """Step forward in the session's browser history. (B-23, D-89)
+
+        Returns ``{moved: false, ...}`` (NOT an error) when there's no
+        history entry to go forward to (typical state after a fresh
+        navigation that did not branch from history).
+
+        See ``_go_history`` for the full contract.
+        """
+        return await self._go_history(session_id, "forward")
+
     async def close_session(self, session_id: str) -> dict[str, Any]:
         """Close the session and release all browser resources. Idempotent. (B-18)
 
