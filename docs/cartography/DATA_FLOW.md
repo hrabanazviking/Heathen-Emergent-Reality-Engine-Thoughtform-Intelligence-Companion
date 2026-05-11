@@ -7428,6 +7428,156 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.12 Leið in-session multi-element query (Innan Hurðar extension — v0.8.8)
+
+> **Added 2026-05-11 v0.8.8 (Védis Eikleið).** Eleventh unnamed Innan
+> Hurðar extension — adds `leid.query_all`, multi-element follow-up to
+> v0.8.3 single-match `query`. Returns ALL matches as a list (in DOM
+> order) up to a new cardinality cap (`browser_query_max_matches`,
+> default 100). Same probe-and-act posture as query: empty result is
+> NOT an error. One new B-invariant (B-26); no new error classes; ONE
+> new config field (first new field since v0.8.2 — five-consecutive-
+> milestone config-stability streak ends here).
+
+```
+  LEIÐ IN-SESSION MULTI-ELEMENT QUERY FLOW (v0.8.8)
+
+  Entry point: agent calls leid.query_all(session_id, selector, attribute="").
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.query_all" → PlaywrightLeidClient.query_all(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Locator + count
+    locator = session.page.locator(selector)
+    try:
+        count = await locator.count()
+    except PlaywrightError as exc:
+        raise LeidConnectionError(...)            ── shared with query
+
+  Stage 5 — Cardinality cap check (B-26 NEW)
+    if count > config.browser_query_max_matches:
+        raise LeidResponseTooLargeError(           ── D-116
+            f"selector matched {count} elements, exceeds "
+            f"browser_query_max_matches={cap}; refine selector"
+        )
+
+    Note: this fires even if count == 0 was the first check; the cap
+    check is what bounds the iteration cost. count == 0 falls through
+    to the empty-return branch below (D-117 — not an error).
+
+  Stage 6 — Empty early return (D-117, B-26 divergence)
+    if count == 0:
+        session.mark_activity()                    ── B-17 (still counts)
+        return {
+            session_id, selector, attribute,
+            count: 0, values: [],
+        }
+
+    SAME DIVERGENCE as v0.8.3 query (D-72): empty match is not an
+    error. The agent's natural "give me all matches" includes the
+    success case of "there were zero." Forcing exception handling
+    on the empty case would invert the semantics.
+
+  Stage 7 — Iterate matches and extract (D-118)
+    timeout_ms = config.browser_click_timeout_seconds * 1000  ── D-122 reuse
+    values = []
+    for i in range(count):
+        el = locator.nth(i)
+        try:
+            if attribute == "":                    ── D-120 default = text
+                v = await el.text_content(timeout=timeout_ms)
+            else:                                  ── D-120 attribute path
+                v = await el.get_attribute(attribute, timeout=timeout_ms)
+        except PlaywrightTimeoutError as exc:
+            raise LeidConnectionError(             ── per-element timeout
+                f"query_all extraction at index {i} timed out: {exc}"
+            )
+        except PlaywrightError as exc:
+            raise LeidConnectionError(             ── shared with query
+                f"query_all extraction at index {i} failed: {exc}"
+            )
+        values.append(v)
+
+    Notes on per-element values:
+      - text_content returns str OR None (None when element has no text)
+      - get_attribute returns str OR None (None when attribute absent)
+      - Both pass through to the agent as JSON null when None
+      - The agent can distinguish "element exists but empty/no-attr"
+        (None in values) from "no element matched" (count=0, values=[])
+
+  Stage 8 — Activity update (B-17 / B-26)
+    session.mark_activity()
+
+  Stage 9 — Return
+    return {
+        session_id,
+        selector,
+        attribute,                                 ── echo back what agent asked
+        count,                                     ── total matches in DOM
+        values,                                    ── list of str | None,
+                                                      length == count,
+                                                      DOM order
+    }
+
+  Cap-vs-byte-size:
+    The cap is on CARDINALITY (number of matches), not byte size of
+    serialized values. This is intentional: agents care about how
+    many items they get back (typical: tens, not hundreds), not
+    about exact byte budget. If the agent needs 200 matches when
+    cap is 100, they raise the operator's cap rather than fight a
+    byte budget.
+
+    A byte-size cap (max_response_bytes summed across values) was
+    considered and rejected: it forces operators to reason about
+    serialization overhead, and it forces the implementation to
+    track running byte size mid-iteration. Cardinality cap is
+    cleaner and matches the agent's mental model.
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises LeidSessionExpiredError
+    B-17  — activity update after success (BOTH empty and non-empty paths)
+    B-21  — query divergence (not-found is not error) inherited
+    B-26  — NEW: cardinality cap; empty-result divergence preserved
+
+  Error code mapping (no new classes):
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+    LeidResponseTooLargeError     → INVALID_ARGUMENTS
+    (no class for "no match"      — successful return with values:[])
+
+  New config field:
+    browser_query_max_matches: int = 100
+      Bounds query_all's iteration. Validated >= 1 in __post_init__.
+      Operators may raise this for use cases that genuinely need
+      many matches, but defaulting to 100 catches the over-broad-
+      selector mistake early.
+
+  Cost vs query (single-match):
+    query (1 match):     ~5-50 ms      (count + 1 extract)
+    query_all (10):      ~50-500 ms    (count + 10 extracts)
+    query_all (100):     ~500-5000 ms  (count + 100 extracts)
+    query_all (cap exceeded):  ~5-20 ms (count only — early return)
+
+    Per-element cost is roughly the same as query's single extract.
+    Cap-exceeded is fast because no iteration happens.
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
