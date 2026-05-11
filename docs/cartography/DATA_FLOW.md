@@ -6918,6 +6918,117 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.8 Leið in-session keyboard press (Innan Hurðar extension — v0.8.4)
+
+> **Added 2026-05-10 v0.8.4 (Védis Eikleið).** Seventh unnamed Innan Hurðar
+> extension — adds `leid.press`, the body's keyboard finger. Sends a single
+> key (or modifier+key combination) to the open session's page through
+> Playwright's `page.keyboard.press()`. Used for form submission via Enter,
+> modal dismissal via Escape, focus traversal via Tab, and similar keyboard-
+> driven flows. One new B-invariant (B-22); no new error classes; no new
+> config fields.
+
+```
+  LEIÐ IN-SESSION PRESS FLOW (v0.8.4)
+
+  Entry point: agent calls leid.press(session_id, key).
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.press" → PlaywrightLeidClient.press(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Keyboard press
+    try:
+        await session.page.keyboard.press(key)
+    except PlaywrightError as exc:
+        raise LeidConnectionError(...)            ── D-84 (browser failure)
+
+    Notes:
+      - page.keyboard.press goes to whatever element has focus.
+        Typical agent flow: click(selector) or type(selector,text)
+        first, then press("Enter"). The prior call leaves focus on
+        the targeted element.
+      - Playwright's key syntax accepts:
+          single keys:         "Enter", "Tab", "Escape", "ArrowDown",
+                               "a", "A", "F5", "PageDown", " " (space)
+          modifier combos:     "Control+A", "Shift+Tab", "Meta+S",
+                               "Alt+F4"
+        The agent supplies the key string; HERETIC does not validate
+        it (Playwright will dispatch as best it can; unrecognized
+        keys produce no event but do not raise — D-84 rationale).
+      - keyboard.press does NOT accept a per-call timeout argument.
+        Playwright applies its own internal default action timeout
+        (~30s). This is acceptable: keyboard input is essentially
+        synchronous; the timeout is a safety net for the rare
+        pathological page.
+
+  Stage 5 — Activity update (B-17 / B-22)
+    session.mark_activity()
+
+  Stage 6 — Read post-press state (D-85)
+    current_url = session.page.url   (may differ if press triggered
+                                       navigation, e.g., Enter submitted)
+    try: title = await session.page.title()
+    except: title = None                          ── D-49 defensive
+
+    return {
+        "session_id": session_id,
+        "key": key,                                ── echo back what agent pressed
+        "pressed": True,
+        "current_url": current_url,
+        "current_title": title,
+    }
+
+  Why "page-level" press, not element-level:
+    Playwright offers two press primitives:
+      - page.keyboard.press(key)       — page-level; dispatches to
+                                          whatever has focus
+      - locator(sel).first.press(key)  — element-level; auto-focuses
+                                          and dispatches
+    v0.8.4 chose page-level (D-80) because the canonical agent flow
+    is type(selector, text) → press("Enter") — and after type's fill
+    primitive, focus IS on the typed-into element. So page-level
+    press hits the right target without requiring a redundant
+    selector. Agents who want element-targeted press can call
+    click(selector) first to focus.
+    Element-level press as its own tool is a v0.8.x candidate.
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises
+    B-17  — activity update after success
+    B-22  — NEW: press honours session/activity discipline; uses
+              Playwright's intrinsic 30s default timeout for keyboard
+
+  Error code mapping:
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+    (no class for "unrecognized key" — Playwright accepts and
+     dispatches; bad key strings are no-ops, not errors. The agent
+     who passes "Funky+Made+Up" gets pressed: true with no effect.
+     This is consistent with Playwright's design.)
+
+  Cost vs the other in-session tools:
+    press:               ~5-30 ms     (keyboard event dispatch)
+    query (no match):    ~5-20 ms
+    click / type:        ~50-200 ms   (with actionability checks)
+    navigate:            ~500-2000 ms
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
