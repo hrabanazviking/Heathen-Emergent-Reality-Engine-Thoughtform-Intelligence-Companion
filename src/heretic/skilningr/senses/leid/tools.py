@@ -20,6 +20,15 @@ v0.8.1 (1 added tool — LOCKED):
     leid.screenshot   — navigate via headless Chromium, return a base64-encoded
                         PNG of the rendered page (Playwright; same opt-in)
 
+v0.8.2 (4 added tools — LOCKED):
+    leid.open_session     — open a stateful browser session at a URL; returns
+                            session_id; the page stays alive
+    leid.session_status   — non-mutating health/identity check on an open session
+    leid.click            — click the first element matching a CSS selector
+                            inside an open session
+    leid.close_session    — close a session and release all browser resources
+                            (idempotent for unknown session_id)
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -199,8 +208,163 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    # ------------------------------------------------------------------
+    # leid.open_session  (v0.8.2 Innan Hurðar — stateful sessions)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.open_session",
+            "description": (
+                "Open a stateful headless Chromium browser session at the given "
+                "URL. Returns a session_id that you must use for all subsequent "
+                "tool calls referring to this session (leid.session_status, "
+                "leid.click, leid.close_session). The page stays alive until you "
+                "explicitly close it OR until it is evicted by the idle/absolute "
+                "timeout (defaults: 5 minutes idle, 30 minutes max lifetime). "
+                "Each session is fully isolated — its own browser, its own "
+                "context, its own cookie jar; cookies persist within a session "
+                "but never across sessions. There is a configured cap on "
+                "concurrent sessions (default 3); opening when at the cap "
+                "returns SENSE_UNAVAILABLE. The URL must match "
+                "url_allowlist_patterns. ALWAYS call leid.close_session when "
+                "done — open sessions are an expensive resource. Requires the "
+                "[browser] extra (`pip install heretic[browser]` and "
+                "`playwright install chromium`)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": (
+                            "The URL to navigate to in the new session. Must match "
+                            "url_allowlist_patterns. The page stays alive after the "
+                            "navigation completes. "
+                            "Example: 'https://example-spa.com/dashboard'"
+                        ),
+                    },
+                },
+                "required": ["url"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.session_status  (v0.8.2 Innan Hurðar)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.session_status",
+            "description": (
+                "Get the current state, URL, and title of an open session. This "
+                "is a non-mutating health check — useful when you suspect a click "
+                "may have triggered navigation, or when you want to verify a "
+                "session is still alive before issuing more calls. Returns "
+                "{state, url, title, opened_at, last_activity_at, age_seconds, "
+                "idle_seconds}. A status check counts as activity (resets the "
+                "idle timer). Returns SENSE_UNAVAILABLE if the session_id is "
+                "unknown or has been evicted."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session "
+                            "call. Format: 'leid-' followed by a hex string."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.click  (v0.8.2 Innan Hurðar — first interactive tool)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.click",
+            "description": (
+                "Click the first element in the session's page that matches the "
+                "given CSS selector. The click may trigger navigation, modal "
+                "appearance, or any other page behaviour the page's scripts "
+                "implement. Returns {selector, clicked, current_url, "
+                "current_title} so you know where the page ended up. If no "
+                "element matches the selector within browser_click_timeout_seconds "
+                "(default 10), returns INVALID_ARGUMENTS — refine the selector "
+                "and retry. If the session_id is unknown or evicted, returns "
+                "SENSE_UNAVAILABLE. Network-level failures during click return "
+                "EXTERNAL_APP_UNAVAILABLE. HERETIC injects no JavaScript; only "
+                "the page's own scripts respond to the click event."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector for the element to click. The first "
+                            "matching element is clicked. "
+                            "Examples: 'button.submit', '#login-btn', "
+                            "'a[href=\"/about\"]'."
+                        ),
+                    },
+                },
+                "required": ["session_id", "selector"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.close_session",
+            "description": (
+                "Close an open session and release all browser resources "
+                "(context, browser process, playwright runtime). Idempotent: "
+                "closing an unknown or already-closed session_id returns "
+                "{closed: false} rather than raising an error — safe to retry. "
+                "Closing an active session returns {closed: true}. ALWAYS call "
+                "this when done with a session; sessions held open consume "
+                "real resources and are subject to absolute-lifetime eviction "
+                "anyway."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id to close. Idempotent if unknown or "
+                            "already closed."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
-"""The 4 OpenAI tool schemas for the Leið sense.
+"""The 8 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -211,4 +375,10 @@ Tool name added at v0.8.0 (LOCKED):
 
 Tool name added at v0.8.1 (LOCKED):
     leid.screenshot
+
+Tool names added at v0.8.2 (LOCKED):
+    leid.open_session
+    leid.session_status
+    leid.click
+    leid.close_session
 """

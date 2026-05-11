@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot addendum — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render addendum) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming addendum) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click addendum — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot addendum) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render addendum) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming addendum) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -69,12 +69,21 @@ for the v0.8.0 browser-mode contract.
 | `leid.fetch_url`   | Raw HTTP GET        | `url` (string)   | —               | httpx     |
 | `leid.extract_text`| GET + strip HTML    | `url` (string)   | —               | httpx     |
 
-### 4.2 Browser tools (added at v0.8.0+ — *Opið Vef*)
+### 4.2 Stateless browser tools (added at v0.8.0+ — *Opið Vef*)
 
 | Tool name          | Action                                          | Required params  | Optional params | Transport          | Added |
 |--------------------|-------------------------------------------------|------------------|-----------------|--------------------|-------|
 | `leid.render_url`  | Headless Chromium navigate + extract rendered text | `url` (string) | —               | Playwright (Chromium) | v0.8.0 |
 | `leid.screenshot`  | Headless Chromium navigate + return base64 PNG of rendered page | `url` (string) | — | Playwright (Chromium) | v0.8.1 |
+
+### 4.3 Stateful browser tools (added at v0.8.2 — *Innan Hurðar*)
+
+| Tool name              | Action                                                              | Required params                          | Transport             | Added |
+|------------------------|---------------------------------------------------------------------|------------------------------------------|-----------------------|-------|
+| `leid.open_session`    | Open a stateful session at URL; page stays alive                    | `url` (string)                           | Playwright (Chromium) | v0.8.2 |
+| `leid.session_status`  | Non-mutating health/identity check on an open session               | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
+| `leid.click`           | Click first element matching CSS selector inside open session       | `session_id`, `selector` (both strings)  | Playwright (Chromium) | v0.8.2 |
+| `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
 whenever `config.enabled: true`, but a tool call to either raises
@@ -132,7 +141,10 @@ not installed the `[browser]` extra (`pip install heretic[browser]`) and run
 | Network-level error (DNS, TCP, TLS)        | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
 | Unknown tool name in `leid.*`              | `ToolDispatchError`        | `SENSE_INTERNAL_ERROR`    |
 | Sense disabled or not open                 | `SenseUnavailableError`    | `SENSE_UNAVAILABLE`       |
-| Playwright not installed / chromium missing (v0.8.0 `leid.render_url` only) | `LeidPlaywrightUnavailableError` | `EXTERNAL_APP_UNAVAILABLE` |
+| Playwright not installed / chromium missing (v0.8.0+ browser tools) | `LeidPlaywrightUnavailableError` | `EXTERNAL_APP_UNAVAILABLE` |
+| Concurrent-session cap reached (v0.8.2 `leid.open_session`)   | `LeidSessionLimitError`     | `SENSE_UNAVAILABLE`       |
+| Unknown / evicted session_id (v0.8.2 status/click/close)     | `LeidSessionExpiredError`   | `SENSE_UNAVAILABLE`       |
+| Selector matched no element within click timeout (v0.8.2)    | `LeidClickElementNotFoundError` | `INVALID_ARGUMENTS`   |
 
 ---
 
@@ -157,6 +169,12 @@ skilningr:
 
     # v0.8.1 Mynd af Vegferð — screenshot field (applies to leid.screenshot only)
     browser_screenshot_full_page: true       # true=capture full scrollable page; false=viewport only
+
+    # v0.8.2 Innan Hurðar — session lifecycle + click fields
+    browser_max_concurrent_sessions: 3            # hard cap; open_session at cap raises
+    browser_session_idle_timeout_seconds: 300     # 5 min — evict on idle
+    browser_session_max_lifetime_seconds: 1800    # 30 min — hard ceiling
+    browser_click_timeout_seconds: 10             # max wall-clock for a single click
 ```
 
 ---
@@ -380,3 +398,131 @@ Base64 expands by approximately 4/3 (33% growth). Capping on the encoded length 
 - Resource cleanup uses the same `try/finally` shape as `render_url()`.
 - `await page.screenshot(full_page=config.browser_screenshot_full_page, type="png")` returns `bytes`; the cap check then compares `len(png_bytes)` to `config.max_response_bytes`; on success `image_base64 = base64.b64encode(png_bytes).decode("ascii")`.
 - Tests live in `tests/test_leid_playwright_client.py::TestScreenshot` and exhaust B-1..B-10 + the new B-11. Two B-10 regression-guard tests are added (`test_render_url_does_not_call_page_evaluate`, `test_screenshot_does_not_call_page_evaluate`) closing Audit N-2.
+
+---
+
+## 12. Stateful sessions + click contract (v0.8.2 — *Innan Hurðar*)
+
+### 12.1 New sub-disposition
+
+Where v0.8.0 (`render_url`) and v0.8.1 (`screenshot`) had the body do a single
+stateless act per call, v0.8.2 introduces **stateful sessions**: the body opens
+a session at a URL, the page stays alive, the agent issues one or more action
+calls against the session, and eventually the agent closes the session. The
+relationship to the page is qualitatively different — *visit* becomes
+*presence*. This is a NEW DISPOSITION; the Skald codename is *Innan Hurðar*.
+
+| Field            | Value                                                                |
+|------------------|----------------------------------------------------------------------|
+| Sub-disposition  | *Innan Hurðar* — "inside the door"                                   |
+| Tools            | `leid.open_session`, `leid.session_status`, `leid.click`, `leid.close_session` |
+| Module           | `heretic.skilningr.senses.leid.playwright_client` (new methods on `PlaywrightLeidClient`) + `heretic.skilningr.senses.leid.session_manager` (new) |
+| New class        | `BrowserSessionManager` — owns the open sessions, enforces cap + lazy eviction |
+| Lifecycle        | Launch-per-SESSION (NEW; distinct from launch-per-call of `render_url` / `screenshot`) |
+
+### 12.2 New B-Invariants (additive over B-1..B-11)
+
+| #    | B-Invariant |
+|------|-----------|
+| B-12 | `_validate_url()` is called at the start of `open_session()` BEFORE `async_playwright().start()`. A rejected URL never causes a session to be created or a browser process to spawn. |
+| B-13 | `open_session()` checks `len(manager._sessions) < config.browser_max_concurrent_sessions` BEFORE attempting to launch. If at cap, raise `LeidSessionLimitError → SENSE_UNAVAILABLE`. **No silent eviction of existing sessions** — the agent's mental model of which sessions are alive remains correct. |
+| B-14 | Each open session uses its OWN `pw`, `browser`, `context`, `page` quartet. No sharing of resources between sessions — each session can be torn down independently without affecting others. |
+| B-15 | `_evict_expired_sessions()` is called at the START of `open_session()`, `session_status()`, `click()`, and `close_session()`. Eviction uses the same cleanup ordering as `close_session()`: context → browser → pw, each defensively wrapped. **Lazy** — no background task; correctness is operator-perceivable. |
+| B-16 | A `session_id` whose session has been evicted (or never existed) raises `LeidSessionExpiredError → SENSE_UNAVAILABLE` from any tool that references it (status, click, future type/navigate). **`close_session` is the exception** — it returns `{closed: false}` idempotently for an unknown session_id (allows the agent to safely re-issue close). |
+| B-17 | After every successful session-affecting tool call (`status`, `click`, future `type`/`navigate`), `session.last_activity_at` is updated to the current monotonic time. Idle eviction is therefore relative to *real activity*, not just to `open_session` time. |
+| B-18 | `close_session()` is idempotent: closing an already-closed or never-existed session_id returns `{closed: false}` and does NOT raise. Closing an active session removes it from the manager dict BEFORE any cleanup begins (so a concurrent eviction sweep cannot double-clean), then runs cleanup, then returns `{closed: true}`. |
+
+B-1..B-11 continue to govern `render_url` and `screenshot` unchanged. B-3 (no
+cookies persist between calls) is **strengthened at the session boundary**:
+cookies persist *within* a session (that is what a session is), but each
+session's context is still fresh, and `close_session` discards all of them.
+
+### 12.3 Audit M-1 closure (deferred from v0.8.1)
+
+This milestone closes Auditor M-1 from `AUDIT_v0.8.1_MYND_AF_VEGFERD.md`.
+Three additional `Page.*` call sites gain explicit exception typing:
+
+| Call site                         | Method context  | Exception class on PlaywrightError | Exception class on PlaywrightTimeoutError |
+|-----------------------------------|-----------------|------------------------------------|-------------------------------------------|
+| `await page.content()`            | `render_url()`  | `LeidConnectionError`              | (not raised here in practice)             |
+| `await page.screenshot()`         | `screenshot()`  | `LeidConnectionError`              | (not raised here in practice)             |
+| `await locator.click()`           | `click()`       | `LeidConnectionError`              | `LeidClickElementNotFoundError`           |
+
+The fourth `Page.*` site (`page.goto`) was already correctly typed in v0.8.0;
+unchanged here. All four network-level browser failures now surface to the
+agent with the same precision httpx failures already had.
+
+### 12.4 Success response shapes
+
+#### `leid.open_session`
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "final_url": "https://example.com/dashboard",
+  "title": "Example Dashboard"
+}
+```
+
+#### `leid.session_status`
+```json
+{
+  "state": "alive",
+  "url": "https://example.com/dashboard",
+  "title": "Example Dashboard",
+  "opened_at": 1715379600.123,
+  "last_activity_at": 1715379650.456,
+  "age_seconds": 50.3,
+  "idle_seconds": 0.0
+}
+```
+
+`opened_at` and `last_activity_at` are monotonic-clock floats (`time.monotonic()`); `age_seconds` and `idle_seconds` are computed at call time relative to those.
+
+#### `leid.click`
+```json
+{
+  "selector": "button.submit",
+  "clicked": true,
+  "current_url": "https://example.com/dashboard/result",
+  "current_title": "Result page"
+}
+```
+
+`current_title` is `null` if the title read failed defensively (D-49).
+
+#### `leid.close_session`
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "closed": true
+}
+```
+
+`closed: false` for an unknown / already-closed / evicted session_id (B-18 idempotency).
+
+### 12.5 Out of scope at v0.8.2
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| `leid.type` (form input)    | v0.8.2.1          |
+| `leid.navigate` (in-session)| v0.8.2.2          |
+| `leid.query` (CSS query)    | v0.8.3            |
+| `leid.session_render` (re-extract HTML in session) | v0.8.x |
+| `leid.session_screenshot`   | v0.8.x            |
+| Multi-tab support           | v0.8.x+           |
+| Wait-for-selector, wait-for-event | v0.8.x      |
+| Cookie persistence across sessions | NEVER (B-3) |
+| Session survival across operator restarts | NEVER (D-27 — process-local) |
+
+### 12.6 Forge implementation contract
+
+- `BrowserSessionManager` lives in a new module: `heretic.skilningr.senses.leid.session_manager`. It owns the dict `_sessions: dict[str, _LeidSession]`, an `asyncio.Lock` for mutations (D-35), and the eviction logic.
+- `_LeidSession` is a private dataclass with: `session_id`, `pw`, `browser`, `context`, `page`, `created_at`, `last_activity_at`. Used internally only.
+- `PlaywrightLeidClient` gains a private `_session_manager: BrowserSessionManager | None = None` attribute, lazily created on first session-tool call. The manager binds to the client's config.
+- The four new methods (`open_session`, `session_status`, `click`, `close_session`) live as siblings of `render_url` and `screenshot` on `PlaywrightLeidClient`.
+- Session ID format: `f"leid-{uuid.uuid4().hex}"` (D-26).
+- Eviction triggers: `_session_manager._evict_expired_sessions()` is called at the start of every new method (D-31, B-15).
+- `close_session` removes from dict BEFORE cleanup (B-18) so a concurrent eviction sweep cannot double-clean.
+- Cleanup ordering on close + eviction: `context.close()` → `browser.close()` → `pw.stop()`, each defensively wrapped (same shape as render_url's `finally`).
+- M-1 closure: 1-line `try/except (PlaywrightError, PlaywrightTimeoutError)` wraps added around `await page.content()` (in render_url) and `await page.screenshot()` (in screenshot), mapping to `LeidConnectionError`. The v0.8.0 `render_url()` and v0.8.1 `screenshot()` BEHAVIOR is preserved (same exception-class outputs); only the error TYPING becomes explicit.
+- Tests live in `tests/test_leid_session_manager.py` (BrowserSessionManager unit tests) and `tests/test_leid_playwright_client.py::TestSession*` / `TestClick` (integration tests).

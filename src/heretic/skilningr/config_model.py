@@ -552,6 +552,33 @@ class LeidConfig:
     viewport dimensions and tends to fit within smaller ``max_response_bytes``
     caps. Has no effect on ``leid.render_url`` or the httpx tools."""
 
+    # ----- v0.8.2 Innan Hurðar — session lifecycle + click fields -----
+
+    browser_max_concurrent_sessions: int = 3
+    """Maximum number of simultaneously-open browser sessions for ``leid.open_session``.
+    Default 3 — defensive cap because each session holds an entire Chromium
+    process. ``open_session`` at cap raises ``LeidSessionLimitError`` (D-33);
+    no silent eviction. Operators with more headroom can raise this; operators
+    on small hardware can lower it. Must be >= 1."""
+
+    browser_session_idle_timeout_seconds: int = 300
+    """Session idle timeout — sessions with no successful tool-call activity
+    for this many seconds are evicted. Default 300 (5 minutes). Activity is
+    updated by ``session_status``, ``click``, and any future session-affecting
+    tool. Must be > 0."""
+
+    browser_session_max_lifetime_seconds: int = 1800
+    """Session absolute lifetime — even active sessions are evicted after this
+    many seconds. Default 1800 (30 minutes). Hard ceiling to prevent indefinite
+    resource holding. Must be > 0 AND >= browser_session_idle_timeout_seconds
+    (a max-lifetime shorter than the idle timeout would be incoherent)."""
+
+    browser_click_timeout_seconds: int = 10
+    """Maximum wall-clock seconds for a single ``leid.click`` call. Separate
+    from ``browser_navigation_timeout_seconds`` because click is a fast
+    interactive action; long timeout = bad UX when the selector is wrong.
+    Default 10. Must be > 0."""
+
     def __post_init__(self) -> None:
         """Validate config fields at construction time.
 
@@ -592,6 +619,38 @@ class LeidConfig:
             raise ValueError(
                 f"LeidConfig.browser_load_state must be one of "
                 f"{sorted(_allowed_load_states)}, got {self.browser_load_state!r}."
+            )
+        # v0.8.2 — session + click field validation
+        if self.browser_max_concurrent_sessions < 1:
+            raise ValueError(
+                f"LeidConfig.browser_max_concurrent_sessions must be >= 1, "
+                f"got {self.browser_max_concurrent_sessions!r}."
+            )
+        if self.browser_session_idle_timeout_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_session_idle_timeout_seconds must be > 0, "
+                f"got {self.browser_session_idle_timeout_seconds!r}."
+            )
+        if self.browser_session_max_lifetime_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_session_max_lifetime_seconds must be > 0, "
+                f"got {self.browser_session_max_lifetime_seconds!r}."
+            )
+        if (
+            self.browser_session_max_lifetime_seconds
+            < self.browser_session_idle_timeout_seconds
+        ):
+            raise ValueError(
+                f"LeidConfig.browser_session_max_lifetime_seconds "
+                f"({self.browser_session_max_lifetime_seconds}) must be >= "
+                f"browser_session_idle_timeout_seconds "
+                f"({self.browser_session_idle_timeout_seconds}) — a max-lifetime "
+                f"shorter than the idle timeout would be incoherent."
+            )
+        if self.browser_click_timeout_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_click_timeout_seconds must be > 0, "
+                f"got {self.browser_click_timeout_seconds!r}."
             )
         # Warn on unrestricted wildcard
         if self.enabled and "*" in self.url_allowlist_patterns:
