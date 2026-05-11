@@ -1031,6 +1031,118 @@ class PlaywrightLeidClient:
             "current_title": current_title,
         }
 
+    async def navigate(self, session_id: str, url: str) -> dict[str, Any]:
+        """Navigate an open session to a new URL. (B-20, D-60..D-66)
+
+        v0.8.2.2 — unnamed extension of Innan Hurðar; the body walks to a
+        new room without leaving the building. The session keeps its
+        identity, cookies, and localStorage; only the page URL changes.
+
+        Order matters: ``_validate_url`` runs FIRST (B-12 — gate before
+        any browser operation), THEN session lookup (B-16). An invalid URL
+        fails loudly even if the session is also gone — the operator's
+        allowlist gate is unconditional.
+
+        On navigation failure the session stays open at whatever URL it
+        had before the failed goto — the agent can retry or try a
+        different navigate. The session is NOT closed on failure.
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+            url:        The new URL to navigate to. Must match
+                        url_allowlist_patterns.
+
+        Returns:
+            dict with keys: session_id (unchanged, D-62), previous_url
+            (D-64 — captured before goto), final_url (page.url after
+            goto — may differ from the input on client-side redirect),
+            title (page.title() or None on read failure).
+
+        Raises:
+            UrlNotAllowedError:        URL not in allowlist or HTTP rejected.
+            LeidSessionExpiredError:   session_id unknown or evicted.
+            LeidTimeoutError:          page.goto exceeded timeout.
+            LeidHttpError:             navigation returned 4xx or 5xx status.
+            LeidConnectionError:       network-level error during navigation.
+        """
+        # B-12 / B-20 — URL validation FIRST, BEFORE session resolution.
+        # The operator's allowlist gate is unconditional; an invalid URL
+        # must fail loudly regardless of session_id state.
+        normalised_url = self._validate_url(url)
+
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and navigate: {exc}"
+            ) from exc
+
+        # D-64 — capture previous URL BEFORE goto.
+        previous_url = session.page.url
+
+        # D-65 — reuses navigation timeout config (same as open_session).
+        navigation_timeout_ms = (
+            self._config.browser_navigation_timeout_seconds * 1000
+        )
+
+        try:
+            response = await session.page.goto(
+                normalised_url,
+                wait_until=self._config.browser_load_state,
+                timeout=navigation_timeout_ms,
+            )
+        except PlaywrightTimeoutError as exc:
+            # B-5 inherited — session NOT closed; agent can retry.
+            raise LeidTimeoutError(
+                f"navigate({normalised_url!r}) on session {session_id!r} "
+                f"timed out after "
+                f"{self._config.browser_navigation_timeout_seconds}s "
+                f"(load_state={self._config.browser_load_state!r}): {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"navigate({normalised_url!r}) on session {session_id!r} "
+                f"failed at the network layer: {exc}"
+            ) from exc
+
+        # Status check — same as open_session.
+        if response is not None and response.status >= 400:
+            raise LeidHttpError(
+                f"HTTP {response.status} from {normalised_url!r} "
+                f"during navigate on session {session_id!r}."
+            )
+
+        # B-17 / B-20 — successful navigation counts as activity.
+        session.mark_activity()
+
+        # D-49-style defensive title read.
+        final_url = session.page.url
+        try:
+            title = await session.page.title()
+        except Exception:
+            title = None
+
+        self._log.debug(
+            "Leið navigate: session=%s prev=%s -> final=%s",
+            session_id, previous_url, final_url,
+        )
+
+        return {
+            "session_id": session_id,  # D-62 unchanged
+            "previous_url": previous_url,  # D-64
+            "final_url": final_url,
+            "title": title,
+        }
+
     async def close_session(self, session_id: str) -> dict[str, Any]:
         """Close the session and release all browser resources. Idempotent. (B-18)
 

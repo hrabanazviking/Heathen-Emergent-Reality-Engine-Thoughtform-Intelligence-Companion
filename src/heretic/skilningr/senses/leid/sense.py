@@ -256,6 +256,19 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.navigate":
+            # v0.8.2.2 — unnamed extension within Innan Hurðar (the body
+            # walks to a new room without leaving the building).
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.navigate(
+                session_id=args["session_id"],
+                url=args["url"],
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.close_session":
             if self._playwright_client is None:
                 self._playwright_client = PlaywrightLeidClient(

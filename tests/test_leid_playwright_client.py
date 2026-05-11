@@ -1229,6 +1229,169 @@ class TestType:
         page_mock.evaluate.assert_not_called()
 
 
+class TestNavigate:
+    """B-20, D-60..D-66 for v0.8.2.2 leid.navigate — in-session URL change."""
+
+    @pytest.mark.asyncio
+    async def test_navigate_validates_url_before_session_lookup(self, fake_playwright):
+        """B-12 / B-20 (order): URL gate runs FIRST. An invalid URL raises
+        UrlNotAllowedError even if the session_id is unknown."""
+        fake_playwright()
+        client = make_client(["https://docs.python.org/*"])
+        # session_id is bogus AND URL is not in allowlist — URL error wins
+        with pytest.raises(UrlNotAllowedError):
+            await client.navigate("leid-bogus", "https://evil.com/page")
+
+    @pytest.mark.asyncio
+    async def test_navigate_unknown_session_raises_expired(self, fake_playwright):
+        """B-16: valid URL but unknown session_id → LeidSessionExpiredError."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.navigate("leid-never-existed", "https://example.com/x")
+
+    @pytest.mark.asyncio
+    async def test_navigate_calls_page_goto_with_new_url(self, fake_playwright):
+        """D-60: the underlying primitive is page.goto on the existing session."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page1")
+        # page.goto was called once for open_session; reset to track navigate
+        page_mock.goto.reset_mock()
+        await client.navigate(opened["session_id"], "https://example.com/page2")
+        page_mock.goto.assert_awaited_once()
+        call_args = page_mock.goto.await_args
+        assert call_args.args[0] == "https://example.com/page2"
+
+    @pytest.mark.asyncio
+    async def test_navigate_returns_previous_and_final_url(self, fake_playwright):
+        """D-64: previous_url is captured BEFORE goto; final_url AFTER goto."""
+        # Open at page1
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/page1"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page1")
+
+        # Make the next goto mutate page.url to simulate real navigation.
+        async def _goto_changes_url(*_args, **_kwargs):
+            page_mock.url = "https://example.com/page2"
+            return response_mock
+
+        page_mock.goto = AsyncMock(side_effect=_goto_changes_url)
+
+        result = await client.navigate(
+            opened["session_id"], "https://example.com/page2"
+        )
+        # previous_url captured BEFORE goto's side_effect ran
+        assert result["previous_url"] == "https://example.com/page1"
+        # final_url read AFTER goto mutated page.url
+        assert result["final_url"] == "https://example.com/page2"
+
+    @pytest.mark.asyncio
+    async def test_navigate_returns_session_id_unchanged(self, fake_playwright):
+        """D-62: session_id in result matches input — navigation does not
+        change session identity."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.navigate(
+            opened["session_id"], "https://example.com/other"
+        )
+        assert result["session_id"] == opened["session_id"]
+
+    @pytest.mark.asyncio
+    async def test_navigate_timeout_raises_leid_timeout(self, fake_playwright):
+        """B-5 inherited: page.goto Timeout → LeidTimeoutError."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        # Override goto to raise on the next call
+        page_mock = sys.modules[
+            "playwright.async_api"
+        ].async_playwright.return_value.start.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value  # type: ignore[attr-defined]
+        page_mock.goto = AsyncMock(
+            side_effect=_FakePlaywrightTimeoutError("Navigation timeout 30000ms")
+        )
+        with pytest.raises(LeidTimeoutError, match="timed out"):
+            await client.navigate(
+                opened["session_id"], "https://example.com/slow"
+            )
+
+    @pytest.mark.asyncio
+    async def test_navigate_network_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """D-66: PlaywrightError (non-timeout) → LeidConnectionError."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock = sys.modules[
+            "playwright.async_api"
+        ].async_playwright.return_value.start.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value  # type: ignore[attr-defined]
+        page_mock.goto = AsyncMock(
+            side_effect=_FakePlaywrightError("net::ERR_CONNECTION_REFUSED")
+        )
+        with pytest.raises(LeidConnectionError, match="network layer"):
+            await client.navigate(
+                opened["session_id"], "https://example.com/down"
+            )
+
+    @pytest.mark.asyncio
+    async def test_navigate_http_error_raises_leid_http_error(self, fake_playwright):
+        """D-66: response.status >= 400 → LeidHttpError."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        # Override goto to return an error response on the next call
+        page_mock = sys.modules[
+            "playwright.async_api"
+        ].async_playwright.return_value.start.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value  # type: ignore[attr-defined]
+        error_response = MagicMock()
+        error_response.status = 503
+        page_mock.goto = AsyncMock(return_value=error_response)
+        with pytest.raises(LeidHttpError, match="503"):
+            await client.navigate(
+                opened["session_id"], "https://example.com/bad"
+            )
+
+    @pytest.mark.asyncio
+    async def test_navigate_updates_last_activity(self, fake_playwright):
+        """B-17 / B-20: successful navigate updates last_activity_at."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.navigate(session_id, "https://example.com/other")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_navigate_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inherited: navigate must never call page.evaluate."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.navigate(opened["session_id"], "https://example.com/other")
+        page_mock.evaluate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_navigate_rejects_http_when_allow_http_false(self, fake_playwright):
+        """B-9 / B-12: http:// URL with allow_http=false → UrlNotAllowedError
+        even on a valid session."""
+        fake_playwright()
+        client = make_client(["http://example.com/*"], allow_http=False)
+        # We cannot open the session with http:// either, so test with a
+        # session opened over https... but this client only allows http.
+        # Use a wildcard for open + restrict on navigate via fresh client.
+        # Simplest: just call navigate with bogus session — URL gate fires first.
+        with pytest.raises(UrlNotAllowedError, match="HTTP"):
+            await client.navigate("leid-any", "http://example.com/page")
+
+
 class TestM1PageExceptionTyping:
     """M-1 closure: page.content and page.screenshot exceptions now map
     explicitly to LeidConnectionError (matching httpx's network-error precision)."""
