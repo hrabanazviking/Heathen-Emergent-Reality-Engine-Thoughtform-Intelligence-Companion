@@ -106,3 +106,53 @@ The body that walked the road in v0.8.0 is the same body that learned restraint 
 
 *Vision passage authored by Sigrún Ljósbrá, Skald for Vibe Coding, 2026-05-10.*
 *The body now reads what the world writes while it watches. The road is open; the discipline is unchanged. v0.8 is a milestone of new posture, not new identity — Leið remains Leið, with a second pair of eyes for pages that compose themselves only when a visitor stands inside them.*
+
+---
+
+## VIII. Addendum — *Mynd af Vegferð* (v0.8.1)
+
+> *Mynd af Vegferð — image of the journey. The body that walks the road and reads the rendered page now also keeps a portrait of what it saw. Where v0.8.0 returned the words on the page, v0.8.1 returns the page itself — a faithful image of what the rendered DOM looked like at the moment the body stood before it. This is not a new faculty. This is the same faculty learning a second way to remember.*
+
+### What v0.8.1 adds
+
+A second tool on the Opið Vef sub-faculty: `leid.screenshot(url)`. The agent receives a base64-encoded PNG of the rendered page. Same launch-per-call browser lifecycle as `render_url`, same allowlist gate, same fresh-context isolation, same headless posture, same `finally`-bound resource cleanup. The body does the same walk; it now also takes the picture.
+
+### Why a portrait, when the words are already returned
+
+Words and image carry different kinds of truth. The text extraction in v0.8.0 tells the agent what the page *says*. The screenshot in v0.8.1 tells the agent what the page *shows* — which fonts, which layout, which colors, which spatial arrangement, which images-that-are-not-text. Many pages communicate as much with their composition as with their words: a chart, an icon, a status indicator, a visual hierarchy that signals what to look at first. To these communications, text extraction is mute.
+
+The screenshot is not a richer text. It is a different kind of report: not "here is what the page told me" but "here is what the page looked like when I asked." Some agent decisions need both.
+
+### Why no new identity codename
+
+This is the third extension within v0.8 *Opið Vef* (after the foundational `render_url` slice itself), and it does not earn its own sense-level name for the same reason its sibling did not: **the body's posture toward the web has not changed, only its repertoire within that posture**. Walking the road is *Opið Vef*. Reading the rendered text is one manner of reporting back. Bringing a portrait of the page is a second manner of reporting back. Both are species of the same disposition.
+
+The Skald's pen reserves new codenames for new dispositions. *Opið Vef* remains the umbrella; *Mynd af Vegferð* is named only briefly, in this addendum, because giving the slice no name at all would be unkind to operators who later read the DEVLOG. The naming is honest: this is an extension of an extension, not a new sense.
+
+### What v0.8.1 promises
+
+- The PNG is faithful — Playwright's `page.screenshot()` returns the rendered DOM exactly as Chromium painted it.
+- The image is encoded as base64 in the result; the agent receives a JSON-safe payload.
+- The size cap (`max_response_bytes`) applies to the **raw PNG bytes BEFORE base64 encoding** — honest about content size, not transport size.
+- The `full_page` option (default `True`) controls whether the screenshot captures the entire scrollable page or only the viewport (1280x720 default). Operators can opt to viewport-only via `LeidConfig.browser_screenshot_full_page: false` when full pages are too large.
+
+### What v0.8.1 does *not* promise
+
+- The browser is still headless. There is no visible window for the user to see what the body sees.
+- The screenshot is still stateless: each call is its own browser session. There is no "first navigate, then screenshot a different region" pattern at v0.8.1 — that lives in v0.8.2 / v0.8.3 with the persistent-page model.
+- Region-of-element screenshots, JPEG/WebP output, quality tuning, custom viewport sizes — all deferred to later v0.8.x slices when their own design questions can be answered with care.
+
+### The lineage continues
+
+| Faculty | First slice | Extension | Second extension |
+|---|---|---|---|
+| Endurdrykkr (continuity) | v0.7.2 — byte-layer | v0.7.3 — index-layer | — |
+| Verkminni (deed-memory) | v0.6.3 — in-memory | v0.6.3.1 — disk-mirror | — |
+| **Leið — Opið Vef sub-faculty** | **v0.8.0 — `render_url`** | **v0.8.1 — `screenshot`** | (v0.8.2 click+type to come) |
+
+The pattern of named-then-unnamed extensions persists. Three slices into v0.8, the umbrella name still does the work.
+
+---
+
+*Addendum authored by Sigrún Ljósbrá, Skald for Vibe Coding, 2026-05-10.*
+*The body now keeps a portrait of every road it walks — same posture, second manner of reporting back.*
