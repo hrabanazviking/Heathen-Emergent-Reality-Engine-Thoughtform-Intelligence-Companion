@@ -45,6 +45,7 @@ from heretic.skilningr.senses.leid.errors import (
     LeidConnectionError,
     LeidHttpError,
     LeidPlaywrightUnavailableError,
+    LeidPressOnElementNotFoundError,
     LeidResponseTooLargeError,
     LeidSessionExpiredError,
     LeidSessionLimitError,
@@ -89,6 +90,7 @@ def _install_fake_playwright(
     screenshot_bytes: bytes = b"\x89PNG\r\n\x1a\n_fake_png_payload_",
     click_side_effect: BaseException | None = None,
     fill_side_effect: BaseException | None = None,
+    press_side_effect: BaseException | None = None,
 ) -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]:
     """Install a fake `playwright.async_api` module in ``sys.modules``.
 
@@ -120,9 +122,16 @@ def _install_fake_playwright(
         if fill_side_effect is not None
         else AsyncMock(return_value=None)
     )
+    # v0.8.12 — press locator chain: page.locator(selector).first.press(key, timeout=...)
+    press_mock = (
+        AsyncMock(side_effect=press_side_effect)
+        if press_side_effect is not None
+        else AsyncMock(return_value=None)
+    )
     locator_first_mock = MagicMock()
     locator_first_mock.click = click_mock
     locator_first_mock.fill = fill_mock
+    locator_first_mock.press = press_mock
     # v0.8.3 — defaults: text_content returns "default text", get_attribute returns None.
     # Tests can override these on the page_mock after fixture invocation.
     locator_first_mock.text_content = AsyncMock(return_value="default text")
@@ -1709,6 +1718,124 @@ class TestPress:
         opened = await client.open_session("https://example.com/page")
         await client.press(opened["session_id"], "Control+A")
         page_mock.keyboard.press.assert_awaited_once_with("Control+A")
+
+
+class TestPressOn:
+    """B-30, D-153..D-163 for v0.8.12 leid.press_on — element-targeted press."""
+
+    @pytest.mark.asyncio
+    async def test_press_on_unknown_session_raises_expired(self, fake_playwright):
+        """B-16 applies to press_on."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.press_on("leid-never-existed", "input", "Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_on_calls_locator_first_press(self, fake_playwright):
+        """D-154 / B-30: page.locator(selector).first.press is the call path."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.press_on(
+            opened["session_id"], "input[name='q']", "Enter"
+        )
+        page_mock.locator.assert_called_with("input[name='q']")
+        page_mock.locator.return_value.first.press.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_press_on_passes_key_and_timeout(self, fake_playwright):
+        """key parameter reaches locator.press as first positional arg;
+        timeout from browser_click_timeout_seconds passed as kwarg (D-155)."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.press_on(opened["session_id"], "#search", "Enter")
+        call_args = page_mock.locator.return_value.first.press.await_args
+        assert call_args.args[0] == "Enter"
+        assert call_args.kwargs["timeout"] == 10000  # default 10s
+
+    @pytest.mark.asyncio
+    async def test_press_on_timeout_raises_press_on_element_not_found(
+        self, fake_playwright
+    ):
+        """B-30: PlaywrightTimeoutError → LeidPressOnElementNotFoundError."""
+        fake_playwright(
+            press_side_effect=_FakePlaywrightTimeoutError("Timeout exceeded")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(
+            LeidPressOnElementNotFoundError,
+            match="matched no actionable element",
+        ):
+            await client.press_on(opened["session_id"], "#nope", "Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_on_browser_error_raises_connection_error(
+        self, fake_playwright
+    ):
+        """B-30: non-timeout PlaywrightError → LeidConnectionError."""
+        fake_playwright(
+            press_side_effect=_FakePlaywrightError("Page closed")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="browser level"):
+            await client.press_on(opened["session_id"], "input", "Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_on_returns_post_action_url_and_title(
+        self, fake_playwright
+    ):
+        """D-160: result has post-press url + title (press may navigate)."""
+        fake_playwright(
+            page_url="https://example.com/results",
+            page_title="Search Results",
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.press_on(
+            opened["session_id"], "input[name='q']", "Enter"
+        )
+        assert result["selector"] == "input[name='q']"
+        assert result["key"] == "Enter"
+        assert result["pressed"] is True
+        assert result["current_url"] == "https://example.com/results"
+        assert result["current_title"] == "Search Results"
+
+    @pytest.mark.asyncio
+    async def test_press_on_updates_last_activity(self, fake_playwright):
+        """D-159 / B-30: successful press_on updates last_activity_at."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.press_on(session_id, "input", "Enter")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_press_on_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inherited: press_on must never call page.evaluate."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.press_on(opened["session_id"], "input", "Enter")
+        page_mock.evaluate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_press_on_supports_modifier_keys(self, fake_playwright):
+        """D-153 inherited: modifier+key combos pass through to Playwright."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.press_on(opened["session_id"], "input", "Control+A")
+        call_args = page_mock.locator.return_value.first.press.await_args
+        assert call_args.args[0] == "Control+A"
 
 
 class TestGoBack:

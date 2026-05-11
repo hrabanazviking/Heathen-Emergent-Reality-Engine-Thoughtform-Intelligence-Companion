@@ -80,6 +80,7 @@ from heretic.skilningr.senses.leid.errors import (
     LeidConnectionError,
     LeidHttpError,
     LeidPlaywrightUnavailableError,
+    LeidPressOnElementNotFoundError,
     LeidResponseTooLargeError,
     LeidSessionLimitError,
     LeidTimeoutError,
@@ -1360,6 +1361,106 @@ class PlaywrightLeidClient:
             "found": True,
             "value": value,  # str OR None (when text_content / get_attribute returned None)
             "count": count,
+        }
+
+    async def press_on(
+        self, session_id: str, selector: str, key: str
+    ) -> dict[str, Any]:
+        """Press *key* on the first element matching *selector*. (D-153..D-163, B-30)
+
+        v0.8.12 — fifteenth unnamed extension within Innan Hurðar. The
+        element-targeted form of the keyboard finger introduced at v0.8.4.
+        Where ``press`` (v0.8.4) dispatches a key to whatever element has
+        focus (typically from a prior click/type), ``press_on`` accepts a
+        selector and focuses the matched element first via Playwright's
+        ``locator.press`` primitive.
+
+        Completes the symmetry with ``click`` (v0.8.2) and ``type``
+        (v0.8.2.1) — all three take a selector and act on the first match
+        with the same ``browser_click_timeout_seconds`` bound (D-54 /
+        D-155).
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+            selector:   CSS selector. The FIRST matching element is
+                        focused and pressed.
+            key:        The key or modifier+key combination to press, in
+                        Playwright's syntax (e.g. "Enter", "Tab",
+                        "Escape", "Control+A").
+
+        Returns:
+            dict with keys: selector, key, pressed, current_url,
+            current_title. ``current_url`` may differ from the pre-press
+            URL if the press triggered navigation (e.g., Enter on a
+            submit input).
+
+        Raises:
+            LeidSessionExpiredError:           session_id unknown or evicted.
+            LeidPressOnElementNotFoundError:   selector matched nothing within
+                                               browser_click_timeout_seconds.
+            LeidConnectionError:               other Playwright error.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and press_on: {exc}"
+            ) from exc
+
+        # D-155 — reuse the click timeout (shared by click and type at D-54).
+        press_timeout_ms = self._config.browser_click_timeout_seconds * 1000
+
+        # D-154 — locator.first.press: waits for actionability, focuses,
+        # then dispatches the key.
+        # B-30 — TimeoutError → LeidPressOnElementNotFoundError (selector wrong);
+        #        other PlaywrightError → LeidConnectionError.
+        locator = session.page.locator(selector).first
+        try:
+            await locator.press(key, timeout=press_timeout_ms)
+        except PlaywrightTimeoutError as exc:
+            raise LeidPressOnElementNotFoundError(
+                f"Selector {selector!r} matched no actionable element "
+                f"in session {session_id!r} within "
+                f"{self._config.browser_click_timeout_seconds}s. Refine the "
+                f"selector and retry. Underlying: {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"press_on({selector!r}, {key!r}) on session {session_id!r} "
+                f"failed at the browser level: {exc}"
+            ) from exc
+
+        # D-159 / B-30 — successful press_on counts as activity.
+        session.mark_activity()
+
+        # D-160 — read post-press URL and title. press_on may have triggered
+        # navigation (Enter on a submit button, Space on role=button, etc.).
+        current_url = session.page.url
+        try:
+            current_title = await session.page.title()
+        except Exception:
+            current_title = None
+
+        self._log.debug(
+            "Leið press_on: session=%s selector=%s key=%r -> url=%s",
+            session_id, selector, key, current_url,
+        )
+
+        return {
+            "selector": selector,
+            "key": key,
+            "pressed": True,
+            "current_url": current_url,
+            "current_title": current_title,
         }
 
     async def press(self, session_id: str, key: str) -> dict[str, Any]:

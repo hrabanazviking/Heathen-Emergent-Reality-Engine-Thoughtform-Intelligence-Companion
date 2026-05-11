@@ -297,6 +297,20 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.press_on":
+            # v0.8.12 — fifteenth unnamed extension. Element-targeted form
+            # of the keyboard finger; completes symmetry with click + type.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.press_on(
+                session_id=args["session_id"],
+                selector=args["selector"],
+                key=args["key"],
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.go_back":
             # v0.8.5 — eighth unnamed extension (paired with go_forward).
             # Browser history step backward.
@@ -435,6 +449,7 @@ def _leid_error_code(exc: LeidError) -> str:
         LeidConnectionError,
         LeidHttpError,
         LeidPlaywrightUnavailableError,
+        LeidPressOnElementNotFoundError,
         LeidResponseTooLargeError,
         LeidSessionExpiredError,
         LeidSessionLimitError,
@@ -452,10 +467,11 @@ def _leid_error_code(exc: LeidError) -> str:
             LeidResponseTooLargeError,
             LeidClickElementNotFoundError,
             LeidTypeElementNotFoundError,
+            LeidPressOnElementNotFoundError,
         ),
     ):
-        # v0.8.2 / v0.8.2.1 — agent-actionable errors (cap exceeded,
-        # selector wrong on click or type).
+        # v0.8.2 / v0.8.2.1 / v0.8.12 — agent-actionable errors (cap exceeded,
+        # selector wrong on click, type, or press_on).
         return "INVALID_ARGUMENTS"
     if isinstance(exc, LeidHttpError):
         return "SENSE_INTERNAL_ERROR"

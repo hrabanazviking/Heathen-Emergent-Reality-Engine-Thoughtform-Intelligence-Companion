@@ -269,14 +269,14 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 18 tools when enabled
+        """tool_definitions returns 19 tools when enabled
         (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4 + v0.8.2.1: 1 +
          v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1 + v0.8.5: 2 + v0.8.6: 2 +
-         v0.8.7: 1 + v0.8.8: 1)."""
+         v0.8.7: 1 + v0.8.8: 1 + v0.8.12: 1)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 18
+        assert len(sense.tool_definitions) == 19
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -304,6 +304,7 @@ class TestLeidSenseToolDefinitions:
         assert "leid.navigate" in names
         assert "leid.query" in names
         assert "leid.press" in names
+        assert "leid.press_on" in names
         assert "leid.go_back" in names
         assert "leid.go_forward" in names
         assert "leid.session_render" in names
@@ -899,6 +900,72 @@ class TestLeidSenseDispatch:
         mock_pw_client.press.assert_awaited_once_with(
             session_id="leid-x", key="Enter"
         )
+
+    # -------------------------------------------------------------------
+    # v0.8.12 — leid.press_on dispatch (element-targeted press)
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_press_on_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.press_on = AsyncMock(return_value={
+            "selector": "input[name='q']",
+            "key": "Enter",
+            "pressed": True,
+            "current_url": "https://example.com/results",
+            "current_title": "Results",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.press_on",
+            {
+                "session_id": "leid-x",
+                "selector": "input[name='q']",
+                "key": "Enter",
+            },
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["pressed"] is True
+        assert parsed["selector"] == "input[name='q']"
+        assert parsed["key"] == "Enter"
+        mock_pw_client.press_on.assert_awaited_once_with(
+            session_id="leid-x",
+            selector="input[name='q']",
+            key="Enter",
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_press_on_element_not_found_returns_invalid_arguments(
+        self,
+    ):
+        """D-157: LeidPressOnElementNotFoundError maps to INVALID_ARGUMENTS."""
+        from heretic.skilningr.errors import LeidPressOnElementNotFoundError
+
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.press_on = AsyncMock(
+            side_effect=LeidPressOnElementNotFoundError(
+                "Selector '#nope' matched no actionable element"
+            )
+        )
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.press_on",
+            {
+                "session_id": "leid-x",
+                "selector": "#nope",
+                "key": "Enter",
+            },
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["code"] == "INVALID_ARGUMENTS"
 
     # -------------------------------------------------------------------
     # v0.8.5 — leid.go_back + leid.go_forward dispatch (paired)
