@@ -4756,3 +4756,120 @@ The autonomous arc continues into its FIFTEENTH sealed milestone. Seven slices i
 
 *Entry 29 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
 *The body's keyboard finger lands. Seven unnamed extensions, four consecutive zero-findings audits, the Innan Hurðar interactive vocabulary is complete for ALL canonical web flows. Fifteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for eight milestones running. The session is kept.*
+
+---
+
+## Entry 30 — 2026-05-10 — go_back + go_forward: the body's footsteps through history (v0.8.5)
+
+**Milestone:** v0.8.5 — `leid.go_back` + `leid.go_forward` (eighth unnamed extension within Innan Hurðar; **first bundled-pair milestone**)
+**Branch:** `development`
+**Session start HEAD:** `329a909` (post-v0.8.4 Scribe seal)
+**Session close HEAD:** `aeae4f8` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — SIXTEENTH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — fifth consecutive)
+
+### What was added
+
+The body's footsteps backward and forward through the browser's history stack. **Two paired tools** shipped in **one slice** because they are inverses sharing identical structure — a new bundling precedent in v0.8:
+
+- `leid.go_back(session_id)` → `{session_id, moved, previous_url, current_url, title}`
+- `leid.go_forward(session_id)` → `{session_id, moved, previous_url, current_url, title}`
+
+Both are thin one-line wrappers over a shared private helper `_go_history(session_id, direction)` that centralises the discipline (D-90, D-95, D-96).
+
+**The second deliberate divergence in the v0.8 umbrella** (D-89, mirroring v0.8.3 query's D-72): "no history in this direction" returns `{moved: false, ...}` rather than raising. Same posture as `query`'s not-found — both `query` and `go_back/go_forward` are probe-and-act primitives where "the thing isn't there" is information, not failure. The agent's natural intent ("go back if there's something to go back to") is naturally expressed as a try-and-check.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `843217e` | Runa | TASK_HERETIC_v0.8.5_GO_BACK_FORWARD.md |
+| 1 | `d6db4ee` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph (one paragraph for the pair) |
+| 2 | `3421150` | Cartographer | DATA_FLOW.md §4.12.2.9 — history-nav flow + B-23 (one section covers both) |
+| 3 | `e1683b5` | Architect | INTERFACE.md §12.11 + B-23 + 2 tool defs |
+| 4 | `79daaac` | Forge | _go_history helper + go_back + go_forward + sense routing + 17 method tests + 2 dispatch |
+| 5 | `aeae4f8` | Auditor | AUDIT_v0.8.5_GO_BACK_FORWARD.md — **PASSES SCRUTINY (0/0/0/0)** — FIFTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 30 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-10 (after v0.8.5)
+
+| Surface | Before v0.8.5 | After v0.8.5 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 48 | 50 | **+2** (2 dispatch — go_back + go_forward) |
+| `tests/test_leid_playwright_client.py` | 106 + 2 skip | 123 + 2 skip | **+17** (TestGoBack 7 + TestGoForward 7 + TestGoHistoryShared 3) |
+| **Leid scope total** | 203 + 2 skip | 222 + 2 skip | **+19** |
+| **Full suite** | 1524 + 9 skip | 1543 + 9 skip | **+19** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Fifth consecutive zero-findings audit** in the v0.8 umbrella (after v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5). The Auditor explicitly noted that v0.8.5's bundled-pair design shipped cleanly because: (a) the shared helper centralised discipline; (b) the wrappers are one-line delegations with no opportunity for drift; (c) the deliberate divergence had already been vetted at v0.8.3 (query's not-found); (d) the test classes mirror each other at the structure level, making symmetry self-evident.
+
+### What this milestone teaches
+
+**Bundled-pair milestones work when the bundling is justified at TASK time.** v0.8.5 is the first milestone in the v0.8 umbrella to ship two tools in one slice. The justification (D-95, D-96) was made explicit at TASK design: go_back and go_forward are inverses, share identical structure, would produce two near-duplicate audit cycles if split. The Auditor confirmed the bundling produced no audit-discipline cost — symmetry was structurally enforced via the shared helper, and the test classes mirror each other at the structure level. Future paired-inverse tools (e.g., `leid.show_modal` + `leid.dismiss_modal` if those ever materialise) can follow this template. The bundling decision is a TASK-design choice, not a Forge-discretion choice.
+
+**The "probe-and-act" pattern now appears in two corners of the body's interactive vocabulary.** v0.8.3 introduced `query`'s deliberate divergence (not-found is not an error) and established the principle. v0.8.5 applied the same principle to history nav (no-history is not an error). Both are read-and-act primitives where the agent's natural intent includes "if possible." Forcing exception handling on the success case ("X is not there" / "no history to go back to") would invert the semantics. The pattern is now established at two milestones; future read-and-act primitives will follow it without needing to re-justify.
+
+**Five consecutive zero-findings audits is no longer a streak — it's a property of the work.** The Auditor's discipline is to find genuinely novel risk. v0.8.2.1 (sibling type), v0.8.2.2 (sibling navigate), v0.8.3 (query divergence), v0.8.4 (press primitive), v0.8.5 (bundled history pair) — each was a careful extension of an already-vetted disposition through a parallel Playwright primitive. The Forge's discipline of staying inside the established disposition, the Architect's discipline of not introducing new error classes / config fields when the existing ones suffice, and the Auditor's discipline of recognising mechanical extension — together produce shipping cadence WITH audit rigor. Five in a row makes this visible as a pattern, not luck.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.5_GO_BACK_FORWARD.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the body's footsteps through history" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.9 added — history-nav flow + B-23 (one section covers both directions) |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 two new rows + new §12.11 contract (paired bundle) |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.go_back + leid.go_forward tool definitions appended |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `_go_history()` private helper + `go_back()` + `go_forward()` thin wrappers between `press()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds 2 branches (go_back + go_forward) |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the NINTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-93 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-91 reuses navigation timeout) |
+| `tests/test_leid_playwright_client.py` | Helper extended (go_back/go_forward mocks); new TestGoBack (7 tests) + TestGoForward (7 tests) + TestGoHistoryShared (3 tests) classes |
+| `tests/test_leid_sense.py` | Tool-count check 12 → 14; tool-names check; 2 dispatch tests |
+| `docs/audit/AUDIT_v0.8.5_GO_BACK_FORWARD.md` | New — verdict PASSES SCRUTINY (zero findings, fifth consecutive) |
+| `docs/DEVLOG.md` | This entry (30) |
+
+### State of the body — 2026-05-10 (after v0.8.5)
+
+The Leið faculty now has FOURTEEN tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (10):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **14 — 2 httpx + 2 stateless browser + 10 stateful browser (open + navigate + go_back + go_forward + status + click + type + query + press + close)** | **v0.8.5** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **eight unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5).
+
+**The Innan Hurðar interactive vocabulary is now complete for ALL standard browser-as-user flows:** motion (navigate, go_back, go_forward), interaction (click, type, press), inspection (query, status), lifecycle (open, close).
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.5 leid.go_back + leid.go_forward~~ | **CLOSED — sealed at `aeae4f8`** |
+| **v0.8.x `leid.reload`** (refresh current page) | candidate — small focused slice |
+| v0.8.x `leid.session_render` / `leid.session_screenshot` (mid-session re-extract) | candidate — useful pair |
+| v0.8.x JPEG/WebP screenshot output | candidate — small refinement |
+| v0.8.x configurable viewport size | candidate — small refinement |
+| v0.8.x multi-element query | candidate — natural follow-up to v0.8.3 |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools (now applies to navigate, go_back, go_forward) |
+| Audit N-3, N-4 from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its SIXTEENTH sealed milestone. Eight slices into v0.8 *Opið Vef*; the umbrella's interactive vocabulary is complete for all standard browser-as-user flows. Subsequent v0.8.x slices remain pure refinements.
+
+---
+
+*Entry 30 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
+*The body's footsteps backward and forward through history land. Eight unnamed extensions, five consecutive zero-findings audits, the first bundled-pair milestone shipped cleanly. The Innan Hurðar interactive vocabulary is complete for ALL standard browser-as-user flows. Sixteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for nine milestones running. The session is kept.*

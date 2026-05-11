@@ -11,6 +11,16 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — eighth slice within the umbrella.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Sixteenth milestone in the autonomous arc.
+>
+> **STATUS — 2026-05-10:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — fifth consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `aeae4f8` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 222 + 2 skip (was 203 + 2 — `+19`). Full suite 1543 + 9 skip (was 1524 + 9). Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Fifth consecutive zero-findings audit. **First bundled-pair milestone in v0.8 umbrella** shipped cleanly. See `docs/audit/AUDIT_v0.8.5_GO_BACK_FORWARD.md`.
+>
+> **DEVLOG:** Entry 30 — `docs/DEVLOG.md`.
 
 ---
 
@@ -117,20 +127,20 @@ Total new tests: ~19.
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `go_back()` and `go_forward()` methods on `PlaywrightLeidClient`
-- [ ] Shared `_go_history()` private helper
-- [ ] `leid.go_back` and `leid.go_forward` registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches both
-- [ ] No new error classes (D-93)
-- [ ] No new config fields (D-91)
-- [ ] B-23 added to INTERFACE.md §12.11
-- [ ] All 203 existing leid tests pass unchanged
-- [ ] At least 17 new method tests passing
-- [ ] 2 new dispatch tests passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.9 exists (covers both directions)
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.5_GO_BACK_FORWARD.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 30 written
-- [ ] All commits pushed to `development`
+- [x] `go_back()` and `go_forward()` methods on `PlaywrightLeidClient` — `79daaac`
+- [x] Shared `_go_history()` private helper — `79daaac`
+- [x] `leid.go_back` and `leid.go_forward` registered in `LEID_TOOL_DEFINITIONS` — `e1683b5`
+- [x] `LeidSense._route` dispatches both — `79daaac`
+- [x] No new error classes (D-93) — confirmed
+- [x] No new config fields (D-91) — confirmed
+- [x] B-23 added to INTERFACE.md §12.11 — `e1683b5`
+- [x] All 203 existing leid tests pass unchanged — verified at `79daaac`
+- [x] 17 new method tests passing — `79daaac`
+- [x] 2 new dispatch tests passing — `79daaac`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.9 exists (covers both directions) — `3421150`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `d6db4ee`
+- [x] `docs/audit/AUDIT_v0.8.5_GO_BACK_FORWARD.md` PASSES SCRUTINY (0/0/0/0) — `aeae4f8`
+- [x] DEVLOG entry 30 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
