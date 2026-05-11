@@ -91,16 +91,39 @@ New config validation tests (~4 in test_leid_sense.py):
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria — ALL MET 2026-05-11
 
-- [ ] 2 new LeidConfig fields with validation
-- [ ] screenshot + session_screenshot pass format from config
-- [ ] quality kwarg conditionally passed (omitted for png)
-- [ ] image_format return field reflects actual format
-- [ ] B-29 added to INTERFACE
-- [ ] All existing leid tests pass (with 3 updated assertions)
-- [ ] At least 6 new format propagation tests
-- [ ] At least 4 new config validation tests
-- [ ] Cartographer + Auditor docs
-- [ ] DEVLOG entry 36
-- [ ] All pushed
+- [x] 2 new LeidConfig fields with validation
+- [x] screenshot + session_screenshot pass format from config
+- [x] quality kwarg conditionally passed (omitted for png)
+- [x] image_format return field reflects actual format
+- [x] B-29 added to INTERFACE
+- [x] All existing leid tests pass (with 2 updated assertions)
+- [x] 6 new format propagation tests (TestScreenshotFormat class)
+- [x] 5 new config validation tests
+- [x] Cartographer + Auditor docs
+- [x] DEVLOG entry 36
+- [x] All pushed
+
+---
+
+## 8. SEAL — 2026-05-11
+
+**Status:** SEALED. v0.8.11 PASSES SCRUTINY (0/0/0/0) — eleventh consecutive zero-findings audit.
+
+**Final commits:**
+- Wave 0 (Runa, TASK): folded with Wave 3 commit
+- Wave 1–2 (Skald + Cartographer, OPID_VEF §IX + DATA_FLOW §4.12.2.15): folded with Wave 3
+- Wave 3 (Architect, INTERFACE §12.17 + B-29 + config fields): `0aa01a5`
+- Wave 4 (Forge, two screenshot-site modifications + 11 tests): `d2f86c1`
+- Wave 5 (Auditor, AUDIT_v0.8.11_JPEG_WEBP.md): pushed with Scribe seal
+- Wave 7 (Scribe, DEVLOG entry 36 + this seal + memory refresh): final push
+
+**Test surface delta:** 1609 → 1620 passing (+11), zero regressions, 11.06s.
+
+**Invariants honoured:**
+- D-14 (LeidClient byte-untouched) — 15th consecutive milestone
+- D-130 (operator infrastructure, not agent intent) — second application after viewport (v0.8.9)
+- B-29 (image_format reflects actual format) — newly established
+
+**Fourteenth unnamed extension within Innan Hurðar.** Five named dispositions; fourteen unnamed extensions. The operator chooses the bytes.

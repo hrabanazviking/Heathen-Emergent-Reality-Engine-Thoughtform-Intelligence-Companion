@@ -5476,3 +5476,125 @@ The autonomous arc continues into its TWENTY-FIRST sealed milestone. Thirteen sl
 
 *Entry 35 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
 *The operator's allowlist is now unconditional. Thirteen unnamed extensions, ten consecutive zero-findings audits, the deferred concern from v0.6.2 closed at last. Twenty-first milestone in the autonomous arc; the LeidClient stands byte-untouched for fourteen milestones running. The session is kept.*
+
+---
+
+## Entry 36 — 2026-05-11 — JPEG/WebP screenshot output: the operator chooses the bytes (v0.8.11)
+
+**Milestone:** v0.8.11 — JPEG/WebP screenshot output (fourteenth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `09725ba` (post-v0.8.10 Scribe seal)
+**Session close HEAD:** `d2f86c1` (Forge close; Auditor + Scribe pushes advance)
+**Mode:** AUTONOMOUS Mythic Engineering — TWENTY-SECOND milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — eleventh consecutive)
+
+### What was added
+
+Two LeidConfig fields, both operator infrastructure per D-130:
+
+- **`browser_screenshot_format`** — one of `"png"` (default, lossless), `"jpeg"` (smaller, lossy), or `"webp"` (modern, typically smaller than JPEG at same quality). Closed acceptance set; validated in `__post_init__`.
+- **`browser_screenshot_jpeg_quality`** — integer in `[0, 100]`; default 80. Applied when the format is `"jpeg"` or `"webp"`; silently ignored when the format is `"png"` because Playwright rejects the combination.
+
+Both fields propagate into `page.screenshot()` kwargs at the two screenshot sites (`screenshot()` stateless and `session_screenshot()` stateful), and the `image_format` return field now reflects the actual format used (B-29). Previously hardcoded to `"png"`, the field is now an honest report of what was rendered.
+
+**No agent surface change.** Per D-130 (established at v0.8.9 for viewport), screenshot format and quality are how-the-browser-looks/captures knobs. They live in `LeidConfig` and never appear as tool arguments. The agent cannot influence the image format through any tool call; only the operator can, at sense construction time.
+
+**Default-PNG path is bytewise-equivalent to v0.8.10** on the wire and in the return shape. The only test-spec adjustment was that two existing assertions changed from `assert_awaited_once_with(full_page=...)` to `assert_awaited_once_with(full_page=..., type="png")` — Playwright's default for `type` is `"png"`, so the wire-level behaviour is identical; the implementation now passes the kwarg explicitly because it is read from config.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | (uncommitted task file) | Runa | TASK_HERETIC_v0.8.11_JPEG_WEBP.md |
+| 1 | (folded into 2) | Skald | OPID_VEF.md §IX continuation paragraph (14th unnamed extension) |
+| 2 | (folded into 3) | Cartographer | DATA_FLOW.md §4.12.2.15 — format/quality propagation flow |
+| 3 | `0aa01a5` | Architect | INTERFACE.md §12.17 + B-29; config_model fields with `__post_init__` validation |
+| 4 | `d2f86c1` | Forge | Two screenshot-site modifications + 6 propagation tests + 5 config validation tests |
+| 5 | this push | Auditor | AUDIT_v0.8.11_JPEG_WEBP.md — **PASSES SCRUTINY (0/0/0/0)** — ELEVENTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 36 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.11)
+
+| Surface | Before v0.8.11 | After v0.8.11 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 61 | 66 | **+5** (config validation) |
+| `tests/test_leid_playwright_client.py` | 178 + 2 skip | 184 + 2 skip | **+6** (TestScreenshotFormat) |
+| **Leid scope total** | 288 + 2 skip | 299 + 2 skip | **+11** |
+| **Full suite** | 1609 + 9 skip | 1620 + 9 skip | **+11** (zero regressions, 11.06s) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Eleventh consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7 → v0.8.8 → v0.8.9 → v0.8.10 → v0.8.11). The Auditor explicitly:
+
+- **Verified B-29 at both sites** (`screenshot` and `session_screenshot`) — format/quality propagate; return shape mirrors config
+- **Verified configuration validation** — closed format set `{png, jpeg, webp}`; closed quality interval `[0, 100]`; boundaries accepted; out-of-set rejected
+- **Verified quality-only-when-lossy** — `quality` kwarg is never sent to Playwright when format is `"png"` (Playwright rejects this combination)
+- **Verified D-130 surface invariance** — no new agent argument; format is operator infrastructure
+- **Verified D-14** — LeidClient byte-untouched for the fifteenth consecutive milestone
+- **Verified default-path backwards compatibility** — wire-level call and return-shape are bytewise-equivalent to v0.8.10 on the default-PNG path
+
+### What this milestone teaches
+
+**Operator infrastructure clusters around a single law.** Viewport size (v0.8.9) and screenshot format (v0.8.11) both answer "how the browser looks/captures" and both follow D-130: no agent surface, only LeidConfig. The pattern is now an established discipline — when the next "operator chooses how the body presents itself" question arrives (cookies preset, user agent override, locale), it has a place to land without surface debate.
+
+**Return-shape honesty matters even for cosmetic fields.** v0.8.10 hardcoded `image_format: "png"` because that was always true. v0.8.11 makes the field configurable, and the temptation would be to leave the return value hardcoded "for backwards compatibility." But a hardcoded value is a lie when the underlying behaviour changes. B-29 says the field reflects the actual format used. Honesty here costs one line of code and prevents downstream agents from acting on stale metadata.
+
+**Closed acceptance sets are cheap and load-bearing.** The validation in `__post_init__` constrains the format string to exactly three values and the quality integer to a closed interval. Total cost: 10 lines + 4 tests. Total benefit: the agent and operator both know that any LeidConfig that constructs successfully has a valid format and a valid quality; no other code in the system needs to revalidate; misconfiguration surfaces at construction, not at first screenshot.
+
+**Eleven consecutive zero-findings audits.** Six refinements (v0.8.2.1, v0.8.2.2, v0.8.6, v0.8.9, v0.8.11), three navigation slices (v0.8.5, v0.8.7), two read-only divergences (v0.8.3, v0.8.8), one keyboard surface (v0.8.4), one security-critical multi-site modification (v0.8.10). The discipline holds across both convenience refinements and structural changes; the 7-wave ritual continues to produce verifiable correctness.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.11_JPEG_WEBP.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the operator chooses the bytes" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.15 added — format/quality propagation flow + B-29 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + new §12.17 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | **Byte-untouched** (no new tools, no signature change) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | Two screenshot-site kwargs construction blocks + return-field update at both sites |
+| `src/heretic/skilningr/senses/leid/sense.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the FIFTEENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** |
+| `src/heretic/skilningr/config_model.py` | Two new LeidConfig fields + `__post_init__` validation |
+| `tests/test_leid_playwright_client.py` | New TestScreenshotFormat class with 6 tests + 2 existing tests updated for explicit `type="png"` |
+| `tests/test_leid_sense.py` | 5 new config validation tests in TestLeidConfig |
+| `docs/audit/AUDIT_v0.8.11_JPEG_WEBP.md` | New — verdict PASSES SCRUTINY (zero findings, eleventh consecutive) |
+| `docs/DEVLOG.md` | This entry (36) |
+
+### State of the body — 2026-05-11 (after v0.8.11)
+
+The Leið faculty still has EIGHTEEN tools. The change is internal screenshot-encoder selection, invisible to agents but operator-controllable:
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **18 (unchanged) — operator now chooses screenshot encoding** | **v0.8.11** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **fourteen unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8, v0.8.9, v0.8.10, v0.8.11).
+
+**The body's screenshot pipeline is now bandwidth-aware.** The operator can trade lossless fidelity (PNG, larger) for smaller transport (JPEG, WebP, smaller) at sense construction. The same agent calls produce the operator's chosen image type with no surface change.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.11 JPEG/WebP screenshot output~~ | **CLOSED — sealed at `d2f86c1` + Scribe push** |
+| **v0.8.12 element-targeted press (`locator.press`)** | next — refinement on press; uses `locator.first.press(key)` with the existing browser_click_timeout |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its TWENTY-SECOND sealed milestone. Fourteen slices into v0.8 *Opið Vef*. The body's image pipeline is now operator-tunable; the next slice paints element-targeted press onto the existing keyboard vocabulary.
+
+---
+
+*Entry 36 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The operator chooses the bytes. Fourteen unnamed extensions, eleven consecutive zero-findings audits, two operator-infrastructure refinements (viewport, format) now cluster under D-130. Twenty-second milestone in the autonomous arc; the LeidClient stands byte-untouched for fifteen milestones running. The session is kept.*
