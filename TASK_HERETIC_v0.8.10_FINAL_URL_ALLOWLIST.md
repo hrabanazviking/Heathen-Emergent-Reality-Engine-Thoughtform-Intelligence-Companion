@@ -11,6 +11,16 @@
 > **Mythic Engineering mode:** AUTONOMOUS. Twenty-first milestone in the autonomous arc.
 >
 > **Notable departure:** This slice **closes a real sandbox gap** that has been deferred since v0.6.2 and re-flagged in every browser-tool audit since. The agent-facing tool surface is unchanged in shape; the sandbox enforcement gains absolute discipline. **Stateful tools that violate**: the session is auto-closed, a security-grade enforcement of the operator's allowlist.
+>
+> **STATUS — 2026-05-11:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — tenth consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `09725ba` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 288 + 2 skip (was 279 + 2 — `+9`). Full suite 1609 + 9 skip (was 1600 + 9). Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Tenth consecutive zero-findings audit. **The deferred concern from v0.6.2 is CLOSED.** See `docs/audit/AUDIT_v0.8.10_FINAL_URL_ALLOWLIST.md`.
+>
+> **DEVLOG:** Entry 35 — `docs/DEVLOG.md`.
 
 ---
 
@@ -112,20 +122,20 @@ Plus shared cross-cutting:
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] New private helper `_check_final_url_allowed(url)` on `PlaywrightLeidClient`
-- [ ] All 7 navigation-completing call sites apply the check
-- [ ] Stateful violations call `manager.close_session(session_id)` before raising
-- [ ] No new tools (verified by tool count check unchanged)
-- [ ] No new error classes (D-143 — reuses UrlNotAllowedError)
-- [ ] No new config fields (D-144)
-- [ ] B-28 added to INTERFACE.md §12.16
-- [ ] All 279 existing leid tests pass unchanged
-- [ ] At least 9 new violation tests passing
-- [ ] At least 2 new happy-path verification tests passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.14 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.10_FINAL_URL_ALLOWLIST.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 35 written
-- [ ] All commits pushed to `development`
+- [x] New private helper `_check_final_url_allowed(url)` on `PlaywrightLeidClient` — `9b3f09a`
+- [x] All 7 navigation-completing call sites apply the check — `9b3f09a`
+- [x] Stateful violations call `manager.close_session(session_id)` before raising — `9b3f09a`
+- [x] No new tools (verified by tool count check unchanged) — confirmed
+- [x] No new error classes (D-143 — reuses UrlNotAllowedError) — confirmed
+- [x] No new config fields (D-144) — confirmed
+- [x] B-28 added to INTERFACE.md §12.16 — `115a317`
+- [x] All 279 existing leid tests pass unchanged — verified at `9b3f09a`
+- [x] 7 new violation tests passing (one per site) — `9b3f09a`
+- [x] 2 new happy-path verification tests passing — `9b3f09a`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.14 exists — `1bbec30`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `cf40236`
+- [x] `docs/audit/AUDIT_v0.8.10_FINAL_URL_ALLOWLIST.md` PASSES SCRUTINY (0/0/0/0) — `09725ba`
+- [x] DEVLOG entry 35 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes

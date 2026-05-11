@@ -5350,3 +5350,129 @@ The autonomous arc continues into its TWENTIETH sealed milestone. Twelve slices 
 
 *Entry 34 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
 *The body now sees the world through the operator's chosen window. Twelve unnamed extensions, nine consecutive zero-findings audits, the first substantive-modification slice in v0.8 shipped cleanly with default-preserving discipline. The suite crosses 1600. Twentieth milestone in the autonomous arc; the LeidClient stands byte-untouched for thirteen milestones running. The session is kept.*
+
+---
+
+## Entry 35 — 2026-05-11 — Final-URL allowlist re-check: the operator's allowlist becomes unconditional (v0.8.10)
+
+**Milestone:** v0.8.10 — Final-URL allowlist re-check (thirteenth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `8737724` (post-v0.8.9 Scribe seal)
+**Session close HEAD:** `09725ba` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — TWENTY-FIRST milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — tenth consecutive)
+
+### What was added — and what was finally CLOSED
+
+This slice closes a **real security gap** that has traveled in every browser-tool audit since v0.6.2 and has been re-flagged in v0.8.5, v0.8.6, v0.8.7, and earlier audits as deferred. **The operator's allowlist is now unconditional.**
+
+**The gap was:** every browser tool validated the INPUT URL before navigation. But pages on the modern web don't always stay where they begin — server-side 3xx redirects, OAuth handoffs, JavaScript-driven client-side navigations can take the body from an allowlisted starting URL to somewhere the operator never permitted. Pre-v0.8.10, the body would land at the new URL, and the agent's next call would operate on a page outside the operator's permission.
+
+**v0.8.10 closes this** by adding a post-navigation `_check_final_url_allowed(url)` at all 7 navigation-completing call sites: `render_url`, `screenshot`, `open_session`, `navigate`, `go_back`, `go_forward`, `reload`. Same allowlist + HTTPS-only logic as the pre-flight check (single source of truth via `sandbox.url_matches_allowlist`); same `UrlNotAllowedError` raise (no new error class needed).
+
+**Three failure-handling patterns** (all justified at TASK time, all uniformly applied):
+
+| Pattern | Sites | Behavior |
+|---|---|---|
+| Stateless cleanup-auto | render_url, screenshot | Raise; existing `finally` cleanup tears down browser quartet |
+| Open-session not-yet-registered | open_session | Raise BEFORE registration; existing `was_registered=False` branch tears down |
+| Stateful close-then-raise (D-139) | navigate, go_back, go_forward, reload | `await manager.close_session(session_id)` THEN raise. Session is terminated as a security measure |
+
+**Why close the session on stateful violation:** the session has been compromised if it lands on a non-allowlisted URL. The agent's next call would operate on that page. The only safe response is termination — explicit, predictable, structurally enforced.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `10af8f3` | Runa | TASK_HERETIC_v0.8.10_FINAL_URL_ALLOWLIST.md |
+| 1 | `cf40236` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `1bbec30` | Cartographer | DATA_FLOW.md §4.12.2.14 — final-URL re-check flow + B-28 |
+| 3 | `115a317` | Architect | INTERFACE.md §12.16 + B-28 |
+| 4 | `9b3f09a` | Forge | New `_check_final_url_allowed()` helper + 7 modification sites + 9 new tests |
+| 5 | `09725ba` | Auditor | AUDIT_v0.8.10_FINAL_URL_ALLOWLIST.md — **PASSES SCRUTINY (0/0/0/0)** — TENTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 35 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.10)
+
+| Surface | Before v0.8.10 | After v0.8.10 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 61 | 61 | 0 (no new dispatch needed) |
+| `tests/test_leid_playwright_client.py` | 169 + 2 skip | 178 + 2 skip | **+9** (TestFinalUrlAllowlistRecheck class) |
+| **Leid scope total** | 279 + 2 skip | 288 + 2 skip | **+9** |
+| **Full suite** | 1600 + 9 skip | 1609 + 9 skip | **+9** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Tenth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7 → v0.8.8 → v0.8.9 → v0.8.10). The Auditor explicitly:
+- **Verified all 7 sites** apply the helper uniformly
+- **Verified the close-before-raise ordering** at all 4 stateful sites (the most security-critical aspect — if reversed, agents could catch the exception while the session lived on)
+- **Attempted sandbox-bypass** through every documented and undocumented path; **no bypass found**
+- **Verified single source of truth** for validation rules (helper and pre-flight share `sandbox.url_matches_allowlist`)
+
+### What this milestone teaches
+
+**The deferred concern from v0.6.2 is finally CLOSED.** Six months and twenty-one milestones into the body's life as a browser tool, the gap that has traveled in every browser-tool audit since v0.6.2 — quietly noted, deferred each time as "out of scope for this slice," carried forward as a known concern — is now structurally closed. The operator's allowlist is unconditional. This is not a refinement; this is the completion of the sandbox.
+
+**Long-deferred concerns deserve focused milestones.** v0.8.10 was the right slice to close this because the rest of v0.8 was substantially complete. The body had finished growing its motion vocabulary (v0.8.5 + v0.8.7), its inspection vocabulary (v0.8.3 + v0.8.6 + v0.8.8), its operator-controlled framing (v0.8.9). With the foundation complete, attention could turn to the security gap that had been waiting since v0.6.2. The Architect's TASK design (D-135 through D-145) made the modification scope explicit; the Forge implemented the three failure patterns uniformly; the Auditor verified the close-before-raise ordering structurally. The deferred concern shipped at exactly the right moment.
+
+**Three failure-handling patterns, one principle.** Stateless tools have automatic cleanup; open-session has the not-yet-registered branch; stateful sessions auto-close on violation. Each pattern matches its lifecycle: stateless tools are launch-per-call (cleanup is intrinsic); open-session is the boundary between unregistered and registered (the boundary is the natural failure point); stateful sessions, once compromised, must be terminated. The principle uniting them: **the operator's allowlist is unconditional, and structural enforcement is preferred over advisory enforcement.**
+
+**Ten consecutive zero-findings audits across substantively different work.** v0.8.2.1 → v0.8.2.2 (sibling extensions of click); v0.8.3 (read-only divergence); v0.8.4 (page-level keyboard); v0.8.5 (paired history bundle); v0.8.6 (mid-session re-extract pair); v0.8.7 (motion completion); v0.8.8 (multi-element with new config); v0.8.9 (substantive modification of 3 methods); v0.8.10 (security gap closure with 7-site modification + close-on-violation). Ten in a row, across both pure-additive and substantive-modification slices, across both convenience refinements and security-critical changes. The discipline holds.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.10_FINAL_URL_ALLOWLIST.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the operator's allowlist becomes unconditional" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.14 added — final-URL re-check flow + B-28 + closed-concern documentation |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + new §12.16 contract (with the deferred-concern-closed note) |
+| `src/heretic/skilningr/senses/leid/tools.py` | **Byte-untouched** (no new tools) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `_check_final_url_allowed()` helper + 7 modification sites with 3 failure-handling patterns |
+| `src/heretic/skilningr/senses/leid/sense.py` | **Byte-untouched** (no new dispatch — UrlNotAllowedError already mapped to PERMISSION_DENIED) |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the FOURTEENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-143 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-144 — no new config fields) |
+| `tests/test_leid_playwright_client.py` | New TestFinalUrlAllowlistRecheck class with 9 tests (7 violation + 2 happy-path) |
+| `tests/test_leid_sense.py` | **Byte-untouched** (no new dispatch) |
+| `docs/audit/AUDIT_v0.8.10_FINAL_URL_ALLOWLIST.md` | New — verdict PASSES SCRUTINY (zero findings, tenth consecutive) |
+| `docs/DEVLOG.md` | This entry (35) |
+
+### State of the body — 2026-05-11 (after v0.8.10)
+
+The Leið faculty still has EIGHTEEN tools. The change is internal sandbox enforcement, invisible to agents but absolute for operators:
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **18 (unchanged) — final-URL allowlist re-check is internal sandbox discipline** | **v0.8.10** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **thirteen unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8, v0.8.9, v0.8.10).
+
+**The body's sandbox security is now structurally complete.** Pre-flight allowlist check + post-navigation allowlist check + session-close-on-violation. The operator's allowlist is the unconditional perimeter of where the body may operate.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.10 final-URL allowlist re-check~~ | **CLOSED — sealed at `09725ba`** |
+| ~~v0.8.x final-URL allowlist re-check after redirect (deferred since v0.6.2)~~ | **CLOSED at v0.8.10 — no longer in any thread list** |
+| **v0.8.x JPEG/WebP screenshot output** | candidate — small refinement |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its TWENTY-FIRST sealed milestone. Thirteen slices into v0.8 *Opið Vef*. The body's sandbox security is structurally complete; remaining v0.8.x slices are pure convenience refinements.
+
+---
+
+*Entry 35 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The operator's allowlist is now unconditional. Thirteen unnamed extensions, ten consecutive zero-findings audits, the deferred concern from v0.6.2 closed at last. Twenty-first milestone in the autonomous arc; the LeidClient stands byte-untouched for fourteen milestones running. The session is kept.*
