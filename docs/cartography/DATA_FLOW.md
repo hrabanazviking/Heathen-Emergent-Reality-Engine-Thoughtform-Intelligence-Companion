@@ -6799,6 +6799,125 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.7 Leið in-session selector query (Innan Hurðar extension — v0.8.3)
+
+> **Added 2026-05-10 v0.8.3 (Védis Eikleið).** Sixth unnamed Innan Hurðar
+> extension — adds `leid.query`, the read-only sibling of click/type. Returns
+> text or attribute of first matching element + total match count. **Deliberate
+> error-semantic divergence**: not finding a match is NOT an error
+> (`found: false`); a read tool must support "checking whether X exists."
+> One new B-invariant (B-21); no new error classes; reuses click timeout.
+
+```
+  LEIÐ IN-SESSION QUERY FLOW (v0.8.3)
+
+  Entry point: agent calls leid.query(session_id, selector, attribute="").
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.query" → PlaywrightLeidClient.query(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Locator + count
+    locator = session.page.locator(selector)
+    try:
+        count = await locator.count()
+    except PlaywrightError as exc:
+        raise LeidConnectionError(...)            ── D-79 (browser failure)
+
+    The count call uses Playwright's default action timeout, but for
+    most pages this returns essentially synchronously after DOM is
+    settled. count() does NOT raise on "no matches" — it returns 0.
+
+  Stage 5 — Not-found early return (D-72 — DELIBERATE non-error)
+    if count == 0:
+        session.mark_activity()                   ── B-17 (still counts)
+        return {
+            session_id, selector, attribute,
+            found: false,
+            value: null,
+            count: 0,
+        }
+
+    DIVERGENCE FROM CLICK/TYPE:
+      Click and type raise LeidClickElementNotFoundError /
+      LeidTypeElementNotFoundError when the selector matches nothing —
+      because mutating actions must succeed. Query returns
+      {found: false} because read operations must support "looking to
+      see if X is there." The agent that calls
+        query(session, ".error-banner") to detect an error message
+      should NOT have to wrap the call in try/except for the success
+      case of "no error message present."
+
+  Stage 6 — Extract from first match
+    first = locator.first
+    timeout_ms = config.browser_click_timeout_seconds * 1000  ── D-75 reuse
+    try:
+        if attribute == "":                        ── D-70 (default = text)
+            value = await first.text_content(timeout=timeout_ms)
+        else:                                      ── D-71 (specific attr)
+            value = await first.get_attribute(attribute, timeout=timeout_ms)
+    except PlaywrightTimeoutError as exc:
+        raise LeidConnectionError(                 ── timeout on extract
+            f"query extraction timed out: {exc}"
+        )
+    except PlaywrightError as exc:
+        raise LeidConnectionError(...)             ── D-79
+
+    Notes on value semantics:
+      - text_content returns str OR None (None when element has no text)
+      - get_attribute returns str OR None (None when attribute absent)
+      - Both pass through to the agent as JSON null when None
+      - found=true with value=null distinguishes "found but no text/attr"
+        from "found nothing" (D-73). Useful diagnostic information.
+      - Whitespace is NOT stripped (D-76 — pass-through, agent decides)
+
+  Stage 7 — Activity update (B-17 / B-21)
+    session.mark_activity()
+
+  Stage 8 — Return
+    return {
+        session_id,
+        selector,
+        attribute,                                  ── echo back what agent asked for
+        found: true,
+        value,                                      ── str or None
+        count,                                      ── total matches in DOM
+    }
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises LeidSessionExpiredError
+    B-17  — activity update after success (BOTH not-found and found paths)
+    B-21  — NEW: query honours session/timeout discipline; not-found
+              returns honestly rather than raising
+
+  Error code mapping:
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+    (no class for "not found"     — successful return with found:false)
+
+  Cost vs the other in-session tools:
+    query (no match):    ~5-20 ms     (count returns 0; fast path)
+    query (with match):  ~20-50 ms    (count + text_content / get_attribute)
+    click / type:        ~50-200 ms   (interaction + actionability checks)
+    navigate:            ~500-2000 ms (full goto)
+    open_session:        ~500-3000 ms (browser cold start + goto)
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
