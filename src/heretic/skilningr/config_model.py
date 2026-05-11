@@ -579,6 +579,20 @@ class LeidConfig:
     interactive action; long timeout = bad UX when the selector is wrong.
     Default 10. Must be > 0."""
 
+    # ----- v0.8.8 query_all — cardinality cap on multi-element query -----
+
+    browser_query_max_matches: int = 100
+    """Maximum number of elements ``leid.query_all`` will enumerate. When the
+    selector matches more than this, ``LeidResponseTooLargeError`` is raised
+    (D-116) and no iteration happens. Default 100 catches the over-broad-
+    selector mistake early; operators with use cases that genuinely need
+    more matches (e.g., scraping a long table) raise this. Cardinality
+    cap rather than byte cap because cardinality matches the agent's
+    mental model. Must be >= 1 (a cap of 0 would forbid query_all
+    entirely, which is incoherent — operators who want that should set
+    ``enabled: false`` instead). Used only by ``leid.query_all``; has no
+    effect on ``leid.query`` or any other tool."""
+
     def __post_init__(self) -> None:
         """Validate config fields at construction time.
 
@@ -651,6 +665,12 @@ class LeidConfig:
             raise ValueError(
                 f"LeidConfig.browser_click_timeout_seconds must be > 0, "
                 f"got {self.browser_click_timeout_seconds!r}."
+            )
+        # v0.8.8 — query_all cardinality cap validation
+        if self.browser_query_max_matches < 1:
+            raise ValueError(
+                f"LeidConfig.browser_query_max_matches must be >= 1, "
+                f"got {self.browser_query_max_matches!r}."
             )
         # Warn on unrestricted wildcard
         if self.enabled and "*" in self.url_allowlist_patterns:

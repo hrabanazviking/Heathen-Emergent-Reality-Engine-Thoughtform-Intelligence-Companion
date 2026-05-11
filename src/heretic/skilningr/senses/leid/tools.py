@@ -69,6 +69,13 @@ v0.8.7 (1 added tool — LOCKED):
                               motion vocabulary alongside navigate/go_back/
                               go_forward
 
+v0.8.8 (1 added tool — LOCKED):
+    leid.query_all          — read text or attribute of ALL elements matching
+                              CSS selector inside an open session; returns list
+                              in DOM order; bounded by browser_query_max_matches
+                              (cardinality cap, default 100); empty result
+                              returns count:0, values:[] (NOT an error)
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -784,6 +791,69 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.query_all  (v0.8.8 Innan Hurðar extension — multi-element read)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.query_all",
+            "description": (
+                "Read the text content (or specified HTML attribute) of ALL "
+                "elements in the session's page that match the given CSS "
+                "selector. Returns a list in DOM order. The multi-element "
+                "follow-up to leid.query (which returns only the first match). "
+                "Use this for: 'list all article titles', 'get all "
+                "navigation links', 'what does each error message say?'. "
+                "Returns {selector, attribute, count, values}. UNLIKE click "
+                "and type, an empty result (no matches) is NOT an error — "
+                "returns {count: 0, values: []}. The result is bounded by "
+                "browser_query_max_matches (default 100); selectors that "
+                "match more raise INVALID_ARGUMENTS so the agent gets honest "
+                "feedback that the selector is too broad. Each value in the "
+                "list is a string OR null (null when the element has no "
+                "text or the requested attribute is absent on it). Set "
+                "the attribute parameter to read a specific HTML attribute "
+                "(e.g. 'href'); leave it empty/omitted to read text content. "
+                "Unknown session_id returns SENSE_UNAVAILABLE; browser-level "
+                "failures return EXTERNAL_APP_UNAVAILABLE. HERETIC injects "
+                "no JavaScript — read uses Playwright's locator primitives."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector for the elements to enumerate. ALL "
+                            "matching elements (up to browser_query_max_matches) "
+                            "have their value extracted. "
+                            "Examples: 'article h2', '.search-result', 'a[href]', "
+                            "'tr.data-row'."
+                        ),
+                    },
+                    "attribute": {
+                        "type": "string",
+                        "description": (
+                            "Optional. The HTML attribute name to read for each "
+                            "matching element. If omitted or set to empty string, "
+                            "returns each element's text content instead. "
+                            "Examples: 'href', 'src', 'value', 'data-id'."
+                        ),
+                    },
+                },
+                "required": ["session_id", "selector"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -817,7 +887,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 17 OpenAI tool schemas for the Leið sense.
+"""The 18 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -857,4 +927,7 @@ Tool names added at v0.8.6 (LOCKED, paired):
 
 Tool name added at v0.8.7 (LOCKED):
     leid.reload
+
+Tool name added at v0.8.8 (LOCKED):
+    leid.query_all
 """

@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-11 (v0.8.7 reload extension — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-11 (v0.8.8 query_all extension — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -92,6 +92,7 @@ for the v0.8.0 browser-mode contract.
 | `leid.session_render`  | Re-extract rendered text + title from the current session page (mid-session counterpart of leid.render_url) | `session_id` (string) | Playwright (Chromium) | v0.8.6 |
 | `leid.session_screenshot` | Capture base64 PNG of the current session page (mid-session counterpart of leid.screenshot) | `session_id` (string) | Playwright (Chromium) | v0.8.6 |
 | `leid.reload`          | Refresh the current page of an open session (re-fetch + re-render in place) | `session_id` (string) | Playwright (Chromium) | v0.8.7 |
+| `leid.query_all`       | Read text or attribute of ALL elements matching CSS selector (read-only; bounded by browser_query_max_matches) | `session_id`, `selector` (req); `attribute` (opt) | Playwright (Chromium) | v0.8.8 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -185,6 +186,9 @@ skilningr:
     browser_session_idle_timeout_seconds: 300     # 5 min — evict on idle
     browser_session_max_lifetime_seconds: 1800    # 30 min — hard ceiling
     browser_click_timeout_seconds: 10             # max wall-clock for a single click
+
+    # v0.8.8 query_all — cardinality cap on multi-element query
+    browser_query_max_matches: 100                # hard cap; query_all > cap raises
 ```
 
 ---
@@ -989,3 +993,91 @@ Minimal shape (D-111). No `previous_url` because reload is in-place — previous
 | Hard reload (skip cache) | v0.8.x — Playwright's reload accepts no `bypass_cache`; agent achieves this via `keyboard.press("Control+Shift+R")` instead |
 | Reload-and-extract combined | v0.8.x — agent does `reload()` then `session_render()` |
 | Final-URL allowlist re-check | v0.8.x — pre-existing concern across all browser tools |
+
+### 12.14 Multi-element query extension (v0.8.8 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.8.** Adds `leid.query_all` — multi-element
+> follow-up to v0.8.3 single-match `query`. Returns ALL matches as a
+> list (in DOM order) up to a new cardinality cap. Same probe-and-act
+> posture as query: empty result is NOT an error. **First new
+> LeidConfig field since v0.8.2** (`browser_query_max_matches`,
+> default 100). No new error classes (D-123).
+
+**New tool:** `leid.query_all(session_id, selector, attribute="")` → `{session_id, selector, attribute, count, values}`.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-26 | `query_all()` enforces the same session/timeout discipline as `query()`: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; `locator.count()` then `locator.nth(i).text_content()` / `.get_attribute()` (per i in 0..count) calls bounded by `browser_click_timeout_seconds`; on success, `session.last_activity_at` is updated. **NEW**: cardinality cap — when `count > config.browser_query_max_matches`, `LeidResponseTooLargeError` is raised BEFORE iteration. **DIVERGENCE inherited from B-21**: empty result (count=0) is NOT an error — returns `{count: 0, values: []}`. |
+
+**Implementation primitive:** `await session.page.locator(selector).count()` always; then `await session.page.locator(selector).nth(i).text_content(timeout=...)` OR `.get_attribute(attribute, timeout=...)` for each `i in range(count)` (only when `0 < count <= browser_query_max_matches`). Reuses the click timeout (D-122).
+
+**New config field:**
+
+| Field                        | Type | Default | Meaning |
+|------------------------------|------|---------|---------|
+| `browser_query_max_matches`  | int  | 100     | Cardinality cap on `query_all`. Selectors matching more raise `LeidResponseTooLargeError`. Must be >= 1. |
+
+**Success response shape (matches found):**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "selector": "article h2",
+  "attribute": "",
+  "count": 5,
+  "values": [
+    "First article title",
+    "Second article title",
+    "Third article title",
+    "Fourth article title",
+    "Fifth article title"
+  ]
+}
+```
+
+**Empty-result shape (NOT an error):**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "selector": ".error-message",
+  "attribute": "",
+  "count": 0,
+  "values": []
+}
+```
+
+`values` is always a list of length equal to `count`. Each element is a string OR `null` (None when the underlying `text_content()` or `get_attribute()` returned None — element exists but has no text or the requested attribute is absent).
+
+**Cap-exceeded behaviour (D-116):**
+
+```json
+// LeidResponseTooLargeError → INVALID_ARGUMENTS
+// "selector matched 542 elements, exceeds browser_query_max_matches=100; refine selector"
+```
+
+The cap fires BEFORE iteration begins — no partial work, no silent truncation. Honest feedback to the agent.
+
+**Distinct from query:** `query` returns the FIRST match with `{found, value, count}`; `query_all` returns ALL matches (up to cap) with `{count, values}`. The agent picks based on intent:
+- "Is there an error message?" → `query(".error-msg")` (binary check)
+- "What's the first article title?" → `query("article h2")` (single read)
+- "List all the article titles" → `query_all("article h2")` (enumeration)
+
+**Failure-mode reuse:** No new error classes.
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| count > browser_query_max_matches (B-26)         | `LeidResponseTooLargeError`| `INVALID_ARGUMENTS`       |
+| Browser failure on count or extraction           | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+
+**Out of scope at v0.8.8:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Streaming/paginated query results | v0.8.x — cap-based bounding suffices |
+| XPath multi-match           | v0.8.x — CSS suffices |
+| Per-element bounding box    | v0.8.x — geometric inspection separate concern |
+| Nested attribute reads (href + text in one call) | v0.8.x — agent calls twice |
