@@ -24,8 +24,11 @@ import pytest
 from heretic.skilningr.config_model import LeidConfig
 from heretic.skilningr.senses.leid.client import LeidClient
 from heretic.skilningr.senses.leid.errors import (
+    LeidClickElementNotFoundError,
     LeidConnectionError,
     LeidPlaywrightUnavailableError,
+    LeidSessionExpiredError,
+    LeidSessionLimitError,
     LeidTimeoutError,
     UrlNotAllowedError,
 )
@@ -125,6 +128,34 @@ class TestLeidConfig:
         cfg = LeidConfig()
         assert cfg.browser_screenshot_full_page is True
 
+    # --- v0.8.2 Innan Hurðar — session + click field validation ---
+
+    def test_leid_config_invalid_browser_max_concurrent_sessions_raises(self):
+        with pytest.raises(ValueError, match="browser_max_concurrent_sessions"):
+            LeidConfig(browser_max_concurrent_sessions=0)
+        with pytest.raises(ValueError, match="browser_max_concurrent_sessions"):
+            LeidConfig(browser_max_concurrent_sessions=-1)
+
+    def test_leid_config_invalid_browser_session_idle_timeout_raises(self):
+        with pytest.raises(ValueError, match="browser_session_idle_timeout_seconds"):
+            LeidConfig(browser_session_idle_timeout_seconds=0)
+
+    def test_leid_config_invalid_browser_session_max_lifetime_raises(self):
+        with pytest.raises(ValueError, match="browser_session_max_lifetime_seconds"):
+            LeidConfig(browser_session_max_lifetime_seconds=0)
+
+    def test_leid_config_max_lifetime_must_be_at_least_idle_timeout(self):
+        """max_lifetime < idle_timeout is incoherent."""
+        with pytest.raises(ValueError, match="incoherent"):
+            LeidConfig(
+                browser_session_idle_timeout_seconds=300,
+                browser_session_max_lifetime_seconds=60,
+            )
+
+    def test_leid_config_invalid_browser_click_timeout_raises(self):
+        with pytest.raises(ValueError, match="browser_click_timeout_seconds"):
+            LeidConfig(browser_click_timeout_seconds=0)
+
 
 # ---------------------------------------------------------------------------
 # Sense lifecycle
@@ -165,12 +196,12 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 4 tools when enabled
-        (v0.6.2: fetch_url + extract_text; v0.8.0: render_url; v0.8.1: screenshot)."""
+        """tool_definitions returns 8 tools when enabled
+        (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 4
+        assert len(sense.tool_definitions) == 8
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -180,13 +211,19 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """The four Leið tool names are locked as specified
-        (v0.6.2: fetch_url, extract_text; v0.8.0: render_url; v0.8.1: screenshot)."""
+        """All eight Leið tool names are locked as specified
+        (v0.6.2: fetch_url, extract_text; v0.8.0: render_url;
+         v0.8.1: screenshot; v0.8.2: open_session, session_status,
+         click, close_session)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
         assert "leid.render_url" in names
         assert "leid.screenshot" in names
+        assert "leid.open_session" in names
+        assert "leid.session_status" in names
+        assert "leid.click" in names
+        assert "leid.close_session" in names
 
 
 # ---------------------------------------------------------------------------
@@ -454,3 +491,157 @@ class TestLeidSenseDispatch:
         parsed = json.loads(result["content"])
         assert parsed["error"] is True
         assert parsed["code"] == "EXTERNAL_APP_UNAVAILABLE"
+
+    # -------------------------------------------------------------------
+    # v0.8.2 Innan Hurðar — session-tool dispatch
+    # -------------------------------------------------------------------
+
+    def _session_config(self) -> LeidConfig:
+        return LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_open_session_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.open_session = AsyncMock(return_value={
+            "session_id": "leid-deadbeef",
+            "final_url": "https://example.com/page",
+            "title": "Page",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.open_session", {"url": "https://example.com/page"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["session_id"] == "leid-deadbeef"
+        mock_pw_client.open_session.assert_awaited_once_with(
+            url="https://example.com/page"
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_session_status_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.session_status = AsyncMock(return_value={
+            "state": "alive",
+            "url": "https://example.com/page",
+            "title": "Page",
+            "opened_at": 1.0,
+            "last_activity_at": 1.5,
+            "age_seconds": 0.5,
+            "idle_seconds": 0.0,
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.session_status", {"session_id": "leid-deadbeef"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["state"] == "alive"
+        mock_pw_client.session_status.assert_awaited_once_with(
+            session_id="leid-deadbeef"
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_click_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.click = AsyncMock(return_value={
+            "selector": "button",
+            "clicked": True,
+            "current_url": "https://example.com/landed",
+            "current_title": "Landed",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.click",
+            {"session_id": "leid-deadbeef", "selector": "button"},
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["clicked"] is True
+        mock_pw_client.click.assert_awaited_once_with(
+            session_id="leid-deadbeef", selector="button"
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_close_session_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.close_session = AsyncMock(return_value={
+            "session_id": "leid-deadbeef",
+            "closed": True,
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.close_session", {"session_id": "leid-deadbeef"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["closed"] is True
+        mock_pw_client.close_session.assert_awaited_once_with(
+            session_id="leid-deadbeef"
+        )
+
+    # v0.8.2 — error code mappings for the new error classes
+
+    @pytest.mark.asyncio
+    async def test_session_limit_error_returns_sense_unavailable_code(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.open_session = AsyncMock(
+            side_effect=LeidSessionLimitError("at cap")
+        )
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        result = await sense.dispatch_tool_call(self._make_tool_call(
+            "leid.open_session", {"url": "https://example.com/page"}
+        ))
+        parsed = json.loads(result["content"])
+        assert parsed["code"] == "SENSE_UNAVAILABLE"
+
+    @pytest.mark.asyncio
+    async def test_session_expired_error_returns_sense_unavailable_code(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.session_status = AsyncMock(
+            side_effect=LeidSessionExpiredError("expired")
+        )
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        result = await sense.dispatch_tool_call(self._make_tool_call(
+            "leid.session_status", {"session_id": "leid-gone"}
+        ))
+        parsed = json.loads(result["content"])
+        assert parsed["code"] == "SENSE_UNAVAILABLE"
+
+    @pytest.mark.asyncio
+    async def test_click_element_not_found_returns_invalid_arguments_code(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.click = AsyncMock(
+            side_effect=LeidClickElementNotFoundError("no match")
+        )
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        result = await sense.dispatch_tool_call(self._make_tool_call(
+            "leid.click",
+            {"session_id": "leid-x", "selector": "#nope"},
+        ))
+        parsed = json.loads(result["content"])
+        assert parsed["code"] == "INVALID_ARGUMENTS"

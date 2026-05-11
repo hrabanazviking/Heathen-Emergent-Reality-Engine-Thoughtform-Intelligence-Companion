@@ -69,18 +69,25 @@ from __future__ import annotations
 
 import base64
 import logging
+import uuid
 from typing import Any
 
 from heretic.skilningr.config_model import LeidConfig
 from heretic.skilningr.sandbox import url_matches_allowlist
 from heretic.skilningr.senses.leid.client import _extract_text_from_html
 from heretic.skilningr.senses.leid.errors import (
+    LeidClickElementNotFoundError,
     LeidConnectionError,
     LeidHttpError,
     LeidPlaywrightUnavailableError,
     LeidResponseTooLargeError,
+    LeidSessionLimitError,
     LeidTimeoutError,
     UrlNotAllowedError,
+)
+from heretic.skilningr.senses.leid.session_manager import (
+    BrowserSessionManager,
+    _LeidSession,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,6 +124,23 @@ class PlaywrightLeidClient:
         """
         self._config = config
         self._log = log if log is not None else logging.getLogger(__name__)
+        # v0.8.2 — lazy session manager for Innan Hurðar tools.
+        # Constructed on first session-tool call; remains None for hosts
+        # that only use the stateless tools (render_url, screenshot).
+        self._session_manager: BrowserSessionManager | None = None
+
+    def _get_or_create_session_manager(self) -> BrowserSessionManager:
+        """Lazily construct the BrowserSessionManager on first session-tool call.
+
+        Hosts that use only render_url / screenshot never construct a manager.
+        Hosts that use any of the v0.8.2 session tools get a single manager
+        bound to the same config.
+        """
+        if self._session_manager is None:
+            self._session_manager = BrowserSessionManager(
+                self._config, log=self._log
+            )
+        return self._session_manager
 
     def _validate_url(self, url: str) -> str:
         """Validate that *url* matches the allowlist and return the normalised URL.
@@ -284,8 +308,18 @@ class PlaywrightLeidClient:
                     f"(rendered via Playwright)."
                 )
 
-            # B-6 — pre-cap on rendered HTML BEFORE text extraction
-            html = await page.content()
+            # B-6 — pre-cap on rendered HTML BEFORE text extraction.
+            # M-1 closure (v0.8.2): explicit Page.* exception typing —
+            # network-level failures during page.content() now surface as
+            # LeidConnectionError, matching httpx's network-error precision.
+            try:
+                html = await page.content()
+            except (PlaywrightTimeoutError, PlaywrightError) as exc:
+                raise LeidConnectionError(
+                    f"page.content() for {normalised_url!r} failed at the "
+                    f"browser level (page may have closed or process "
+                    f"disconnected): {exc}"
+                ) from exc
             rendered_size = len(html.encode("utf-8"))
             if rendered_size > self._config.max_response_bytes:
                 self._log.warning(
@@ -480,11 +514,21 @@ class PlaywrightLeidClient:
                     f"(rendered via Playwright)."
                 )
 
-            # Stage 5 — capture the screenshot
-            png_bytes = await page.screenshot(
-                full_page=full_page,
-                type="png",
-            )
+            # Stage 5 — capture the screenshot.
+            # M-1 closure (v0.8.2): explicit Page.* exception typing —
+            # network/page-level failures during page.screenshot() now
+            # surface as LeidConnectionError, matching httpx's precision.
+            try:
+                png_bytes = await page.screenshot(
+                    full_page=full_page,
+                    type="png",
+                )
+            except (PlaywrightTimeoutError, PlaywrightError) as exc:
+                raise LeidConnectionError(
+                    f"page.screenshot() for {normalised_url!r} failed at the "
+                    f"browser level (page may have closed or process "
+                    f"disconnected): {exc}"
+                ) from exc
 
             # B-11 — pre-cap on raw PNG byte size, BEFORE base64 encoding.
             # The base64 expansion (~33%) is avoided when the cap fires.
@@ -558,4 +602,386 @@ class PlaywrightLeidClient:
             "image_format": "png",
             "size_bytes": png_size,
             "full_page": full_page,
+        }
+
+    # ------------------------------------------------------------------
+    # v0.8.2 Innan Hurðar — stateful session methods
+    # ------------------------------------------------------------------
+
+    async def open_session(self, url: str) -> dict[str, Any]:
+        """Open a stateful browser session at *url* and return its session_id.
+
+        v0.8.2 *Innan Hurðar* — stateful sub-disposition. Unlike render_url and
+        screenshot (launch-per-call), open_session keeps the (pw, browser,
+        context, page) quartet alive after returning, registered with the
+        BrowserSessionManager under a UUID4-derived session_id. The agent
+        uses the session_id for subsequent session_status/click/close_session
+        calls.
+
+        Lifecycle (D-36): launch-per-SESSION. The session lives until either:
+          - leid.close_session(session_id) is called, OR
+          - browser_session_idle_timeout_seconds passes with no activity, OR
+          - browser_session_max_lifetime_seconds passes (hard ceiling).
+
+        Args:
+            url: URL to navigate to in the new session. Must match
+                 url_allowlist_patterns.
+
+        Returns:
+            dict with keys:
+                session_id (str):  prefixed UUID4 hex (e.g. "leid-abc...")
+                final_url (str):   page.url after the navigation completes
+                title (str):       page <title> after navigation
+
+        Raises:
+            UrlNotAllowedError:             URL not in allowlist or HTTP rejected.
+            LeidPlaywrightUnavailableError: playwright not installed OR chromium
+                                            binary missing.
+            LeidSessionLimitError:          concurrent-sessions cap reached.
+            LeidTimeoutError:               page.goto() exceeded
+                                            browser_navigation_timeout_seconds.
+            LeidHttpError:                  navigation returned 4xx or 5xx status.
+            LeidConnectionError:            network-level error during navigation.
+        """
+        # B-12 — validate URL FIRST. No browser launches for a rejected URL.
+        normalised_url = self._validate_url(url)
+
+        # B-15 — lazy eviction of expired sessions before any new work.
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()
+
+        # B-13 — explicit refusal at cap. No silent eviction.
+        await manager.check_capacity()
+
+        # B-2 — defer playwright import; mirrors render_url / screenshot.
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                async_playwright,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                "Playwright is not installed. To enable leid.open_session, run "
+                "`pip install heretic[browser]` and then "
+                "`playwright install chromium`. The httpx tools "
+                "(leid.fetch_url, leid.extract_text) continue to work without "
+                f"Playwright. Import error: {exc}"
+            ) from exc
+
+        self._log.debug(
+            "Leið open_session: %s (timeout=%ds, load_state=%r, max_concurrent=%d)",
+            normalised_url,
+            self._config.browser_navigation_timeout_seconds,
+            self._config.browser_load_state,
+            self._config.browser_max_concurrent_sessions,
+        )
+
+        # Launch the (pw, browser, context, page) quartet. If ANY stage
+        # fails, we must clean up everything launched so far (B-7-style)
+        # because the session is NOT registered with the manager yet —
+        # eviction won't catch it.
+        pw = None
+        browser = None
+        context = None
+        try:
+            pw = await async_playwright().start()
+            try:
+                browser = await pw.chromium.launch(headless=True)  # B-4
+            except Exception as exc:
+                raise LeidPlaywrightUnavailableError(
+                    "Chromium browser binary could not be launched. The most "
+                    "common cause is that `playwright install chromium` has "
+                    "not been run. Without the browser binary, leid.open_session "
+                    "cannot operate; the httpx tools are unaffected. "
+                    f"Underlying error: {exc}"
+                ) from exc
+
+            # Each session gets its own context (B-14, also strengthened B-3).
+            context = await browser.new_context(
+                user_agent=self._config.user_agent,
+            )
+            page = await context.new_page()
+
+            try:
+                response = await page.goto(
+                    normalised_url,
+                    wait_until=self._config.browser_load_state,
+                    timeout=self._config.browser_navigation_timeout_seconds * 1000,
+                )
+            except PlaywrightTimeoutError as exc:
+                raise LeidTimeoutError(
+                    f"open_session navigation to {normalised_url!r} timed out "
+                    f"after {self._config.browser_navigation_timeout_seconds}s "
+                    f"(load_state={self._config.browser_load_state!r}): {exc}"
+                ) from exc
+            except PlaywrightError as exc:
+                raise LeidConnectionError(
+                    f"open_session navigation to {normalised_url!r} failed "
+                    f"at the network layer: {exc}"
+                ) from exc
+
+            if response is not None and response.status >= 400:
+                raise LeidHttpError(
+                    f"HTTP {response.status} from {normalised_url!r} "
+                    f"during open_session navigation."
+                )
+
+            # Read the title once; defensive against title-read failures.
+            try:
+                title = await page.title()
+            except Exception:
+                title = ""
+
+            session_id = f"leid-{uuid.uuid4().hex}"
+            session = _LeidSession(
+                session_id=session_id,
+                pw=pw,
+                browser=browser,
+                context=context,
+                page=page,
+            )
+
+            # Register with the manager. Re-checks the cap under-lock; on
+            # race-loss the registration raises and we fall through to the
+            # cleanup branch below.
+            try:
+                await manager.register_session(session)
+            except LeidSessionLimitError:
+                # Cap-race lost — clean up the just-launched quartet and
+                # propagate. Setting the locals to None tells the cleanup
+                # branch below "we already handled these."
+                self._log.warning(
+                    "Leið open_session: lost cap race for %s — cleaning up "
+                    "launched browser",
+                    normalised_url,
+                )
+                # Manual cleanup; same shape as the manager's internal cleanup.
+                try:
+                    await context.close()
+                except Exception:
+                    pass
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
+                try:
+                    await pw.stop()
+                except Exception:
+                    pass
+                pw = None
+                browser = None
+                context = None
+                raise
+
+            final_url = page.url
+
+        except Exception:
+            # Cleanup ONLY runs when the session was NOT registered (early
+            # failure path). If registration succeeded, ownership transferred
+            # to the manager and the manager handles cleanup at close /
+            # eviction time.
+            if pw is not None and (
+                self._session_manager is None
+                or not any(
+                    s.pw is pw for s in self._session_manager._sessions.values()
+                )
+            ):
+                if context is not None:
+                    try:
+                        await context.close()
+                    except Exception:
+                        pass
+                if browser is not None:
+                    try:
+                        await browser.close()
+                    except Exception:
+                        pass
+                try:
+                    await pw.stop()
+                except Exception:
+                    pass
+            raise
+
+        self._log.debug(
+            "Leið open_session: %s -> session_id=%s, final_url=%s",
+            normalised_url, session_id, final_url,
+        )
+
+        return {
+            "session_id": session_id,
+            "final_url": final_url,
+            "title": title,
+        }
+
+    async def session_status(self, session_id: str) -> dict[str, Any]:
+        """Non-mutating health/identity check on an open session. (B-16, B-17)
+
+        Returns the session's current URL, title, lifetime metadata, and
+        derived age/idle seconds. Counts as activity (resets idle timer).
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+
+        Returns:
+            dict with keys: state, url, title, opened_at, last_activity_at,
+                            age_seconds, idle_seconds.
+
+        Raises:
+            LeidSessionExpiredError: session_id unknown or evicted.
+            LeidConnectionError:     page.title() raised at browser layer.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        # B-2 — defer playwright import for the exception types used below.
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            # Should never happen — if we have an active session we must have
+            # imported playwright already to launch it. Defensive.
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"session_status: {exc}"
+            ) from exc
+
+        try:
+            url = session.page.url
+            title = await session.page.title()
+        except (PlaywrightTimeoutError, PlaywrightError) as exc:
+            raise LeidConnectionError(
+                f"session_status({session_id!r}) failed at the browser level: "
+                f"{exc}"
+            ) from exc
+
+        import time as _time
+        now = _time.monotonic()
+        age = session.age_seconds(now)
+        idle = session.idle_seconds(now)
+
+        # B-17 — status counts as activity (resets idle).
+        session.mark_activity()
+
+        return {
+            "state": "alive",
+            "url": url,
+            "title": title,
+            "opened_at": session.created_at,
+            "last_activity_at": session.last_activity_at,
+            "age_seconds": age,
+            "idle_seconds": idle,
+        }
+
+    async def click(self, session_id: str, selector: str) -> dict[str, Any]:
+        """Click the first element matching *selector* in the open session. (D-41)
+
+        v0.8.2's first interactive tool. The click may trigger navigation or
+        any other in-page behaviour the page's own scripts implement.
+        HERETIC injects no JavaScript (B-10 inherited).
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+            selector:   CSS selector. The FIRST matching element is clicked.
+
+        Returns:
+            dict with keys: selector, clicked, current_url, current_title.
+
+        Raises:
+            LeidSessionExpiredError:        session_id unknown or evicted.
+            LeidClickElementNotFoundError:  selector matched nothing within
+                                            browser_click_timeout_seconds.
+            LeidConnectionError:            other Playwright error.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and click: {exc}"
+            ) from exc
+
+        click_timeout_ms = self._config.browser_click_timeout_seconds * 1000
+
+        # D-41: locator.first.click for deterministic first-match behaviour.
+        # D-43: TimeoutError → LeidClickElementNotFoundError (selector wrong);
+        #       other PlaywrightError → LeidConnectionError (network/page issue).
+        locator = session.page.locator(selector).first
+        try:
+            await locator.click(timeout=click_timeout_ms)
+        except PlaywrightTimeoutError as exc:
+            raise LeidClickElementNotFoundError(
+                f"Selector {selector!r} matched no actionable element in "
+                f"session {session_id!r} within "
+                f"{self._config.browser_click_timeout_seconds}s. Refine the "
+                f"selector and retry. Underlying: {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"click({selector!r}) on session {session_id!r} failed at the "
+                f"browser level: {exc}"
+            ) from exc
+
+        # B-17 — successful click counts as activity.
+        session.mark_activity()
+
+        # D-44 — read post-click URL and title (may have changed due to nav).
+        # D-49 — title-read failure is non-fatal.
+        current_url = session.page.url
+        try:
+            current_title = await session.page.title()
+        except Exception:
+            current_title = None
+
+        self._log.debug(
+            "Leið click: session=%s selector=%s -> url=%s",
+            session_id, selector, current_url,
+        )
+
+        return {
+            "selector": selector,
+            "clicked": True,
+            "current_url": current_url,
+            "current_title": current_title,
+        }
+
+    async def close_session(self, session_id: str) -> dict[str, Any]:
+        """Close the session and release all browser resources. Idempotent. (B-18)
+
+        Returns ``{closed: true}`` for an active session that was closed,
+        ``{closed: false}`` for an unknown / already-closed / evicted
+        session_id. Does NOT raise for unknown ids — agents can safely
+        re-issue close after a failed earlier attempt.
+
+        Args:
+            session_id: The session_id to close.
+
+        Returns:
+            dict with keys: session_id, closed (bool).
+        """
+        manager = self._get_or_create_session_manager()
+        # No eviction sweep here — close_session is the only path that
+        # SHOULD always succeed regardless of session state. Eviction would
+        # just be redundant work.
+        was_closed = await manager.close_session(session_id)
+        return {
+            "session_id": session_id,
+            "closed": was_closed,
         }

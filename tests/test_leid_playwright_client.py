@@ -32,6 +32,7 @@ Ref: src/heretic/skilningr/senses/leid/playwright_client.py
 from __future__ import annotations
 
 import sys
+import time
 import types
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -40,10 +41,13 @@ import pytest
 
 from heretic.skilningr.config_model import LeidConfig
 from heretic.skilningr.senses.leid.errors import (
+    LeidClickElementNotFoundError,
     LeidConnectionError,
     LeidHttpError,
     LeidPlaywrightUnavailableError,
     LeidResponseTooLargeError,
+    LeidSessionExpiredError,
+    LeidSessionLimitError,
     LeidTimeoutError,
     UrlNotAllowedError,
 )
@@ -78,9 +82,11 @@ def _install_fake_playwright(
     goto_side_effect: BaseException | None = None,
     page_content: str = "<html><head><title>Hi</title></head><body>Hello</body></html>",
     page_url: str = "https://example.com/page",
+    page_title: str = "Fake Title",
     response_status: int = 200,
     response_is_none: bool = False,
     screenshot_bytes: bytes = b"\x89PNG\r\n\x1a\n_fake_png_payload_",
+    click_side_effect: BaseException | None = None,
 ) -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]:
     """Install a fake `playwright.async_api` module in ``sys.modules``.
 
@@ -92,9 +98,23 @@ def _install_fake_playwright(
     page_mock.url = page_url
     page_mock.content = AsyncMock(return_value=page_content)
     page_mock.screenshot = AsyncMock(return_value=screenshot_bytes)
+    page_mock.title = AsyncMock(return_value=page_title)
     # B-10 regression-guard: page.evaluate is mocked but never called by
     # production code. Tests assert assert_not_called() after each method.
     page_mock.evaluate = AsyncMock(return_value=None)
+
+    # v0.8.2 — click locator chain: page.locator(selector).first.click(timeout=...)
+    click_mock = (
+        AsyncMock(side_effect=click_side_effect)
+        if click_side_effect is not None
+        else AsyncMock(return_value=None)
+    )
+    locator_first_mock = MagicMock()
+    locator_first_mock.click = click_mock
+    locator_mock = MagicMock()
+    locator_mock.first = locator_first_mock
+    page_mock.locator = MagicMock(return_value=locator_mock)
+
     response_mock = MagicMock()
     response_mock.status = response_status
     if response_is_none:
@@ -879,6 +899,263 @@ class TestB10NoJavaScriptInjection:
         client = make_client(["https://example.com/*"])
         await client.screenshot("https://example.com/page")
         page_mock.evaluate.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# v0.8.2 Innan Hurðar — stateful session + click tests
+# ---------------------------------------------------------------------------
+
+
+class TestOpenSession:
+    """B-12, B-13, B-14, B-2, B-5 for open_session."""
+
+    @pytest.mark.asyncio
+    async def test_open_session_validates_before_launch(self, fake_playwright):
+        """B-12: rejected URL → no browser spawned."""
+        async_playwright_mock, *_ = fake_playwright()
+        client = make_client(["https://docs.python.org/*"])
+        with pytest.raises(UrlNotAllowedError):
+            await client.open_session("https://evil.com/page")
+        async_playwright_mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_open_session_returns_session_id_and_metadata(self, fake_playwright):
+        fake_playwright(page_title="Test Dashboard")
+        client = make_client(["https://example.com/*"])
+        result = await client.open_session("https://example.com/page")
+        assert result["session_id"].startswith("leid-")
+        assert len(result["session_id"]) == len("leid-") + 32  # uuid4().hex
+        assert result["final_url"] == "https://example.com/page"
+        assert result["title"] == "Test Dashboard"
+
+    @pytest.mark.asyncio
+    async def test_open_session_unavailable_when_playwright_missing(
+        self, no_playwright
+    ):
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidPlaywrightUnavailableError, match="not installed"):
+            await client.open_session("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_open_session_navigation_timeout_raises_leid_timeout(
+        self, fake_playwright
+    ):
+        fake_playwright(
+            goto_side_effect=_FakePlaywrightTimeoutError("Navigation timeout 30000ms")
+        )
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidTimeoutError, match="timed out"):
+            await client.open_session("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_open_session_at_cap_raises_session_limit_error(
+        self, fake_playwright
+    ):
+        """B-13: opening when at cap raises LeidSessionLimitError; no silent eviction."""
+        fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_max_concurrent_sessions=1,
+        )
+        # First session opens fine
+        await client.open_session("https://example.com/page")
+        # Second session refused at cap
+        with pytest.raises(LeidSessionLimitError, match="1 of 1"):
+            await client.open_session("https://example.com/page2")
+
+    @pytest.mark.asyncio
+    async def test_open_session_uses_fresh_context(self, fake_playwright):
+        """B-14: open_session calls browser.new_context()."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.open_session("https://example.com/page")
+        browser_mock.new_context.assert_awaited_once()
+
+
+class TestSessionStatus:
+    """B-16, B-17 for session_status."""
+
+    @pytest.mark.asyncio
+    async def test_session_status_returns_metadata(self, fake_playwright):
+        fake_playwright(
+            page_title="Status Test",
+            page_url="https://example.com/status-page",
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        status = await client.session_status(opened["session_id"])
+        assert status["state"] == "alive"
+        assert status["url"] == "https://example.com/status-page"
+        assert status["title"] == "Status Test"
+        assert "opened_at" in status
+        assert "last_activity_at" in status
+        assert status["age_seconds"] >= 0
+        assert status["idle_seconds"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_session_status_unknown_id_raises_expired(self, fake_playwright):
+        """B-16: unknown session_id → LeidSessionExpiredError."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError, match="not active"):
+            await client.session_status("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_session_status_updates_last_activity(self, fake_playwright):
+        """B-17: successful status call updates last_activity_at."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+
+        # Read activity before
+        status1 = await client.session_status(session_id)
+        time.sleep(0.01)  # ensure monotonic clock advances
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+
+class TestClick:
+    """D-41, D-43, D-44, B-16, B-17 for click."""
+
+    @pytest.mark.asyncio
+    async def test_click_clicks_first_matching_element(self, fake_playwright):
+        """D-41: page.locator(selector).first.click is the call path."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.click(opened["session_id"], "button.submit")
+        page_mock.locator.assert_called_with("button.submit")
+        page_mock.locator.return_value.first.click.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_click_unknown_session_raises_expired(self, fake_playwright):
+        """B-16 applies to click."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.click("leid-never-existed", "button")
+
+    @pytest.mark.asyncio
+    async def test_click_timeout_raises_element_not_found(self, fake_playwright):
+        """D-43: TimeoutError → LeidClickElementNotFoundError (INVALID_ARGUMENTS)."""
+        fake_playwright(
+            click_side_effect=_FakePlaywrightTimeoutError("Timeout exceeded")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidClickElementNotFoundError, match="matched no actionable"):
+            await client.click(opened["session_id"], "#nope")
+
+    @pytest.mark.asyncio
+    async def test_click_network_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """D-43: PlaywrightError (non-timeout) → LeidConnectionError."""
+        fake_playwright(
+            click_side_effect=_FakePlaywrightError("Connection closed")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="browser level"):
+            await client.click(opened["session_id"], "button")
+
+    @pytest.mark.asyncio
+    async def test_click_returns_current_url_and_title(self, fake_playwright):
+        """D-44: result contains post-click url + title."""
+        fake_playwright(page_url="https://example.com/landed", page_title="Landed")
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.click(opened["session_id"], "button")
+        assert result["selector"] == "button"
+        assert result["clicked"] is True
+        assert result["current_url"] == "https://example.com/landed"
+        assert result["current_title"] == "Landed"
+
+    @pytest.mark.asyncio
+    async def test_click_updates_last_activity(self, fake_playwright):
+        """B-17: successful click updates last_activity_at."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.01)
+        await client.click(session_id, "button")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+
+class TestCloseSession:
+    """B-18 for close_session — idempotent."""
+
+    @pytest.mark.asyncio
+    async def test_close_session_returns_closed_true_for_active(self, fake_playwright):
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.close_session(opened["session_id"])
+        assert result["closed"] is True
+
+    @pytest.mark.asyncio
+    async def test_close_session_idempotent_for_unknown_id(self, fake_playwright):
+        """B-18: closing unknown id returns {closed: false}, does NOT raise."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        result = await client.close_session("leid-never-existed")
+        assert result["closed"] is False
+        assert result["session_id"] == "leid-never-existed"
+
+    @pytest.mark.asyncio
+    async def test_close_session_releases_resources(self, fake_playwright):
+        """close_session triggers context.close + browser.close + pw.stop."""
+        _, browser_mock, context_mock, _, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.close_session(opened["session_id"])
+        context_mock.close.assert_awaited()
+        browser_mock.close.assert_awaited()
+        pw_runtime = sys.modules[
+            "playwright.async_api"
+        ].async_playwright.return_value.start.return_value  # type: ignore[attr-defined]
+        pw_runtime.stop.assert_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Audit M-1 closure tests (deferred from AUDIT_v0.8.1)
+# ---------------------------------------------------------------------------
+
+
+class TestM1PageExceptionTyping:
+    """M-1 closure: page.content and page.screenshot exceptions now map
+    explicitly to LeidConnectionError (matching httpx's network-error precision)."""
+
+    @pytest.mark.asyncio
+    async def test_render_url_page_content_exception_maps_to_connection_error(
+        self, fake_playwright
+    ):
+        """page.content raising PlaywrightError → LeidConnectionError. (D-46)"""
+        _, _, _, page_mock, _ = fake_playwright()
+        # Override content to raise after the goto succeeds
+        page_mock.content = AsyncMock(
+            side_effect=_FakePlaywrightError("Target page closed")
+        )
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidConnectionError, match="page.content"):
+            await client.render_url("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_screenshot_page_screenshot_exception_maps_to_connection_error(
+        self, fake_playwright
+    ):
+        """page.screenshot raising PlaywrightError → LeidConnectionError. (D-47)"""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.screenshot = AsyncMock(
+            side_effect=_FakePlaywrightError("Browser disconnected")
+        )
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidConnectionError, match="page.screenshot"):
+            await client.screenshot("https://example.com/page")
 
 
 # ---------------------------------------------------------------------------

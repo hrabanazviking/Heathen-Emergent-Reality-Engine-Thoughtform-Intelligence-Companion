@@ -211,6 +211,47 @@ class LeidSense:
             result = await self._playwright_client.screenshot(url=args["url"])
             return json.dumps(result)
 
+        # v0.8.2 Innan Hurðar — stateful session tools. Same lazy client
+        # construction; the BrowserSessionManager is internally lazy too.
+        if tool_name == "leid.open_session":
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.open_session(url=args["url"])
+            return json.dumps(result)
+
+        if tool_name == "leid.session_status":
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.session_status(
+                session_id=args["session_id"]
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.click":
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.click(
+                session_id=args["session_id"],
+                selector=args["selector"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.close_session":
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.close_session(
+                session_id=args["session_id"]
+            )
+            return json.dumps(result)
+
         raise ToolDispatchError(
             f"Leið route fell through for {tool_name!r} — routing table out of sync."
         )
@@ -261,10 +302,13 @@ def _error_tool_result(
 
 def _leid_error_code(exc: LeidError) -> str:
     from heretic.skilningr.errors import (
+        LeidClickElementNotFoundError,
         LeidConnectionError,
         LeidHttpError,
         LeidPlaywrightUnavailableError,
         LeidResponseTooLargeError,
+        LeidSessionExpiredError,
+        LeidSessionLimitError,
         LeidTimeoutError,
         UrlNotAllowedError,
     )
@@ -272,7 +316,8 @@ def _leid_error_code(exc: LeidError) -> str:
         return "PERMISSION_DENIED"
     if isinstance(exc, LeidTimeoutError):
         return "SENSE_TIMEOUT"
-    if isinstance(exc, LeidResponseTooLargeError):
+    if isinstance(exc, (LeidResponseTooLargeError, LeidClickElementNotFoundError)):
+        # v0.8.2 — agent-actionable errors (cap exceeded, selector wrong).
         return "INVALID_ARGUMENTS"
     if isinstance(exc, LeidHttpError):
         return "SENSE_INTERNAL_ERROR"
@@ -281,6 +326,9 @@ def _leid_error_code(exc: LeidError) -> str:
         # Surfaces to the agent as the same code as a network-level error,
         # so the agent treats it as a transient/recoverable unavailability.
         return "EXTERNAL_APP_UNAVAILABLE"
+    if isinstance(exc, (LeidSessionLimitError, LeidSessionExpiredError)):
+        # v0.8.2 — session unavailable (cap reached or session evicted/unknown).
+        return "SENSE_UNAVAILABLE"
     if isinstance(exc, LeidConnectionError):
         return "EXTERNAL_APP_UNAVAILABLE"
     return "SENSE_INTERNAL_ERROR"
