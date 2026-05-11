@@ -6307,6 +6307,126 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.3 Leið browser-screenshot fetch (Mynd af Vegferð — v0.8.1)
+
+> **Added 2026-05-10 v0.8.1 (Védis Eikleið).** *Mynd af Vegferð* — image of the
+> journey. Adds `leid.screenshot` as the second tool on the Opið Vef sub-faculty.
+> Same launch-per-call browser lifecycle as `render_url` (§4.12.2.2); same
+> B-1..B-10 invariants. One new invariant: **B-11** — the size cap applies to
+> the **raw PNG bytes BEFORE base64 encoding**. The `render_url` flow at §4.12.2.2
+> is byte-untouched at v0.8.1.
+
+```
+  MYND AF VEGFERÐ — BROWSER-SCREENSHOT FETCH FLOW (v0.8.1)
+
+  Entry point: agent calls leid.screenshot(url) via OpenAI tool_call.
+
+  Stage 1 — Sense routing (LeidSense._route)
+    tool_name == "leid.screenshot"
+        → dispatched to PlaywrightLeidClient.screenshot(url)
+        (NOT to LeidClient; NOT to PlaywrightLeidClient.render_url)
+
+  Stage 2 — URL validation (PlaywrightLeidClient._validate_url)
+    Same gate as render_url: allowlist + HTTPS-only.
+    On rejection → UrlNotAllowedError; NO browser process spawned. (B-1)
+
+  Stage 3 — Playwright availability check
+    Same as render_url. ImportError or chromium.launch failure →
+    LeidPlaywrightUnavailableError → EXTERNAL_APP_UNAVAILABLE. (B-2)
+
+  Stage 4 — Per-call browser lifecycle (D-22, identical to render_url)
+    pw      = await async_playwright().start()
+    browser = await pw.chromium.launch(headless=True)        # B-4
+    context = await browser.new_context(user_agent=...)      # B-3, B-8
+    page    = await context.new_page()
+    response = await page.goto(
+        url,
+        wait_until=config.browser_load_state,                # B-5
+        timeout=config.browser_navigation_timeout_seconds * 1000,
+    )
+
+    Failure modes during navigation: identical mapping to render_url
+    (TimeoutError → LeidTimeoutError; PlaywrightError → LeidConnectionError;
+    response.status >= 400 → LeidHttpError).
+
+  Stage 5 — Screenshot capture
+    png_bytes = await page.screenshot(
+        full_page=config.browser_screenshot_full_page,       # D-20
+        type="png",                                          # D-16
+    )
+    # png_bytes is `bytes`, the raw PNG file content.
+
+  Stage 6 — Pre-cap on raw PNG byte size (B-11, NEW)
+    if len(png_bytes) > config.max_response_bytes:
+        raise LeidResponseTooLargeError(...)
+    # Cap is honest about CONTENT size (raw PNG bytes), not transport
+    # size (base64 expands by ~33%). Operators set max_response_bytes to
+    # cap the actual page-content payload.
+
+  Stage 7 — Base64 encoding (D-17)
+    image_base64 = base64.b64encode(png_bytes).decode("ascii")
+    # ASCII-decode is safe because base64 output is by definition ASCII-only.
+
+  Stage 8 — Resource cleanup (B-7, identical to render_url)
+    finally:
+        await context.close()
+        await browser.close()
+        await pw.stop()
+
+    return {
+        "url": validated_url,
+        "final_url": page.url,
+        "image_base64": image_base64,
+        "image_format": "png",
+        "size_bytes": len(png_bytes),
+        "full_page": config.browser_screenshot_full_page,
+    }
+
+  B-11 placement (the new invariant):
+    The cap check happens AFTER page.screenshot() returns the bytes (we
+    cannot ask Playwright to abort mid-encode), but BEFORE the base64
+    encoding step. This means at the moment of the raise, memory holds:
+        - the raw PNG bytes (just received)
+        - no base64 encoding yet allocated
+    The base64 expansion is avoided when the cap fires. This is the
+    same disposition as B-6 for render_url: the body knows what is too
+    heavy before it asks anyone else to carry it.
+
+  Memory bound at moment of B-11 raise:
+    Worst case: len(png_bytes) where png_bytes was just returned by
+    page.screenshot(). Playwright does not stream screenshot output;
+    the entire PNG is materialised before page.screenshot() returns.
+    For an oversized capture this is the same memory-bound trade-off
+    as render_url's content() — operators who need streaming abort for
+    page content use leid.fetch_url; operators using leid.screenshot
+    accept the materialisation cost in exchange for the visual capture
+    capability that no streaming-friendly alternative offers.
+
+  State persistence between calls:
+    NONE. Each call gets its own pw runtime, browser, context, page —
+    same as render_url. B-3 still holds: cookies do not survive the
+    call.
+
+  Cost vs render_url:
+    render_url:    page.goto + page.content (HTML string)
+    screenshot:    page.goto + page.screenshot (PNG bytes)
+    The two costs are similar. The base64 encoding adds O(n) post-
+    processing work but no additional Chromium operation.
+
+  Invariants honoured:
+    - B-1 / B-2 / B-3 / B-4 / B-5 / B-7 / B-8 / B-9 / B-10:
+                  identical to render_url; full inheritance
+    - B-6:        N/A — render_url's HTML cap; screenshot uses B-11 instead
+    - B-11 NEW:   raw PNG bytes <= max_response_bytes (pre-base64)
+
+  License posture:
+    No new dependencies introduced at v0.8.1. base64 is stdlib. The
+    Playwright + Chromium licensing established at v0.8.0 in
+    THIRD_PARTY_NOTICES.md remains the only browser-mode dependency.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
