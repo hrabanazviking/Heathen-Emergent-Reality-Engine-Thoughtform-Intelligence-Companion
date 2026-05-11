@@ -49,6 +49,7 @@ from heretic.skilningr.senses.leid.errors import (
     LeidSessionExpiredError,
     LeidSessionLimitError,
     LeidTimeoutError,
+    LeidTypeElementNotFoundError,
     UrlNotAllowedError,
 )
 from heretic.skilningr.senses.leid.playwright_client import PlaywrightLeidClient
@@ -87,6 +88,7 @@ def _install_fake_playwright(
     response_is_none: bool = False,
     screenshot_bytes: bytes = b"\x89PNG\r\n\x1a\n_fake_png_payload_",
     click_side_effect: BaseException | None = None,
+    fill_side_effect: BaseException | None = None,
 ) -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]:
     """Install a fake `playwright.async_api` module in ``sys.modules``.
 
@@ -104,13 +106,20 @@ def _install_fake_playwright(
     page_mock.evaluate = AsyncMock(return_value=None)
 
     # v0.8.2 — click locator chain: page.locator(selector).first.click(timeout=...)
+    # v0.8.2.1 — fill locator chain: page.locator(selector).first.fill(text, timeout=...)
     click_mock = (
         AsyncMock(side_effect=click_side_effect)
         if click_side_effect is not None
         else AsyncMock(return_value=None)
     )
+    fill_mock = (
+        AsyncMock(side_effect=fill_side_effect)
+        if fill_side_effect is not None
+        else AsyncMock(return_value=None)
+    )
     locator_first_mock = MagicMock()
     locator_first_mock.click = click_mock
+    locator_first_mock.fill = fill_mock
     locator_mock = MagicMock()
     locator_mock.first = locator_first_mock
     page_mock.locator = MagicMock(return_value=locator_mock)
@@ -1124,6 +1133,100 @@ class TestCloseSession:
 # ---------------------------------------------------------------------------
 # Audit M-1 closure tests (deferred from AUDIT_v0.8.1)
 # ---------------------------------------------------------------------------
+
+
+class TestType:
+    """B-19, D-53..D-57 for v0.8.2.1 leid.type — second half of Innan Hurðar gesture."""
+
+    @pytest.mark.asyncio
+    async def test_type_fills_first_matching_element(self, fake_playwright):
+        """D-53/D-56: page.locator(selector).first.fill is the call path."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.type(opened["session_id"], "input[name='email']", "user@example.com")
+        page_mock.locator.assert_called_with("input[name='email']")
+        page_mock.locator.return_value.first.fill.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_type_passes_text_to_fill(self, fake_playwright):
+        """text parameter reaches locator.fill as first positional arg."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.type(opened["session_id"], "#search", "norse mythology")
+        # First positional arg = text; timeout passed as kwarg
+        call_args = page_mock.locator.return_value.first.fill.await_args
+        assert call_args.args[0] == "norse mythology"
+        assert call_args.kwargs["timeout"] == 10000  # default 10s
+
+    @pytest.mark.asyncio
+    async def test_type_unknown_session_raises_expired(self, fake_playwright):
+        """B-16 applies to type."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.type("leid-never-existed", "input", "x")
+
+    @pytest.mark.asyncio
+    async def test_type_timeout_raises_element_not_found(self, fake_playwright):
+        """D-55: TimeoutError → LeidTypeElementNotFoundError (INVALID_ARGUMENTS)."""
+        fake_playwright(
+            fill_side_effect=_FakePlaywrightTimeoutError("Timeout exceeded")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(
+            LeidTypeElementNotFoundError, match="matched no actionable input"
+        ):
+            await client.type(opened["session_id"], "#nope", "x")
+
+    @pytest.mark.asyncio
+    async def test_type_network_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """D-55: PlaywrightError (non-timeout) → LeidConnectionError."""
+        fake_playwright(
+            fill_side_effect=_FakePlaywrightError("Page closed")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="browser level"):
+            await client.type(opened["session_id"], "input", "x")
+
+    @pytest.mark.asyncio
+    async def test_type_returns_current_url_and_title(self, fake_playwright):
+        """D-57: result contains post-fill url + title."""
+        fake_playwright(page_url="https://example.com/form", page_title="Form Page")
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.type(opened["session_id"], "input", "hello")
+        assert result["selector"] == "input"
+        assert result["typed"] is True
+        assert result["current_url"] == "https://example.com/form"
+        assert result["current_title"] == "Form Page"
+
+    @pytest.mark.asyncio
+    async def test_type_updates_last_activity(self, fake_playwright):
+        """B-17 / B-19: successful type updates last_activity_at."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.type(session_id, "input", "text")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_type_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inherited: type must never call page.evaluate."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.type(opened["session_id"], "input", "text")
+        page_mock.evaluate.assert_not_called()
 
 
 class TestM1PageExceptionTyping:

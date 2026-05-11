@@ -30,6 +30,7 @@ from heretic.skilningr.senses.leid.errors import (
     LeidSessionExpiredError,
     LeidSessionLimitError,
     LeidTimeoutError,
+    LeidTypeElementNotFoundError,
     UrlNotAllowedError,
 )
 from heretic.skilningr.senses.leid.playwright_client import PlaywrightLeidClient
@@ -196,12 +197,12 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 8 tools when enabled
-        (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4)."""
+        """tool_definitions returns 9 tools when enabled
+        (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4 + v0.8.2.1: 1)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 8
+        assert len(sense.tool_definitions) == 9
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -211,10 +212,10 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """All eight Leið tool names are locked as specified
+        """All nine Leið tool names are locked as specified
         (v0.6.2: fetch_url, extract_text; v0.8.0: render_url;
-         v0.8.1: screenshot; v0.8.2: open_session, session_status,
-         click, close_session)."""
+         v0.8.1: screenshot; v0.8.2: open_session, session_status, click,
+         close_session; v0.8.2.1: type)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
@@ -223,6 +224,7 @@ class TestLeidSenseToolDefinitions:
         assert "leid.open_session" in names
         assert "leid.session_status" in names
         assert "leid.click" in names
+        assert "leid.type" in names
         assert "leid.close_session" in names
 
 
@@ -642,6 +644,55 @@ class TestLeidSenseDispatch:
         result = await sense.dispatch_tool_call(self._make_tool_call(
             "leid.click",
             {"session_id": "leid-x", "selector": "#nope"},
+        ))
+        parsed = json.loads(result["content"])
+        assert parsed["code"] == "INVALID_ARGUMENTS"
+
+    # -------------------------------------------------------------------
+    # v0.8.2.1 — leid.type dispatch + error code
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_type_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.type = AsyncMock(return_value={
+            "selector": "input",
+            "typed": True,
+            "current_url": "https://example.com/form",
+            "current_title": "Form",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.type",
+            {
+                "session_id": "leid-x",
+                "selector": "input",
+                "text": "hello world",
+            },
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["typed"] is True
+        mock_pw_client.type.assert_awaited_once_with(
+            session_id="leid-x", selector="input", text="hello world"
+        )
+
+    @pytest.mark.asyncio
+    async def test_type_element_not_found_returns_invalid_arguments_code(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.type = AsyncMock(
+            side_effect=LeidTypeElementNotFoundError("no input matched")
+        )
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        result = await sense.dispatch_tool_call(self._make_tool_call(
+            "leid.type",
+            {"session_id": "leid-x", "selector": "#nope", "text": "x"},
         ))
         parsed = json.loads(result["content"])
         assert parsed["code"] == "INVALID_ARGUMENTS"

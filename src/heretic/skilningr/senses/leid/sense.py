@@ -242,6 +242,20 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.type":
+            # v0.8.2.1 — unnamed extension within Innan Hurðar (the second
+            # half of the interactive gesture).
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.type(
+                session_id=args["session_id"],
+                selector=args["selector"],
+                text=args["text"],
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.close_session":
             if self._playwright_client is None:
                 self._playwright_client = PlaywrightLeidClient(
@@ -310,14 +324,23 @@ def _leid_error_code(exc: LeidError) -> str:
         LeidSessionExpiredError,
         LeidSessionLimitError,
         LeidTimeoutError,
+        LeidTypeElementNotFoundError,
         UrlNotAllowedError,
     )
     if isinstance(exc, UrlNotAllowedError):
         return "PERMISSION_DENIED"
     if isinstance(exc, LeidTimeoutError):
         return "SENSE_TIMEOUT"
-    if isinstance(exc, (LeidResponseTooLargeError, LeidClickElementNotFoundError)):
-        # v0.8.2 — agent-actionable errors (cap exceeded, selector wrong).
+    if isinstance(
+        exc,
+        (
+            LeidResponseTooLargeError,
+            LeidClickElementNotFoundError,
+            LeidTypeElementNotFoundError,
+        ),
+    ):
+        # v0.8.2 / v0.8.2.1 — agent-actionable errors (cap exceeded,
+        # selector wrong on click or type).
         return "INVALID_ARGUMENTS"
     if isinstance(exc, LeidHttpError):
         return "SENSE_INTERNAL_ERROR"

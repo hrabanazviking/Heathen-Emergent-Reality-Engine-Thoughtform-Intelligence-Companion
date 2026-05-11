@@ -83,6 +83,7 @@ from heretic.skilningr.senses.leid.errors import (
     LeidResponseTooLargeError,
     LeidSessionLimitError,
     LeidTimeoutError,
+    LeidTypeElementNotFoundError,
     UrlNotAllowedError,
 )
 from heretic.skilningr.senses.leid.session_manager import (
@@ -936,6 +937,96 @@ class PlaywrightLeidClient:
         return {
             "selector": selector,
             "clicked": True,
+            "current_url": current_url,
+            "current_title": current_title,
+        }
+
+    async def type(
+        self, session_id: str, selector: str, text: str
+    ) -> dict[str, Any]:
+        """Fill the first element matching *selector* with *text*. (D-53, B-19)
+
+        v0.8.2.1 — unnamed extension of Innan Hurðar; the second half of
+        the interactive gesture begun with click. Uses Playwright's
+        ``locator.fill`` primitive (not ``type``, which is keystroke-by-
+        keystroke): waits for actionability, focuses the element, clears
+        any existing value, sets the new value, and dispatches an
+        ``input`` event. This is what agents almost always want for
+        "set this field's value." HERETIC injects no JavaScript — the
+        input event is dispatched by Playwright's fill primitive itself.
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+            selector:   CSS selector. The FIRST matching element is filled.
+            text:       The text to set as the element's value. Empty string
+                        is allowed (clears the field).
+
+        Returns:
+            dict with keys: selector, typed, current_url, current_title.
+
+        Raises:
+            LeidSessionExpiredError:        session_id unknown or evicted.
+            LeidTypeElementNotFoundError:   selector matched nothing within
+                                            browser_click_timeout_seconds.
+            LeidConnectionError:            other Playwright error.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and type: {exc}"
+            ) from exc
+
+        # D-54: reuse the click timeout config field — both are fast
+        # interactive actions sharing the same operator-controlled bound.
+        fill_timeout_ms = self._config.browser_click_timeout_seconds * 1000
+
+        # D-53: locator.first.fill — clears + focuses + sets + input event.
+        # D-55: TimeoutError → LeidTypeElementNotFoundError (selector wrong);
+        #       other PlaywrightError → LeidConnectionError.
+        locator = session.page.locator(selector).first
+        try:
+            await locator.fill(text, timeout=fill_timeout_ms)
+        except PlaywrightTimeoutError as exc:
+            raise LeidTypeElementNotFoundError(
+                f"Selector {selector!r} matched no actionable input element "
+                f"in session {session_id!r} within "
+                f"{self._config.browser_click_timeout_seconds}s. Refine the "
+                f"selector and retry. Underlying: {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"type({selector!r}) on session {session_id!r} failed at the "
+                f"browser level: {exc}"
+            ) from exc
+
+        # B-17 / B-19 — successful type counts as activity.
+        session.mark_activity()
+
+        # D-57 — read post-fill URL and title (mirrors click D-44/D-49).
+        current_url = session.page.url
+        try:
+            current_title = await session.page.title()
+        except Exception:
+            current_title = None
+
+        self._log.debug(
+            "Leið type: session=%s selector=%s text_len=%d -> url=%s",
+            session_id, selector, len(text), current_url,
+        )
+
+        return {
+            "selector": selector,
+            "typed": True,
             "current_url": current_url,
             "current_title": current_title,
         }
