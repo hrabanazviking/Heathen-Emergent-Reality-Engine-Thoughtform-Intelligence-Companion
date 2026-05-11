@@ -7780,6 +7780,71 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.15 Leið JPEG/WebP screenshot format (Innan Hurðar extension — v0.8.11)
+
+> **Added 2026-05-11 v0.8.11 (Védis Eikleið).** Fourteenth unnamed Innan
+> Hurðar extension. Adds operator-controlled screenshot format propagation
+> at the 2 existing screenshot sites (`screenshot`, `session_screenshot`).
+> Two new config fields (`browser_screenshot_format`,
+> `browser_screenshot_jpeg_quality`). Format choices: `"png"` (default),
+> `"jpeg"`, `"webp"`. Quality applied only when format is jpeg or webp.
+> One new B-invariant (B-29); no new tools; no new error classes; no
+> agent-facing change.
+
+```
+  LEIÐ SCREENSHOT FORMAT PROPAGATION (v0.8.11)
+
+  Not a new tool — a behavior change to existing screenshot tools.
+
+  CONFIG FIELDS:
+    browser_screenshot_format: str = "png"
+        Validated in {"png", "jpeg", "webp"}.
+    browser_screenshot_jpeg_quality: int = 80
+        Validated 0..100. Only applied when format != "png".
+
+  TWO PROPAGATION SITES:
+
+  Site 1 — screenshot (stateless, v0.8.1)
+    screenshot_kwargs = {
+        "full_page": config.browser_screenshot_full_page,
+        "type": config.browser_screenshot_format,
+    }
+    if config.browser_screenshot_format != "png":
+        screenshot_kwargs["quality"] = config.browser_screenshot_jpeg_quality
+    png_bytes = await page.screenshot(**screenshot_kwargs)
+    # Note: variable name is png_bytes for legacy reasons; actual format
+    # depends on config.
+
+  Site 2 — session_screenshot (stateful, v0.8.6)
+    Same shape applied to session.page.screenshot.
+
+  RETURN SHAPE:
+    image_format field now reflects the actual format used:
+      {"image_format": config.browser_screenshot_format, ...}
+    Previously hardcoded to "png"; now reads from config.
+
+  AGENT-FACING SURFACE:
+    Unchanged. No tool gains a parameter. Format choice is operator
+    infrastructure — the agent calls screenshot/session_screenshot
+    and gets whatever format the operator configured.
+
+  WHY QUALITY ONLY FOR jpeg/webp:
+    Playwright's page.screenshot accepts quality only for lossy
+    formats. Passing quality when type="png" raises a Playwright
+    error. The implementation conditionally omits the kwarg when
+    format is png — clean separation.
+
+  COST:
+    JPEG: typically 30-50% of PNG size for the same image
+    WebP: typically 25-40% of PNG size; modern format
+    PNG:  baseline (lossless)
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
