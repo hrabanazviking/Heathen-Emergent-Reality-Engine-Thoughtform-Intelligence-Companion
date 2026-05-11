@@ -6585,6 +6585,99 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.5 Leið in-session type (Innan Hurðar extension — v0.8.2.1)
+
+> **Added 2026-05-10 v0.8.2.1 (Védis Eikleið).** Unnamed extension of Innan
+> Hurðar — adds `leid.type` as the second half of the interactive gesture
+> begun with click. Mirrors the click flow exactly; uses Playwright's
+> `locator.fill()` (not `type()`, which is keystroke-by-keystroke). One new
+> B-invariant (B-19); one new error class (`LeidTypeElementNotFoundError`);
+> one new tool — same disposition as v0.8.2.
+
+```
+  LEIÐ IN-SESSION TYPE FLOW (v0.8.2.1)
+
+  Entry point: agent calls leid.type(session_id, selector, text).
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.type" → PlaywrightLeidClient.type(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Locate + fill
+    locator = session.page.locator(selector).first    ── D-56 (first match)
+    try:
+        await locator.fill(
+            text,                                     ── the agent's text
+            timeout = browser_click_timeout_seconds * 1000,  ── D-54 (reuses click cap)
+        )
+    except PlaywrightTimeoutError:
+        raise LeidTypeElementNotFoundError(           ── D-55 (selector wrong)
+            f"Selector {selector!r} matched no actionable input "
+            f"in session {session_id!r}"
+        )
+    except PlaywrightError as exc:
+        raise LeidConnectionError(                    ── network/page issue
+            f"type({selector!r}) failed at the browser level: {exc}"
+        )
+
+    Note: Playwright's locator.fill() does:
+      1. wait for actionability checks (visible, enabled, editable)
+      2. focus the element
+      3. clear the existing value (if any)
+      4. set the new value to `text`
+      5. dispatch an `input` event
+    This is the canonical "set this field's value" primitive — what
+    agents almost always want for "type X into Y." Keystroke-by-keystroke
+    simulation (page.type with delay) is a rarely-needed v0.8.x add-on.
+
+  Stage 5 — Activity update (B-17 inherited / B-19)
+    session.mark_activity()
+
+  Stage 6 — Post-fill state read (D-57)
+    current_url = session.page.url
+    try:
+        current_title = await session.page.title()
+    except: current_title = None        ── D-49 (defensive)
+
+    return {
+        "selector": selector,
+        "typed": True,
+        "current_url": current_url,
+        "current_title": current_title,
+    }
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-4 / B-7 / B-8 / B-9 / B-10 — all inherited via the
+                                                shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises LeidSessionExpiredError
+    B-17  — activity update after success
+    B-19  — NEW: type respects same session/cap/timeout discipline as click
+
+  Error code mapping:
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidTypeElementNotFoundError  → INVALID_ARGUMENTS  (NEW)
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+
+  Cost vs click:
+    type:    page.locator + locator.fill (clears + focuses + sets + input event)
+    click:   page.locator + locator.first.click
+    The two are roughly identical in cost. Playwright's actionability checks
+    dominate either way.
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
