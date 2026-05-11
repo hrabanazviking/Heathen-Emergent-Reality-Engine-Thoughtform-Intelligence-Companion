@@ -153,6 +153,11 @@ def _install_fake_playwright(
     page_mock.go_back = AsyncMock(return_value=response_mock)
     page_mock.go_forward = AsyncMock(return_value=response_mock)
 
+    # v0.8.7 — page.reload default: return response_mock (mimics successful
+    # reload). Tests override to None for data:-URL cases or to side_effect
+    # for failure cases.
+    page_mock.reload = AsyncMock(return_value=response_mock)
+
     # Build the context mock
     context_mock = MagicMock()
     context_mock.new_page = AsyncMock(return_value=page_mock)
@@ -2117,6 +2122,132 @@ class TestSessionScreenshot:
         opened = await client.open_session("https://example.com/page")
         page_mock.evaluate.reset_mock()
         await client.session_screenshot(opened["session_id"])
+        page_mock.evaluate.assert_not_called()
+
+
+class TestReload:
+    """B-25 + D-107..D-113 for v0.8.7 leid.reload."""
+
+    @pytest.mark.asyncio
+    async def test_reload_unknown_session_raises_expired(self, fake_playwright):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.reload("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_reload_calls_page_reload_with_load_state_and_timeout(
+        self, fake_playwright
+    ):
+        """D-107: page.reload called with wait_until + timeout from config."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_load_state="networkidle",
+            browser_navigation_timeout_seconds=15,
+        )
+        opened = await client.open_session("https://example.com/page")
+        page_mock.reload.reset_mock()
+        await client.reload(opened["session_id"])
+        page_mock.reload.assert_awaited_once()
+        call_kwargs = page_mock.reload.await_args.kwargs
+        assert call_kwargs["wait_until"] == "networkidle"
+        assert call_kwargs["timeout"] == 15000
+
+    @pytest.mark.asyncio
+    async def test_reload_returns_current_url_and_title(self, fake_playwright):
+        """D-111: minimal shape with current_url + title."""
+        fake_playwright(
+            page_url="https://example.com/dashboard",
+            page_title="Dashboard",
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/dashboard")
+        result = await client.reload(opened["session_id"])
+        assert result["current_url"] == "https://example.com/dashboard"
+        assert result["title"] == "Dashboard"
+
+    @pytest.mark.asyncio
+    async def test_reload_returns_session_id_unchanged(self, fake_playwright):
+        """Session identity preserved across reload."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.reload(opened["session_id"])
+        assert result["session_id"] == opened["session_id"]
+
+    @pytest.mark.asyncio
+    async def test_reload_handles_none_response(self, fake_playwright):
+        """D-107: page.reload returns None (e.g., data: URL) → no HTTP check;
+        still succeeds and returns minimal shape."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.reload = AsyncMock(return_value=None)
+        result = await client.reload(opened["session_id"])
+        # MUST NOT raise on None response
+        assert result["session_id"] == opened["session_id"]
+
+    @pytest.mark.asyncio
+    async def test_reload_timeout_raises_leid_timeout(self, fake_playwright):
+        """B-5 inherited via B-25: TimeoutError → LeidTimeoutError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.reload = AsyncMock(
+            side_effect=_FakePlaywrightTimeoutError("Reload timeout 30000ms")
+        )
+        with pytest.raises(LeidTimeoutError, match="timed out"):
+            await client.reload(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_reload_http_error_raises_leid_http_error(self, fake_playwright):
+        """response.status >= 400 → LeidHttpError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        error_response = MagicMock()
+        error_response.status = 503
+        page_mock.reload = AsyncMock(return_value=error_response)
+        with pytest.raises(LeidHttpError, match="503"):
+            await client.reload(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_reload_network_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """PlaywrightError (non-timeout) → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.reload = AsyncMock(
+            side_effect=_FakePlaywrightError("net::ERR_NETWORK_CHANGED")
+        )
+        with pytest.raises(LeidConnectionError, match="network layer"):
+            await client.reload(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_reload_updates_last_activity(self, fake_playwright):
+        """B-17 / B-25."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.reload(session_id)
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_reload_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inheritance."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.reload(opened["session_id"])
         page_mock.evaluate.assert_not_called()
 
 

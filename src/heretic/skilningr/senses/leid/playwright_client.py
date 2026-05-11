@@ -1670,6 +1670,92 @@ class PlaywrightLeidClient:
             "full_page": full_page,
         }
 
+    async def reload(self, session_id: str) -> dict[str, Any]:
+        """Refresh the current page of an open session. (B-25, D-107)
+
+        v0.8.7 — tenth unnamed extension within Innan Hurðar; the body's
+        footstep in place. Re-fetches the current page through Playwright's
+        ``page.reload()``. Cookies and localStorage persist (intrinsic
+        to refresh semantics). The URL stays the same in normal cases (a
+        server-side redirect on reload could change it).
+
+        Args:
+            session_id: A session_id from a prior open_session call.
+
+        Returns:
+            dict with keys: session_id, current_url, title.
+
+        Raises:
+            LeidSessionExpiredError, LeidTimeoutError, LeidHttpError,
+            LeidConnectionError.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"reload: {exc}"
+            ) from exc
+
+        navigation_timeout_ms = (
+            self._config.browser_navigation_timeout_seconds * 1000
+        )
+
+        # D-107 — page.reload returns Response | None
+        try:
+            response = await session.page.reload(
+                wait_until=self._config.browser_load_state,
+                timeout=navigation_timeout_ms,
+            )
+        except PlaywrightTimeoutError as exc:
+            raise LeidTimeoutError(
+                f"reload on session {session_id!r} timed out after "
+                f"{self._config.browser_navigation_timeout_seconds}s "
+                f"(load_state={self._config.browser_load_state!r}): {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"reload on session {session_id!r} failed at the "
+                f"network layer: {exc}"
+            ) from exc
+
+        # Status check — only when response is non-None (data: URLs return None)
+        if response is not None and response.status >= 400:
+            raise LeidHttpError(
+                f"HTTP {response.status} during reload on session "
+                f"{session_id!r}."
+            )
+
+        # B-17 / B-25 — successful reload counts as activity
+        session.mark_activity()
+
+        # D-111 minimal shape — read post-reload state
+        current_url = session.page.url
+        try:
+            title = await session.page.title()
+        except Exception:
+            title = None
+
+        self._log.debug(
+            "Leið reload: session=%s -> current_url=%s",
+            session_id, current_url,
+        )
+
+        return {
+            "session_id": session_id,
+            "current_url": current_url,
+            "title": title,
+        }
+
     async def close_session(self, session_id: str) -> dict[str, Any]:
         """Close the session and release all browser resources. Idempotent. (B-18)
 

@@ -197,13 +197,14 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 16 tools when enabled
+        """tool_definitions returns 17 tools when enabled
         (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4 + v0.8.2.1: 1 +
-         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1 + v0.8.5: 2 + v0.8.6: 2)."""
+         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1 + v0.8.5: 2 + v0.8.6: 2 +
+         v0.8.7: 1)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 16
+        assert len(sense.tool_definitions) == 17
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -213,12 +214,12 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """All sixteen Leið tool names are locked as specified
+        """All seventeen Leið tool names are locked as specified
         (v0.6.2: fetch_url, extract_text; v0.8.0: render_url;
          v0.8.1: screenshot; v0.8.2: open_session, session_status, click,
          close_session; v0.8.2.1: type; v0.8.2.2: navigate; v0.8.3: query;
          v0.8.4: press; v0.8.5: go_back, go_forward; v0.8.6: session_render,
-         session_screenshot)."""
+         session_screenshot; v0.8.7: reload)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
@@ -235,6 +236,7 @@ class TestLeidSenseToolDefinitions:
         assert "leid.go_forward" in names
         assert "leid.session_render" in names
         assert "leid.session_screenshot" in names
+        assert "leid.reload" in names
         assert "leid.close_session" in names
 
 
@@ -929,3 +931,28 @@ class TestLeidSenseDispatch:
         mock_pw_client.session_screenshot.assert_awaited_once_with(
             session_id="leid-x"
         )
+
+    # -------------------------------------------------------------------
+    # v0.8.7 — leid.reload dispatch
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_reload_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.reload = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "current_url": "https://example.com/dashboard",
+            "title": "Dashboard",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.reload", {"session_id": "leid-x"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["current_url"] == "https://example.com/dashboard"
+        assert parsed["title"] == "Dashboard"
+        mock_pw_client.reload.assert_awaited_once_with(session_id="leid-x")

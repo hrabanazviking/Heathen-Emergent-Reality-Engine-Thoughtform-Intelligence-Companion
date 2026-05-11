@@ -344,6 +344,18 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.reload":
+            # v0.8.7 — tenth unnamed extension. Refresh current page in
+            # place; rounds out the motion vocabulary.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.reload(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.close_session":
             if self._playwright_client is None:
                 self._playwright_client = PlaywrightLeidClient(
