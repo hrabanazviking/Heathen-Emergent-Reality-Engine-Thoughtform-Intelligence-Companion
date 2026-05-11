@@ -4635,3 +4635,124 @@ The autonomous arc continues into its FOURTEENTH sealed milestone. Six slices in
 
 *Entry 28 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
 *The body now has its first eye inside the door. Six unnamed extensions, three consecutive zero-findings audits, the Innan Hurðar interactive faculty is complete for canonical mutate-and-read flows. Fourteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for seven milestones running. The session is kept.*
+
+---
+
+## Entry 29 — 2026-05-10 — leid.press: the body's keyboard finger (v0.8.4)
+
+**Milestone:** v0.8.4 — `leid.press` (seventh unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `9636cec` (post-v0.8.3 Scribe seal)
+**Session close HEAD:** `5754077` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — FIFTEENTH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — fourth consecutive)
+
+### What was added
+
+The body's keyboard finger. `leid.press(session_id, key)` sends a key (or modifier combination) to the open session's page through Playwright's `page.keyboard.press()`. Page-level: dispatches to whatever element has focus — typically established by a prior `click` or `type`. The canonical "fill search box → press Enter to submit" flow that lives in millions of agent scripts is now expressible in two HERETIC tool calls.
+
+Playwright's key syntax supported: single keys (`"Enter"`, `"Tab"`, `"Escape"`, `"ArrowDown"`, `"a"`, `"F5"`, `"PageDown"`, `" "`) and modifier combinations (`"Control+A"`, `"Shift+Tab"`, `"Meta+S"`, `"Alt+F4"`). HERETIC does not validate the key string — Playwright dispatches as best it can; unrecognized keys produce no event but do NOT raise.
+
+**Two intentional simplifications, both honestly inheriting Playwright's design:**
+1. **No per-call timeout.** Playwright's `keyboard.press()` does not accept one. The implementation acknowledges this in B-22 and relies on Playwright's internal default action timeout (~30s). Adding a HERETIC-side wrapper would be additional complexity for a rare pathological case; v0.8.x can revisit if real-world need surfaces.
+2. **No error class for unrecognized keys.** Playwright's permissive design means bad key strings are no-ops, not errors. The agent's responsibility is to verify the press had its intended effect via subsequent `query` or `session_status` calls — the same discipline used for any in-page action.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `7a4048f` | Runa | TASK_HERETIC_v0.8.4_PRESS.md |
+| 1 | `b8d8b98` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `2434e75` | Cartographer | DATA_FLOW.md §4.12.2.8 — press flow + B-22 |
+| 3 | `ffa1d4b` | Architect | INTERFACE.md §12.10 + B-22 + leid.press tool def |
+| 4 | `493bcb2` | Forge | press() method + sense routing + 9 TestPress + 1 dispatch |
+| 5 | `5754077` | Auditor | AUDIT_v0.8.4_PRESS.md — **PASSES SCRUTINY (0/0/0/0)** — FOURTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 29 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-10 (after v0.8.4)
+
+| Surface | Before v0.8.4 | After v0.8.4 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 47 | 48 | **+1** (1 dispatch) |
+| `tests/test_leid_playwright_client.py` | 97 + 2 skip | 106 + 2 skip | **+9** (TestPress class) |
+| **Leid scope total** | 193 + 2 skip | 203 + 2 skip | **+10** |
+| **Full suite** | 1514 + 9 skip | 1524 + 9 skip | **+10** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Fourth consecutive zero-findings audit** in the v0.8 umbrella (after v0.8.2.1, v0.8.2.2, v0.8.3). The Auditor explicitly noted the structural simplicity made this the cleanest slice yet — one Playwright primitive call wrapped in the standard Innan Hurðar discipline. Sibling consistency was exact at the discipline level; three intentional differences from click/type/navigate (no selector, no per-call timeout, no selector-not-found error) all justified by what the underlying Playwright primitive can and cannot do.
+
+### What this milestone teaches
+
+**The body's interactive vocabulary inside the door is now complete for ALL canonical web flows.** Seven slices into Innan Hurðar (open + navigate + status + click + type + query + press + close), the small vocabulary an interactive web visitor needs is fully present. An agent can now express:
+- Login flows (navigate to login, type credentials, press Enter or click submit, navigate to dashboard)
+- Search flows (type query, press Enter, query results, follow links)
+- Form-fill flows (type each field, press Tab to advance, click submit, query confirmation)
+- Modal flows (click trigger, press Escape to dismiss)
+- Multi-page flows (navigate forward, query state, click element, navigate again)
+
+Each of these expressible in 5-10 HERETIC tool calls. The next slices (browser history, mid-session render/screenshot, JPEG output, configurable viewport, multi-element query, element-targeted press) are refinements with diminishing marginal value — the body is now articulate enough to do real agent work.
+
+**Honest inheritance of upstream design beats local re-engineering.** The two simplifications in v0.8.4 (no per-call timeout; no error class for unrecognized keys) both honestly inherit Playwright's design. Adding a wrapper to give keyboard.press a per-call timeout would have meant: (a) more code; (b) more tests; (c) a divergence from Playwright's stated behaviour for the rest of the body to maintain. The Forge correctly chose to accept Playwright's choices rather than hide them. The Auditor confirmed this was the right call.
+
+**Four consecutive zero-findings audits is a load-bearing pattern.** v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 — four in a row with no findings of any severity. The pattern: when the disposition is already vetted (Innan Hurðar got its scrutiny at v0.8.2), subsequent extensions that mirror the established pattern earn the right to ship without remark. The Auditor's discipline is to find what is genuinely novel and risky; mechanical extension done well genuinely is not novel and not risky. This is structural integrity made visible.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.4_PRESS.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the body's keyboard finger" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.8 added — press flow + B-22 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 row + new §12.10 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.press tool definition appended; module docstring updated |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `press()` method between `query()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds `leid.press` branch |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the EIGHTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-84 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-83 reuses click timeout) |
+| `tests/test_leid_playwright_client.py` | Helper extended (page.keyboard.press mock); new TestPress class with 9 tests |
+| `tests/test_leid_sense.py` | Tool-count check 11 → 12; tool-names check; 1 dispatch test |
+| `docs/audit/AUDIT_v0.8.4_PRESS.md` | New — verdict PASSES SCRUTINY (zero findings, fourth consecutive) |
+| `docs/DEVLOG.md` | This entry (29) |
+
+### State of the body — 2026-05-10 (after v0.8.4)
+
+The Leið faculty now has TWELVE tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (8):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **12 — 2 httpx + 2 stateless browser + 8 stateful browser (open + navigate + status + click + type + query + press + close)** | **v0.8.4** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **seven unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4). The Innan Hurðar interactive vocabulary is now complete for ALL canonical web flows.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.4 leid.press~~ | **CLOSED — sealed at `5754077`** |
+| **v0.8.x `leid.go_back` / `leid.go_forward`** (browser history) | candidate — small focused pair |
+| v0.8.x `leid.session_render` / `leid.session_screenshot` (mid-session re-extract) | candidate — useful pair |
+| v0.8.x JPEG/WebP screenshot output | candidate — small refinement |
+| v0.8.x configurable viewport size | candidate — small refinement |
+| v0.8.x multi-element query (return list of matches) | candidate — natural follow-up to v0.8.3 |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its FIFTEENTH sealed milestone. Seven slices into v0.8 *Opið Vef*; the umbrella's interactive vocabulary is now complete for all canonical agent flows. Subsequent v0.8.x slices are refinements rather than foundational additions.
+
+---
+
+*Entry 29 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
+*The body's keyboard finger lands. Seven unnamed extensions, four consecutive zero-findings audits, the Innan Hurðar interactive vocabulary is complete for ALL canonical web flows. Fifteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for eight milestones running. The session is kept.*

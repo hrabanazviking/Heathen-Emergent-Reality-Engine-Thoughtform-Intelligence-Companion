@@ -9,6 +9,16 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — seventh slice within the umbrella.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Fifteenth milestone in the autonomous arc.
+>
+> **STATUS — 2026-05-10:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — fourth consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `5754077` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 203 + 2 skip (was 193 + 2 — `+10`). Full suite 1524 + 9 skip (was 1514 + 9). Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Fourth consecutive zero-findings audit. See `docs/audit/AUDIT_v0.8.4_PRESS.md`.
+>
+> **DEVLOG:** Entry 29 — `docs/DEVLOG.md`.
 
 ---
 
@@ -106,19 +116,19 @@ Extend `tests/test_leid_playwright_client.py` with `TestPress` class.
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `press()` method on `PlaywrightLeidClient`
-- [ ] `leid.press` registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches `leid.press`
-- [ ] No new error classes (D-84)
-- [ ] No new config fields (D-83)
-- [ ] B-22 added to INTERFACE.md §12.10
-- [ ] All 193 existing leid tests pass unchanged
-- [ ] At least 9 new press tests passing
-- [ ] 1 new dispatch test passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.8 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.4_PRESS.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 29 written
-- [ ] All commits pushed to `development`
+- [x] `press()` method on `PlaywrightLeidClient` — `493bcb2`
+- [x] `leid.press` registered in `LEID_TOOL_DEFINITIONS` — `ffa1d4b`
+- [x] `LeidSense._route` dispatches `leid.press` — `493bcb2`
+- [x] No new error classes (D-84) — confirmed
+- [x] No new config fields (D-83) — confirmed
+- [x] B-22 added to INTERFACE.md §12.10 — `ffa1d4b`
+- [x] All 193 existing leid tests pass unchanged — verified at `493bcb2`
+- [x] 9 new press tests passing — `493bcb2`
+- [x] 1 new dispatch test passing — `493bcb2`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.8 exists — `2434e75`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `b8d8b98`
+- [x] `docs/audit/AUDIT_v0.8.4_PRESS.md` PASSES SCRUTINY (0/0/0/0) — `5754077`
+- [x] DEVLOG entry 29 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
