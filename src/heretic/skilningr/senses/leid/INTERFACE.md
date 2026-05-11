@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-11 (v0.8.9 configurable viewport — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.8 query_all extension) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-11 (v0.8.10 final-URL allowlist re-check — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.9 configurable viewport) | 2026-05-11 (v0.8.8 query_all extension) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -1130,3 +1130,60 @@ Mid-session viewport change (`page.set_viewport_size`) is a distinct primitive a
 | Device emulation presets (iPhone, iPad, etc.) | v0.8.x — distinct concern; would also include user_agent + touch settings |
 | Mid-session viewport change | v0.8.x — `page.set_viewport_size`; distinct primitive |
 | Per-tool viewport override (e.g., screenshot 1920, session 1280) | v0.8.x — complexity not justified for v0.8.9 |
+
+### 12.16 Final-URL allowlist re-check (v0.8.10 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.10.** Closes the long-deferred sandbox gap
+> noted in every browser-tool audit since v0.6.2. Adds a
+> post-navigation URL re-check at all 7 navigation-completing call
+> sites (`render_url`, `screenshot`, `open_session`, `navigate`,
+> `go_back`, `go_forward`, `reload`). **Stateful violations close
+> the session** — the operator's allowlist is unconditional. NO new
+> tools (D-145), NO new error classes (D-143 — reuses
+> `UrlNotAllowedError`), NO new config fields (D-144).
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-28 | Every browser tool that completes a navigation re-checks `page.url` against `url_allowlist_patterns` and the HTTPS-only policy AFTER the navigation completes. If the final URL is NOT allowed, `UrlNotAllowedError` is raised. **For stateful tools that violate** (`navigate`, `go_back`, `go_forward`, `reload`): the session is closed (via `manager.close_session(session_id)`) BEFORE the raise. **For `open_session`**: the session is never registered (existing was_registered=False cleanup branch tears down the launched browser quartet). **For stateless tools** (`render_url`, `screenshot`): the existing `finally` cleanup handles teardown. |
+
+**Implementation:** new private helper `_check_final_url_allowed(url)` on `PlaywrightLeidClient`. Reuses `sandbox.url_matches_allowlist` + the HTTPS-only policy logic from `_validate_url`. Same rules pre-flight and post-navigation; single source of truth.
+
+**Failure handling — three patterns:**
+
+| Tool category | Sites | What happens on violation |
+|---|---|---|
+| Stateless | `render_url`, `screenshot` | Raise `UrlNotAllowedError` — existing `finally` cleans up the launched browser quartet |
+| Stateful (session not yet registered) | `open_session` | Raise `UrlNotAllowedError` — existing `was_registered=False` branch cleans up |
+| Stateful (session already registered) | `navigate`, `go_back`, `go_forward`, `reload` | Call `manager.close_session(session_id)` to terminate the session, THEN raise `UrlNotAllowedError` |
+
+**Why close the session on stateful violation (D-139):**
+
+The session has landed on a not-allowlisted URL. The agent's next call (status, click, query, etc.) would operate on that page. The only safe response is to terminate the session.
+
+Alternatives considered:
+- **Leave session open**, rely on agent to call `close_session`. Rejected — the session is in a non-allowed state for as long as it lives; security must be enforced structurally, not advisedly.
+- **Navigate the session BACK** to the previous URL. Rejected — the previous URL might also have led here through redirect; complex to reason about; brittle.
+
+Chosen: close. Explicit, predictable, secure.
+
+**Error message shape:**
+
+For stateless tools:
+> "Navigation to `<input_url>` resulted in `<final_url>`, which is not in url_allowlist_patterns."
+
+For stateful tools (D-140):
+> "Navigation to `<input_url>` on session `<session_id>` resulted in `<final_url>`, which is not in url_allowlist_patterns. The session has been closed."
+
+**Closed concern:**
+
+The deferred concern *"final-URL allowlist re-check after redirect — pre-existing concern across all browser tools"* — noted in the v0.8.5 audit (and in earlier audits implicitly via the deferred status of this gap) — is now CLOSED.
+
+**Out of scope at v0.8.10:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Per-redirect URL re-check (intermediate URLs in chain) | v0.8.x — Playwright doesn't expose intermediate redirects without explicit request hooks; checking the FINAL URL catches the dangerous case |
+| Per-tool toggle for the re-check | v0.8.x — sandbox security is unconditional; no opt-out |
+| Detailed redirect chain in error message | v0.8.x — chain is invisible to us without request hooks |
