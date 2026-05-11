@@ -133,6 +133,11 @@ def _install_fake_playwright(
     locator_mock.count = AsyncMock(return_value=1)
     page_mock.locator = MagicMock(return_value=locator_mock)
 
+    # v0.8.4 — keyboard.press chain: page.keyboard.press(key)
+    keyboard_mock = MagicMock()
+    keyboard_mock.press = AsyncMock(return_value=None)
+    page_mock.keyboard = keyboard_mock
+
     response_mock = MagicMock()
     response_mock.status = response_status
     if response_is_none:
@@ -1578,6 +1583,103 @@ class TestQuery:
         # text_content should have been called with timeout=7000
         call_kwargs = page_mock.locator.return_value.first.text_content.await_args.kwargs
         assert call_kwargs["timeout"] == 7000
+
+
+class TestPress:
+    """B-22, D-80..D-87 for v0.8.4 leid.press — page-level keyboard input."""
+
+    @pytest.mark.asyncio
+    async def test_press_unknown_session_raises_expired(self, fake_playwright):
+        """B-16 applies to press."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.press("leid-never-existed", "Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_calls_keyboard_press_with_key(self, fake_playwright):
+        """D-80: page.keyboard.press is called with the supplied key."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.press(opened["session_id"], "Enter")
+        page_mock.keyboard.press.assert_awaited_once_with("Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_returns_pressed_true_on_success(self, fake_playwright):
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.press(opened["session_id"], "Tab")
+        assert result["pressed"] is True
+        assert result["key"] == "Tab"
+
+    @pytest.mark.asyncio
+    async def test_press_returns_current_url_and_title(self, fake_playwright):
+        """D-85: result has post-press url + title."""
+        fake_playwright(
+            page_url="https://example.com/results",
+            page_title="Search Results",
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.press(opened["session_id"], "Enter")
+        assert result["current_url"] == "https://example.com/results"
+        assert result["current_title"] == "Search Results"
+
+    @pytest.mark.asyncio
+    async def test_press_returns_session_id_unchanged(self, fake_playwright):
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.press(opened["session_id"], "Escape")
+        assert result["session_id"] == opened["session_id"]
+
+    @pytest.mark.asyncio
+    async def test_press_browser_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """D-84: PlaywrightError → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.keyboard.press = AsyncMock(
+            side_effect=_FakePlaywrightError("Page closed")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="browser level"):
+            await client.press(opened["session_id"], "Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_updates_last_activity(self, fake_playwright):
+        """B-17 / B-22: successful press updates last_activity_at."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.press(session_id, "Enter")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_press_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inherited: press must never call page.evaluate."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.press(opened["session_id"], "Enter")
+        page_mock.evaluate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_press_supports_modifier_keys(self, fake_playwright):
+        """D-81: modifier+key combinations passed through to Playwright."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.press(opened["session_id"], "Control+A")
+        page_mock.keyboard.press.assert_awaited_once_with("Control+A")
 
 
 class TestM1PageExceptionTyping:

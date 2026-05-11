@@ -197,13 +197,13 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 11 tools when enabled
+        """tool_definitions returns 12 tools when enabled
         (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4 + v0.8.2.1: 1 +
-         v0.8.2.2: 1 + v0.8.3: 1)."""
+         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 11
+        assert len(sense.tool_definitions) == 12
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -213,10 +213,11 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """All eleven Leið tool names are locked as specified
+        """All twelve Leið tool names are locked as specified
         (v0.6.2: fetch_url, extract_text; v0.8.0: render_url;
          v0.8.1: screenshot; v0.8.2: open_session, session_status, click,
-         close_session; v0.8.2.1: type; v0.8.2.2: navigate; v0.8.3: query)."""
+         close_session; v0.8.2.1: type; v0.8.2.2: navigate; v0.8.3: query;
+         v0.8.4: press)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
@@ -228,6 +229,7 @@ class TestLeidSenseToolDefinitions:
         assert "leid.type" in names
         assert "leid.navigate" in names
         assert "leid.query" in names
+        assert "leid.press" in names
         assert "leid.close_session" in names
 
 
@@ -786,4 +788,34 @@ class TestLeidSenseDispatch:
         await sense.dispatch_tool_call(tool_call)
         mock_pw_client.query.assert_awaited_once_with(
             session_id="leid-x", selector="a", attribute="href"
+        )
+
+    # -------------------------------------------------------------------
+    # v0.8.4 — leid.press dispatch
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_press_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.press = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "key": "Enter",
+            "pressed": True,
+            "current_url": "https://example.com/results",
+            "current_title": "Results",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.press",
+            {"session_id": "leid-x", "key": "Enter"},
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["pressed"] is True
+        assert parsed["key"] == "Enter"
+        mock_pw_client.press.assert_awaited_once_with(
+            session_id="leid-x", key="Enter"
         )

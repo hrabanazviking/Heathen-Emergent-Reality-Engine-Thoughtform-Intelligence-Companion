@@ -1256,6 +1256,84 @@ class PlaywrightLeidClient:
             "count": count,
         }
 
+    async def press(self, session_id: str, key: str) -> dict[str, Any]:
+        """Send a keyboard key to the open session's page. (B-22, D-80..D-87)
+
+        v0.8.4 — seventh unnamed extension within Innan Hurðar. The body's
+        keyboard finger. Page-level: ``page.keyboard.press(key)`` dispatches
+        to whatever element currently has focus (typically established by a
+        prior click or type).
+
+        Playwright's key syntax is supported (D-81): single keys (``"Enter"``,
+        ``"Tab"``, ``"Escape"``, ``"ArrowDown"``, ``"a"``, ``"F5"``) and
+        modifier combinations (``"Control+A"``, ``"Shift+Tab"``,
+        ``"Meta+S"``). HERETIC does not validate the key string — Playwright
+        dispatches as best it can; unrecognized keys produce no event but
+        do NOT raise (D-84).
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+            key:        The key or modifier+key combination to press, in
+                        Playwright's syntax.
+
+        Returns:
+            dict with keys: session_id, key, pressed, current_url,
+            current_title. ``current_url`` may differ from the pre-press URL
+            if the press triggered navigation (e.g., Enter submitted a form).
+
+        Raises:
+            LeidSessionExpiredError:  session_id unknown or evicted.
+            LeidConnectionError:      browser-level failure (page closed,
+                                      process disconnect, etc.).
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and press: {exc}"
+            ) from exc
+
+        # D-80 / B-22 — page-level keyboard.press. No per-call timeout
+        # available; Playwright applies its own internal default action
+        # timeout (~30s).
+        try:
+            await session.page.keyboard.press(key)
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"press({key!r}) on session {session_id!r} failed at the "
+                f"browser level: {exc}"
+            ) from exc
+
+        # B-17 / B-22 — successful press counts as activity.
+        session.mark_activity()
+
+        # D-85 — read post-press state. Press may have triggered navigation
+        # (e.g., Enter submitted a form).
+        current_url = session.page.url
+        try:
+            current_title = await session.page.title()
+        except Exception:
+            current_title = None
+
+        self._log.debug(
+            "Leið press: session=%s key=%r -> url=%s",
+            session_id, key, current_url,
+        )
+
+        return {
+            "session_id": session_id,
+            "key": key,
+            "pressed": True,
+            "current_url": current_url,
+            "current_title": current_title,
+        }
+
     async def close_session(self, session_id: str) -> dict[str, Any]:
         """Close the session and release all browser resources. Idempotent. (B-18)
 
