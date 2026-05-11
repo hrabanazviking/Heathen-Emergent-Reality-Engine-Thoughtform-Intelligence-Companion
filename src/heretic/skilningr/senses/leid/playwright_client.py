@@ -592,11 +592,17 @@ class PlaywrightLeidClient:
             # M-1 closure (v0.8.2): explicit Page.* exception typing —
             # network/page-level failures during page.screenshot() now
             # surface as LeidConnectionError, matching httpx's precision.
-            try:
-                png_bytes = await page.screenshot(
-                    full_page=full_page,
-                    type="png",
+            # B-29 (v0.8.11): operator-controlled format + quality.
+            screenshot_kwargs: dict[str, Any] = {
+                "full_page": full_page,
+                "type": self._config.browser_screenshot_format,
+            }
+            if self._config.browser_screenshot_format != "png":
+                screenshot_kwargs["quality"] = (
+                    self._config.browser_screenshot_jpeg_quality
                 )
+            try:
+                png_bytes = await page.screenshot(**screenshot_kwargs)
             except (PlaywrightTimeoutError, PlaywrightError) as exc:
                 raise LeidConnectionError(
                     f"page.screenshot() for {normalised_url!r} failed at the "
@@ -673,7 +679,8 @@ class PlaywrightLeidClient:
             "url": normalised_url,
             "final_url": final_url,
             "image_base64": image_base64,
-            "image_format": "png",
+            # B-29 (v0.8.11): reflect actual format used (was hardcoded "png")
+            "image_format": self._config.browser_screenshot_format,
             "size_bytes": png_size,
             "full_page": full_page,
         }
@@ -1736,11 +1743,17 @@ class PlaywrightLeidClient:
 
         # M-1 closure pattern (D-100): page.screenshot wrapped with explicit
         # exception typing, mirroring v0.8.2's wrap of screenshot's primitive.
-        try:
-            png_bytes = await session.page.screenshot(
-                full_page=full_page,
-                type="png",
+        # B-29 (v0.8.11): operator-controlled format + quality.
+        screenshot_kwargs: dict[str, Any] = {
+            "full_page": full_page,
+            "type": self._config.browser_screenshot_format,
+        }
+        if self._config.browser_screenshot_format != "png":
+            screenshot_kwargs["quality"] = (
+                self._config.browser_screenshot_jpeg_quality
             )
+        try:
+            png_bytes = await session.page.screenshot(**screenshot_kwargs)
         except (PlaywrightTimeoutError, PlaywrightError) as exc:
             raise LeidConnectionError(
                 f"session_screenshot on session {session_id!r}: "
@@ -1781,7 +1794,8 @@ class PlaywrightLeidClient:
             "session_id": session_id,
             "current_url": current_url,
             "image_base64": image_base64,
-            "image_format": "png",
+            # B-29 (v0.8.11): reflect actual format used (was hardcoded "png")
+            "image_format": self._config.browser_screenshot_format,
             "size_bytes": png_size,
             "full_page": full_page,
         }

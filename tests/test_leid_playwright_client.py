@@ -859,6 +859,7 @@ class TestScreenshotReturnShape:
             browser_screenshot_full_page=True,
         )
         await client.screenshot("https://example.com/page")
+        # v0.8.11: type kwarg now reflects config (default "png")
         page_mock.screenshot.assert_awaited_once_with(full_page=True, type="png")
 
     @pytest.mark.asyncio
@@ -872,6 +873,7 @@ class TestScreenshotReturnShape:
             browser_screenshot_full_page=False,
         )
         await client.screenshot("https://example.com/page")
+        # v0.8.11: type kwarg now reflects config (default "png")
         page_mock.screenshot.assert_awaited_once_with(full_page=False, type="png")
 
 
@@ -2061,6 +2063,7 @@ class TestSessionScreenshot:
         opened = await client.open_session("https://example.com/page")
         page_mock.screenshot.reset_mock()
         await client.session_screenshot(opened["session_id"])
+        # v0.8.11: type kwarg now reflects config (default "png")
         page_mock.screenshot.assert_awaited_once_with(full_page=True, type="png")
 
     @pytest.mark.asyncio
@@ -2724,6 +2727,93 @@ class TestFinalUrlAllowlistRecheck:
         with pytest.raises(UrlNotAllowedError, match="session has been closed"):
             await client.reload(session_id)
         assert client._session_manager.active_count == 0
+
+
+class TestScreenshotFormat:
+    """B-29 for v0.8.11 — operator-controlled screenshot format propagation."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_png_by_default(self, fake_playwright):
+        """Default config → type='png', no quality kwarg."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.screenshot("https://example.com/page")
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "png"
+        assert "quality" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_jpeg_when_configured(self, fake_playwright):
+        """browser_screenshot_format='jpeg' → type='jpeg' + quality passed."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_format="jpeg",
+            browser_screenshot_jpeg_quality=60,
+        )
+        await client.screenshot("https://example.com/page")
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "jpeg"
+        assert call_kwargs["quality"] == 60
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_webp_when_configured(self, fake_playwright):
+        """browser_screenshot_format='webp' → type='webp' + quality passed."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_format="webp",
+            browser_screenshot_jpeg_quality=90,
+        )
+        await client.screenshot("https://example.com/page")
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "webp"
+        assert call_kwargs["quality"] == 90
+
+    @pytest.mark.asyncio
+    async def test_screenshot_image_format_field_reflects_actual_format(
+        self, fake_playwright
+    ):
+        """B-29: image_format return field reflects the actual format used."""
+        fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_format="jpeg",
+        )
+        result = await client.screenshot("https://example.com/page")
+        assert result["image_format"] == "jpeg"
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_uses_png_by_default(self, fake_playwright):
+        """Default config → type='png' on session_screenshot."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.screenshot.reset_mock()
+        await client.session_screenshot(opened["session_id"])
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "png"
+        assert "quality" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_uses_jpeg_when_configured(
+        self, fake_playwright
+    ):
+        """browser_screenshot_format='jpeg' on session_screenshot."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_format="jpeg",
+            browser_screenshot_jpeg_quality=75,
+        )
+        opened = await client.open_session("https://example.com/page")
+        page_mock.screenshot.reset_mock()
+        result = await client.session_screenshot(opened["session_id"])
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "jpeg"
+        assert call_kwargs["quality"] == 75
+        # Return shape reflects actual format
+        assert result["image_format"] == "jpeg"
 
 
 class TestM1PageExceptionTyping:

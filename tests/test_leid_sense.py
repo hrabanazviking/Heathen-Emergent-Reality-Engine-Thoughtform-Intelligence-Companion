@@ -169,6 +169,38 @@ class TestLeidConfig:
         with pytest.raises(ValueError, match="browser_viewport_height"):
             LeidConfig(browser_viewport_height=-50)
 
+    # --- v0.8.11 — screenshot format + JPEG/WebP quality field validation ---
+
+    def test_leid_config_browser_screenshot_format_default_is_png(self):
+        """browser_screenshot_format defaults to 'png' (lossless)."""
+        cfg = LeidConfig()
+        assert cfg.browser_screenshot_format == "png"
+
+    def test_leid_config_browser_screenshot_jpeg_quality_default_is_80(self):
+        """browser_screenshot_jpeg_quality defaults to 80."""
+        cfg = LeidConfig()
+        assert cfg.browser_screenshot_jpeg_quality == 80
+
+    def test_leid_config_browser_screenshot_format_accepts_jpeg_and_webp(self):
+        """Valid formats are png, jpeg, webp."""
+        LeidConfig(browser_screenshot_format="png")
+        LeidConfig(browser_screenshot_format="jpeg")
+        LeidConfig(browser_screenshot_format="webp")
+
+    def test_leid_config_invalid_browser_screenshot_format_raises(self):
+        """Unknown format strings are rejected."""
+        with pytest.raises(ValueError, match="browser_screenshot_format"):
+            LeidConfig(browser_screenshot_format="gif")
+        with pytest.raises(ValueError, match="browser_screenshot_format"):
+            LeidConfig(browser_screenshot_format="")
+
+    def test_leid_config_invalid_browser_screenshot_jpeg_quality_raises(self):
+        """quality outside 0..100 is rejected."""
+        with pytest.raises(ValueError, match="browser_screenshot_jpeg_quality"):
+            LeidConfig(browser_screenshot_jpeg_quality=-1)
+        with pytest.raises(ValueError, match="browser_screenshot_jpeg_quality"):
+            LeidConfig(browser_screenshot_jpeg_quality=101)
+
     # --- v0.8.2 Innan Hurðar — session + click field validation ---
 
     def test_leid_config_invalid_browser_max_concurrent_sessions_raises(self):
