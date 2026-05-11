@@ -7318,6 +7318,116 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.11 Leið in-session reload (Innan Hurðar extension — v0.8.7)
+
+> **Added 2026-05-11 v0.8.7 (Védis Eikleið).** Tenth unnamed Innan Hurðar
+> extension — adds `leid.reload`, the body's footstep in place. Re-fetches
+> the current page of an open session through Playwright's `page.reload()`.
+> Reuses navigation timeout + load_state config. Cookies and localStorage
+> persist (intrinsic to refresh semantics). One new B-invariant (B-25);
+> no new error classes; no new config fields.
+
+```
+  LEIÐ IN-SESSION RELOAD FLOW (v0.8.7)
+
+  Entry point: agent calls leid.reload(session_id).
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.reload" → PlaywrightLeidClient.reload(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Reload current page (D-107)
+    try:
+        response = await session.page.reload(
+            wait_until = config.browser_load_state,    ── D-108 reuse
+            timeout    = config.browser_navigation_timeout_seconds * 1000,
+        )
+    except PlaywrightTimeoutError:
+        raise LeidTimeoutError(...)                    ── B-5 / B-25
+    except PlaywrightError:
+        raise LeidConnectionError(...)                 ── D-110
+
+    Notes on the response:
+      - page.reload returns Response | None
+      - Response: normal HTTP reload completed
+      - None: rare cases like data: URLs that cannot be reloaded —
+              treated as "no HTTP status to check," same posture as
+              navigate when response is None for data: URLs
+
+  Stage 5 — Status check (only when response is not None)
+    if response is not None and response.status >= 400:
+        raise LeidHttpError(...)                       ── D-110
+
+  Stage 6 — Activity update (B-17 / B-25)
+    session.mark_activity()
+
+  Stage 7 — Read post-reload state
+    current_url = session.page.url   (in normal cases unchanged from
+                                       before reload; but a server-side
+                                       redirect on reload could change it)
+    try: title = await session.page.title()
+    except: title = None                              ── D-49 defensive
+
+    return {
+        session_id,                                   ── D-111: minimal shape
+        current_url,
+        title,
+    }
+
+  No previous_url because reload is in-place — previous and current URL
+  are conceptually the same (D-111). No `moved` boolean because reload
+  is not a probe-and-act primitive — either it succeeded or it failed.
+
+  State preservation across reload:
+    Cookies, localStorage, sessionStorage all persist. The browser
+    context is unchanged; the page object is the same; only the page's
+    content is re-fetched from the server. This is intrinsic to refresh
+    semantics — not a new HERETIC invariant.
+
+  URL allowlist gate (D-109):
+    Reload does NOT re-validate the URL against the allowlist. The URL
+    the body is at was already allowlist-checked when first navigated
+    to. Reload is in-place — the URL doesn't change. Same posture as
+    go_back/go_forward (D-92): inherits the existing pre-existing-
+    concern about final-URL allowlist re-check after redirect.
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises
+    B-17  — activity update after success
+    B-25  — NEW: reload respects same discipline as navigate
+
+  Error code mapping (no new classes):
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidTimeoutError              → SENSE_TIMEOUT
+    LeidHttpError                 → SENSE_INTERNAL_ERROR
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+
+  Cost vs the other in-session tools:
+    reload:                  ~200-2000 ms  (re-fetch current URL +
+                                            re-render; similar to navigate
+                                            but typically faster due to
+                                            browser cache)
+    navigate (fresh):        ~500-2000 ms
+    go_back / go_forward:    ~200-2000 ms
+    session_render:          ~20-100 ms    (no re-fetch)
+    session_screenshot:      ~50-300 ms    (no re-fetch)
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
