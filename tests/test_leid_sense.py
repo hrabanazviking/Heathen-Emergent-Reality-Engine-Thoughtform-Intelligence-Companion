@@ -197,13 +197,13 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 14 tools when enabled
+        """tool_definitions returns 16 tools when enabled
         (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4 + v0.8.2.1: 1 +
-         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1 + v0.8.5: 2)."""
+         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1 + v0.8.5: 2 + v0.8.6: 2)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 14
+        assert len(sense.tool_definitions) == 16
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -213,11 +213,12 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """All fourteen Leið tool names are locked as specified
+        """All sixteen Leið tool names are locked as specified
         (v0.6.2: fetch_url, extract_text; v0.8.0: render_url;
          v0.8.1: screenshot; v0.8.2: open_session, session_status, click,
          close_session; v0.8.2.1: type; v0.8.2.2: navigate; v0.8.3: query;
-         v0.8.4: press; v0.8.5: go_back, go_forward)."""
+         v0.8.4: press; v0.8.5: go_back, go_forward; v0.8.6: session_render,
+         session_screenshot)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
@@ -232,6 +233,8 @@ class TestLeidSenseToolDefinitions:
         assert "leid.press" in names
         assert "leid.go_back" in names
         assert "leid.go_forward" in names
+        assert "leid.session_render" in names
+        assert "leid.session_screenshot" in names
         assert "leid.close_session" in names
 
 
@@ -871,3 +874,58 @@ class TestLeidSenseDispatch:
         # Verifies the moved=false case is routed correctly (NOT an error)
         assert parsed["moved"] is False
         mock_pw_client.go_forward.assert_awaited_once_with(session_id="leid-x")
+
+    # -------------------------------------------------------------------
+    # v0.8.6 — leid.session_render + leid.session_screenshot dispatch
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_session_render_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.session_render = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "current_url": "https://example.com/dashboard",
+            "text": "Welcome back",
+            "title": "Dashboard",
+            "source_size_bytes": 1234,
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.session_render", {"session_id": "leid-x"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["text"] == "Welcome back"
+        assert parsed["current_url"] == "https://example.com/dashboard"
+        mock_pw_client.session_render.assert_awaited_once_with(
+            session_id="leid-x"
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_session_screenshot_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.session_screenshot = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "current_url": "https://example.com/results",
+            "image_base64": "iVBORw0KGgoAAA==",
+            "image_format": "png",
+            "size_bytes": 12,
+            "full_page": True,
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.session_screenshot", {"session_id": "leid-x"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["image_format"] == "png"
+        assert parsed["full_page"] is True
+        mock_pw_client.session_screenshot.assert_awaited_once_with(
+            session_id="leid-x"
+        )

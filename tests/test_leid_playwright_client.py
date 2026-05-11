@@ -1907,6 +1907,219 @@ class TestGoHistoryShared:
             await client.go_back(opened["session_id"])
 
 
+class TestSessionRender:
+    """B-24 + D-97/D-99/D-100/D-101 for v0.8.6 leid.session_render."""
+
+    @pytest.mark.asyncio
+    async def test_session_render_unknown_session_raises_expired(self, fake_playwright):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.session_render("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_session_render_calls_page_content(self, fake_playwright):
+        """D-97: underlying primitive is page.content."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.content.reset_mock()
+        await client.session_render(opened["session_id"])
+        page_mock.content.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_session_render_returns_text_and_title(self, fake_playwright):
+        """Return shape — text + title from current page."""
+        fake_playwright(
+            page_content="<html><head><title>Live State</title></head>"
+                         "<body>Updated content</body></html>",
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.session_render(opened["session_id"])
+        assert result["title"] == "Live State"
+        assert "Updated content" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_session_render_returns_current_url(self, fake_playwright):
+        """D-101: current_url reflects session.page.url at entry."""
+        fake_playwright(page_url="https://example.com/dashboard")
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/dashboard")
+        result = await client.session_render(opened["session_id"])
+        assert result["current_url"] == "https://example.com/dashboard"
+
+    @pytest.mark.asyncio
+    async def test_session_render_pre_cap_on_rendered_html(self, fake_playwright):
+        """B-6 inheritance: rendered HTML > max_response_bytes → too large."""
+        large_html = "<html><body>" + ("x" * 2_000_000) + "</body></html>"
+        fake_playwright(page_content=large_html)
+        client = make_client(
+            ["https://example.com/*"],
+            max_response_bytes=1_048_576,
+        )
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidResponseTooLargeError, match="exceeds max_response_bytes"):
+            await client.session_render(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_session_render_page_content_error_maps_to_connection_error(
+        self, fake_playwright
+    ):
+        """D-100 / M-1: PlaywrightError from page.content → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.content = AsyncMock(
+            side_effect=_FakePlaywrightError("Target page closed")
+        )
+        client = make_client(["https://example.com/*"])
+        # Open session uses a different mock state; need to re-stub content
+        # AFTER open_session has run (which itself doesn't call content).
+        # Open the session first, then break content for the session_render call.
+        opened_client = make_client(["https://example.com/*"])
+        # Use clean fake_playwright then break content post-open
+        _uninstall_fake_playwright()
+        _, _, _, page_mock2, _ = _install_fake_playwright()
+        try:
+            opened = await opened_client.open_session("https://example.com/page")
+            page_mock2.content = AsyncMock(
+                side_effect=_FakePlaywrightError("Target page closed")
+            )
+            with pytest.raises(LeidConnectionError, match="page.content"):
+                await opened_client.session_render(opened["session_id"])
+        finally:
+            _uninstall_fake_playwright()
+
+    @pytest.mark.asyncio
+    async def test_session_render_updates_last_activity(self, fake_playwright):
+        """B-17 / B-24."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.session_render(session_id)
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_session_render_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inheritance."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.session_render(opened["session_id"])
+        page_mock.evaluate.assert_not_called()
+
+
+class TestSessionScreenshot:
+    """B-24 + D-98/D-99/D-100/D-101 for v0.8.6 leid.session_screenshot."""
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_unknown_session_raises_expired(
+        self, fake_playwright
+    ):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.session_screenshot("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_calls_page_screenshot_with_full_page_config(
+        self, fake_playwright
+    ):
+        """D-98: page.screenshot called with full_page from config."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_full_page=True,
+        )
+        opened = await client.open_session("https://example.com/page")
+        page_mock.screenshot.reset_mock()
+        await client.session_screenshot(opened["session_id"])
+        page_mock.screenshot.assert_awaited_once_with(full_page=True, type="png")
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_returns_base64_png(self, fake_playwright):
+        """Return shape: image_base64 round-trips to original PNG bytes."""
+        import base64 as _b64
+        png = b"\x89PNG\r\n\x1a\n_session_screenshot_test_payload_"
+        fake_playwright(screenshot_bytes=png)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.session_screenshot(opened["session_id"])
+        assert result["image_format"] == "png"
+        assert result["size_bytes"] == len(png)
+        decoded = _b64.b64decode(result["image_base64"])
+        assert decoded == png
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_returns_current_url(self, fake_playwright):
+        """D-101: current_url reflects session.page.url at entry."""
+        fake_playwright(page_url="https://example.com/results")
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/results")
+        result = await client.session_screenshot(opened["session_id"])
+        assert result["current_url"] == "https://example.com/results"
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_pre_cap_on_png_bytes(self, fake_playwright):
+        """B-11 inheritance: PNG > max_response_bytes → too large; BEFORE base64."""
+        large_png = b"\x89PNG\r\n\x1a\n" + (b"x" * 2_000_000)
+        fake_playwright(screenshot_bytes=large_png)
+        client = make_client(
+            ["https://example.com/*"],
+            max_response_bytes=1_048_576,
+        )
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(
+            LeidResponseTooLargeError, match="exceeds max_response_bytes"
+        ):
+            await client.session_screenshot(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_page_screenshot_error_maps_to_connection_error(
+        self, fake_playwright
+    ):
+        """D-100 / M-1: PlaywrightError from page.screenshot → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.screenshot = AsyncMock(
+            side_effect=_FakePlaywrightError("Browser disconnected")
+        )
+        with pytest.raises(LeidConnectionError, match="page.screenshot"):
+            await client.session_screenshot(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_updates_last_activity(self, fake_playwright):
+        """B-17 / B-24."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)
+        await client.session_screenshot(session_id)
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_does_not_call_page_evaluate(
+        self, fake_playwright
+    ):
+        """B-10 inheritance."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.session_screenshot(opened["session_id"])
+        page_mock.evaluate.assert_not_called()
+
+
 class TestM1PageExceptionTyping:
     """M-1 closure: page.content and page.screenshot exceptions now map
     explicitly to LeidConnectionError (matching httpx's network-error precision)."""

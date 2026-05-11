@@ -320,6 +320,30 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.session_render":
+            # v0.8.6 — ninth unnamed extension (paired with session_screenshot).
+            # In-session counterpart of v0.8.0 render_url.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.session_render(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.session_screenshot":
+            # v0.8.6 — paired with session_render. In-session counterpart
+            # of v0.8.1 screenshot.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.session_screenshot(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.close_session":
             if self._playwright_client is None:
                 self._playwright_client = PlaywrightLeidClient(

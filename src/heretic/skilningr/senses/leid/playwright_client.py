@@ -1480,6 +1480,196 @@ class PlaywrightLeidClient:
         """
         return await self._go_history(session_id, "forward")
 
+    async def session_render(self, session_id: str) -> dict[str, Any]:
+        """Re-extract rendered text + title from the current session page. (B-24, D-97)
+
+        v0.8.6 — ninth unnamed extension within Innan Hurðar; the in-session
+        counterpart of v0.8.0's ``render_url``. Same primitives
+        (``page.content()`` + ``_extract_text_from_html``); same B-6 size
+        cap on rendered HTML byte size; same M-1 closure pattern around
+        ``page.content``. Operates on the EXISTING session's page rather
+        than launching a fresh browser — ~10-50x cheaper than render_url
+        because no browser cold start is needed.
+
+        Use after a click/type/press/navigate/history-step has changed
+        what's on the page and you want to read the new state without
+        closing and re-opening the session.
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+
+        Returns:
+            dict with keys: session_id, current_url, text, title,
+            source_size_bytes.
+
+        Raises:
+            LeidSessionExpiredError:    session_id unknown or evicted.
+            LeidConnectionError:        browser-level failure.
+            LeidResponseTooLargeError:  rendered HTML exceeds max_response_bytes.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"session_render: {exc}"
+            ) from exc
+
+        # D-101 — capture current URL at entry
+        current_url = session.page.url
+
+        # M-1 closure pattern (D-100): page.content wrapped with explicit
+        # exception typing, mirroring v0.8.2's wrap of render_url's content.
+        try:
+            html = await session.page.content()
+        except (PlaywrightTimeoutError, PlaywrightError) as exc:
+            raise LeidConnectionError(
+                f"session_render on session {session_id!r}: page.content() "
+                f"failed at the browser level (page may have closed or "
+                f"process disconnected): {exc}"
+            ) from exc
+
+        # B-6 inheritance — pre-cap on rendered HTML byte size
+        rendered_size = len(html.encode("utf-8"))
+        if rendered_size > self._config.max_response_bytes:
+            self._log.warning(
+                "Leið session_render: rendered HTML on session %s is %d "
+                "bytes, exceeds max_response_bytes=%d — aborting before "
+                "text extraction",
+                session_id, rendered_size, self._config.max_response_bytes,
+            )
+            raise LeidResponseTooLargeError(
+                f"Rendered HTML on session {session_id!r} is {rendered_size} "
+                f"bytes, which exceeds max_response_bytes="
+                f"{self._config.max_response_bytes}. Increase "
+                f"LeidConfig.max_response_bytes or query smaller fragments "
+                f"via leid.query."
+            )
+
+        # D-97 — reuse the v0.8.0 helper; no re-implementation
+        text, title = _extract_text_from_html(html)
+
+        # B-17 / B-24 — successful re-extract counts as activity
+        session.mark_activity()
+
+        self._log.debug(
+            "Leið session_render: session=%s current_url=%s -> "
+            "source_size=%d text_len=%d",
+            session_id, current_url, rendered_size, len(text),
+        )
+
+        return {
+            "session_id": session_id,
+            "current_url": current_url,
+            "text": text,
+            "title": title,
+            "source_size_bytes": rendered_size,
+        }
+
+    async def session_screenshot(self, session_id: str) -> dict[str, Any]:
+        """Capture base64 PNG of the current session page. (B-24, D-98)
+
+        v0.8.6 — paired with session_render; the in-session counterpart of
+        v0.8.1's ``screenshot``. Same primitive (``page.screenshot``);
+        same B-11 size cap on raw PNG bytes BEFORE base64 encoding; same
+        M-1 closure pattern around ``page.screenshot``. Operates on the
+        EXISTING session's page rather than launching a fresh browser
+        — ~10x cheaper than screenshot because no browser cold start.
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+
+        Returns:
+            dict with keys: session_id, current_url, image_base64,
+            image_format, size_bytes, full_page.
+
+        Raises:
+            LeidSessionExpiredError:    session_id unknown or evicted.
+            LeidConnectionError:        browser-level failure.
+            LeidResponseTooLargeError:  raw PNG bytes exceed max_response_bytes.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"session_screenshot: {exc}"
+            ) from exc
+
+        # D-101 — capture current URL at entry
+        current_url = session.page.url
+        full_page = self._config.browser_screenshot_full_page  # D-98 reuse
+
+        # M-1 closure pattern (D-100): page.screenshot wrapped with explicit
+        # exception typing, mirroring v0.8.2's wrap of screenshot's primitive.
+        try:
+            png_bytes = await session.page.screenshot(
+                full_page=full_page,
+                type="png",
+            )
+        except (PlaywrightTimeoutError, PlaywrightError) as exc:
+            raise LeidConnectionError(
+                f"session_screenshot on session {session_id!r}: "
+                f"page.screenshot() failed at the browser level (page may "
+                f"have closed or process disconnected): {exc}"
+            ) from exc
+
+        # B-11 inheritance — pre-cap on raw PNG bytes BEFORE base64
+        png_size = len(png_bytes)
+        if png_size > self._config.max_response_bytes:
+            self._log.warning(
+                "Leið session_screenshot: PNG on session %s is %d bytes, "
+                "exceeds max_response_bytes=%d — aborting before base64",
+                session_id, png_size, self._config.max_response_bytes,
+            )
+            raise LeidResponseTooLargeError(
+                f"PNG screenshot on session {session_id!r} is {png_size} "
+                f"bytes, which exceeds max_response_bytes="
+                f"{self._config.max_response_bytes}. Increase "
+                f"LeidConfig.max_response_bytes, or set "
+                f"browser_screenshot_full_page: false to capture only "
+                f"the viewport."
+            )
+
+        # Base64 encode (D-17 from v0.8.1) — ASCII-decode safe by definition
+        image_base64 = base64.b64encode(png_bytes).decode("ascii")
+
+        # B-17 / B-24 — successful re-shoot counts as activity
+        session.mark_activity()
+
+        self._log.debug(
+            "Leið session_screenshot: session=%s current_url=%s -> "
+            "png_size=%d full_page=%s",
+            session_id, current_url, png_size, full_page,
+        )
+
+        return {
+            "session_id": session_id,
+            "current_url": current_url,
+            "image_base64": image_base64,
+            "image_format": "png",
+            "size_bytes": png_size,
+            "full_page": full_page,
+        }
+
     async def close_session(self, session_id: str) -> dict[str, Any]:
         """Close the session and release all browser resources. Idempotent. (B-18)
 
