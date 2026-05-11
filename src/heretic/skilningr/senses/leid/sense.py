@@ -356,6 +356,21 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.query_all":
+            # v0.8.8 — eleventh unnamed extension. Multi-element follow-up
+            # to v0.8.3 query. attribute is optional; defaults to "" =
+            # text content.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.query_all(
+                session_id=args["session_id"],
+                selector=args["selector"],
+                attribute=args.get("attribute", ""),
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.close_session":
             if self._playwright_client is None:
                 self._playwright_client = PlaywrightLeidClient(

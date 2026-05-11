@@ -1756,6 +1756,143 @@ class PlaywrightLeidClient:
             "title": title,
         }
 
+    async def query_all(
+        self, session_id: str, selector: str, attribute: str = ""
+    ) -> dict[str, Any]:
+        """Read text or attribute of ALL elements matching *selector*. (B-26, D-114..D-125)
+
+        v0.8.8 — eleventh unnamed extension within Innan Hurðar; the
+        multi-element follow-up to v0.8.3's single-match ``query``.
+        Returns ALL matches as a list (in DOM order) up to a cardinality
+        cap (``config.browser_query_max_matches``).
+
+        Same DELIBERATE divergence as ``query`` (D-72 / D-117): empty
+        result is NOT an error — returns ``{count: 0, values: []}``.
+        Multi-element query is a probe-and-act primitive; the agent's
+        natural "give me all matches" includes the success case of
+        "there were zero."
+
+        Args:
+            session_id: A session_id from a prior open_session call.
+            selector:   CSS selector. ALL matching elements (up to cap)
+                        are extracted in DOM order.
+            attribute:  Optional. If empty (default), returns each
+                        element's text content. If non-empty, returns
+                        the value of that HTML attribute (None if
+                        attribute absent).
+
+        Returns:
+            dict with keys: session_id, selector, attribute, count, values.
+            ``values`` is a list of strings or None (length == count).
+
+        Raises:
+            LeidSessionExpiredError:    session_id unknown or evicted.
+            LeidConnectionError:        browser-level failure on count or
+                                        per-element extraction.
+            LeidResponseTooLargeError:  count > config.browser_query_max_matches.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"query_all: {exc}"
+            ) from exc
+
+        timeout_ms = self._config.browser_click_timeout_seconds * 1000  # D-122
+
+        # Stage 4 — locator + count
+        locator = session.page.locator(selector)
+        try:
+            count = await locator.count()
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"query_all({selector!r}) on session {session_id!r}: "
+                f"locator.count() failed at the browser level: {exc}"
+            ) from exc
+
+        # Stage 5 — cardinality cap (B-26 NEW; D-116)
+        max_matches = self._config.browser_query_max_matches
+        if count > max_matches:
+            self._log.warning(
+                "Leið query_all: selector %r matched %d elements on session "
+                "%s, exceeds browser_query_max_matches=%d — aborting before "
+                "iteration",
+                selector, count, session_id, max_matches,
+            )
+            raise LeidResponseTooLargeError(
+                f"Selector {selector!r} matched {count} elements in session "
+                f"{session_id!r}, which exceeds browser_query_max_matches="
+                f"{max_matches}. Refine the selector to match fewer "
+                f"elements, or raise LeidConfig.browser_query_max_matches "
+                f"if your use case genuinely needs many matches."
+            )
+
+        # Stage 6 — empty-result early return (D-117)
+        if count == 0:
+            session.mark_activity()  # B-17 / B-26 (still counts)
+            self._log.debug(
+                "Leið query_all: session=%s selector=%r -> no matches",
+                session_id, selector,
+            )
+            return {
+                "session_id": session_id,
+                "selector": selector,
+                "attribute": attribute,
+                "count": 0,
+                "values": [],
+            }
+
+        # Stage 7 — iterate matches and extract (D-118)
+        values: list[Any] = []
+        for i in range(count):
+            el = locator.nth(i)
+            try:
+                if attribute == "":  # D-120 default = text content
+                    v = await el.text_content(timeout=timeout_ms)
+                else:  # D-120 specific attribute
+                    v = await el.get_attribute(attribute, timeout=timeout_ms)
+            except PlaywrightTimeoutError as exc:
+                raise LeidConnectionError(
+                    f"query_all({selector!r}, attribute={attribute!r}) "
+                    f"on session {session_id!r}: extraction at index {i} "
+                    f"timed out after "
+                    f"{self._config.browser_click_timeout_seconds}s: {exc}"
+                ) from exc
+            except PlaywrightError as exc:
+                raise LeidConnectionError(
+                    f"query_all({selector!r}, attribute={attribute!r}) "
+                    f"on session {session_id!r}: extraction at index {i} "
+                    f"failed at the browser level: {exc}"
+                ) from exc
+            values.append(v)
+
+        # Stage 8 — activity update (B-17 / B-26)
+        session.mark_activity()
+
+        self._log.debug(
+            "Leið query_all: session=%s selector=%r attribute=%r "
+            "-> count=%d, values_len=%d",
+            session_id, selector, attribute, count, len(values),
+        )
+
+        return {
+            "session_id": session_id,
+            "selector": selector,
+            "attribute": attribute,
+            "count": count,
+            "values": values,
+        }
+
     async def close_session(self, session_id: str) -> dict[str, Any]:
         """Close the session and release all browser resources. Idempotent. (B-18)
 

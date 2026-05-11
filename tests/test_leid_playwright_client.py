@@ -131,6 +131,18 @@ def _install_fake_playwright(
     locator_mock.first = locator_first_mock
     # count defaults to 1; tests override for not-found / multi-match cases.
     locator_mock.count = AsyncMock(return_value=1)
+
+    # v0.8.8 — locator.nth(i) chain for query_all. Each .nth(i) returns an
+    # element with text_content / get_attribute. Default: returns same element
+    # as .first (text "default text"), but tests can override via the
+    # locator_mock.nth_returns dict for per-index control.
+    def _nth_factory(i):
+        nth_el = MagicMock()
+        nth_el.text_content = AsyncMock(return_value=f"item-{i}")
+        nth_el.get_attribute = AsyncMock(return_value=None)
+        return nth_el
+    locator_mock.nth = MagicMock(side_effect=_nth_factory)
+
     page_mock.locator = MagicMock(return_value=locator_mock)
 
     # v0.8.4 — keyboard.press chain: page.keyboard.press(key)
@@ -2248,6 +2260,226 @@ class TestReload:
         opened = await client.open_session("https://example.com/page")
         page_mock.evaluate.reset_mock()
         await client.reload(opened["session_id"])
+        page_mock.evaluate.assert_not_called()
+
+
+class TestQueryAll:
+    """B-26 + D-114..D-125 for v0.8.8 leid.query_all — multi-element read."""
+
+    @pytest.mark.asyncio
+    async def test_query_all_unknown_session_raises_expired(self, fake_playwright):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.query_all("leid-never-existed", "h2")
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_empty_list_when_no_match(self, fake_playwright):
+        """D-117: count==0 → {count:0, values:[]}; NOT an exception."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=0)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], ".no-match")
+        assert result["count"] == 0
+        assert result["values"] == []
+        # nth should NOT have been called on empty path
+        page_mock.locator.return_value.nth.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_single_match_as_one_element_list(
+        self, fake_playwright
+    ):
+        """count==1 → values is a list with one element."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=1)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], "h1")
+        assert result["count"] == 1
+        assert len(result["values"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_all_matches_in_dom_order(self, fake_playwright):
+        """D-114, D-119: all matches returned in DOM order."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=5)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], ".item")
+        assert result["count"] == 5
+        # The default _nth_factory returns "item-{i}" for index i
+        assert result["values"] == ["item-0", "item-1", "item-2", "item-3", "item-4"]
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_attribute_values(self, fake_playwright):
+        """D-120: attribute parameter → get_attribute path per element."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=3)
+
+        # Override nth to return elements with get_attribute returning hrefs
+        def _nth_with_href(i):
+            el = MagicMock()
+            el.text_content = AsyncMock(return_value=f"link-text-{i}")
+            el.get_attribute = AsyncMock(
+                return_value=f"https://example.com/link-{i}"
+            )
+            return el
+        page_mock.locator.return_value.nth = MagicMock(side_effect=_nth_with_href)
+
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], "a", attribute="href")
+        assert result["values"] == [
+            "https://example.com/link-0",
+            "https://example.com/link-1",
+            "https://example.com/link-2",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_text_when_attribute_omitted(
+        self, fake_playwright
+    ):
+        """D-120 default: attribute omitted → text_content path."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], "h2")
+        assert result["attribute"] == ""
+        # Default _nth_factory returns "item-{i}" via text_content
+        assert all(v.startswith("item-") for v in result["values"])
+
+    @pytest.mark.asyncio
+    async def test_query_all_includes_null_for_missing_attributes(
+        self, fake_playwright
+    ):
+        """D-73-style: element exists but attribute absent → None in list."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=2)
+
+        def _nth_no_attr(i):
+            el = MagicMock()
+            el.text_content = AsyncMock(return_value=f"text-{i}")
+            el.get_attribute = AsyncMock(return_value=None)  # absent
+            return el
+        page_mock.locator.return_value.nth = MagicMock(side_effect=_nth_no_attr)
+
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(
+            opened["session_id"], "img", attribute="data-tracking-id"
+        )
+        assert result["count"] == 2
+        assert result["values"] == [None, None]
+
+    @pytest.mark.asyncio
+    async def test_query_all_cap_exceeded_raises_too_large(self, fake_playwright):
+        """D-116 / B-26: count > cap → LeidResponseTooLargeError BEFORE iteration."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=150)
+        client = make_client(
+            ["https://example.com/*"],
+            browser_query_max_matches=100,
+        )
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(
+            LeidResponseTooLargeError, match="exceeds browser_query_max_matches"
+        ):
+            await client.query_all(opened["session_id"], ".item")
+        # nth should NOT have been called when the cap fires
+        page_mock.locator.return_value.nth.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_query_all_cap_edge_succeeds_at_exact_cap(self, fake_playwright):
+        """count == cap → succeeds (cap is inclusive)."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=5)
+        client = make_client(
+            ["https://example.com/*"],
+            browser_query_max_matches=5,
+        )
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], ".item")
+        assert result["count"] == 5
+        assert len(result["values"]) == 5
+
+    @pytest.mark.asyncio
+    async def test_query_all_count_failure_raises_connection_error(
+        self, fake_playwright
+    ):
+        """PlaywrightError from locator.count → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(
+            side_effect=_FakePlaywrightError("Detached frame")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="locator.count"):
+            await client.query_all(opened["session_id"], "h2")
+
+    @pytest.mark.asyncio
+    async def test_query_all_extraction_failure_raises_connection_error(
+        self, fake_playwright
+    ):
+        """PlaywrightError from per-element extraction → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=3)
+
+        def _nth_with_failure(i):
+            el = MagicMock()
+            if i == 1:
+                # Second element fails
+                el.text_content = AsyncMock(
+                    side_effect=_FakePlaywrightError("Element became detached")
+                )
+            else:
+                el.text_content = AsyncMock(return_value=f"item-{i}")
+            el.get_attribute = AsyncMock(return_value=None)
+            return el
+        page_mock.locator.return_value.nth = MagicMock(side_effect=_nth_with_failure)
+
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="extraction at index 1"):
+            await client.query_all(opened["session_id"], "h2")
+
+    @pytest.mark.asyncio
+    async def test_query_all_updates_last_activity_on_found(self, fake_playwright):
+        """B-17 / B-26 on the count > 0 path."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.query_all(session_id, "h2")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_query_all_updates_last_activity_on_empty(self, fake_playwright):
+        """B-17 / B-26: empty result still counts as activity."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=0)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)
+        result = await client.query_all(session_id, ".not-there")
+        assert result["count"] == 0
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_query_all_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inheritance."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.query_all(opened["session_id"], "h2")
         page_mock.evaluate.assert_not_called()
 
 
