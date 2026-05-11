@@ -63,6 +63,12 @@ v0.8.6 (2 added tools — LOCKED, paired):
     leid.session_screenshot — capture base64 PNG of the current session page
                               (in-session counterpart of screenshot)
 
+v0.8.7 (1 added tool — LOCKED):
+    leid.reload             — refresh the current page of an open session
+                              (re-fetch + re-render in place); rounds out the
+                              motion vocabulary alongside navigate/go_back/
+                              go_forward
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -738,6 +744,46 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.reload  (v0.8.7 Innan Hurðar extension — refresh in place)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.reload",
+            "description": (
+                "Refresh the current page of an open session — equivalent "
+                "to the user pressing F5 or the browser's reload button. "
+                "The session keeps its identity, cookies, and localStorage; "
+                "only the page content is re-fetched from the server. The "
+                "URL stays the same in normal cases (a server-side redirect "
+                "on reload could change it). Use this when: (a) the page "
+                "may have changed on the server side since the body opened "
+                "it (long-running task completed; notification banner "
+                "appeared); (b) the page's client-side state has gotten "
+                "stuck and needs a fresh start; (c) you want to verify "
+                "whether content is server-stable across a refresh. Returns "
+                "{session_id, current_url, title}. Unknown session_id "
+                "returns SENSE_UNAVAILABLE; reload timeout returns "
+                "SENSE_TIMEOUT; HTTP 4xx/5xx returns SENSE_INTERNAL_ERROR; "
+                "network failure returns EXTERNAL_APP_UNAVAILABLE."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -771,7 +817,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 16 OpenAI tool schemas for the Leið sense.
+"""The 17 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -808,4 +854,7 @@ Tool names added at v0.8.5 (LOCKED, paired):
 Tool names added at v0.8.6 (LOCKED, paired):
     leid.session_render
     leid.session_screenshot
+
+Tool name added at v0.8.7 (LOCKED):
+    leid.reload
 """

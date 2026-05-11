@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-11 (v0.8.6 mid-session re-extract pair — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-11 (v0.8.7 reload extension — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -91,6 +91,7 @@ for the v0.8.0 browser-mode contract.
 | `leid.go_forward`      | Step forward in the session's browser history; `moved: false` if at end | `session_id` (string) | Playwright (Chromium) | v0.8.5 |
 | `leid.session_render`  | Re-extract rendered text + title from the current session page (mid-session counterpart of leid.render_url) | `session_id` (string) | Playwright (Chromium) | v0.8.6 |
 | `leid.session_screenshot` | Capture base64 PNG of the current session page (mid-session counterpart of leid.screenshot) | `session_id` (string) | Playwright (Chromium) | v0.8.6 |
+| `leid.reload`          | Refresh the current page of an open session (re-fetch + re-render in place) | `session_id` (string) | Playwright (Chromium) | v0.8.7 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -938,3 +939,53 @@ Mid-session tools are 10-50x cheaper than their stateless siblings because they 
 | Inner HTML re-extraction (raw HTML, not stripped to text) | v0.8.x |
 | Mid-session JPEG/WebP screenshot output | v0.8.x — PNG-only matches v0.8.1's posture |
 | Mid-session viewport reconfiguration | v0.8.x — inherits the session's launch-time viewport |
+
+### 12.13 Reload extension (v0.8.7 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.7.** Adds `leid.reload` — refresh the current
+> page of an open session through Playwright's `page.reload()`. Rounds
+> out the motion vocabulary inside the door: navigate (forward to URL),
+> go_back (history step back), go_forward (history step forward),
+> reload (in place). No new error classes (D-110). No new config fields
+> (D-108 reuses navigation timeout + load_state).
+
+**New tool:** `leid.reload(session_id)` → `{session_id, current_url, title}`.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-25 | `reload()` enforces the same session/timeout discipline as `navigate()` and history-nav: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; `page.reload()` is awaited with `wait_until=config.browser_load_state` and `timeout=config.browser_navigation_timeout_seconds * 1000`; HTTP 4xx/5xx during reload maps to `LeidHttpError`; on success, `session.last_activity_at` is updated. Cookies + localStorage persist across reload — that's intrinsic to refresh semantics, not a new invariant. |
+
+**Implementation primitive:** `await session.page.reload(wait_until=config.browser_load_state, timeout=config.browser_navigation_timeout_seconds * 1000)`. Returns `Response | None` — None in unusual cases (data: URLs that cannot be reloaded), treated as "no HTTP status to check" (same posture as navigate when response is None).
+
+**Success response shape:**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "current_url": "https://example.com/dashboard",
+  "title": "Dashboard"
+}
+```
+
+Minimal shape (D-111). No `previous_url` because reload is in-place — previous and current URL are conceptually the same. No `moved` boolean because reload is not a probe-and-act primitive — either it succeeded or it failed.
+
+**Failure-mode reuse:** No new error classes. Same mapping as `navigate`:
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| Reload timeout (B-5 inherited)                   | `LeidTimeoutError`         | `SENSE_TIMEOUT`           |
+| Reload HTTP 4xx/5xx                               | `LeidHttpError`            | `SENSE_INTERNAL_ERROR`    |
+| Reload network error                              | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+
+**Why no URL allowlist re-check on reload:** D-109 — same posture as go_back/go_forward (D-92). The URL the body is at was already allowlist-checked when first navigated to. Reload is in-place — the URL doesn't change. This inherits the existing pre-existing-concern about final-URL allowlist re-check after redirect.
+
+**Out of scope at v0.8.7:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Hard reload (skip cache) | v0.8.x — Playwright's reload accepts no `bypass_cache`; agent achieves this via `keyboard.press("Control+Shift+R")` instead |
+| Reload-and-extract combined | v0.8.x — agent does `reload()` then `session_render()` |
+| Final-URL allowlist re-check | v0.8.x — pre-existing concern across all browser tools |
