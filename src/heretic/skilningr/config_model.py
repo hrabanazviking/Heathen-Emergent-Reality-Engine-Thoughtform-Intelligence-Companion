@@ -613,6 +613,26 @@ class LeidConfig:
     matches Playwright's default. Same propagation discipline as
     ``browser_viewport_width`` (B-27). Must be > 0."""
 
+    # ----- v0.8.11 — JPEG/WebP screenshot format -----
+
+    browser_screenshot_format: str = "png"
+    """Image format for browser screenshots. One of ``"png"`` (default,
+    lossless), ``"jpeg"`` (smaller, lossy), or ``"webp"`` (modern,
+    typically smaller than JPEG at same quality). Applied uniformly to
+    ``leid.screenshot`` and ``leid.session_screenshot``. Default ``"png"``
+    matches existing behavior — operators upgrading see no change. Used
+    via Playwright's ``page.screenshot(type=...)`` parameter. Must be
+    one of the three documented values."""
+
+    browser_screenshot_jpeg_quality: int = 80
+    """Quality for JPEG and WebP screenshots, 0..100. Higher is better
+    quality + larger file. Default 80 matches Playwright's typical
+    recommendation for balanced quality. **Applied ONLY** when
+    ``browser_screenshot_format`` is ``"jpeg"`` or ``"webp"``; ignored
+    when format is ``"png"`` (PNG is lossless). The kwarg is omitted
+    from Playwright's call when format is png — passing it would raise
+    a Playwright error. Must be 0..100."""
+
     def __post_init__(self) -> None:
         """Validate config fields at construction time.
 
@@ -702,6 +722,19 @@ class LeidConfig:
             raise ValueError(
                 f"LeidConfig.browser_viewport_height must be > 0, "
                 f"got {self.browser_viewport_height!r}."
+            )
+        # v0.8.11 — screenshot format + quality validation
+        _allowed_formats = {"png", "jpeg", "webp"}
+        if self.browser_screenshot_format not in _allowed_formats:
+            raise ValueError(
+                f"LeidConfig.browser_screenshot_format must be one of "
+                f"{sorted(_allowed_formats)}, got "
+                f"{self.browser_screenshot_format!r}."
+            )
+        if not (0 <= self.browser_screenshot_jpeg_quality <= 100):
+            raise ValueError(
+                f"LeidConfig.browser_screenshot_jpeg_quality must be in "
+                f"0..100, got {self.browser_screenshot_jpeg_quality!r}."
             )
         # Warn on unrestricted wildcard
         if self.enabled and "*" in self.url_allowlist_patterns:

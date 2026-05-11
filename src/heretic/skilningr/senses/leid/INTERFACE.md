@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-11 (v0.8.10 final-URL allowlist re-check — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.9 configurable viewport) | 2026-05-11 (v0.8.8 query_all extension) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-11 (v0.8.11 JPEG/WebP screenshot output — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.10 final-URL allowlist re-check) | 2026-05-11 (v0.8.9 configurable viewport) | 2026-05-11 (v0.8.8 query_all extension) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -193,6 +193,10 @@ skilningr:
     # v0.8.9 — configurable viewport (applied at all browser-context creations)
     browser_viewport_width: 1280                  # viewport width in pixels (>0)
     browser_viewport_height: 720                  # viewport height in pixels (>0)
+
+    # v0.8.11 — screenshot format + quality (applied to screenshot tools)
+    browser_screenshot_format: "png"              # one of: png, jpeg, webp
+    browser_screenshot_jpeg_quality: 80           # 0..100; ignored when format=png
 ```
 
 ---
@@ -1187,3 +1191,38 @@ The deferred concern *"final-URL allowlist re-check after redirect — pre-exist
 | Per-redirect URL re-check (intermediate URLs in chain) | v0.8.x — Playwright doesn't expose intermediate redirects without explicit request hooks; checking the FINAL URL catches the dangerous case |
 | Per-tool toggle for the re-check | v0.8.x — sandbox security is unconditional; no opt-out |
 | Detailed redirect chain in error message | v0.8.x — chain is invisible to us without request hooks |
+
+### 12.17 JPEG/WebP screenshot output (v0.8.11 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.11.** Operator-controlled screenshot format. Two new
+> `LeidConfig` fields (`browser_screenshot_format`, `browser_screenshot_jpeg_quality`).
+> Applied to both `screenshot` (stateless) and `session_screenshot` (stateful).
+> Defaults preserve PNG behavior. NO new tools, NO new error classes (D-151).
+
+**New B-Invariant:**
+
+| # | B-Invariant |
+|---|---|
+| B-29 | `screenshot()` and `session_screenshot()` pass `type=config.browser_screenshot_format` to `page.screenshot()`. When format is `"jpeg"` or `"webp"`, `quality=config.browser_screenshot_jpeg_quality` is also passed; when format is `"png"`, `quality` is omitted (PNG is lossless). The `image_format` field in the return reflects the actual format used. |
+
+**New config fields:**
+
+| Field | Type | Default | Validation |
+|---|---|---|---|
+| `browser_screenshot_format` | str | `"png"` | one of `{"png", "jpeg", "webp"}` |
+| `browser_screenshot_jpeg_quality` | int | `80` | 0..100 |
+
+**Implementation pattern:**
+```python
+screenshot_kwargs = {"full_page": ..., "type": config.browser_screenshot_format}
+if config.browser_screenshot_format != "png":
+    screenshot_kwargs["quality"] = config.browser_screenshot_jpeg_quality
+png_bytes = await page.screenshot(**screenshot_kwargs)
+```
+
+**Return shape:** `image_format` now reflects the actual format used (previously hardcoded `"png"`).
+
+**Out of scope:**
+- Per-call format override (agent-supplied) — operator-controlled is the right scope
+- Per-tool format (screenshot=jpeg but session_screenshot=png) — complexity not justified
+- Format auto-detection by content — out of scope
