@@ -35,6 +35,11 @@ v0.8.2.1 (1 added tool — LOCKED):
                             Playwright's locator.fill — clears + focuses + sets
                             + dispatches input event)
 
+v0.8.2.2 (1 added tool — LOCKED):
+    leid.navigate         — navigate an open session to a new URL; cookies +
+                            localStorage persist (the session keeps its
+                            identity, only the page URL changes)
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -393,6 +398,55 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.navigate  (v0.8.2.2 Innan Hurðar extension — in-session navigation)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.navigate",
+            "description": (
+                "Navigate an open session to a new URL while keeping the "
+                "session alive. The session_id, cookies, and localStorage all "
+                "survive the navigation — only the page URL changes. Use this "
+                "for multi-page flows: log in, then navigate to a dashboard; "
+                "submit a form, then navigate to a receipt page; etc. The new "
+                "URL must match url_allowlist_patterns (same gate as "
+                "leid.open_session). Returns {session_id, previous_url, "
+                "final_url, title} so you have a coherent record of where the "
+                "session moved from and to. A navigation failure does NOT "
+                "close the session — it stays open at whatever URL it was at "
+                "before the failed goto, ready for retry. Unknown session_id "
+                "returns SENSE_UNAVAILABLE; URL-not-allowed returns "
+                "PERMISSION_DENIED; navigation timeout returns SENSE_TIMEOUT; "
+                "HTTP 4xx/5xx returns SENSE_INTERNAL_ERROR; network failure "
+                "returns EXTERNAL_APP_UNAVAILABLE."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": (
+                            "The new URL to navigate to. Must start with "
+                            "https:// (or http:// if allow_http: true). Must "
+                            "match at least one pattern in url_allowlist_patterns. "
+                            "Example: 'https://example.com/dashboard'"
+                        ),
+                    },
+                },
+                "required": ["session_id", "url"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -426,7 +480,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 9 OpenAI tool schemas for the Leið sense.
+"""The 10 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -446,4 +500,7 @@ Tool names added at v0.8.2 (LOCKED):
 
 Tool name added at v0.8.2.1 (LOCKED):
     leid.type
+
+Tool name added at v0.8.2.2 (LOCKED):
+    leid.navigate
 """

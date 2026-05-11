@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.2.1 type extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-10 (v0.8.2.2 navigate extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -84,6 +84,7 @@ for the v0.8.0 browser-mode contract.
 | `leid.session_status`  | Non-mutating health/identity check on an open session               | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 | `leid.click`           | Click first element matching CSS selector inside open session       | `session_id`, `selector` (both strings)  | Playwright (Chromium) | v0.8.2 |
 | `leid.type`            | Fill first element matching selector with the supplied text         | `session_id`, `selector`, `text` (all strings) | Playwright (Chromium) | v0.8.2.1 |
+| `leid.navigate`        | Navigate an open session to a new URL (cookies + localStorage persist) | `session_id`, `url` (both strings)    | Playwright (Chromium) | v0.8.2.2 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -568,3 +569,53 @@ current_url, current_title}`.
 | Special keys (Enter, Tab, Escape) | v0.8.x — separate `leid.press` primitive |
 | Form submission             | not needed — agent uses `leid.click('button[type=submit]')` |
 | Multi-element fill          | v0.8.x — current `.first.fill` is intentional D-56 |
+
+### 12.8 Navigate extension (v0.8.2.2 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-10 v0.8.2.2.** Adds `leid.navigate` for in-session URL
+> changes. Reuses the existing browser quartet (no new launch). Cookies +
+> localStorage persist across navigation (D-63 — that's what a session
+> IS). No new error classes (D-66 reuses existing ones).
+
+**New tool:** `leid.navigate(session_id, url)` → `{session_id, previous_url, final_url, title}`.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-20 | `navigate()` enforces the same URL-gate-then-session-resolve discipline as the rest of Innan Hurðar: `_validate_url` runs FIRST (B-12); then `evict_expired_sessions` (B-15); then `get_session` (B-16); then `page.goto` with the open_session navigation contract (B-5 timeout); on success, `session.last_activity_at` is updated (B-17); the session_id is unchanged (D-62). The session's cookie/localStorage state PERSISTS across the navigation (D-63 — that is what a session is). On navigation failure, the session is NOT closed — it stays open with whatever URL it had, ready for retry or different navigate. |
+
+**Implementation primitive:** `await session.page.goto(url, wait_until=config.browser_load_state, timeout=config.browser_navigation_timeout_seconds * 1000)`. Reuses the same Playwright primitive as `open_session`'s navigation phase, on the EXISTING page rather than a freshly-created one.
+
+**Success response shape:**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "previous_url": "https://example.com/login",
+  "final_url": "https://example.com/dashboard",
+  "title": "Dashboard"
+}
+```
+
+`previous_url` is captured BEFORE the new goto so the agent has a coherent record of the navigation transition (D-64).
+
+**Failure-mode reuse:** No new error classes. Maps identically to open_session's navigation phase:
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| URL not in allowlist (B-12)                      | `UrlNotAllowedError`       | `PERMISSION_DENIED`       |
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| Navigation timeout (B-5 inherited)               | `LeidTimeoutError`         | `SENSE_TIMEOUT`           |
+| Navigation HTTP 4xx/5xx                          | `LeidHttpError`            | `SENSE_INTERNAL_ERROR`    |
+| Navigation network error                          | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+
+**Distinct from open_session navigation phase:** `open_session` failure cleans up the just-launched browser quartet (because the session is not yet registered). `navigate` failure does NOT close the existing session — it stays open with whatever URL it had before the failed goto, ready for the agent to retry or try a different navigate. This is intentional: agents should not lose their entire session state because of a single failed navigation.
+
+**Out of scope at v0.8.2.2:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| `leid.go_back` / `go_forward` | v0.8.x — browser history navigation, distinct primitive |
+| `leid.reload`               | v0.8.x — distinct primitive |
+| Final-URL allowlist re-check after redirect | v0.8.x — pre-existing concern across all browser tools; v0.8.2.2 mirrors current behaviour |
