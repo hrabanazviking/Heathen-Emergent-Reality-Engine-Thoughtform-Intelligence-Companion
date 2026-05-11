@@ -218,3 +218,7 @@ For the first time, a faculty's third slice introduces a new disposition rather 
 
 *Addendum authored by Sigrún Ljósbrá, Skald for Vibe Coding, 2026-05-10.*
 *The body now crosses the threshold and stays. Same umbrella, new posture. The door is held open until the body chooses to let it close.*
+
+> **In-section continuation — v0.8.2.1 (the second half of the gesture, no new name).**
+>
+> *Innan Hurðar* gave the body its first interactive tool — `leid.click`, the hand that presses what is in front of it. v0.8.2.1 adds the second half of that same gesture: `leid.type`, the hand that shapes input where input is asked of it. Together they form what every interactive web page expects of a visitor — touch what should be touched, write what should be written. The Skald reserves no new name for this slice because no new disposition has appeared. The body has not learned anything new about being inside the door; it has simply gained the second tool the door already implied. The discipline that bounded click — bounded session, bounded selector timeout, bounded post-call state read, defensive title — bounds type identically. The same `BrowserSessionManager` watches; the same eviction discipline applies; the same activity update keeps a working session alive. The body's two hands work in the same room, under the same rules.
