@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click addendum — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot addendum) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render addendum) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming addendum) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-10 (v0.8.2.1 type extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -83,6 +83,7 @@ for the v0.8.0 browser-mode contract.
 | `leid.open_session`    | Open a stateful session at URL; page stays alive                    | `url` (string)                           | Playwright (Chromium) | v0.8.2 |
 | `leid.session_status`  | Non-mutating health/identity check on an open session               | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 | `leid.click`           | Click first element matching CSS selector inside open session       | `session_id`, `selector` (both strings)  | Playwright (Chromium) | v0.8.2 |
+| `leid.type`            | Fill first element matching selector with the supplied text         | `session_id`, `selector`, `text` (all strings) | Playwright (Chromium) | v0.8.2.1 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -145,6 +146,7 @@ not installed the `[browser]` extra (`pip install heretic[browser]`) and run
 | Concurrent-session cap reached (v0.8.2 `leid.open_session`)   | `LeidSessionLimitError`     | `SENSE_UNAVAILABLE`       |
 | Unknown / evicted session_id (v0.8.2 status/click/close)     | `LeidSessionExpiredError`   | `SENSE_UNAVAILABLE`       |
 | Selector matched no element within click timeout (v0.8.2)    | `LeidClickElementNotFoundError` | `INVALID_ARGUMENTS`   |
+| Selector matched no element within type timeout (v0.8.2.1)   | `LeidTypeElementNotFoundError`  | `INVALID_ARGUMENTS`   |
 
 ---
 
@@ -526,3 +528,43 @@ agent with the same precision httpx failures already had.
 - Cleanup ordering on close + eviction: `context.close()` → `browser.close()` → `pw.stop()`, each defensively wrapped (same shape as render_url's `finally`).
 - M-1 closure: 1-line `try/except (PlaywrightError, PlaywrightTimeoutError)` wraps added around `await page.content()` (in render_url) and `await page.screenshot()` (in screenshot), mapping to `LeidConnectionError`. The v0.8.0 `render_url()` and v0.8.1 `screenshot()` BEHAVIOR is preserved (same exception-class outputs); only the error TYPING becomes explicit.
 - Tests live in `tests/test_leid_session_manager.py` (BrowserSessionManager unit tests) and `tests/test_leid_playwright_client.py::TestSession*` / `TestClick` (integration tests).
+
+### 12.7 Type extension (v0.8.2.1 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-10 v0.8.2.1.** Adds `leid.type` as the second half of the
+> interactive gesture begun with click. Unnamed extension — no new
+> disposition, just the complementary tool the existing disposition
+> implied. Same session, same locator pattern, same timeout discipline.
+
+**New tool:** `leid.type(session_id, selector, text)` → `{selector, typed,
+current_url, current_title}`.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-19 | `type()` enforces the same session/cap/timeout discipline as `click()`: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; `locator.fill` timeout maps to `LeidTypeElementNotFoundError` (D-55, sibling of B-relevant click class); other PlaywrightError maps to `LeidConnectionError`; on success, `session.last_activity_at` is updated. |
+
+**New error class:** `LeidTypeElementNotFoundError → INVALID_ARGUMENTS`. Sibling of `LeidClickElementNotFoundError`; agent can distinguish click vs type selector failures.
+
+**Implementation primitive:** `await session.page.locator(selector).first.fill(text, timeout=config.browser_click_timeout_seconds * 1000)`. Reuses the click timeout config field (D-54) — type and click are both fast interactive actions sharing the same operator-controlled bound. `locator.fill()` (not `type()`) is the canonical "set this field's value" Playwright primitive: it waits for actionability, focuses the element, clears existing value, sets the new value, and dispatches the `input` event. Keystroke-by-keystroke simulation is deferred to v0.8.x.
+
+**Success response shape:**
+
+```json
+{
+  "selector": "input[name='email']",
+  "typed": true,
+  "current_url": "https://example.com/login",
+  "current_title": "Login"
+}
+```
+
+**Out of scope at v0.8.2.1:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Keystroke simulation (page.type with delay) | v0.8.x — separate primitive for legacy JS frameworks |
+| Special keys (Enter, Tab, Escape) | v0.8.x — separate `leid.press` primitive |
+| Form submission             | not needed — agent uses `leid.click('button[type=submit]')` |
+| Multi-element fill          | v0.8.x — current `.first.fill` is intentional D-56 |

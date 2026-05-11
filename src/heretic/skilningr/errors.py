@@ -439,6 +439,18 @@ class LeidClickElementNotFoundError(LeidError):
     """
 
 
+class LeidTypeElementNotFoundError(LeidError):
+    """``locator.fill(text)`` failed because no element matching the
+    selector became actionable within ``LeidConfig.browser_click_timeout_seconds``.
+
+    Sibling to ``LeidClickElementNotFoundError`` — distinct class so the
+    agent can tell selector failures on click apart from selector failures
+    on type, even though both map to ``INVALID_ARGUMENTS``.
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """
+
+
 # ---------------------------------------------------------------------------
 # MCP server errors  [v0.6.x]
 # ---------------------------------------------------------------------------

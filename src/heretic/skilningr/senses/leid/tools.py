@@ -29,6 +29,12 @@ v0.8.2 (4 added tools — LOCKED):
     leid.close_session    — close a session and release all browser resources
                             (idempotent for unknown session_id)
 
+v0.8.2.1 (1 added tool — LOCKED):
+    leid.type             — fill the first element matching a CSS selector with
+                            the supplied text inside an open session (uses
+                            Playwright's locator.fill — clears + focuses + sets
+                            + dispatches input event)
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -331,6 +337,62 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.type  (v0.8.2.1 Innan Hurðar extension — second half of gesture)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.type",
+            "description": (
+                "Fill the first element in the session's page matching the given "
+                "CSS selector with the supplied text. Uses Playwright's "
+                "locator.fill primitive — waits for the element to be actionable, "
+                "focuses it, clears any existing value, sets the new value, then "
+                "dispatches an input event. This is the canonical 'set this "
+                "field's value' operation; it works for inputs, textareas, and "
+                "contenteditable elements. Returns {selector, typed, current_url, "
+                "current_title}. If no element matches the selector within "
+                "browser_click_timeout_seconds (default 10), returns "
+                "INVALID_ARGUMENTS — refine the selector and retry. Unknown "
+                "session_id returns SENSE_UNAVAILABLE. Network-level browser "
+                "failures return EXTERNAL_APP_UNAVAILABLE. HERETIC injects no "
+                "JavaScript; the input event is dispatched by Playwright itself "
+                "as part of the fill primitive."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector for the input element to fill. The first "
+                            "matching element is filled. "
+                            "Examples: 'input[name=\"email\"]', '#search-box', "
+                            "'textarea.comment'."
+                        ),
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": (
+                            "The text to fill into the matched element. Replaces "
+                            "any existing value. Empty string is allowed (clears "
+                            "the field)."
+                        ),
+                    },
+                },
+                "required": ["session_id", "selector", "text"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -364,7 +426,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 8 OpenAI tool schemas for the Leið sense.
+"""The 9 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -381,4 +443,7 @@ Tool names added at v0.8.2 (LOCKED):
     leid.session_status
     leid.click
     leid.close_session
+
+Tool name added at v0.8.2.1 (LOCKED):
+    leid.type
 """

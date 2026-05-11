@@ -14,6 +14,7 @@ from heretic.skilningr.errors import (  # noqa: F401
     LeidSessionExpiredError,
     LeidSessionLimitError,
     LeidTimeoutError,
+    LeidTypeElementNotFoundError,
     UrlNotAllowedError,
 )
 
@@ -28,4 +29,5 @@ __all__ = [
     "LeidSessionLimitError",
     "LeidSessionExpiredError",
     "LeidClickElementNotFoundError",
+    "LeidTypeElementNotFoundError",
 ]
