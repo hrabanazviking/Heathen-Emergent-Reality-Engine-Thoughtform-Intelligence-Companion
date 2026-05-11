@@ -156,3 +156,65 @@ The pattern of named-then-unnamed extensions persists. Three slices into v0.8, t
 
 *Addendum authored by Sigrún Ljósbrá, Skald for Vibe Coding, 2026-05-10.*
 *The body now keeps a portrait of every road it walks — same posture, second manner of reporting back.*
+
+---
+
+## IX. Addendum — *Innan Hurðar* (v0.8.2)
+
+> *Innan Hurðar — inside the door. The body that walked the road and read the page and kept its portrait now learns a third thing: it learns to **stay**. Where v0.8.0 and v0.8.1 had the body pass the threshold, do its single act, and walk away, v0.8.2 has the body cross the threshold and remain — keeping a session open, the page alive, the door propped — so that one act may be followed by another. This is not a new manner of the same posture. This is a new posture entirely.*
+
+### What v0.8.2 adds
+
+A stateful sub-section within the Opið Vef sub-faculty. Four new tools:
+
+- `leid.open_session(url)` — opens a session at the URL; returns a `session_id` the agent can use for subsequent calls. The page stays alive.
+- `leid.session_status(session_id)` — non-mutating health/identity check on the open session.
+- `leid.click(session_id, selector)` — clicks the first element in the session's page matching the CSS selector.
+- `leid.close_session(session_id)` — closes the session and releases all browser resources.
+
+And a new infrastructural class — `BrowserSessionManager` — that owns the open sessions, enforces concurrency caps, and evicts sessions that have been idle too long or alive too long.
+
+### Why a new disposition, not an unnamed extension
+
+The pattern of the prior three slices (`render_url`, `screenshot`, and the v0.7.3 / v0.6.3.1 / v0.7.1 streaming work) was: the body's faculty gains a new manner of doing the same thing. Each was an extension of an existing disposition.
+
+v0.8.2 is different. The body is not learning a new way to walk past the door — it is learning to **cross the threshold and stay**. The relationship to the page changes from *visit* to *presence*. The lifecycle changes from launch-per-call to launch-per-session. The agent's mental model changes from "ask, receive" to "open, act, close." Cookies that were forbidden across calls are now allowed within a session (because that is what a session is) — but each session's context is still fresh and is still discarded when the session closes. The discipline of B-3 (no state crosses calls) holds at the session level: no state crosses *sessions*.
+
+This is a new disposition. It earns a new Skald name — *Innan Hurðar*, "inside the door" — even though it stays within the v0.8 *Opið Vef* umbrella as the third slice. The Skald's pen names what is qualitatively different; the body's posture toward the page IS qualitatively different in v0.8.2.
+
+### What v0.8.2 promises
+
+- Sessions are isolated. Each session uses its own Chromium browser, its own context, its own page, its own cookie jar. No state crosses sessions, ever.
+- Sessions have honest limits. At most three concurrent sessions by default; idle for five minutes → evicted; alive for thirty minutes total → evicted. The operator can change these. Sessions are NOT immortal.
+- Eviction is observable. When a session is evicted, the next call referencing it returns a clear error: the session expired. The agent learns and can re-open if it still wants to.
+- Click is deterministic. The first element matching the CSS selector is clicked. If nothing matches (timeout), the agent gets `LeidClickElementNotFoundError` — a specific, agent-actionable error, not a generic failure.
+- The body still injects no JavaScript. B-10 holds at every new call site. The page's own scripts run during navigation and during click-triggered events; HERETIC contributes no script of its own.
+- Resource cleanup is the same nested `context → browser → pw` shape used by `render_url` and `screenshot`. A session that fails to close cleanly logs a warning but does not block other sessions or mask the failure.
+
+### What v0.8.2 does *not* promise
+
+- Typing into form fields. `leid.type` is a separate slice (v0.8.2.1) — input composition is a different design question from element activation.
+- In-session navigation. The agent cannot yet say "navigate this open session to a new URL" — that is v0.8.2.2.
+- CSS selector queries / attribute extraction. `leid.query` lives at v0.8.3.
+- Wait-for-selector / wait-for-network-idle. The agent can poll `session_status` if it wants to know whether navigation has settled; native waits are deferred.
+- Cookie persistence across sessions. NEVER. B-3's discipline holds at the session boundary.
+- Sessions surviving an operator restart. NEVER. Sessions are process-local.
+
+### Audit M-1 closes here
+
+The Auditor's deferred recommendation from `AUDIT_v0.8.1_MYND_AF_VEGFERD.md` — that `page.content` and `page.screenshot` exceptions be explicitly typed to `LeidConnectionError` — is fulfilled at this milestone in the same coordinated sweep that adds the new `page.click` typing. All four `Page.*` call sites in the Leið code now have explicit `try/except (PlaywrightError, PlaywrightTimeoutError)` mapping to the appropriate `Leid*Error` class. The body's network-level browser failures now surface to the agent with the same precision its httpx failures already had.
+
+### The lineage continues
+
+| Faculty | First slice | Second slice | Third slice |
+|---|---|---|---|
+| Endurdrykkr | v0.7.2 byte-layer | v0.7.3 index-layer | — |
+| Verkminni | v0.6.3 in-memory | v0.6.3.1 disk-mirror | — |
+| **Leið — Opið Vef sub-faculty** | **v0.8.0 `render_url`** | **v0.8.1 `screenshot`** | **v0.8.2 `open_session` / `click` / `close_session` (with the new *Innan Hurðar* disposition)** |
+
+For the first time, a faculty's third slice introduces a new disposition rather than continuing the existing pattern. This is honest about what changed: walking past and walking past with a portrait are the same disposition; *staying* is not.
+
+---
+
+*Addendum authored by Sigrún Ljósbrá, Skald for Vibe Coding, 2026-05-10.*
+*The body now crosses the threshold and stays. Same umbrella, new posture. The door is held open until the body chooses to let it close.*
