@@ -682,12 +682,20 @@ class PlaywrightLeidClient:
         )
 
         # Launch the (pw, browser, context, page) quartet. If ANY stage
-        # fails, we must clean up everything launched so far (B-7-style)
-        # because the session is NOT registered with the manager yet —
-        # eviction won't catch it.
+        # fails BEFORE registration, we must clean up everything launched
+        # so far (B-7-style) because the session is NOT yet known to the
+        # manager — eviction won't catch it.
+        #
+        # was_registered tracks whether ownership has transferred to the
+        # manager. Set to True only after register_session succeeds; if any
+        # later code raises (it doesn't, but defensively), the cleanup
+        # branch knows to leave the resources alone (the manager owns them).
+        # (Auditor NOTABLE-1, Wave 6 closure: replaces the previous
+        # introspection heuristic that walked _sessions.values() to decide.)
         pw = None
         browser = None
         context = None
+        was_registered = False
         try:
             pw = await async_playwright().start()
             try:
@@ -747,50 +755,19 @@ class PlaywrightLeidClient:
             )
 
             # Register with the manager. Re-checks the cap under-lock; on
-            # race-loss the registration raises and we fall through to the
-            # cleanup branch below.
-            try:
-                await manager.register_session(session)
-            except LeidSessionLimitError:
-                # Cap-race lost — clean up the just-launched quartet and
-                # propagate. Setting the locals to None tells the cleanup
-                # branch below "we already handled these."
-                self._log.warning(
-                    "Leið open_session: lost cap race for %s — cleaning up "
-                    "launched browser",
-                    normalised_url,
-                )
-                # Manual cleanup; same shape as the manager's internal cleanup.
-                try:
-                    await context.close()
-                except Exception:
-                    pass
-                try:
-                    await browser.close()
-                except Exception:
-                    pass
-                try:
-                    await pw.stop()
-                except Exception:
-                    pass
-                pw = None
-                browser = None
-                context = None
-                raise
+            # race-loss the registration raises LeidSessionLimitError and
+            # the outer cleanup branch (was_registered=False) will tear
+            # down the quartet.
+            await manager.register_session(session)
+            was_registered = True
 
             final_url = page.url
 
         except Exception:
-            # Cleanup ONLY runs when the session was NOT registered (early
-            # failure path). If registration succeeded, ownership transferred
-            # to the manager and the manager handles cleanup at close /
-            # eviction time.
-            if pw is not None and (
-                self._session_manager is None
-                or not any(
-                    s.pw is pw for s in self._session_manager._sessions.values()
-                )
-            ):
+            # Cleanup ONLY when the session was NOT registered. After
+            # registration, ownership transferred to the manager — the
+            # manager handles cleanup at close / eviction time.
+            if not was_registered:
                 if context is not None:
                     try:
                         await context.close()
@@ -801,10 +778,11 @@ class PlaywrightLeidClient:
                         await browser.close()
                     except Exception:
                         pass
-                try:
-                    await pw.stop()
-                except Exception:
-                    pass
+                if pw is not None:
+                    try:
+                        await pw.stop()
+                    except Exception:
+                        pass
             raise
 
         self._log.debug(

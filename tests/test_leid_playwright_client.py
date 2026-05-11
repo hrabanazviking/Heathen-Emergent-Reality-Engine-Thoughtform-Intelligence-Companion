@@ -1010,7 +1010,7 @@ class TestSessionStatus:
 
         # Read activity before
         status1 = await client.session_status(session_id)
-        time.sleep(0.01)  # ensure monotonic clock advances
+        time.sleep(0.05)  # ensure monotonic clock advances (Windows ~16ms granularity)
         status2 = await client.session_status(session_id)
         assert status2["last_activity_at"] > status1["last_activity_at"]
 
@@ -1080,7 +1080,7 @@ class TestClick:
         opened = await client.open_session("https://example.com/page")
         session_id = opened["session_id"]
         status1 = await client.session_status(session_id)
-        time.sleep(0.01)
+        time.sleep(0.05)  # ensure monotonic clock advances (Windows ~16ms granularity)
         await client.click(session_id, "button")
         status2 = await client.session_status(session_id)
         assert status2["last_activity_at"] > status1["last_activity_at"]

@@ -330,7 +330,7 @@ class TestLeidSessionRecord:
     def test_mark_activity_updates_last_activity(self):
         session = make_session("leid-mark", idle_offset=10.0)
         before = session.last_activity_at
-        time.sleep(0.01)  # ensure monotonic clock advances
+        time.sleep(0.05)  # ensure monotonic clock advances (Windows ~16ms granularity)
         session.mark_activity()
         assert session.last_activity_at > before
 
