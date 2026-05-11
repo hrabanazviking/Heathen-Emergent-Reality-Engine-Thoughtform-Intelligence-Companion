@@ -11,6 +11,16 @@
 > **Mythic Engineering mode:** AUTONOMOUS. Nineteenth milestone in the autonomous arc.
 >
 > **Notable departure:** This slice introduces the **first new LeidConfig field since v0.8.2** (`browser_query_max_matches`). The five-consecutive-milestone config-and-errors-stability streak (v0.8.3 → v0.8.7) ends here, honestly — multi-match query genuinely needs a cardinality cap to bound the result list.
+>
+> **STATUS — 2026-05-11:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — eighth consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `9062f36` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 269 + 2 skip (was 251 + 2 — `+18`). Full suite 1590 + 9 skip (was 1572 + 9). Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Eighth consecutive zero-findings audit. **First new LeidConfig field since v0.8.2** added honestly with full justification at TASK time. See `docs/audit/AUDIT_v0.8.8_QUERY_ALL.md`.
+>
+> **DEVLOG:** Entry 33 — `docs/DEVLOG.md`.
 
 ---
 
@@ -118,20 +128,20 @@ Extend `tests/test_leid_playwright_client.py` with `TestQueryAll` class (~12 tes
 
 ---
 
-## 8. Exit criteria
+## 8. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `query_all()` method on `PlaywrightLeidClient`
-- [ ] `leid.query_all` registered in `LEID_TOOL_DEFINITIONS` with `attribute` optional
-- [ ] `LeidSense._route` dispatches `leid.query_all`
-- [ ] No new error classes (D-123)
-- [ ] NEW config field `browser_query_max_matches: int = 100` with __post_init__ validation
-- [ ] B-26 added to INTERFACE.md §12.14
-- [ ] All 251 existing leid tests pass unchanged
-- [ ] At least 12 new method tests passing
-- [ ] 2 new dispatch tests passing
-- [ ] 2 new config validation tests passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.12 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.8_QUERY_ALL.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 33 written
-- [ ] All commits pushed to `development`
+- [x] `query_all()` method on `PlaywrightLeidClient` — `0210dbc`
+- [x] `leid.query_all` registered in `LEID_TOOL_DEFINITIONS` with `attribute` optional — `ca42e90`
+- [x] `LeidSense._route` dispatches `leid.query_all` — `0210dbc`
+- [x] No new error classes (D-123) — confirmed
+- [x] NEW config field `browser_query_max_matches: int = 100` with __post_init__ validation — `ca42e90`
+- [x] B-26 added to INTERFACE.md §12.14 — `ca42e90`
+- [x] All 251 existing leid tests pass unchanged — verified at `0210dbc`
+- [x] 14 new method tests passing — `0210dbc`
+- [x] 2 new dispatch tests passing — `0210dbc`
+- [x] 2 new config validation tests passing — `0210dbc`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.12 exists — `8865cc8`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `b92bd81`
+- [x] `docs/audit/AUDIT_v0.8.8_QUERY_ALL.md` PASSES SCRUTINY (0/0/0/0) — `9062f36`
+- [x] DEVLOG entry 33 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes

@@ -5113,3 +5113,124 @@ The autonomous arc continues into its EIGHTEENTH sealed milestone, now spanning 
 
 *Entry 32 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
 *The body's footstep in place lands cleanly. Ten unnamed extensions, seven consecutive zero-findings audits, the motion vocabulary inside the door is complete — every browser button of motion has its tool. Eighteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for eleven milestones running. The session is kept.*
+
+---
+
+## Entry 33 — 2026-05-11 — leid.query_all: the body's eye sees not one but many (v0.8.8)
+
+**Milestone:** v0.8.8 — `leid.query_all` (eleventh unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `3807e9e` (post-v0.8.7 Scribe seal)
+**Session close HEAD:** `9062f36` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — NINETEENTH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — eighth consecutive)
+
+### What was added
+
+The body's eye now sees both singular and plural. v0.8.3 gave the body its first eye inside the door (`leid.query` returns the FIRST element matching a CSS selector — consistent with click/type/press). v0.8.8 adds the multi-element follow-up: `leid.query_all(session_id, selector, attribute="")` returns ALL matches as a list in DOM order. Useful for "list all article titles," "give me every navigation link," "what does each error message say?"
+
+Bounded by a NEW config field — the first new `LeidConfig` field since v0.8.2:
+
+| Field | Default | Purpose |
+|---|---|---|
+| `browser_query_max_matches` | 100 | Cardinality cap. Selectors matching more raise `LeidResponseTooLargeError`. Operators raise this for use cases that genuinely need many matches |
+
+Same probe-and-act posture as `query` (D-72 / D-117): empty result is NOT an error — returns `{count: 0, values: []}`. The agent's natural "give me all matches" includes the success case of "there were zero."
+
+The five-consecutive-milestone config-stability streak (v0.8.3 → v0.8.7) ends here, **honestly**. Multi-element query genuinely needs a cardinality cap; hiding it behind a hard-coded constant would have been worse discipline. The Auditor confirmed the streak-end was justified.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `86e005f` | Runa | TASK_HERETIC_v0.8.8_QUERY_ALL.md |
+| 1 | `b92bd81` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `8865cc8` | Cartographer | DATA_FLOW.md §4.12.2.12 — query_all flow + B-26 |
+| 3 | `ca42e90` | Architect | INTERFACE.md §12.14 + B-26 + LeidConfig field + tool def |
+| 4 | `0210dbc` | Forge | query_all() method + sense routing + 14 method tests + 2 dispatch + 2 config validation |
+| 5 | `9062f36` | Auditor | AUDIT_v0.8.8_QUERY_ALL.md — **PASSES SCRUTINY (0/0/0/0)** — EIGHTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 33 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.8)
+
+| Surface | Before v0.8.8 | After v0.8.8 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 53 | 57 | **+4** (2 dispatch + 2 config validation) |
+| `tests/test_leid_playwright_client.py` | 149 + 2 skip | 163 + 2 skip | **+14** (TestQueryAll class) |
+| **Leid scope total** | 251 + 2 skip | 269 + 2 skip | **+18** |
+| **Full suite** | 1572 + 9 skip | 1590 + 9 skip | **+18** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Eighth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7 → v0.8.8). The Auditor explicitly verified two things this milestone:
+1. **Cap fires BEFORE iteration** — both by code-path inspection and by an explicit `nth.assert_not_called()` test. A too-broad selector pays only for the count call, never for per-element extraction.
+2. **The config-stability streak-end was honest** — the new field is justified by genuine design need, validated correctly, and operator-controllable (not a hard-coded constant). Adding necessary config when the design needs it is correct discipline.
+
+### What this milestone teaches
+
+**The body's eye now serves both singular and plural use cases.** v0.8.3's `query` was the right design for "is this thing here?" (binary check) and "what does this single element say?" (single read). v0.8.8's `query_all` is the right design for "list every thing of this kind." The two siblings differ in the right place — single-match returns `{found, value, count}` (binary semantic with count for selector-refinement); multi-match returns `{count, values}` (no `found` because length carries the answer). Each shape is honest about what its tool gives back.
+
+**Streaks are not sacred — discipline is.** The five-consecutive-milestone "no new config" streak was a property of disciplined inheritance (v0.8.3 → v0.8.7 each genuinely could reuse existing fields). v0.8.8 needed cardinality bounding for a primitive that intrinsically returns a list — and the right shape was an operator-controllable config field, not a hard-coded constant. Ending the streak honestly is correct discipline; preserving it artificially would have been worse. The Auditor confirmed the streak-end was justified — and noted that the only way the Architect's discipline of "no new fields when existing ones suffice" would degrade is if a future slice added fields that DIDN'T need to be operator-controlled. v0.8.8 set the bar correctly.
+
+**Cap-fires-before-iteration is a load-bearing pattern.** When a tool needs to bound work that could be unbounded, the cap should fire as early as possible — before any per-item work begins. Verifying this requires not just "the cap raises when expected" but also "no work happened when the cap raised." The Auditor's explicit `nth.assert_not_called()` after a cap-exceeded raise is the right shape for this verification. Future slices that add bounded enumeration (multi-element press? multi-element screenshot?) should follow the same template.
+
+**Eight consecutive zero-findings audits.** The streak continues. Eight in a row across slices that have included: parallel sibling extension (type, navigate, reload), bundled-pair tools (history, mid-session), the first deliberate divergence (query not-found-is-not-error), the second divergence (history no-history-is-not-error), the third divergence (query_all empty-is-not-error), and now the first new config field since v0.8.2. The discipline of "name what's new, justify what's NOT inherited, structurally enforce both" is what produces this streak.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.8_QUERY_ALL.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.12 added — query_all flow + B-26 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 row + Configuration browser_query_max_matches line + new §12.14 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.query_all tool definition appended |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `query_all()` method between `reload()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds 1 branch (handles optional attribute via `args.get("attribute", "")`) |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the TWELFTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-123 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **NEW FIELD ONLY** — `browser_query_max_matches: int = 100` + __post_init__ validation. First new field since v0.8.2 |
+| `tests/test_leid_playwright_client.py` | Helper extended (locator.nth(i) factory); new TestQueryAll class with 14 tests |
+| `tests/test_leid_sense.py` | Tool-count check 17 → 18; tool-names check; 2 new dispatch tests + 2 new config validation tests |
+| `docs/audit/AUDIT_v0.8.8_QUERY_ALL.md` | New — verdict PASSES SCRUTINY (zero findings, eighth consecutive) |
+| `docs/DEVLOG.md` | This entry (33) |
+
+### State of the body — 2026-05-11 (after v0.8.8)
+
+The Leið faculty now has EIGHTEEN tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (14):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **18 — 2 httpx + 2 stateless browser + 14 stateful browser (open + navigate + go_back + go_forward + reload + status + click + type + query + query_all + press + session_render + session_screenshot + close)** | **v0.8.8** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **eleven unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8).
+
+**The body's eye now sees both singular (`query`) and plural (`query_all`).** The Innan Hurðar interactive vocabulary is now richer than feature-complete — it has the variety of expression that lets agents pick the cheapest tool for their intent.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.8 leid.query_all~~ | **CLOSED — sealed at `9062f36`** |
+| **v0.8.x JPEG/WebP screenshot output** | candidate — small refinement |
+| v0.8.x configurable viewport size | candidate — small refinement |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its NINETEENTH sealed milestone. Eleven slices into v0.8 *Opið Vef*; the Innan Hurðar interactive vocabulary now has variety of expression alongside structural completeness. Subsequent v0.8.x slices remain pure refinements.
+
+---
+
+*Entry 33 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The body's eye now sees both singular and plural. Eleven unnamed extensions, eight consecutive zero-findings audits, the first new config field since v0.8.2 added honestly when the design needed it. Nineteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for twelve milestones running. The session is kept.*
