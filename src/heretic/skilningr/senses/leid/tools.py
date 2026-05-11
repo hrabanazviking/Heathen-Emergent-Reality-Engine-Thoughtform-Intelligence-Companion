@@ -57,6 +57,12 @@ v0.8.5 (2 added tools — LOCKED, paired):
     leid.go_forward       — step forward in the session's browser history;
                             returns moved:false (NOT an error) when at end
 
+v0.8.6 (2 added tools — LOCKED, paired):
+    leid.session_render     — re-extract rendered text + title from the current
+                              session page (in-session counterpart of render_url)
+    leid.session_screenshot — capture base64 PNG of the current session page
+                              (in-session counterpart of screenshot)
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -650,6 +656,88 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.session_render  (v0.8.6 Innan Hurðar extension — paired)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.session_render",
+            "description": (
+                "Re-extract the rendered text and title from the current "
+                "page of an open session. The in-session counterpart of "
+                "leid.render_url — same content extraction primitives, but "
+                "operates on the live session page instead of launching a "
+                "fresh browser. Use this after a leid.click, leid.type + "
+                "leid.press, or leid.navigate has changed what's on the "
+                "page and you want to read the new state without closing "
+                "and re-opening the session. Returns {session_id, "
+                "current_url, text, title, source_size_bytes}. Cookies and "
+                "localStorage persist across the call (the session's "
+                "identity is unchanged). The rendered HTML byte size is "
+                "capped at max_response_bytes; exceeding the cap raises "
+                "INVALID_ARGUMENTS. Unknown session_id returns "
+                "SENSE_UNAVAILABLE; browser failure returns "
+                "EXTERNAL_APP_UNAVAILABLE. ~10-50x cheaper than "
+                "leid.render_url because no browser cold start is needed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.session_screenshot  (v0.8.6 Innan Hurðar extension — paired)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.session_screenshot",
+            "description": (
+                "Capture a base64-encoded PNG of the current page of an "
+                "open session. The in-session counterpart of "
+                "leid.screenshot — same Playwright primitive, but operates "
+                "on the live session page instead of launching a fresh "
+                "browser. Use this after a leid.click, leid.type, or "
+                "leid.navigate has changed the page and you want to see "
+                "what it looks like now. Returns {session_id, current_url, "
+                "image_base64, image_format, size_bytes, full_page}. "
+                "browser_screenshot_full_page config controls whether the "
+                "full scrollable page or only the viewport is captured. "
+                "Raw PNG byte size is capped at max_response_bytes (BEFORE "
+                "base64 encoding); exceeding the cap raises "
+                "INVALID_ARGUMENTS. Unknown session_id returns "
+                "SENSE_UNAVAILABLE; browser failure returns "
+                "EXTERNAL_APP_UNAVAILABLE. ~10x cheaper than "
+                "leid.screenshot because no browser cold start is needed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -683,7 +771,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 14 OpenAI tool schemas for the Leið sense.
+"""The 16 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -716,4 +804,8 @@ Tool name added at v0.8.4 (LOCKED):
 Tool names added at v0.8.5 (LOCKED, paired):
     leid.go_back
     leid.go_forward
+
+Tool names added at v0.8.6 (LOCKED, paired):
+    leid.session_render
+    leid.session_screenshot
 """

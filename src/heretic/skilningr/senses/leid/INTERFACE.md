@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.5 history nav extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-11 (v0.8.6 mid-session re-extract pair — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -89,6 +89,8 @@ for the v0.8.0 browser-mode contract.
 | `leid.press`           | Send a keyboard key (Enter, Tab, Escape, modifier combos) at page-level focus | `session_id`, `key` (both strings) | Playwright (Chromium) | v0.8.4 |
 | `leid.go_back`         | Step backward in the session's browser history; `moved: false` if at start | `session_id` (string) | Playwright (Chromium) | v0.8.5 |
 | `leid.go_forward`      | Step forward in the session's browser history; `moved: false` if at end | `session_id` (string) | Playwright (Chromium) | v0.8.5 |
+| `leid.session_render`  | Re-extract rendered text + title from the current session page (mid-session counterpart of leid.render_url) | `session_id` (string) | Playwright (Chromium) | v0.8.6 |
+| `leid.session_screenshot` | Capture base64 PNG of the current session page (mid-session counterpart of leid.screenshot) | `session_id` (string) | Playwright (Chromium) | v0.8.6 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -846,3 +848,93 @@ Same rationale as v0.8.3 query's D-72. History navigation is a probe-and-act pri
 | Multi-step go_back (e.g., go back 3 entries) | v0.8.x — agent-side iteration |
 | History-stack length introspection | v0.8.x — Playwright doesn't easily expose this without page.evaluate (which violates B-10) |
 | Final-URL allowlist re-check after history navigation | v0.8.x — pre-existing concern across all browser tools (D-92) |
+
+### 12.12 Mid-session re-extract pair (v0.8.6 — paired tools, unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.6.** Adds `leid.session_render` and
+> `leid.session_screenshot` as a paired bundle — the in-session
+> counterparts of v0.8.0's `leid.render_url` and v0.8.1's
+> `leid.screenshot`. Same primitives (`page.content()` /
+> `page.screenshot()`); same size-cap discipline (B-6 inherited /
+> B-11 inherited); same M-1 closure pattern. Applied to a live
+> session page rather than a freshly-launched one. **No new error
+> classes** (D-103). **No new config fields** (D-102 — reuses
+> max_response_bytes, browser_screenshot_full_page).
+
+**New tools (paired):**
+- `leid.session_render(session_id)` → `{session_id, current_url, text, title, source_size_bytes}`
+- `leid.session_screenshot(session_id)` → `{session_id, current_url, image_base64, image_format, size_bytes, full_page}`
+
+**New B-Invariant (covers both tools):**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-24 | `session_render()` and `session_screenshot()` enforce the same session/timeout discipline as the rest of Innan Hurðar interactive tools: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; the underlying Playwright primitive (`page.content()` for session_render; `page.screenshot()` for session_screenshot) is wrapped with `try/except (PlaywrightError, PlaywrightTimeoutError) → LeidConnectionError` (D-100 — M-1 closure inheritance); the existing size caps from B-6 (rendered HTML byte size) and B-11 (raw PNG bytes before base64) apply unchanged; on success, `session.last_activity_at` is updated. |
+
+**Implementation primitives:**
+- `session_render`: `await session.page.content()` then `_extract_text_from_html(html)` (the same helper used by v0.8.0's `extract_text` and `render_url`).
+- `session_screenshot`: `await session.page.screenshot(full_page=config.browser_screenshot_full_page, type="png")`, then `base64.b64encode(png_bytes).decode("ascii")`.
+
+Both reuse the established Playwright primitives and helpers. No new helpers introduced.
+
+**Success response shapes:**
+
+`leid.session_render`:
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "current_url": "https://example.com/dashboard",
+  "text": "Welcome back. Your last login was at 14:32.",
+  "title": "Dashboard",
+  "source_size_bytes": 24576
+}
+```
+
+`leid.session_screenshot`:
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "current_url": "https://example.com/dashboard",
+  "image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "image_format": "png",
+  "size_bytes": 45678,
+  "full_page": true
+}
+```
+
+`current_url` is captured at entry — reflects whatever page the session is on after any prior click / type / press / navigate / history-step. There is no separate `url` and `final_url` because, unlike `render_url` and `screenshot`, no input URL is supplied — the agent is asking about the current state, not about a navigation.
+
+**Why these tools are needed (use cases):**
+- After `leid.click(session, "button.submit")` triggers a single-page-app state change, `leid.session_render(session)` returns the post-click text without close+re-open
+- After `leid.type` + `leid.press("Enter")` submits a search, `leid.session_screenshot(session)` captures the rendered results
+- Periodic mid-flow re-extraction for "verify state after each step" agent loops
+- SPAs where URL doesn't change but DOM does
+
+**Cost vs stateless siblings:**
+
+| Tool | Cost | Lifecycle |
+|---|---|---|
+| `leid.render_url` (v0.8.0) | ~500-3000 ms | launch+goto+content+teardown |
+| `leid.session_render` (v0.8.6) | ~20-100 ms | content only (reuses session) |
+| `leid.screenshot` (v0.8.1) | ~500-3000 ms | launch+goto+screenshot+teardown |
+| `leid.session_screenshot` (v0.8.6) | ~50-300 ms | screenshot only (reuses session) |
+
+Mid-session tools are 10-50x cheaper than their stateless siblings because they skip browser cold-start.
+
+**Failure-mode reuse:** No new error classes.
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| Browser failure (page closed, process disconnect) | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+| Rendered HTML > max_response_bytes (B-6 inherited) | `LeidResponseTooLargeError` | `INVALID_ARGUMENTS`     |
+| Raw PNG bytes > max_response_bytes (B-11 inherited) | `LeidResponseTooLargeError` | `INVALID_ARGUMENTS`    |
+
+**Out of scope at v0.8.6:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Element-scoped screenshot (`locator.screenshot`) | v0.8.x — distinct primitive |
+| Inner HTML re-extraction (raw HTML, not stripped to text) | v0.8.x |
+| Mid-session JPEG/WebP screenshot output | v0.8.x — PNG-only matches v0.8.1's posture |
+| Mid-session viewport reconfiguration | v0.8.x — inherits the session's launch-time viewport |
