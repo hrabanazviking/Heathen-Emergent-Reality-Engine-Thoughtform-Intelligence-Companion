@@ -9,6 +9,16 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — sixth slice within the umbrella.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Fourteenth milestone in the autonomous arc that began 2026-05-09.
+>
+> **STATUS — 2026-05-10:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — third consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `99efbc3` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 193 + 2 skip (was 179 + 2 — `+14`). Full suite **1514 + 9 skip** (was 1500 + 9). Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Third consecutive zero-findings audit. See `docs/audit/AUDIT_v0.8.3_QUERY.md`.
+>
+> **DEVLOG:** Entry 28 — `docs/DEVLOG.md`.
 
 ---
 
@@ -109,18 +119,18 @@ Extend `tests/test_leid_playwright_client.py` with `TestQuery` class.
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `query()` method on `PlaywrightLeidClient`
-- [ ] `leid.query` registered in `LEID_TOOL_DEFINITIONS` with `attribute` as optional parameter
-- [ ] `LeidSense._route` dispatches `leid.query`
-- [ ] No new error classes (D-79)
-- [ ] B-21 added to INTERFACE.md §12.9
-- [ ] All 179 existing leid tests pass unchanged
-- [ ] At least 10 new query tests passing
-- [ ] 1 new dispatch test passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.7 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.3_QUERY.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 28 written
-- [ ] All commits pushed to `development`
+- [x] `query()` method on `PlaywrightLeidClient` — `5b34e79`
+- [x] `leid.query` registered in `LEID_TOOL_DEFINITIONS` with `attribute` as optional parameter — `875aea9`
+- [x] `LeidSense._route` dispatches `leid.query` — `5b34e79`
+- [x] No new error classes (D-79) — confirmed
+- [x] B-21 added to INTERFACE.md §12.9 — `875aea9`
+- [x] All 179 existing leid tests pass unchanged — verified at `5b34e79`
+- [x] 12 new query tests passing (target was 10) — `5b34e79`
+- [x] 2 new dispatch tests passing (default + explicit attribute) — `5b34e79`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.7 exists — `af0dcaa`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `3255f31`
+- [x] `docs/audit/AUDIT_v0.8.3_QUERY.md` PASSES SCRUTINY (0/0/0/0) — `99efbc3`
+- [x] DEVLOG entry 28 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes

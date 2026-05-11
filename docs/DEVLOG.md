@@ -4522,3 +4522,116 @@ The autonomous arc continues into its thirteenth sealed milestone. Five slices i
 
 *Entry 27 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
 *The body now walks within the building. Five unnamed extensions, two consecutive zero-findings audits, the suite crosses 1500 tests, the LeidClient stands byte-untouched for six milestones running. Thirteenth milestone in the autonomous arc; the Innan Hurðar disposition is complete for canonical agent flows. The session is kept.*
+
+---
+
+## Entry 28 — 2026-05-10 — leid.query: the body's first eye inside the door (v0.8.3)
+
+**Milestone:** v0.8.3 — `leid.query` (sixth unnamed extension within v0.8.2 *Innan Hurðar* disposition)
+**Branch:** `development`
+**Session start HEAD:** `b1ae5d1` (post-v0.8.2.2 Scribe seal)
+**Session close HEAD:** `99efbc3` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — FOURTEENTH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — third consecutive)
+
+### What was added
+
+The body's first eye inside the door. Until now every Innan Hurðar tool was a HAND — pressing, writing, walking, opening, closing. The body could change what was in front of it; it could not, in any precise way, REPORT BACK what it saw. v0.8.3 adds `leid.query(session_id, selector, attribute="")` — a CSS selector + optional attribute name returns the text content (or attribute value) of the first matching element, plus the total count of matches.
+
+**The first deliberate error-semantic divergence in the v0.8 umbrella.** Where click and type and navigate REFUSE LOUDLY when the selector matches nothing (because mutating actions must succeed), `leid.query` returns honestly: `{found: false, count: 0, value: null}`. The body that LOOKS does not need to fail when there is nothing to look at — "I checked, and the thing is not there" is a faithful answer to a faithful question. Read tools must support "looking to see if X exists" without forcing the agent to wrap the success case in try/except.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `2af243b` | Runa | TASK_HERETIC_v0.8.3_QUERY.md |
+| 1 | `3255f31` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph (no new section) |
+| 2 | `af0dcaa` | Cartographer | DATA_FLOW.md §4.12.2.7 — query flow + B-21 + the divergence documented |
+| 3 | `875aea9` | Architect | INTERFACE.md §12.9 + B-21 + leid.query tool def with optional attribute |
+| 4 | `5b34e79` | Forge | query() method + sense routing + 12 TestQuery + 2 dispatch |
+| 5 | `99efbc3` | Auditor | AUDIT_v0.8.3_QUERY.md — **PASSES SCRUTINY (0/0/0/0)** — THIRD CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 28 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-10 (after v0.8.3)
+
+| Surface | Before v0.8.3 | After v0.8.3 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 45 | 47 | **+2** (2 dispatch — one default-attribute, one explicit-attribute) |
+| `tests/test_leid_playwright_client.py` | 85 + 2 skip | 97 + 2 skip | **+12** (TestQuery class) |
+| **Leid scope total** | 179 + 2 skip | 193 + 2 skip | **+14** |
+| **Full suite** | 1500 + 9 skip | 1514 + 9 skip | **+14** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Third consecutive zero-findings audit** in the v0.8 umbrella (after v0.8.2.1, v0.8.2.2). The deliberate divergence (D-72 / B-21 — read tools have not-found semantics that DIFFER from mutating tools) was introduced with full documentation in the contract, made structurally explicit in the implementation (early return at `count == 0`, before any extraction call is even attempted), and explicitly tested via `test_query_returns_not_found_when_no_match` which asserts BOTH no-exception AND no-extraction-call.
+
+### What this milestone teaches
+
+**Read and write are not symmetrical.** The first six v0.8 slices all had matched error patterns: a selector that didn't match was always an error, a network failure was always EXTERNAL_APP_UNAVAILABLE, etc. v0.8.3 is the first slice where the symmetry breaks deliberately: read-only tools have a fundamentally different relationship to "the thing I asked about isn't there." For mutating tools, that's failure ("I tried to click but couldn't"). For read tools, that's INFORMATION ("I looked, and it's not there"). The agent's typical use of `query(".error-banner")` is precisely to learn whether the error banner is present — forcing exception handling on the success case ("no error present") would invert the semantics. The Forge implemented this divergence cleanly via early-return; the Auditor verified it explicitly.
+
+**Three-outcome design needs three distinguishable response shapes.** The query tool has THREE meaningful outcomes the agent might encounter: (a) no element matched, (b) element matched and value extracted, (c) element matched but the requested attribute is absent on it. Each outcome has a distinct response shape: (a) `{found: false, count: 0, value: null}`; (b) `{found: true, count: >=1, value: "..."}`; (c) `{found: true, count: >=1, value: null}`. The agent can write `if not result["found"]:` for (a) and `if result["value"] is None:` for (c). The Auditor flagged one minor outcome-shape collision (an empty element with `text_content=None` looks like (c) when querying for text) and judged it acceptable — the agent's natural intent for default-attribute query is "what does this element say?" and the answer "this element has no text" is honestly conveyed by `value: null`.
+
+**The Skald's pen continues to know when to rest.** Six unnamed extensions in a row inside the v0.8 umbrella now (counting from v0.8.1). The umbrella codename *Opið Vef* still does the work; the named-within-umbrella codename *Innan Hurðar* still does its work; nothing else has needed naming because no new dispositions have appeared. v0.8.3 added one paragraph to OPID_VEF.md §IX continuation. Volume of writing tracks novelty of disposition, not novelty of tool.
+
+**The Innan Hurðar interactive faculty is now complete for canonical agent loops.** A complete login → check-for-error → fill-form → submit → verify-success flow can be expressed in 6-8 tool calls. The body has all four fundamental affordances inside an open session: navigate (move), click + type (mutate), query (read). Subsequent v0.8.x slices will be refinements (special keys, browser history, JPEG screenshots, configurable viewport, mid-session screenshots/renders), not foundational additions.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.3_QUERY.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the body looks but does not touch" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.7 added — query flow + B-21 + the divergence documented |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 row + new §12.9 contract (with the divergence rationale) |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.query tool definition appended (with optional `attribute` param); module docstring updated |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `query()` method between `navigate()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds `leid.query` branch (handles optional attribute via `args.get("attribute", "")`) |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the SEVENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-79 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-75 reuses click timeout — no new config fields) |
+| `tests/test_leid_playwright_client.py` | Helper extended (count, text_content, get_attribute mocks); new TestQuery class with 12 tests |
+| `tests/test_leid_sense.py` | Tool-count check 10 → 11; tool-names check; 2 dispatch tests (default-attr + explicit-attr) |
+| `docs/audit/AUDIT_v0.8.3_QUERY.md` | New — verdict PASSES SCRUTINY (zero findings, third consecutive) |
+| `docs/DEVLOG.md` | This entry (28) |
+
+### State of the body — 2026-05-10 (after v0.8.3)
+
+The Leið faculty now has ELEVEN tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (7):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **11 — 2 httpx + 2 stateless browser + 7 stateful browser (open + navigate + status + click + type + query + close)** | **v0.8.3** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **six unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3). The Innan Hurðar disposition is now feature-complete for canonical mutate-and-read agent loops. The body has all four affordances inside an open session: walk, mutate (×2), look.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.3 leid.query~~ | **CLOSED — sealed at `99efbc3`** |
+| **v0.8.x `leid.press`** (special keys: Enter, Tab, Escape) | candidate — likely small focused slice |
+| v0.8.x `leid.go_back` / `leid.go_forward` (browser history) | candidate — small |
+| v0.8.x `leid.session_render` (re-extract HTML in session) | candidate |
+| v0.8.x `leid.session_screenshot` (mid-session screenshot) | candidate |
+| v0.8.x JPEG/WebP screenshot output | candidate |
+| v0.8.x configurable viewport size | candidate |
+| v0.8.x multi-element query (return list of matches) | candidate — natural follow-up to v0.8.3 |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its FOURTEENTH sealed milestone. Six slices into v0.8 *Opið Vef*; the umbrella is now feature-complete for canonical mutate-and-read agent flows. Subsequent v0.8.x slices are refinements rather than foundational additions.
+
+---
+
+*Entry 28 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
+*The body now has its first eye inside the door. Six unnamed extensions, three consecutive zero-findings audits, the Innan Hurðar interactive faculty is complete for canonical mutate-and-read flows. Fourteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for seven milestones running. The session is kept.*
