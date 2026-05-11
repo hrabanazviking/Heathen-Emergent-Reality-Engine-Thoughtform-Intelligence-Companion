@@ -7664,6 +7664,122 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.14 Leið final-URL allowlist re-check (Innan Hurðar extension — v0.8.10)
+
+> **Added 2026-05-11 v0.8.10 (Védis Eikleið).** Thirteenth unnamed Innan
+> Hurðar extension. **Closes the deferred sandbox gap that has traveled
+> in every browser-tool audit since v0.6.2.** Adds a post-navigation
+> URL re-check at all 7 navigation-completing call sites. Stateful
+> violations close the session before raising — the operator's
+> allowlist is unconditional. One new B-invariant (B-28); no new error
+> classes; no new config fields; no new tools.
+
+```
+  LEIÐ FINAL-URL ALLOWLIST RE-CHECK FLOW (v0.8.10)
+
+  This is not a new tool — it is a discipline added to every browser
+  tool that completes a navigation. Single shared private helper
+  `_check_final_url_allowed(url)` wraps the existing allowlist +
+  HTTPS-only validation logic for use AFTER navigation.
+
+  PROBLEM IT SOLVES:
+    Pre-v0.8.10, every browser tool validated the INPUT URL before
+    navigation. But page.goto follows server-side redirects and
+    JavaScript-driven client-side navigations automatically; the
+    final URL the page lands on (page.url after the await) could
+    differ from the input URL. The operator's allowlist was applied
+    only to the input — the body could land at a non-allowlisted
+    URL via a redirect chain, and the agent's next call would
+    operate on that page.
+
+  SEVEN MODIFICATION SITES:
+
+  Site 1 — render_url (stateless)
+    after page.goto:
+      check_final_url_allowed(page.url)
+        ↓ if not allowed: raise UrlNotAllowedError (cleanup auto via finally)
+
+  Site 2 — screenshot (stateless)
+    Same shape as render_url.
+
+  Site 3 — open_session (stateful, but session not yet registered)
+    after page.goto:
+      check_final_url_allowed(page.url)
+        ↓ if not allowed: raise UrlNotAllowedError
+        ↓ The was_registered=False branch tears down the launched
+          (pw, browser, context) quartet. Session is never registered.
+
+  Site 4 — navigate (stateful, session already registered)
+    after page.goto:
+      check_final_url_allowed(page.url)
+        ↓ if not allowed:
+          await manager.close_session(session_id)   ── D-139
+          raise UrlNotAllowedError(...)
+
+  Site 5 — go_back (via _go_history) (stateful)
+    after page.go_back:
+      check_final_url_allowed(page.url)
+        ↓ if not allowed: close session, raise
+
+  Site 6 — go_forward (via _go_history) (stateful)
+    Same as go_back.
+
+  Site 7 — reload (stateful)
+    after page.reload:
+      check_final_url_allowed(page.url)
+        ↓ if not allowed: close session, raise
+
+  WHY CLOSE THE SESSION ON STATEFUL VIOLATION (D-139):
+    The session has landed on a not-allowlisted URL. The agent's next
+    call (status, click, query, etc.) would operate on that page. The
+    only safe response is to terminate the session.
+    
+    Alternative considered: leave the session open and rely on the agent
+    to call close_session. Rejected — the session is in a non-allowed
+    state for as long as it lives; security must be enforced
+    structurally, not advisedly.
+    
+    Alternative considered: navigate the session BACK to the previous
+    URL. Rejected — the previous URL might also have led here through
+    redirect; complex to reason about; brittle.
+    
+    Chosen: close. Explicit, predictable, secure.
+
+  OPERATOR'S ALLOWLIST IS UNCONDITIONAL:
+    Pre-flight check + post-navigation check together mean the body
+    NEVER operates on a URL the operator has not allowlisted. The
+    operator's allowlist is no longer pre-flight only; it is the
+    unconditional perimeter of where the body may operate.
+
+  HAPPY PATH (no behavior change):
+    When the final URL IS allowlisted, the post-check is invisible —
+    a few microseconds of validation work, no behavior difference.
+    The vast majority of operator flows see no change.
+
+  CHECK PRIMITIVE:
+    _check_final_url_allowed(url) reuses sandbox.url_matches_allowlist
+    + the existing HTTPS-only policy logic (from _validate_url). Same
+    rules pre-flight and post-navigation; single source of truth.
+
+  ERROR MESSAGE:
+    Names both the INPUT URL (what the agent asked for) and the FINAL
+    URL (where the page actually landed). Notes "session has been
+    closed" for stateful violations. Diagnostic without exposing
+    intermediate redirects (which Playwright doesn't expose to us
+    without explicit request hooks).
+
+  CLOSED CONCERN:
+    The deferred "final-URL allowlist re-check after redirect — pre-
+    existing concern across all browser tools" noted in every
+    browser-tool audit since v0.6.2 (and explicitly carried forward
+    in v0.8.5 / v0.8.7 / v0.8.6 audits) is now CLOSED.
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
