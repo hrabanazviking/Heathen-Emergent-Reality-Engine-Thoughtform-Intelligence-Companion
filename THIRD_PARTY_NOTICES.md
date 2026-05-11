@@ -130,6 +130,25 @@ No third-party runtime dependencies. Sjón uses OS native screen capture APIs (D
 
 ---
 
+## Layer L5.3 — Leið (HTTP fetch + Browser sub-faculty)
+
+---
+
+### Playwright (Microsoft)
+
+**Name:** Playwright (Python bindings + bundled Chromium runtime)
+**Repository:** https://github.com/microsoft/playwright-python
+**PyPI package:** `playwright`
+**License:** Apache-2.0
+**License URL:** https://github.com/microsoft/playwright-python/blob/main/LICENSE
+**Attribution requirement:** Apache-2.0: preserve license, copyright notices, and NOTICE file if present. Mark modified files if any. HERETIC vendors no Playwright source — it is a runtime pip dependency only.
+**Usage:** L5.3 Leið — *Opið Vef* sub-faculty (v0.8.0+). `PlaywrightLeidClient.render_url()` launches a headless Chromium browser, navigates to the operator-allowlisted URL, allows the page's own JavaScript to run, then extracts the rendered text and title from the post-JS DOM. Required only for the `leid.render_url` tool; the existing httpx tools (`leid.fetch_url`, `leid.extract_text`) work without Playwright.
+**Vendor status:** External optional runtime dependency. Activated via `pip install heretic[browser]`. The Chromium browser binary itself is downloaded by a separate operator step (`playwright install chromium`) — Playwright distributes the browser as a runtime artifact, NOT as a wheel; it is therefore not bundled in HERETIC's distribution. Chromium is BSD-style licensed with LGPL-licensed components (FFmpeg via libav); HERETIC neither links nor distributes Chromium and is not subject to its license terms.
+**License verification status:** **Verified Apache-2.0 2026-05-10** by Rúnhild Svartdóttir (Architect) via Playwright's GitHub LICENSE file (Microsoft Open Source, Apache License 2.0). Roadmap §v0.8 Q13 ("Playwright vs Puppeteer") resolved in favour of Playwright on grounds of: (a) broader browser support, (b) better async architecture, (c) Apache-2.0 vs Apache-2.0 (license parity).
+**Plunder map:** Not required — Playwright is used as an unmodified runtime library. No Playwright source is vendored or adapted; only its public Python API is called.
+
+---
+
 ## Layer L5.5 — Smiðja (Blender Sense)
 
 ---

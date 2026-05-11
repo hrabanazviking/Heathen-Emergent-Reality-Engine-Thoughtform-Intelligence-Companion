@@ -93,6 +93,23 @@ mcp = [
     "uvicorn[standard]>=0.27",
 ]
 
+# Browser sub-faculty (Leið Opið Vef — v0.8.0+) — install when the agent must
+# fetch JavaScript-rendered pages via headless Chromium.
+# playwright is NOT a core dep: ``pip install heretic`` works without a browser.
+# ``pip install heretic[browser]`` installs the Python package; the operator
+# must additionally run ``playwright install chromium`` to download the runtime
+# Chromium binary (this cannot be done by pip — Playwright distributes the
+# browser as a runtime artifact, not as a wheel).
+# ``pip install heretic[browser]`` activates:
+#   - PlaywrightLeidClient   (src/heretic/skilningr/senses/leid/playwright_client.py)
+#   - leid.render_url        (registered tool; httpx tools work without [browser])
+# Without [browser], leid.render_url returns EXTERNAL_APP_UNAVAILABLE; the httpx
+# tools (leid.fetch_url, leid.extract_text) continue to dispatch unaffected.
+# Apache-2.0 license (Microsoft).
+browser = [
+    "playwright>=1.40",
+]
+
 [project.scripts]
 heretic = "heretic.cli:main"
 
@@ -107,6 +124,11 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 # Show short traceback for skip-marked tests during skeleton phase.
 addopts = "--tb=short"
+markers = [
+    "requires_blender: requires a real Blender install (skipped by default in CI)",
+    "requires_vroid_host: requires a Brúarhönd daemon host (skipped by default in CI)",
+    "requires_playwright: requires playwright + chromium installed (skipped by default in CI)",
+]
 
 [tool.ruff]
 line-length = 100

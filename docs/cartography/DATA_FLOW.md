@@ -6153,6 +6153,1017 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.2 Leið browser-render fetch (Opið Vef — v0.8.0)
+
+> **Added 2026-05-10 v0.8.0 (Védis Eikleið).** *Opið Vef* — the open web. The body's
+> path outward gains a second pair of eyes: a headless Chromium browser via Playwright
+> that runs the page's scripts before reading the rendered DOM. Additive over §4.12.2 /
+> §4.12.2.1 — the v0.7.1 streaming-httpx flow is unchanged and untouched. The new
+> sub-faculty answers `leid.render_url`; the existing `leid.fetch_url` and
+> `leid.extract_text` still answer through the v0.7.1 streaming path.
+
+```
+  OPIÐ VEF — BROWSER-RENDER FETCH FLOW (v0.8.0)
+
+  Entry point: agent calls leid.render_url(url) via OpenAI tool_call.
+
+  Stage 1 — Sense routing (LeidSense._route)
+    tool_name == "leid.render_url"
+        → dispatched to PlaywrightLeidClient.render_url(url)
+        (NOT to LeidClient.fetch_url; the v0.7.1 streaming path is untouched)
+
+  Stage 2 — URL validation (PlaywrightLeidClient._validate_url)
+    sandbox.url_matches_allowlist(url, config.url_allowlist_patterns)
+    HTTPS-only check (allow_http: false rejects http://)
+    On rejection → UrlNotAllowedError raised; NO browser process spawned.
+    This is invariant B-1 — the gate runs before any Playwright import or launch.
+
+  Stage 3 — Playwright availability check
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        raise LeidPlaywrightUnavailableError("playwright not installed; ...")
+
+    Failure here surfaces as SENSE_CONTRACTS code EXTERNAL_APP_UNAVAILABLE
+    to the agent, but ONLY for leid.render_url calls. The httpx tools
+    (fetch_url, extract_text) continue to dispatch normally and require
+    no browser dep.
+
+  Stage 4 — Per-call browser lifecycle (D-5: launch-per-call)
+    pw = await async_playwright().start()
+    try:
+        try:
+            browser = await pw.chromium.launch(headless=True)   # B-4: always headless
+        except Exception as exc:
+            raise LeidPlaywrightUnavailableError(
+                "chromium binary missing; run `playwright install chromium`"
+            ) from exc
+        try:
+            context = await browser.new_context(
+                user_agent=config.user_agent,                  # B-8
+            )
+            try:
+                page = await context.new_page()
+                response = await page.goto(
+                    url,
+                    wait_until=config.browser_load_state,      # default "domcontentloaded" (B-5)
+                    timeout=config.browser_navigation_timeout_seconds * 1000,
+                )
+                # Stage 5 — Status check
+                if response is not None and response.status >= 400:
+                    raise LeidHttpError(
+                        f"HTTP {response.status} from {url}"
+                    )
+                # Stage 6 — Pre-cap on rendered HTML size
+                html = await page.content()
+                rendered_size = len(html.encode("utf-8"))
+                if rendered_size > config.max_response_bytes:
+                    raise LeidResponseTooLargeError(
+                        f"Rendered HTML from {url} is {rendered_size} bytes, "
+                        f"exceeds max_response_bytes={config.max_response_bytes}"
+                    )
+                # Stage 7 — Text + title extraction (re-uses stdlib HTMLParser)
+                text, title = _extract_text_from_html(html)
+                final_url = page.url
+                source_size = rendered_size
+            finally:
+                await context.close()                          # B-3: cookies discarded
+        finally:
+            await browser.close()
+    finally:
+        await pw.stop()                                        # B-7: full cleanup
+
+    return {
+        "url": validated_url,
+        "final_url": final_url,
+        "text": text,
+        "title": title,
+        "source_size_bytes": source_size,
+    }
+
+  Failure mapping:
+    UrlNotAllowedError              → PERMISSION_DENIED
+    LeidPlaywrightUnavailableError  → EXTERNAL_APP_UNAVAILABLE (NEW v0.8.0)
+    LeidTimeoutError                → SENSE_TIMEOUT  (from page.goto TimeoutError)
+    LeidConnectionError             → EXTERNAL_APP_UNAVAILABLE (network)
+    LeidHttpError                   → SENSE_INTERNAL_ERROR (HTTP 4xx/5xx)
+    LeidResponseTooLargeError       → INVALID_ARGUMENTS (rendered HTML > cap)
+
+  Memory bound at moment of pre-cap raise:
+    page.content() materialises the rendered DOM as a single string. If that
+    string's UTF-8 encoded length exceeds max_response_bytes, the raise occurs
+    AFTER the string has been built — meaning the worst-case memory at the
+    moment of refusal is approximately:
+        len(html.encode("utf-8")) + Python string overhead
+    This is intentional: Playwright does not expose a streaming DOM read.
+    Operators who need true streaming must use leid.fetch_url instead, which
+    has byte-level abort via aiter_bytes (§4.12.2.1).
+
+    The cap is NOT a memory bound for the rendered path; it is a token-budget
+    bound — it prevents the agent from receiving an enormous text payload,
+    not from the browser materialising a moderately-large DOM. This is a
+    documented trade-off, not a defect.
+
+  State persistence between calls:
+    NONE. Each call:
+      - launches its own pw runtime
+      - launches its own browser
+      - opens its own browser context (fresh cookie jar, fresh localStorage)
+      - opens its own page
+      - tears all four down before returning
+
+    No state of any kind crosses call boundaries. This is invariant B-3.
+
+  Cost vs the httpx path:
+    - httpx fetch_url:    ~50–500 ms (single HTTPS round trip)
+    - render_url:         ~500–3000 ms (browser cold start + page render)
+
+    The agent should prefer fetch_url / extract_text for static pages and
+    use render_url only when the page is known to be a JS-rendered SPA.
+    HERETIC does not auto-detect; the agent chooses per call.
+
+  Invariants honoured:
+    - L-1 / B-1: allowlist gate runs before any Playwright operation
+    - L-2:        empty allowlist still means no URL fetchable via render_url
+    - L-3:        sense disabled by default (config.enabled: false)
+    - L-4 / B-9:  HTTPS-only by default; http:// rejected unless allow_http: true
+    - L-5 / B-3:  no cookies persist (fresh context per call)
+    - L-6:        EXPLICITLY OVERRIDDEN — render_url DOES execute JavaScript;
+                  this is the entire point of the new sub-faculty. The page's
+                  scripts run during render. HERETIC injects no script of its
+                  own (B-10) but allows the page's scripts to run on the page.
+    - L-7:        size cap honoured at the rendered-HTML pre-cap (B-6)
+    - L-8:        redirects followed naturally by Playwright; final_url returned
+    - L-9:        wildcard "*" warning still applies (cross-tool)
+
+  License posture:
+    - Playwright (Microsoft):    Apache-2.0           [permissive]
+    - Chromium binary:           BSD-style + LGPL parts; downloaded as a
+                                 runtime artifact via `playwright install
+                                 chromium`, not bundled in HERETIC's wheel.
+    THIRD_PARTY_NOTICES.md updated at v0.8.0 to reflect the Playwright
+    dependency under [browser] extra.
+```
+
+---
+
+#### 4.12.2.3 Leið browser-screenshot fetch (Mynd af Vegferð — v0.8.1)
+
+> **Added 2026-05-10 v0.8.1 (Védis Eikleið).** *Mynd af Vegferð* — image of the
+> journey. Adds `leid.screenshot` as the second tool on the Opið Vef sub-faculty.
+> Same launch-per-call browser lifecycle as `render_url` (§4.12.2.2); same
+> B-1..B-10 invariants. One new invariant: **B-11** — the size cap applies to
+> the **raw PNG bytes BEFORE base64 encoding**. The `render_url` flow at §4.12.2.2
+> is byte-untouched at v0.8.1.
+
+```
+  MYND AF VEGFERÐ — BROWSER-SCREENSHOT FETCH FLOW (v0.8.1)
+
+  Entry point: agent calls leid.screenshot(url) via OpenAI tool_call.
+
+  Stage 1 — Sense routing (LeidSense._route)
+    tool_name == "leid.screenshot"
+        → dispatched to PlaywrightLeidClient.screenshot(url)
+        (NOT to LeidClient; NOT to PlaywrightLeidClient.render_url)
+
+  Stage 2 — URL validation (PlaywrightLeidClient._validate_url)
+    Same gate as render_url: allowlist + HTTPS-only.
+    On rejection → UrlNotAllowedError; NO browser process spawned. (B-1)
+
+  Stage 3 — Playwright availability check
+    Same as render_url. ImportError or chromium.launch failure →
+    LeidPlaywrightUnavailableError → EXTERNAL_APP_UNAVAILABLE. (B-2)
+
+  Stage 4 — Per-call browser lifecycle (D-22, identical to render_url)
+    pw      = await async_playwright().start()
+    browser = await pw.chromium.launch(headless=True)        # B-4
+    context = await browser.new_context(user_agent=...)      # B-3, B-8
+    page    = await context.new_page()
+    response = await page.goto(
+        url,
+        wait_until=config.browser_load_state,                # B-5
+        timeout=config.browser_navigation_timeout_seconds * 1000,
+    )
+
+    Failure modes during navigation: identical mapping to render_url
+    (TimeoutError → LeidTimeoutError; PlaywrightError → LeidConnectionError;
+    response.status >= 400 → LeidHttpError).
+
+  Stage 5 — Screenshot capture
+    png_bytes = await page.screenshot(
+        full_page=config.browser_screenshot_full_page,       # D-20
+        type="png",                                          # D-16
+    )
+    # png_bytes is `bytes`, the raw PNG file content.
+
+  Stage 6 — Pre-cap on raw PNG byte size (B-11, NEW)
+    if len(png_bytes) > config.max_response_bytes:
+        raise LeidResponseTooLargeError(...)
+    # Cap is honest about CONTENT size (raw PNG bytes), not transport
+    # size (base64 expands by ~33%). Operators set max_response_bytes to
+    # cap the actual page-content payload.
+
+  Stage 7 — Base64 encoding (D-17)
+    image_base64 = base64.b64encode(png_bytes).decode("ascii")
+    # ASCII-decode is safe because base64 output is by definition ASCII-only.
+
+  Stage 8 — Resource cleanup (B-7, identical to render_url)
+    finally:
+        await context.close()
+        await browser.close()
+        await pw.stop()
+
+    return {
+        "url": validated_url,
+        "final_url": page.url,
+        "image_base64": image_base64,
+        "image_format": "png",
+        "size_bytes": len(png_bytes),
+        "full_page": config.browser_screenshot_full_page,
+    }
+
+  B-11 placement (the new invariant):
+    The cap check happens AFTER page.screenshot() returns the bytes (we
+    cannot ask Playwright to abort mid-encode), but BEFORE the base64
+    encoding step. This means at the moment of the raise, memory holds:
+        - the raw PNG bytes (just received)
+        - no base64 encoding yet allocated
+    The base64 expansion is avoided when the cap fires. This is the
+    same disposition as B-6 for render_url: the body knows what is too
+    heavy before it asks anyone else to carry it.
+
+  Memory bound at moment of B-11 raise:
+    Worst case: len(png_bytes) where png_bytes was just returned by
+    page.screenshot(). Playwright does not stream screenshot output;
+    the entire PNG is materialised before page.screenshot() returns.
+    For an oversized capture this is the same memory-bound trade-off
+    as render_url's content() — operators who need streaming abort for
+    page content use leid.fetch_url; operators using leid.screenshot
+    accept the materialisation cost in exchange for the visual capture
+    capability that no streaming-friendly alternative offers.
+
+  State persistence between calls:
+    NONE. Each call gets its own pw runtime, browser, context, page —
+    same as render_url. B-3 still holds: cookies do not survive the
+    call.
+
+  Cost vs render_url:
+    render_url:    page.goto + page.content (HTML string)
+    screenshot:    page.goto + page.screenshot (PNG bytes)
+    The two costs are similar. The base64 encoding adds O(n) post-
+    processing work but no additional Chromium operation.
+
+  Invariants honoured:
+    - B-1 / B-2 / B-3 / B-4 / B-5 / B-7 / B-8 / B-9 / B-10:
+                  identical to render_url; full inheritance
+    - B-6:        N/A — render_url's HTML cap; screenshot uses B-11 instead
+    - B-11 NEW:   raw PNG bytes <= max_response_bytes (pre-base64)
+
+  License posture:
+    No new dependencies introduced at v0.8.1. base64 is stdlib. The
+    Playwright + Chromium licensing established at v0.8.0 in
+    THIRD_PARTY_NOTICES.md remains the only browser-mode dependency.
+```
+
+---
+
+#### 4.12.2.4 Leið stateful sessions + click (Innan Hurðar — v0.8.2)
+
+> **Added 2026-05-10 v0.8.2 (Védis Eikleið).** *Innan Hurðar* — inside the door.
+> Adds stateful browser sessions: open_session keeps a page alive across multiple
+> tool calls. The agent can then click elements on the live page; eventually it
+> closes the session, releasing all resources. New `BrowserSessionManager` owns
+> the open sessions, enforces concurrency limits, and lazily evicts expired
+> sessions on every call. Adds 7 new B-invariants (B-12..B-18) plus the M-1
+> closure (page.content + page.screenshot exception typing) deferred from v0.8.1.
+
+```
+  INNAN HURÐAR — STATEFUL SESSION + CLICK FLOW (v0.8.2)
+
+  Lifecycle has FOUR distinct phases keyed by the session_id.
+
+  Phase A — open_session(url) → {session_id, final_url, title}
+    LeidSense._route → PlaywrightLeidClient.open_session(url)
+        ↓
+    _validate_url           ── B-12: gate runs BEFORE any browser launch.
+                                Same gate as render_url / screenshot.
+        ↓
+    BrowserSessionManager._evict_expired_sessions()    ── B-15
+        ↓ (lazy eviction)
+    if len(_sessions) >= browser_max_concurrent_sessions:
+        raise LeidSessionLimitError                    ── B-13: explicit refusal,
+                                                          no silent eviction.
+        ↓
+    pw      = await async_playwright().start()
+    browser = await pw.chromium.launch(headless=True)  ── B-4 inherited
+    context = await browser.new_context(user_agent=...)── B-8 inherited
+    page    = await context.new_page()
+    response = await page.goto(url,
+                               wait_until=browser_load_state,
+                               timeout=browser_navigation_timeout_seconds*1000)
+        ↓ (failures here cleanup pw/browser/context, do NOT register session)
+    if response.status >= 400: raise LeidHttpError
+        ↓
+    session = _LeidSession(
+        session_id = "leid-" + uuid4().hex,            ── D-26
+        pw, browser, context, page,
+        created_at = monotonic, last_activity_at = monotonic,
+    )
+    _sessions[session_id] = session                    ── B-14: independent quartet
+        ↓
+    return {session_id, final_url=page.url, title=await page.title()}
+
+  Phase B — session_status(session_id) → metadata (non-mutating in spirit)
+    _evict_expired_sessions()                          ── B-15
+    session = _sessions.get(session_id)
+    if session is None: raise LeidSessionExpiredError  ── B-16
+    session.last_activity_at = monotonic               ── B-17 (status counts as
+                                                          activity)
+    return {
+        state: "alive",
+        url: page.url,
+        title: await page.title(),
+        opened_at: created_at, last_activity_at,
+        age_seconds, idle_seconds,
+    }
+
+  Phase C — click(session_id, selector) → result
+    _evict_expired_sessions()
+    session = _sessions.get(session_id) or raise LeidSessionExpiredError
+        ↓
+    locator = session.page.locator(selector).first     ── D-41: first match
+    try:
+        await locator.click(
+            timeout = browser_click_timeout_seconds * 1000,  ── D-42
+        )
+    except PlaywrightTimeoutError:
+        raise LeidClickElementNotFoundError(           ── D-43: agent-specific
+            f"Selector {selector!r} matched no element after timeout"
+        )
+    except PlaywrightError as exc:
+        raise LeidConnectionError(                     ── D-43: network branch
+            f"Click failed at network layer: {exc}"
+        )
+        ↓
+    session.last_activity_at = monotonic               ── B-17
+    try: title = await session.page.title()            ── D-49: defensive
+    except: title = None
+    return {selector, clicked: true, current_url: page.url, current_title: title}
+
+  Phase D — close_session(session_id) → idempotent
+    session = _sessions.pop(session_id, None)          ── B-18: pop-then-clean
+                                                          (so concurrent
+                                                          eviction cannot
+                                                          double-clean)
+    if session is None:
+        return {session_id, closed: false}             ── B-18 idempotent
+        ↓
+    try: await session.context.close()                 ── B-7-style cleanup
+    except: log warning
+    try: await session.browser.close()
+    except: log warning
+    try: await session.pw.stop()
+    except: log warning
+        ↓
+    return {session_id, closed: true}
+
+  EVICTION (lazy, on every call):
+    For each session in _sessions:
+        idle = now - session.last_activity_at
+        age  = now - session.created_at
+        if idle > browser_session_idle_timeout_seconds:
+            evict (same cleanup as close_session, log WARNING)
+        elif age > browser_session_max_lifetime_seconds:
+            evict
+    A session evicted between the agent's last call and the next one becomes
+    a LeidSessionExpiredError → SENSE_UNAVAILABLE on the next reference.
+
+  M-1 CLOSURE (deferred from AUDIT_v0.8.1 NIT M-1):
+    Three additional Page.* call sites gain explicit exception typing this
+    milestone:
+      render_url:  await page.content()    → wrap with try/except mapping
+                                              PlaywrightError →
+                                              LeidConnectionError
+      screenshot:  await page.screenshot() → same wrap, same mapping
+      click:       await locator.click()   → wrap with try/except mapping
+                                              PlaywrightTimeoutError →
+                                              LeidClickElementNotFoundError;
+                                              other PlaywrightError →
+                                              LeidConnectionError
+    The fourth site (page.goto) was already correctly typed in v0.8.0.
+    All four Page.* network-level failure modes now surface to the agent
+    with the same precision httpx failures already had.
+
+  Cookie state across the lifecycle:
+    Within a single session: cookies persist (that is what a session IS).
+    Across sessions:         cookies do NOT persist. Each new_context is
+                             fresh. close_session discards all session-
+                             local cookies. B-3 holds at the session
+                             boundary, not at the call boundary.
+
+  Resource ownership:
+    Each session owns its OWN (pw, browser, context, page) quartet (B-14).
+    Sessions are independent — closing one does not affect any other.
+    Manager owns the dict; sessions own their resources.
+
+  Concurrency posture:
+    BrowserSessionManager uses asyncio.Lock around the dict mutations
+    (D-35). Concurrent open_session calls are serialised at the cap-check
+    boundary so the cap is honoured exactly. Concurrent calls on different
+    session_ids do NOT serialise (sessions are independent).
+
+  Cost vs the stateless tools:
+    open_session:    same as render_url cold start (~500-3000 ms)
+    session_status:  trivial (~microseconds + page.title() call)
+    click:           varies by element + browser_click_timeout_seconds cap
+    close_session:   ~hundreds of ms (browser teardown is not free)
+
+  License posture:
+    No new dependencies. uuid + asyncio are stdlib. Playwright + Chromium
+    licensing already established at v0.8.0.
+```
+
+---
+
+#### 4.12.2.5 Leið in-session type (Innan Hurðar extension — v0.8.2.1)
+
+> **Added 2026-05-10 v0.8.2.1 (Védis Eikleið).** Unnamed extension of Innan
+> Hurðar — adds `leid.type` as the second half of the interactive gesture
+> begun with click. Mirrors the click flow exactly; uses Playwright's
+> `locator.fill()` (not `type()`, which is keystroke-by-keystroke). One new
+> B-invariant (B-19); one new error class (`LeidTypeElementNotFoundError`);
+> one new tool — same disposition as v0.8.2.
+
+```
+  LEIÐ IN-SESSION TYPE FLOW (v0.8.2.1)
+
+  Entry point: agent calls leid.type(session_id, selector, text).
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.type" → PlaywrightLeidClient.type(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Locate + fill
+    locator = session.page.locator(selector).first    ── D-56 (first match)
+    try:
+        await locator.fill(
+            text,                                     ── the agent's text
+            timeout = browser_click_timeout_seconds * 1000,  ── D-54 (reuses click cap)
+        )
+    except PlaywrightTimeoutError:
+        raise LeidTypeElementNotFoundError(           ── D-55 (selector wrong)
+            f"Selector {selector!r} matched no actionable input "
+            f"in session {session_id!r}"
+        )
+    except PlaywrightError as exc:
+        raise LeidConnectionError(                    ── network/page issue
+            f"type({selector!r}) failed at the browser level: {exc}"
+        )
+
+    Note: Playwright's locator.fill() does:
+      1. wait for actionability checks (visible, enabled, editable)
+      2. focus the element
+      3. clear the existing value (if any)
+      4. set the new value to `text`
+      5. dispatch an `input` event
+    This is the canonical "set this field's value" primitive — what
+    agents almost always want for "type X into Y." Keystroke-by-keystroke
+    simulation (page.type with delay) is a rarely-needed v0.8.x add-on.
+
+  Stage 5 — Activity update (B-17 inherited / B-19)
+    session.mark_activity()
+
+  Stage 6 — Post-fill state read (D-57)
+    current_url = session.page.url
+    try:
+        current_title = await session.page.title()
+    except: current_title = None        ── D-49 (defensive)
+
+    return {
+        "selector": selector,
+        "typed": True,
+        "current_url": current_url,
+        "current_title": current_title,
+    }
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-4 / B-7 / B-8 / B-9 / B-10 — all inherited via the
+                                                shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises LeidSessionExpiredError
+    B-17  — activity update after success
+    B-19  — NEW: type respects same session/cap/timeout discipline as click
+
+  Error code mapping:
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidTypeElementNotFoundError  → INVALID_ARGUMENTS  (NEW)
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+
+  Cost vs click:
+    type:    page.locator + locator.fill (clears + focuses + sets + input event)
+    click:   page.locator + locator.first.click
+    The two are roughly identical in cost. Playwright's actionability checks
+    dominate either way.
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
+#### 4.12.2.6 Leið in-session navigation (Innan Hurðar extension — v0.8.2.2)
+
+> **Added 2026-05-10 v0.8.2.2 (Védis Eikleið).** Unnamed extension of Innan
+> Hurðar — adds `leid.navigate` for in-session URL changes. The session keeps
+> its identity, cookies, and localStorage; only the page's URL changes.
+> Reuses the existing browser quartet (no new launch). One new B-invariant
+> (B-20); no new error classes (reuses LeidTimeoutError / LeidConnectionError
+> / LeidHttpError / LeidSessionExpiredError).
+
+```
+  LEIÐ IN-SESSION NAVIGATE FLOW (v0.8.2.2)
+
+  Entry point: agent calls leid.navigate(session_id, url).
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.navigate" → PlaywrightLeidClient.navigate(...)
+
+  Stage 2 — URL validation FIRST (B-12 / B-20)
+    normalised_url = self._validate_url(url)
+        ↓
+    raises UrlNotAllowedError before session_id is even resolved.
+    Order matters: an invalid URL should fail loudly even if the session
+    is also gone — the operator's allowlist gate is unconditional.
+
+  Stage 3 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 4 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 5 — Capture previous URL (D-64)
+    previous_url = session.page.url
+        ↓
+    Snapshot BEFORE the navigation so we have a coherent record even
+    if the goto succeeds and changes session.page.url.
+
+  Stage 6 — Navigate (D-60, B-5 inherited)
+    try:
+        response = await session.page.goto(
+            normalised_url,
+            wait_until = config.browser_load_state,         ── reused (D-65)
+            timeout    = config.browser_navigation_timeout_seconds * 1000,
+        )
+    except PlaywrightTimeoutError:
+        raise LeidTimeoutError(...)                         ── B-5 inherited
+    except PlaywrightError:
+        raise LeidConnectionError(...)                      ── D-66
+
+  Stage 7 — Status check
+    if response is not None and response.status >= 400:
+        raise LeidHttpError(...)                            ── D-66
+
+  Stage 8 — Activity update (B-17 / B-20)
+    session.mark_activity()
+
+  Stage 9 — Read post-navigate state
+    final_url = session.page.url   (may differ from normalised_url
+                                     if the page client-side-redirected)
+    try: title = await session.page.title()
+    except: title = None                                    ── D-49 defensive
+
+    return {
+        "session_id": session_id,                           ── D-62 unchanged
+        "previous_url": previous_url,                        ── D-64 NEW
+        "final_url": final_url,
+        "title": title,
+    }
+
+  State preservation across navigation (D-63):
+    The session's (pw, browser, context, page) quartet is the SAME
+    quartet before and after navigate. The page's URL changes; the
+    BrowserContext's cookie jar does not. The localStorage scoped to
+    the previous URL's origin is preserved per browser-context rules
+    (cleared if cross-origin, preserved if same-origin — this is
+    Chromium's intrinsic behaviour, not a HERETIC choice).
+
+  Difference from open_session navigation phase:
+    open_session navigation: launch quartet → goto → register
+                             (failure cleans up the launched quartet)
+    navigate:                lookup session → goto on existing page
+                             (failure does NOT close the session — it
+                              stays open with whatever URL it had,
+                              ready for a retry or a different navigate)
+
+    A navigation failure leaves the session in a usable state: the
+    session_id remains valid; subsequent calls (status, click, type,
+    or another navigate) work against whatever the page now shows.
+    This is intentional — agents should not lose their entire session
+    state because of a single failed navigation.
+
+  Inheritance from prior invariants:
+    B-1 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-12  — URL gate runs FIRST
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises
+    B-17  — activity update after success
+    B-20  — NEW: navigate respects the same gate-then-resolve discipline
+
+  Error code mapping:
+    UrlNotAllowedError            → PERMISSION_DENIED
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidTimeoutError              → SENSE_TIMEOUT
+    LeidHttpError                 → SENSE_INTERNAL_ERROR
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+
+  Cost vs the other in-session tools:
+    open_session:       ~500-3000 ms  (launch + navigate)
+    navigate:           ~500-2000 ms  (navigate only — no launch)
+    click / type:       ~50-200 ms    (interaction on existing page)
+    session_status:     ~5-20 ms      (URL read + title read)
+    close_session:      ~200-500 ms   (browser teardown)
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
+#### 4.12.2.7 Leið in-session selector query (Innan Hurðar extension — v0.8.3)
+
+> **Added 2026-05-10 v0.8.3 (Védis Eikleið).** Sixth unnamed Innan Hurðar
+> extension — adds `leid.query`, the read-only sibling of click/type. Returns
+> text or attribute of first matching element + total match count. **Deliberate
+> error-semantic divergence**: not finding a match is NOT an error
+> (`found: false`); a read tool must support "checking whether X exists."
+> One new B-invariant (B-21); no new error classes; reuses click timeout.
+
+```
+  LEIÐ IN-SESSION QUERY FLOW (v0.8.3)
+
+  Entry point: agent calls leid.query(session_id, selector, attribute="").
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.query" → PlaywrightLeidClient.query(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Locator + count
+    locator = session.page.locator(selector)
+    try:
+        count = await locator.count()
+    except PlaywrightError as exc:
+        raise LeidConnectionError(...)            ── D-79 (browser failure)
+
+    The count call uses Playwright's default action timeout, but for
+    most pages this returns essentially synchronously after DOM is
+    settled. count() does NOT raise on "no matches" — it returns 0.
+
+  Stage 5 — Not-found early return (D-72 — DELIBERATE non-error)
+    if count == 0:
+        session.mark_activity()                   ── B-17 (still counts)
+        return {
+            session_id, selector, attribute,
+            found: false,
+            value: null,
+            count: 0,
+        }
+
+    DIVERGENCE FROM CLICK/TYPE:
+      Click and type raise LeidClickElementNotFoundError /
+      LeidTypeElementNotFoundError when the selector matches nothing —
+      because mutating actions must succeed. Query returns
+      {found: false} because read operations must support "looking to
+      see if X is there." The agent that calls
+        query(session, ".error-banner") to detect an error message
+      should NOT have to wrap the call in try/except for the success
+      case of "no error message present."
+
+  Stage 6 — Extract from first match
+    first = locator.first
+    timeout_ms = config.browser_click_timeout_seconds * 1000  ── D-75 reuse
+    try:
+        if attribute == "":                        ── D-70 (default = text)
+            value = await first.text_content(timeout=timeout_ms)
+        else:                                      ── D-71 (specific attr)
+            value = await first.get_attribute(attribute, timeout=timeout_ms)
+    except PlaywrightTimeoutError as exc:
+        raise LeidConnectionError(                 ── timeout on extract
+            f"query extraction timed out: {exc}"
+        )
+    except PlaywrightError as exc:
+        raise LeidConnectionError(...)             ── D-79
+
+    Notes on value semantics:
+      - text_content returns str OR None (None when element has no text)
+      - get_attribute returns str OR None (None when attribute absent)
+      - Both pass through to the agent as JSON null when None
+      - found=true with value=null distinguishes "found but no text/attr"
+        from "found nothing" (D-73). Useful diagnostic information.
+      - Whitespace is NOT stripped (D-76 — pass-through, agent decides)
+
+  Stage 7 — Activity update (B-17 / B-21)
+    session.mark_activity()
+
+  Stage 8 — Return
+    return {
+        session_id,
+        selector,
+        attribute,                                  ── echo back what agent asked for
+        found: true,
+        value,                                      ── str or None
+        count,                                      ── total matches in DOM
+    }
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises LeidSessionExpiredError
+    B-17  — activity update after success (BOTH not-found and found paths)
+    B-21  — NEW: query honours session/timeout discipline; not-found
+              returns honestly rather than raising
+
+  Error code mapping:
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+    (no class for "not found"     — successful return with found:false)
+
+  Cost vs the other in-session tools:
+    query (no match):    ~5-20 ms     (count returns 0; fast path)
+    query (with match):  ~20-50 ms    (count + text_content / get_attribute)
+    click / type:        ~50-200 ms   (interaction + actionability checks)
+    navigate:            ~500-2000 ms (full goto)
+    open_session:        ~500-3000 ms (browser cold start + goto)
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
+#### 4.12.2.8 Leið in-session keyboard press (Innan Hurðar extension — v0.8.4)
+
+> **Added 2026-05-10 v0.8.4 (Védis Eikleið).** Seventh unnamed Innan Hurðar
+> extension — adds `leid.press`, the body's keyboard finger. Sends a single
+> key (or modifier+key combination) to the open session's page through
+> Playwright's `page.keyboard.press()`. Used for form submission via Enter,
+> modal dismissal via Escape, focus traversal via Tab, and similar keyboard-
+> driven flows. One new B-invariant (B-22); no new error classes; no new
+> config fields.
+
+```
+  LEIÐ IN-SESSION PRESS FLOW (v0.8.4)
+
+  Entry point: agent calls leid.press(session_id, key).
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.press" → PlaywrightLeidClient.press(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Keyboard press
+    try:
+        await session.page.keyboard.press(key)
+    except PlaywrightError as exc:
+        raise LeidConnectionError(...)            ── D-84 (browser failure)
+
+    Notes:
+      - page.keyboard.press goes to whatever element has focus.
+        Typical agent flow: click(selector) or type(selector,text)
+        first, then press("Enter"). The prior call leaves focus on
+        the targeted element.
+      - Playwright's key syntax accepts:
+          single keys:         "Enter", "Tab", "Escape", "ArrowDown",
+                               "a", "A", "F5", "PageDown", " " (space)
+          modifier combos:     "Control+A", "Shift+Tab", "Meta+S",
+                               "Alt+F4"
+        The agent supplies the key string; HERETIC does not validate
+        it (Playwright will dispatch as best it can; unrecognized
+        keys produce no event but do not raise — D-84 rationale).
+      - keyboard.press does NOT accept a per-call timeout argument.
+        Playwright applies its own internal default action timeout
+        (~30s). This is acceptable: keyboard input is essentially
+        synchronous; the timeout is a safety net for the rare
+        pathological page.
+
+  Stage 5 — Activity update (B-17 / B-22)
+    session.mark_activity()
+
+  Stage 6 — Read post-press state (D-85)
+    current_url = session.page.url   (may differ if press triggered
+                                       navigation, e.g., Enter submitted)
+    try: title = await session.page.title()
+    except: title = None                          ── D-49 defensive
+
+    return {
+        "session_id": session_id,
+        "key": key,                                ── echo back what agent pressed
+        "pressed": True,
+        "current_url": current_url,
+        "current_title": title,
+    }
+
+  Why "page-level" press, not element-level:
+    Playwright offers two press primitives:
+      - page.keyboard.press(key)       — page-level; dispatches to
+                                          whatever has focus
+      - locator(sel).first.press(key)  — element-level; auto-focuses
+                                          and dispatches
+    v0.8.4 chose page-level (D-80) because the canonical agent flow
+    is type(selector, text) → press("Enter") — and after type's fill
+    primitive, focus IS on the typed-into element. So page-level
+    press hits the right target without requiring a redundant
+    selector. Agents who want element-targeted press can call
+    click(selector) first to focus.
+    Element-level press as its own tool is a v0.8.x candidate.
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises
+    B-17  — activity update after success
+    B-22  — NEW: press honours session/activity discipline; uses
+              Playwright's intrinsic 30s default timeout for keyboard
+
+  Error code mapping:
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+    (no class for "unrecognized key" — Playwright accepts and
+     dispatches; bad key strings are no-ops, not errors. The agent
+     who passes "Funky+Made+Up" gets pressed: true with no effect.
+     This is consistent with Playwright's design.)
+
+  Cost vs the other in-session tools:
+    press:               ~5-30 ms     (keyboard event dispatch)
+    query (no match):    ~5-20 ms
+    click / type:        ~50-200 ms   (with actionability checks)
+    navigate:            ~500-2000 ms
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
+#### 4.12.2.9 Leið in-session history navigation (Innan Hurðar extension — v0.8.5)
+
+> **Added 2026-05-10 v0.8.5 (Védis Eikleið).** Eighth unnamed Innan Hurðar
+> extension — adds the paired `leid.go_back` and `leid.go_forward` tools
+> for browser history traversal. Both share identical structure (one
+> private helper); both honour the deliberate "no history is not an
+> error" divergence (D-89 — same posture as v0.8.3 query's not-found).
+> One new B-invariant (B-23); no new error classes; no new config fields.
+
+```
+  LEIÐ IN-SESSION HISTORY NAVIGATION FLOW (v0.8.5)
+
+  Two paired tools sharing one private helper:
+    leid.go_back     → _go_history(session_id, "back")
+    leid.go_forward  → _go_history(session_id, "forward")
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.go_back" or "leid.go_forward"
+                     → PlaywrightLeidClient.go_back/go_forward(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Capture previous URL (mirrors navigate D-64)
+    previous_url = session.page.url
+
+  Stage 5 — History navigation
+    if direction == "back":
+        primitive = session.page.go_back
+    else:
+        primitive = session.page.go_forward
+    try:
+        response = await primitive(
+            wait_until = config.browser_load_state,    ── D-91 reuse
+            timeout    = config.browser_navigation_timeout_seconds * 1000,
+        )
+    except PlaywrightTimeoutError:
+        raise LeidTimeoutError(...)                    ── B-5 / B-23
+    except PlaywrightError:
+        raise LeidConnectionError(...)                 ── B-23
+
+  Stage 6 — Detect "no history in this direction" (D-89)
+    Playwright's go_back/go_forward return:
+      - Response object  → navigation actually happened
+      - None             → no history entry exists in that direction;
+                            the page did NOT move
+    if response is None:
+        session.mark_activity()                        ── B-17 (still counts)
+        return {
+            session_id,
+            moved: false,
+            previous_url,                              ── unchanged from before
+            current_url: previous_url,                 ── didn't move
+            title: <still the current page's title>,
+        }
+
+    DIVERGENCE FROM B-20 (navigate's "always moved or raise" model):
+      navigate is a directed action — the agent supplies a URL and
+      expects either to land there or hear the failure. History nav
+      is a probe — "go back if there's something to go back to";
+      "moved: false" is the natural answer when the body is already
+      at the start of its session's history.
+
+  Stage 7 — Status check (only when moved)
+    if response.status >= 400:
+        raise LeidHttpError(...)                       ── B-23
+
+  Stage 8 — Activity update (B-17 / B-23 — happens on BOTH paths)
+    session.mark_activity()
+
+  Stage 9 — Return on successful move
+    final_url = session.page.url
+    try: title = await session.page.title()
+    except: title = None                               ── D-49 defensive
+
+    return {
+        session_id,
+        moved: true,
+        previous_url,
+        current_url: final_url,
+        title,
+    }
+
+  Cookie state across history nav (D-92):
+    Cookies + localStorage are PRESERVED — same as navigate. The
+    browser context is unchanged; only the page's history pointer
+    moves. This is essential: "log in → click link → go_back to
+    re-fill the form" must keep the login cookies.
+
+  URL allowlist gate (D-92 — accepted limitation):
+    History nav does NOT re-validate URLs against the allowlist.
+    The URLs in the history stack were already allowlist-checked
+    when the body originally navigated to them. Re-checking would
+    require a post-hoc check (after the page has already moved),
+    which introduces unwind problems. This is consistent with the
+    pre-existing "final-URL allowlist re-check after redirect" gap
+    that applies to all browser tools and is already deferred.
+    v0.8.5 does NOT widen the gap; it inherits the existing posture.
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises
+    B-17  — activity update after success (BOTH moved and not-moved paths)
+    B-23  — NEW: history-nav respects same discipline as navigate; "no
+              history" returns honestly rather than raising
+
+  Error code mapping (no new classes):
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidTimeoutError              → SENSE_TIMEOUT
+    LeidHttpError                 → SENSE_INTERNAL_ERROR
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+    (no class for "no history"    — successful return with moved:false)
+
+  Cost vs the other in-session tools:
+    go_back / go_forward:    ~200-2000 ms  (depends on cached resource
+                                            availability; back is often
+                                            faster than forward because
+                                            cache hits)
+    navigate (fresh):        ~500-2000 ms
+    click / type / press:    ~5-200 ms
+    query:                   ~5-50 ms
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three

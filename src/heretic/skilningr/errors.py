@@ -378,6 +378,79 @@ class LeidConnectionError(LeidError):
     """
 
 
+class LeidPlaywrightUnavailableError(LeidError):
+    """The Playwright browser sub-faculty (v0.8.0 Opið Vef) is not available.
+
+    Raised at the entry of ``PlaywrightLeidClient.render_url()`` (and at
+    ``screenshot()``, ``open_session()`` from v0.8.1+) when EITHER:
+        - the ``playwright`` Python package is not importable
+          (operator did not run ``pip install heretic[browser]``), OR
+        - ``chromium.launch()`` fails because the Chromium binary is missing
+          (operator did not run ``playwright install chromium``).
+
+    This error is raised ONLY for the browser-mode tools; the v0.7.1 httpx
+    tools (``leid.fetch_url``, ``leid.extract_text``) continue to dispatch
+    normally and do not require the ``[browser]`` extra.
+
+    Forge should translate this to SENSE_CONTRACTS.md code EXTERNAL_APP_UNAVAILABLE.
+    """
+
+
+class LeidSessionLimitError(LeidError):
+    """Refused to open a new browser session because the per-host concurrency
+    cap (``LeidConfig.browser_max_concurrent_sessions``) is already reached.
+
+    Raised at the entry of ``open_session()`` (v0.8.2 Innan Hurðar) when
+    ``len(BrowserSessionManager._sessions) >= browser_max_concurrent_sessions``.
+    The refusal is explicit (NOT a silent eviction of the oldest session) so
+    the agent's mental model of which sessions are alive remains correct —
+    the agent must explicitly close a session before opening a new one when
+    at cap.
+
+    Forge should translate this to SENSE_CONTRACTS.md code SENSE_UNAVAILABLE.
+    """
+
+
+class LeidSessionExpiredError(LeidError):
+    """Tool call referenced a ``session_id`` that does not exist (or has been
+    evicted by idle/absolute timeout).
+
+    Raised at the entry of any session-affecting tool (``session_status``,
+    ``click``, future ``type``/``navigate``) when
+    ``BrowserSessionManager._sessions.get(session_id)`` returns None.
+
+    Note: ``close_session`` is the one exception — it is idempotent and
+    returns ``{closed: false}`` for an unknown session_id rather than raising,
+    so the agent can safely re-issue close after a failed earlier attempt.
+
+    Forge should translate this to SENSE_CONTRACTS.md code SENSE_UNAVAILABLE.
+    """
+
+
+class LeidClickElementNotFoundError(LeidError):
+    """``page.click(selector)`` failed because no element matching the
+    selector became actionable within ``LeidConfig.browser_click_timeout_seconds``.
+
+    Distinct from a network-level connection error: this is the agent's
+    selector being wrong (or the page having changed between the navigation
+    and the click). The agent can refine the selector and retry.
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """
+
+
+class LeidTypeElementNotFoundError(LeidError):
+    """``locator.fill(text)`` failed because no element matching the
+    selector became actionable within ``LeidConfig.browser_click_timeout_seconds``.
+
+    Sibling to ``LeidClickElementNotFoundError`` — distinct class so the
+    agent can tell selector failures on click apart from selector failures
+    on type, even though both map to ``INVALID_ARGUMENTS``.
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """
+
+
 # ---------------------------------------------------------------------------
 # MCP server errors  [v0.6.x]
 # ---------------------------------------------------------------------------

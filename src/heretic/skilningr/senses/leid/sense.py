@@ -34,6 +34,7 @@ from typing import Any, Callable
 from heretic.skilningr.config_model import LeidConfig
 from heretic.skilningr.senses.leid.client import LeidClient
 from heretic.skilningr.senses.leid.errors import LeidError
+from heretic.skilningr.senses.leid.playwright_client import PlaywrightLeidClient
 from heretic.skilningr.senses.leid.tools import LEID_TOOL_DEFINITIONS
 
 logger = logging.getLogger(__name__)
@@ -64,12 +65,27 @@ class LeidSense:
         client: LeidClient,
         log: logging.Logger | None = None,
         event_emitter: Callable | None = None,
+        playwright_client: PlaywrightLeidClient | None = None,
     ) -> None:
+        """Construct the Leið sense.
+
+        Args:
+            config: LeidConfig — URL allowlist + browser timeouts + size cap.
+            client: LeidClient — answers leid.fetch_url and leid.extract_text.
+            log:    Optional logger.
+            event_emitter: Optional callback for SenseToolCall events.
+            playwright_client: Optional PlaywrightLeidClient — answers
+                leid.render_url (v0.8.0 Opið Vef). When None, the sense
+                lazily constructs one on first leid.render_url dispatch
+                using the same config; the import of the playwright Python
+                package is then deferred to the first actual call (B-2).
+        """
         self._config = config
         self._client = client
         self._log = log if log is not None else logging.getLogger(__name__)
         self._event_emitter = event_emitter
         self._is_open: bool = False
+        self._playwright_client: PlaywrightLeidClient | None = playwright_client
 
     @property
     def is_available(self) -> bool:
@@ -172,6 +188,148 @@ class LeidSense:
             result = await self._client.extract_text(url=args["url"])
             return json.dumps(result)
 
+        if tool_name == "leid.render_url":
+            # v0.8.0 Opið Vef — browser-render sub-faculty.
+            # Lazily construct PlaywrightLeidClient if it was not injected.
+            # The playwright import only happens inside render_url() itself
+            # (B-2), so this lazy construction is safe on hosts without the
+            # [browser] extra installed.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.render_url(url=args["url"])
+            return json.dumps(result)
+
+        if tool_name == "leid.screenshot":
+            # v0.8.1 Mynd af Vegferð — sibling browser tool. Same lazy
+            # construction posture; same playwright import deferral.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.screenshot(url=args["url"])
+            return json.dumps(result)
+
+        # v0.8.2 Innan Hurðar — stateful session tools. Same lazy client
+        # construction; the BrowserSessionManager is internally lazy too.
+        if tool_name == "leid.open_session":
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.open_session(url=args["url"])
+            return json.dumps(result)
+
+        if tool_name == "leid.session_status":
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.session_status(
+                session_id=args["session_id"]
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.click":
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.click(
+                session_id=args["session_id"],
+                selector=args["selector"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.type":
+            # v0.8.2.1 — unnamed extension within Innan Hurðar (the second
+            # half of the interactive gesture).
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.type(
+                session_id=args["session_id"],
+                selector=args["selector"],
+                text=args["text"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.navigate":
+            # v0.8.2.2 — unnamed extension within Innan Hurðar (the body
+            # walks to a new room without leaving the building).
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.navigate(
+                session_id=args["session_id"],
+                url=args["url"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.query":
+            # v0.8.3 — sixth unnamed extension within Innan Hurðar (the
+            # body's first eye inside the door — read-only).
+            # attribute is optional; defaults to "" which means text content.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.query(
+                session_id=args["session_id"],
+                selector=args["selector"],
+                attribute=args.get("attribute", ""),
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.press":
+            # v0.8.4 — seventh unnamed extension within Innan Hurðar (the
+            # body's keyboard finger). Page-level key dispatch.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.press(
+                session_id=args["session_id"],
+                key=args["key"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.go_back":
+            # v0.8.5 — eighth unnamed extension (paired with go_forward).
+            # Browser history step backward.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.go_back(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.go_forward":
+            # v0.8.5 — paired with go_back. Browser history step forward.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.go_forward(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.close_session":
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.close_session(
+                session_id=args["session_id"]
+            )
+            return json.dumps(result)
+
         raise ToolDispatchError(
             f"Leið route fell through for {tool_name!r} — routing table out of sync."
         )
@@ -222,20 +380,42 @@ def _error_tool_result(
 
 def _leid_error_code(exc: LeidError) -> str:
     from heretic.skilningr.errors import (
+        LeidClickElementNotFoundError,
         LeidConnectionError,
         LeidHttpError,
+        LeidPlaywrightUnavailableError,
         LeidResponseTooLargeError,
+        LeidSessionExpiredError,
+        LeidSessionLimitError,
         LeidTimeoutError,
+        LeidTypeElementNotFoundError,
         UrlNotAllowedError,
     )
     if isinstance(exc, UrlNotAllowedError):
         return "PERMISSION_DENIED"
     if isinstance(exc, LeidTimeoutError):
         return "SENSE_TIMEOUT"
-    if isinstance(exc, LeidResponseTooLargeError):
+    if isinstance(
+        exc,
+        (
+            LeidResponseTooLargeError,
+            LeidClickElementNotFoundError,
+            LeidTypeElementNotFoundError,
+        ),
+    ):
+        # v0.8.2 / v0.8.2.1 — agent-actionable errors (cap exceeded,
+        # selector wrong on click or type).
         return "INVALID_ARGUMENTS"
     if isinstance(exc, LeidHttpError):
         return "SENSE_INTERNAL_ERROR"
+    if isinstance(exc, LeidPlaywrightUnavailableError):
+        # v0.8.0 Opið Vef — Playwright not installed or chromium missing.
+        # Surfaces to the agent as the same code as a network-level error,
+        # so the agent treats it as a transient/recoverable unavailability.
+        return "EXTERNAL_APP_UNAVAILABLE"
+    if isinstance(exc, (LeidSessionLimitError, LeidSessionExpiredError)):
+        # v0.8.2 — session unavailable (cap reached or session evicted/unknown).
+        return "SENSE_UNAVAILABLE"
     if isinstance(exc, LeidConnectionError):
         return "EXTERNAL_APP_UNAVAILABLE"
     return "SENSE_INTERNAL_ERROR"

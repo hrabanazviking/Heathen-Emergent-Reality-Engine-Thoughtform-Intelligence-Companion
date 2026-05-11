@@ -522,12 +522,71 @@ class LeidConfig:
     expose request/response content without encryption.
     NEVER set allow_http: true in production unless HTTP is unavoidable."""
 
+    # ----- v0.8.0 Opið Vef — browser-render fields (apply to leid.render_url only) -----
+
+    browser_navigation_timeout_seconds: int = 30
+    """Maximum wall-clock seconds for ``page.goto()`` during a ``leid.render_url``
+    call. INTENTIONALLY separate from ``timeout_seconds`` (which governs the
+    httpx tools): rendered pages legitimately take longer than static fetches,
+    and conflating the two would force a global increase. Default 30. Must be > 0.
+
+    Used only by ``PlaywrightLeidClient.render_url`` (v0.8.0+). Has no effect on
+    ``leid.fetch_url`` or ``leid.extract_text``."""
+
+    browser_load_state: str = "domcontentloaded"
+    """Playwright wait-condition for ``page.goto()`` during a ``leid.render_url``
+    call. One of: ``commit`` (response received), ``domcontentloaded`` (default —
+    HTML parsed and synchronous scripts run), ``load`` (load event fired),
+    ``networkidle`` (no network activity for 500 ms — slowest, most complete).
+    Default ``domcontentloaded`` is the best balance of "page is rendered enough
+    to extract" vs "no waiting forever for trackers." Must be one of the four
+    documented values."""
+
+    # ----- v0.8.1 Mynd af Vegferð — screenshot field (applies to leid.screenshot only) -----
+
+    browser_screenshot_full_page: bool = True
+    """Whether ``leid.screenshot`` captures the full scrollable page (True) or
+    only the current viewport (False, default 1280x720). Default True — matches
+    the typical "show me the page" agent intent. Set False for SPAs whose full
+    page is enormous; the viewport-only screenshot is bounded in size by the
+    viewport dimensions and tends to fit within smaller ``max_response_bytes``
+    caps. Has no effect on ``leid.render_url`` or the httpx tools."""
+
+    # ----- v0.8.2 Innan Hurðar — session lifecycle + click fields -----
+
+    browser_max_concurrent_sessions: int = 3
+    """Maximum number of simultaneously-open browser sessions for ``leid.open_session``.
+    Default 3 — defensive cap because each session holds an entire Chromium
+    process. ``open_session`` at cap raises ``LeidSessionLimitError`` (D-33);
+    no silent eviction. Operators with more headroom can raise this; operators
+    on small hardware can lower it. Must be >= 1."""
+
+    browser_session_idle_timeout_seconds: int = 300
+    """Session idle timeout — sessions with no successful tool-call activity
+    for this many seconds are evicted. Default 300 (5 minutes). Activity is
+    updated by ``session_status``, ``click``, and any future session-affecting
+    tool. Must be > 0."""
+
+    browser_session_max_lifetime_seconds: int = 1800
+    """Session absolute lifetime — even active sessions are evicted after this
+    many seconds. Default 1800 (30 minutes). Hard ceiling to prevent indefinite
+    resource holding. Must be > 0 AND >= browser_session_idle_timeout_seconds
+    (a max-lifetime shorter than the idle timeout would be incoherent)."""
+
+    browser_click_timeout_seconds: int = 10
+    """Maximum wall-clock seconds for a single ``leid.click`` call. Separate
+    from ``browser_navigation_timeout_seconds`` because click is a fast
+    interactive action; long timeout = bad UX when the selector is wrong.
+    Default 10. Must be > 0."""
+
     def __post_init__(self) -> None:
         """Validate config fields at construction time.
 
         Raises:
-            ValueError: if timeout_seconds or max_response_bytes are <= 0,
-                        max_redirects < 0, or user_agent is empty.
+            ValueError: if timeout_seconds, max_response_bytes, or
+                        browser_navigation_timeout_seconds are <= 0,
+                        max_redirects < 0, user_agent is empty, or
+                        browser_load_state is not one of the four allowed values.
 
         Warns (but does not raise) if url_allowlist_patterns contains "*"
         (unrestricted wildcard) while enabled is True.
@@ -548,6 +607,50 @@ class LeidConfig:
             raise ValueError(
                 "LeidConfig.user_agent must be a non-empty string. "
                 f"Got {self.user_agent!r}."
+            )
+        # v0.8.0 — browser-render field validation
+        if self.browser_navigation_timeout_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_navigation_timeout_seconds must be > 0, "
+                f"got {self.browser_navigation_timeout_seconds!r}."
+            )
+        _allowed_load_states = {"commit", "domcontentloaded", "load", "networkidle"}
+        if self.browser_load_state not in _allowed_load_states:
+            raise ValueError(
+                f"LeidConfig.browser_load_state must be one of "
+                f"{sorted(_allowed_load_states)}, got {self.browser_load_state!r}."
+            )
+        # v0.8.2 — session + click field validation
+        if self.browser_max_concurrent_sessions < 1:
+            raise ValueError(
+                f"LeidConfig.browser_max_concurrent_sessions must be >= 1, "
+                f"got {self.browser_max_concurrent_sessions!r}."
+            )
+        if self.browser_session_idle_timeout_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_session_idle_timeout_seconds must be > 0, "
+                f"got {self.browser_session_idle_timeout_seconds!r}."
+            )
+        if self.browser_session_max_lifetime_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_session_max_lifetime_seconds must be > 0, "
+                f"got {self.browser_session_max_lifetime_seconds!r}."
+            )
+        if (
+            self.browser_session_max_lifetime_seconds
+            < self.browser_session_idle_timeout_seconds
+        ):
+            raise ValueError(
+                f"LeidConfig.browser_session_max_lifetime_seconds "
+                f"({self.browser_session_max_lifetime_seconds}) must be >= "
+                f"browser_session_idle_timeout_seconds "
+                f"({self.browser_session_idle_timeout_seconds}) — a max-lifetime "
+                f"shorter than the idle timeout would be incoherent."
+            )
+        if self.browser_click_timeout_seconds <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_click_timeout_seconds must be > 0, "
+                f"got {self.browser_click_timeout_seconds!r}."
             )
         # Warn on unrestricted wildcard
         if self.enabled and "*" in self.url_allowlist_patterns:

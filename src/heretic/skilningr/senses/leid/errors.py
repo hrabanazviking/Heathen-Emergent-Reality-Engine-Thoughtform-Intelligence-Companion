@@ -5,11 +5,16 @@ Ref: heretic.skilningr.errors (authoritative definitions)
 """
 
 from heretic.skilningr.errors import (  # noqa: F401
+    LeidClickElementNotFoundError,
     LeidConnectionError,
     LeidError,
     LeidHttpError,
+    LeidPlaywrightUnavailableError,
     LeidResponseTooLargeError,
+    LeidSessionExpiredError,
+    LeidSessionLimitError,
     LeidTimeoutError,
+    LeidTypeElementNotFoundError,
     UrlNotAllowedError,
 )
 
@@ -20,4 +25,9 @@ __all__ = [
     "LeidResponseTooLargeError",
     "LeidHttpError",
     "LeidConnectionError",
+    "LeidPlaywrightUnavailableError",
+    "LeidSessionLimitError",
+    "LeidSessionExpiredError",
+    "LeidClickElementNotFoundError",
+    "LeidTypeElementNotFoundError",
 ]
