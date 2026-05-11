@@ -40,6 +40,12 @@ v0.8.2.2 (1 added tool — LOCKED):
                             localStorage persist (the session keeps its
                             identity, only the page URL changes)
 
+v0.8.3 (1 added tool — LOCKED):
+    leid.query            — read text or attribute of first element matching
+                            a CSS selector inside an open session; "not
+                            found" returns {found: false} rather than raising
+                            (read-only divergence from click/type)
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -447,6 +453,68 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.query  (v0.8.3 Innan Hurðar extension — read-only inspection)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.query",
+            "description": (
+                "Read the text content (or a specified HTML attribute) of "
+                "the first element in the session's page matching the given "
+                "CSS selector. Returns {selector, attribute, found, value, "
+                "count}. Use this to extract data from the page or to check "
+                "whether something is on the page. UNLIKE leid.click and "
+                "leid.type, a selector that matches NO elements is NOT an "
+                "error — instead returns {found: false, count: 0, value: null}. "
+                "This lets you safely check 'is this element present?' "
+                "without try/except. The count field tells you how many "
+                "elements matched; if you only need the first match (the "
+                "default), use the value field. Set the attribute parameter "
+                "to read a specific HTML attribute (e.g. 'href' on an anchor); "
+                "leave it empty/omitted to read the element's text content. "
+                "An element that exists but lacks the requested attribute "
+                "returns {found: true, value: null, count: >=1}. Unknown "
+                "session_id returns SENSE_UNAVAILABLE; browser-level failures "
+                "return EXTERNAL_APP_UNAVAILABLE. HERETIC injects no "
+                "JavaScript — read is via Playwright's locator primitives."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector for the element to inspect. Only the "
+                            "FIRST matching element's value is returned, but "
+                            "the count field reports total matches in the DOM. "
+                            "Examples: 'h1.title', '.user-name', "
+                            "'a[href*=\"/about\"]', '#order-total'."
+                        ),
+                    },
+                    "attribute": {
+                        "type": "string",
+                        "description": (
+                            "Optional. The HTML attribute name to read. If "
+                            "omitted or set to empty string, returns the "
+                            "element's text content instead. Examples: 'href', "
+                            "'src', 'value', 'class', 'data-id', 'aria-label'."
+                        ),
+                    },
+                },
+                "required": ["session_id", "selector"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -480,7 +548,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 10 OpenAI tool schemas for the Leið sense.
+"""The 11 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -503,4 +571,7 @@ Tool name added at v0.8.2.1 (LOCKED):
 
 Tool name added at v0.8.2.2 (LOCKED):
     leid.navigate
+
+Tool name added at v0.8.3 (LOCKED):
+    leid.query
 """

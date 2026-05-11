@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.2.2 navigate extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-10 (v0.8.3 query extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -85,6 +85,7 @@ for the v0.8.0 browser-mode contract.
 | `leid.click`           | Click first element matching CSS selector inside open session       | `session_id`, `selector` (both strings)  | Playwright (Chromium) | v0.8.2 |
 | `leid.type`            | Fill first element matching selector with the supplied text         | `session_id`, `selector`, `text` (all strings) | Playwright (Chromium) | v0.8.2.1 |
 | `leid.navigate`        | Navigate an open session to a new URL (cookies + localStorage persist) | `session_id`, `url` (both strings)    | Playwright (Chromium) | v0.8.2.2 |
+| `leid.query`           | Read text or attribute of first element matching CSS selector (read-only; not-found is not an error) | `session_id`, `selector` (req); `attribute` (opt) | Playwright (Chromium) | v0.8.3 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -619,3 +620,88 @@ current_url, current_title}`.
 | `leid.go_back` / `go_forward` | v0.8.x — browser history navigation, distinct primitive |
 | `leid.reload`               | v0.8.x — distinct primitive |
 | Final-URL allowlist re-check after redirect | v0.8.x — pre-existing concern across all browser tools; v0.8.2.2 mirrors current behaviour |
+
+### 12.9 Query extension (v0.8.3 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-10 v0.8.3.** Adds `leid.query` — the read-only sibling of
+> click and type. Returns text or attribute of first matching element +
+> total match count. **Deliberate error-semantic divergence**: not finding
+> a match is NOT an error (D-72 / B-21). No new error classes (D-79).
+
+**New tool:** `leid.query(session_id, selector, attribute="")` → `{session_id, selector, attribute, found, value, count}`.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-21 | `query()` enforces the same session/timeout discipline as the rest of Innan Hurðar: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; `locator.count()` and (if non-zero) `text_content()` / `get_attribute()` calls bounded by `browser_click_timeout_seconds`; on success, `session.last_activity_at` is updated. **DIVERGENCE from B-19 / D-43**: a selector matching no elements is NOT a failure — `query` returns `{found: false, count: 0, value: null}` because read operations must support "looking to see if X exists." |
+
+**Implementation primitive:** `await session.page.locator(selector).count()` (always); then `await session.page.locator(selector).first.text_content(timeout=...)` OR `await session.page.locator(selector).first.get_attribute(attribute, timeout=...)` (only when `count > 0`). Reuses the click timeout config field (D-75).
+
+**Success response shape:**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "selector": "h1.title",
+  "attribute": "",
+  "found": true,
+  "value": "Welcome to the Dashboard",
+  "count": 1
+}
+```
+
+**Not-found response shape (NOT an error — agent receives a successful tool result):**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "selector": ".error-banner",
+  "attribute": "",
+  "found": false,
+  "value": null,
+  "count": 0
+}
+```
+
+**Found-but-attribute-missing response shape (D-73 — useful diagnostic):**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "selector": "img.logo",
+  "attribute": "data-tracking-id",
+  "found": true,
+  "value": null,
+  "count": 1
+}
+```
+
+The agent can distinguish "no element" (`found: false`, `count: 0`) from "element exists but attribute absent" (`found: true`, `value: null`). Likewise, `text_content()` returning None for an element with no text passes through as JSON null with `found: true`.
+
+**Why "not found" is not an error (D-72 design rationale):**
+
+Click and type are MUTATING actions — the agent expects them to succeed; a selector that matches nothing is a real failure that needs reporting. Query is a READ — the agent often calls it precisely to determine whether something is on the page (e.g., `query(session, ".alert-error")` to detect an error message; the success case is "no error message present"). Forcing exception handling on the success case would invert the semantics. So:
+
+| Tool      | Selector matched nothing → |
+|-----------|------------------|
+| click     | `LeidClickElementNotFoundError → INVALID_ARGUMENTS` (B-19) |
+| type      | `LeidTypeElementNotFoundError → INVALID_ARGUMENTS` (B-19) |
+| **query** | **`{found: false, count: 0, value: null}` (D-72 / B-21)** |
+
+**Failure-mode reuse:** No new error classes. The two genuine failure modes:
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| Browser failure (page closed, process disconnect) | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+
+**Out of scope at v0.8.3:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Multi-element extraction (returning all matches as a list) | v0.8.x — first-match keeps shape consistent with click/type |
+| XPath selectors             | v0.8.x — Playwright supports XPath; CSS suffices for v0.8.3 |
+| Inner HTML extraction       | v0.8.x — text_content covers most needs; raw HTML is a different primitive |
+| Element bounding-box / position | v0.8.x — geometric inspection is a separate concern |
+| Visibility check            | v0.8.x — `found` conveys DOM presence; visibility is a refinement |
