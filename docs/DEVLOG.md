@@ -5234,3 +5234,119 @@ The autonomous arc continues into its NINETEENTH sealed milestone. Eleven slices
 
 *Entry 33 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
 *The body's eye now sees both singular and plural. Eleven unnamed extensions, eight consecutive zero-findings audits, the first new config field since v0.8.2 added honestly when the design needed it. Nineteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for twelve milestones running. The session is kept.*
+
+---
+
+## Entry 34 — 2026-05-11 — Configurable viewport: the body sees the world through the operator's chosen window (v0.8.9)
+
+**Milestone:** v0.8.9 — Configurable viewport (twelfth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `b60343c` (post-v0.8.8 Scribe seal)
+**Session close HEAD:** `6d46336` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — TWENTIETH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — ninth consecutive)
+
+### What was added
+
+Operator-controlled viewport for browser-mode tools. Two new `LeidConfig` fields (`browser_viewport_width: int = 1280`, `browser_viewport_height: int = 720`, both validated `> 0`); both propagate uniformly to the three browser-context-creation sites: `render_url`, `screenshot`, `open_session`. The session's viewport is set ONCE at creation and persists for the session's life — mid-session viewport change is out of scope (D-130).
+
+**No new tools, no new error classes, no agent-facing change.** This is the first slice in v0.8 to deliberately MODIFY existing methods rather than add new ones — three new_context call sites each gain a single `viewport=...` kwarg. Defaults match Playwright's defaults (1280×720), so existing operators see ZERO observable behavior change.
+
+Why this matters: many sites render differently at different viewport widths. A mobile site rendered at desktop width shows the desktop layout; a content-heavy dashboard at 1280 wide shows scrollbars where ultrawide would show all the columns. v0.8.9 lets operators with mobile-first scenarios (e.g., 375×812 iPhone-12) or wide-dashboard scenarios (e.g., 1920×1080 full HD or 2560×1440 ultrawide) configure the body's viewport without the agent needing to know.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `aa5ee99` | Runa | TASK_HERETIC_v0.8.9_VIEWPORT.md |
+| 1 | `1e244e9` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `2134beb` | Cartographer | DATA_FLOW.md §4.12.2.13 — viewport propagation + B-27 |
+| 3 | `a56c6e0` | Architect | INTERFACE.md §12.15 + B-27 + 2 LeidConfig fields |
+| 4 | `164fb0b` | Forge | 3-site modification + 2 test updates + 6 viewport tests + 4 config tests |
+| 5 | `6d46336` | Auditor | AUDIT_v0.8.9_VIEWPORT.md — **PASSES SCRUTINY (0/0/0/0)** — NINTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 34 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.9)
+
+| Surface | Before v0.8.9 | After v0.8.9 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 57 | 61 | **+4** (4 config validation) |
+| `tests/test_leid_playwright_client.py` | 163 + 2 skip | 169 + 2 skip | **+6** (TestViewportPropagation class; 2 existing user_agent tests updated mechanically) |
+| **Leid scope total** | 269 + 2 skip | 279 + 2 skip | **+10** |
+| **Full suite** | 1590 + 9 skip | **1600 + 9 skip** | **+10** (zero regressions; SUITE CROSSES 1600) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Ninth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7 → v0.8.8 → v0.8.9). The Auditor noted v0.8.9 was the first slice in the umbrella to deliberately MODIFY existing methods (rather than add new ones). The streak holds across the substantive change because:
+- The modification scope was documented at TASK design time (D-131 — "two existing assertions need updates").
+- The modification is uniform across three sites (same kwarg, same shape).
+- The defaults match Playwright's defaults — no observable behavior change for existing operators.
+- The two updated tests changed mechanically — gained one expected kwarg, no other change.
+
+### What this milestone teaches
+
+**Substantive modifications can ship cleanly when the modification scope is documented at TASK time.** The first ten v0.8 slices were pure additions (new methods, new tools). v0.8.9 is the first to deliberately modify three existing methods. The Auditor's ninth consecutive zero-findings audit confirms that "modify when needed, document the scope, apply uniformly" is a viable shipping discipline alongside "add when possible." The Architect's D-131 ("test impact: two existing assertions need updates") was the load-bearing piece — by the time the Forge began work, the modification scope was bounded and known.
+
+**Default-preservation lets operators upgrade without thinking.** v0.8.9's defaults (1280×720) match Playwright's defaults exactly. Existing operators upgrading from v0.8.8 to v0.8.9 without setting any new config will see the SAME viewport behavior — same browser layout, same screenshot dimensions, same render_url output. Only operators who actively set the new config see new behavior. This is the right shape for a "configurable knob added to existing behavior" change: it is opt-in by config, not by upgrade.
+
+**Public surface stability vs internal evolution.** v0.8.9 modified internal code (three call sites in playwright_client.py) without modifying any public surface (no new tool, no parameter change, no return shape change). The agent-facing tool count stays at 18; only operators see new config knobs. This is the right kind of "internal evolution" — the tools the agent cares about stay stable; the operator's control surface gains expression.
+
+**Suite crosses 1600 tests.** Twenty milestones, three days, 1600 tests. The arc continues to ship at sustained cadence with audit rigor.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.9_VIEWPORT.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.13 added — viewport propagation + B-27 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + Configuration fields lines + new §12.15 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | **Byte-untouched** (no new tools — D-132 confirmed by absence of change) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | THREE modification sites: render_url, screenshot, open_session each gain `viewport=...` kwarg in their internal new_context call |
+| `src/heretic/skilningr/senses/leid/sense.py` | **Byte-untouched** (no new dispatch branches) |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the THIRTEENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-132 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | TWO new fields: `browser_viewport_width: int = 1280` and `browser_viewport_height: int = 720`; __post_init__ validates both > 0 |
+| `tests/test_leid_playwright_client.py` | TWO existing tests updated mechanically (assertion gains viewport kwarg expectation); new TestViewportPropagation class with 6 tests |
+| `tests/test_leid_sense.py` | 4 new config validation tests |
+| `docs/audit/AUDIT_v0.8.9_VIEWPORT.md` | New — verdict PASSES SCRUTINY (zero findings, ninth consecutive) |
+| `docs/DEVLOG.md` | This entry (34) |
+
+### State of the body — 2026-05-11 (after v0.8.9)
+
+The Leið faculty still has EIGHTEEN tools (no new tool added). The internal viewport propagation is operator infrastructure — invisible to agents:
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **18 (unchanged) — viewport propagation is internal**; operators gain 2 new config knobs | **v0.8.9** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **twelve unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8, v0.8.9).
+
+The body's eye now has operator-controlled framing — same eye, operator-chosen window.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.9 configurable viewport~~ | **CLOSED — sealed at `6d46336`** |
+| **v0.8.x JPEG/WebP screenshot output** | candidate — small refinement |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its TWENTIETH sealed milestone. Twelve slices into v0.8 *Opið Vef*. The Innan Hurðar interactive vocabulary now has structural completeness, variety of expression, and operator-controlled framing. Subsequent v0.8.x slices remain pure refinements.
+
+---
+
+*Entry 34 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The body now sees the world through the operator's chosen window. Twelve unnamed extensions, nine consecutive zero-findings audits, the first substantive-modification slice in v0.8 shipped cleanly with default-preserving discipline. The suite crosses 1600. Twentieth milestone in the autonomous arc; the LeidClient stands byte-untouched for thirteen milestones running. The session is kept.*

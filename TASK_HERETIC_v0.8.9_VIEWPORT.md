@@ -11,6 +11,16 @@
 > **Mythic Engineering mode:** AUTONOMOUS. Twentieth milestone in the autonomous arc.
 >
 > **Notable departure:** This slice **modifies three existing methods** (`render_url`, `screenshot`, `open_session`) to pass viewport=... to `browser.new_context()`. The public agent-facing surface is unchanged — same tools, same parameters, same return shapes. Only the internal Playwright call gains a new kwarg, and operator-controlled viewport now propagates uniformly. A few existing tests that asserted `new_context.assert_awaited_once_with(user_agent=...)` need to be updated to also expect `viewport=...` in the call.
+>
+> **STATUS — 2026-05-11:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — ninth consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `6d46336` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 279 + 2 skip (was 269 + 2 — `+10`). Full suite **1600 + 9 skip** (was 1590 + 9). Suite has crossed 1600 tests. Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Ninth consecutive zero-findings audit. **First substantive-modification slice in v0.8 umbrella** shipped cleanly with default-preserving discipline. See `docs/audit/AUDIT_v0.8.9_VIEWPORT.md`.
+>
+> **DEVLOG:** Entry 34 — `docs/DEVLOG.md`.
 
 ---
 
@@ -117,19 +127,19 @@ Each verifies `new_context` is called with `viewport={"width": ..., "height": ..
 
 ---
 
-## 8. Exit criteria
+## 8. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] 2 new `LeidConfig` fields with __post_init__ validation
-- [ ] `PlaywrightLeidClient.render_url()` passes viewport at new_context
-- [ ] `PlaywrightLeidClient.screenshot()` passes viewport at new_context
-- [ ] `PlaywrightLeidClient.open_session()` passes viewport at new_context
-- [ ] No new tools, no new error classes
-- [ ] B-27 added to INTERFACE.md §12.15
-- [ ] All 269 existing leid tests pass (with 2 updated assertions; rest unchanged)
-- [ ] At least 6 new method tests passing (viewport propagation at each site)
-- [ ] At least 4 new config validation tests passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.13 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.9_VIEWPORT.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 34 written
-- [ ] All commits pushed to `development`
+- [x] 2 new `LeidConfig` fields with __post_init__ validation — `a56c6e0`
+- [x] `PlaywrightLeidClient.render_url()` passes viewport at new_context — `164fb0b`
+- [x] `PlaywrightLeidClient.screenshot()` passes viewport at new_context — `164fb0b`
+- [x] `PlaywrightLeidClient.open_session()` passes viewport at new_context — `164fb0b`
+- [x] No new tools, no new error classes — confirmed
+- [x] B-27 added to INTERFACE.md §12.15 — `a56c6e0`
+- [x] All 269 existing leid tests pass (with 2 updated assertions; rest unchanged) — verified at `164fb0b`
+- [x] 6 new viewport propagation tests passing (3 explicit + 3 default) — `164fb0b`
+- [x] 4 new config validation tests passing — `164fb0b`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.13 exists — `2134beb`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `1e244e9`
+- [x] `docs/audit/AUDIT_v0.8.9_VIEWPORT.md` PASSES SCRUTINY (0/0/0/0) — `6d46336`
+- [x] DEVLOG entry 34 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
