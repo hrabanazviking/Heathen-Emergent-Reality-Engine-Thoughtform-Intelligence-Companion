@@ -6678,6 +6678,127 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.6 Leið in-session navigation (Innan Hurðar extension — v0.8.2.2)
+
+> **Added 2026-05-10 v0.8.2.2 (Védis Eikleið).** Unnamed extension of Innan
+> Hurðar — adds `leid.navigate` for in-session URL changes. The session keeps
+> its identity, cookies, and localStorage; only the page's URL changes.
+> Reuses the existing browser quartet (no new launch). One new B-invariant
+> (B-20); no new error classes (reuses LeidTimeoutError / LeidConnectionError
+> / LeidHttpError / LeidSessionExpiredError).
+
+```
+  LEIÐ IN-SESSION NAVIGATE FLOW (v0.8.2.2)
+
+  Entry point: agent calls leid.navigate(session_id, url).
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.navigate" → PlaywrightLeidClient.navigate(...)
+
+  Stage 2 — URL validation FIRST (B-12 / B-20)
+    normalised_url = self._validate_url(url)
+        ↓
+    raises UrlNotAllowedError before session_id is even resolved.
+    Order matters: an invalid URL should fail loudly even if the session
+    is also gone — the operator's allowlist gate is unconditional.
+
+  Stage 3 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 4 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 5 — Capture previous URL (D-64)
+    previous_url = session.page.url
+        ↓
+    Snapshot BEFORE the navigation so we have a coherent record even
+    if the goto succeeds and changes session.page.url.
+
+  Stage 6 — Navigate (D-60, B-5 inherited)
+    try:
+        response = await session.page.goto(
+            normalised_url,
+            wait_until = config.browser_load_state,         ── reused (D-65)
+            timeout    = config.browser_navigation_timeout_seconds * 1000,
+        )
+    except PlaywrightTimeoutError:
+        raise LeidTimeoutError(...)                         ── B-5 inherited
+    except PlaywrightError:
+        raise LeidConnectionError(...)                      ── D-66
+
+  Stage 7 — Status check
+    if response is not None and response.status >= 400:
+        raise LeidHttpError(...)                            ── D-66
+
+  Stage 8 — Activity update (B-17 / B-20)
+    session.mark_activity()
+
+  Stage 9 — Read post-navigate state
+    final_url = session.page.url   (may differ from normalised_url
+                                     if the page client-side-redirected)
+    try: title = await session.page.title()
+    except: title = None                                    ── D-49 defensive
+
+    return {
+        "session_id": session_id,                           ── D-62 unchanged
+        "previous_url": previous_url,                        ── D-64 NEW
+        "final_url": final_url,
+        "title": title,
+    }
+
+  State preservation across navigation (D-63):
+    The session's (pw, browser, context, page) quartet is the SAME
+    quartet before and after navigate. The page's URL changes; the
+    BrowserContext's cookie jar does not. The localStorage scoped to
+    the previous URL's origin is preserved per browser-context rules
+    (cleared if cross-origin, preserved if same-origin — this is
+    Chromium's intrinsic behaviour, not a HERETIC choice).
+
+  Difference from open_session navigation phase:
+    open_session navigation: launch quartet → goto → register
+                             (failure cleans up the launched quartet)
+    navigate:                lookup session → goto on existing page
+                             (failure does NOT close the session — it
+                              stays open with whatever URL it had,
+                              ready for a retry or a different navigate)
+
+    A navigation failure leaves the session in a usable state: the
+    session_id remains valid; subsequent calls (status, click, type,
+    or another navigate) work against whatever the page now shows.
+    This is intentional — agents should not lose their entire session
+    state because of a single failed navigation.
+
+  Inheritance from prior invariants:
+    B-1 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-12  — URL gate runs FIRST
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises
+    B-17  — activity update after success
+    B-20  — NEW: navigate respects the same gate-then-resolve discipline
+
+  Error code mapping:
+    UrlNotAllowedError            → PERMISSION_DENIED
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidTimeoutError              → SENSE_TIMEOUT
+    LeidHttpError                 → SENSE_INTERNAL_ERROR
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+
+  Cost vs the other in-session tools:
+    open_session:       ~500-3000 ms  (launch + navigate)
+    navigate:           ~500-2000 ms  (navigate only — no launch)
+    click / type:       ~50-200 ms    (interaction on existing page)
+    session_status:     ~5-20 ms      (URL read + title read)
+    close_session:      ~200-500 ms   (browser teardown)
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
