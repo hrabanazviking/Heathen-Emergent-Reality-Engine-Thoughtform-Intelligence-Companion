@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.3 query extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-10 (v0.8.4 press extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -86,6 +86,7 @@ for the v0.8.0 browser-mode contract.
 | `leid.type`            | Fill first element matching selector with the supplied text         | `session_id`, `selector`, `text` (all strings) | Playwright (Chromium) | v0.8.2.1 |
 | `leid.navigate`        | Navigate an open session to a new URL (cookies + localStorage persist) | `session_id`, `url` (both strings)    | Playwright (Chromium) | v0.8.2.2 |
 | `leid.query`           | Read text or attribute of first element matching CSS selector (read-only; not-found is not an error) | `session_id`, `selector` (req); `attribute` (opt) | Playwright (Chromium) | v0.8.3 |
+| `leid.press`           | Send a keyboard key (Enter, Tab, Escape, modifier combos) at page-level focus | `session_id`, `key` (both strings) | Playwright (Chromium) | v0.8.4 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -705,3 +706,59 @@ Click and type are MUTATING actions — the agent expects them to succeed; a sel
 | Inner HTML extraction       | v0.8.x — text_content covers most needs; raw HTML is a different primitive |
 | Element bounding-box / position | v0.8.x — geometric inspection is a separate concern |
 | Visibility check            | v0.8.x — `found` conveys DOM presence; visibility is a refinement |
+
+### 12.10 Press extension (v0.8.4 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-10 v0.8.4.** Adds `leid.press` — page-level keyboard key
+> dispatch through Playwright's `page.keyboard.press()`. The body's
+> keyboard finger; the canonical "press Enter to submit" or "press Escape
+> to dismiss" primitive. No new error classes (D-84). No new config
+> fields (D-83 reuses click timeout). One new B-invariant (B-22).
+
+**New tool:** `leid.press(session_id, key)` → `{session_id, key, pressed, current_url, current_title}`.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-22 | `press()` enforces the same session/activity discipline as the rest of Innan Hurðar interactive tools: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; `page.keyboard.press(key)` is awaited (Playwright applies its own default action timeout — keyboard.press does not accept a per-call timeout); on success, `session.last_activity_at` is updated. |
+
+**Implementation primitive:** `await session.page.keyboard.press(key)`. Page-level (D-80) — dispatches to whatever element currently has focus. Typical agent flow: `leid.click(selector)` or `leid.type(selector, text)` first to establish focus, then `leid.press("Enter")`.
+
+**Key syntax (D-81):** Playwright's native syntax. Examples:
+- Single keys: `"Enter"`, `"Tab"`, `"Escape"`, `"ArrowDown"`, `"a"`, `"F5"`, `"PageDown"`, `" "` (space)
+- Modifier combinations: `"Control+A"`, `"Shift+Tab"`, `"Meta+S"`, `"Alt+F4"`
+
+HERETIC does not validate the key string. Playwright dispatches as best it can; unrecognized keys produce no event but do NOT raise.
+
+**Success response shape:**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "key": "Enter",
+  "pressed": true,
+  "current_url": "https://example.com/results?q=norse",
+  "current_title": "Search Results"
+}
+```
+
+`current_url` may differ from the pre-press URL when the press triggers navigation (e.g., Enter submitted a form).
+
+**Failure-mode reuse:** No new error classes. The two genuine failure modes:
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| Browser failure (page closed, process disconnect) | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+
+**Why no LeidPressKeyInvalidError?** Playwright accepts arbitrary key strings. Unrecognized keys produce no event — `pressed: true` is returned because the API call itself succeeded; the agent can verify the press had its intended effect by querying the page state afterward (via `leid.query` or `leid.session_status`). This matches Playwright's own permissive design.
+
+**Out of scope at v0.8.4:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Element-targeted press (`locator.press`) | v0.8.x — agent achieves this via click(selector) then press(key); explicit element-press is a refinement |
+| Text input via per-key sequences | v0.8.x — `leid.type` covers text via locator.fill |
+| Mouse events (hover, double-click, drag) | v0.8.x — distinct primitives |
+| Held keys / down-up sequences | v0.8.x — Playwright's `keyboard.down`/`up` primitives, distinct contract |

@@ -46,6 +46,11 @@ v0.8.3 (1 added tool — LOCKED):
                             found" returns {found: false} rather than raising
                             (read-only divergence from click/type)
 
+v0.8.4 (1 added tool — LOCKED):
+    leid.press            — send a keyboard key (Enter, Tab, Escape, modifier
+                            combos) at page-level focus; the body's keyboard
+                            finger for form submission and modal dismissal
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -515,6 +520,56 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.press  (v0.8.4 Innan Hurðar extension — page-level keyboard)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.press",
+            "description": (
+                "Send a keyboard key (or modifier combination) to the open "
+                "session's page. The press goes to whatever element currently "
+                "has focus — typically established by a prior leid.click or "
+                "leid.type. Use this for: submitting a form via 'Enter' after "
+                "filling a search box; dismissing a modal via 'Escape'; "
+                "moving focus via 'Tab' or 'Shift+Tab'; navigating dropdowns "
+                "via 'ArrowDown'/'ArrowUp'. Single keys (e.g. 'Enter', "
+                "'Escape', 'Tab', 'a', 'F5') and modifier combinations "
+                "(e.g. 'Control+A', 'Shift+Tab', 'Meta+S') are supported per "
+                "Playwright's key syntax. Returns {key, pressed, current_url, "
+                "current_title} so you can detect navigation triggered by the "
+                "press. Unrecognized keys produce no event but do NOT raise "
+                "(consistent with Playwright's design); verify via leid.query "
+                "or leid.session_status if you need to confirm effect. "
+                "Unknown session_id returns SENSE_UNAVAILABLE; browser "
+                "failures return EXTERNAL_APP_UNAVAILABLE."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": (
+                            "The key or modifier+key combination to press, "
+                            "in Playwright's syntax. "
+                            "Examples: 'Enter', 'Tab', 'Escape', 'ArrowDown', "
+                            "'F5', 'Control+A', 'Shift+Tab', 'Meta+S'."
+                        ),
+                    },
+                },
+                "required": ["session_id", "key"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -548,7 +603,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 11 OpenAI tool schemas for the Leið sense.
+"""The 12 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -574,4 +629,7 @@ Tool name added at v0.8.2.2 (LOCKED):
 
 Tool name added at v0.8.3 (LOCKED):
     leid.query
+
+Tool name added at v0.8.4 (LOCKED):
+    leid.press
 """
