@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-11 (v0.8.8 query_all extension — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-11 (v0.8.9 configurable viewport — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.8 query_all extension) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -189,6 +189,10 @@ skilningr:
 
     # v0.8.8 query_all — cardinality cap on multi-element query
     browser_query_max_matches: 100                # hard cap; query_all > cap raises
+
+    # v0.8.9 — configurable viewport (applied at all browser-context creations)
+    browser_viewport_width: 1280                  # viewport width in pixels (>0)
+    browser_viewport_height: 720                  # viewport height in pixels (>0)
 ```
 
 ---
@@ -1081,3 +1085,48 @@ The cap fires BEFORE iteration begins — no partial work, no silent truncation.
 | XPath multi-match           | v0.8.x — CSS suffices |
 | Per-element bounding box    | v0.8.x — geometric inspection separate concern |
 | Nested attribute reads (href + text in one call) | v0.8.x — agent calls twice |
+
+### 12.15 Configurable viewport (v0.8.9 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.9.** Operator-controlled viewport for all
+> browser-mode tools. Adds two new `LeidConfig` fields
+> (`browser_viewport_width`, `browser_viewport_height`) with defaults
+> 1280×720 (matching Playwright's default — no behavior change for
+> existing operators). Applied uniformly at three browser-context-
+> creation sites (B-27): `render_url`, `screenshot`, `open_session`.
+> Agent-facing tool surface unchanged. No new tools, no new error
+> classes. **Not** a new tool — a behavior change to existing tools.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-27 | Every `browser.new_context(...)` call within `PlaywrightLeidClient` (in `render_url`, `screenshot`, `open_session`) passes `viewport={"width": config.browser_viewport_width, "height": config.browser_viewport_height}`. Operator-controlled viewport propagates uniformly across all browser-context creations. Once a context is created, its viewport persists for the life of that browser context (mid-session viewport change is out of scope per D-130). |
+
+**New config fields:**
+
+| Field                          | Type | Default | Validation |
+|--------------------------------|------|---------|------------|
+| `browser_viewport_width`       | int  | 1280    | `> 0`      |
+| `browser_viewport_height`      | int  | 720     | `> 0`      |
+
+**Implementation:** each affected method's existing `browser.new_context(user_agent=config.user_agent)` call gains a `viewport={"width": config.browser_viewport_width, "height": config.browser_viewport_height}` kwarg. Same call shape; one new kwarg.
+
+**Why operator-controlled, not agent-controlled (D-130):**
+
+Agent-supplied viewport would let the agent ask for "show me this page at mobile width" — useful, but it would require the agent to reason about browser rendering details that are usually the operator's concern. Operator-controlled is the right scope: the operator picks the viewport their use case needs, and every agent using their HERETIC instance gets the same view.
+
+Per-tool viewport override (e.g., screenshot at 1920 but session at 1280) is a candidate for v0.8.x if real use cases demand it.
+
+**Why launch-time-only (D-130):**
+
+Mid-session viewport change (`page.set_viewport_size`) is a distinct primitive and would need its own tool. v0.8.9 is launch-time only — the session's viewport is fixed at `open_session` and persists for the session's life. This matches the "viewport is operator infrastructure" principle: operators set it once, it stays set.
+
+**Out of scope at v0.8.9:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Per-call viewport override (agent-supplied) | v0.8.x — would break agent-doesn't-manage-browser-internals abstraction |
+| Device emulation presets (iPhone, iPad, etc.) | v0.8.x — distinct concern; would also include user_agent + touch settings |
+| Mid-session viewport change | v0.8.x — `page.set_viewport_size`; distinct primitive |
+| Per-tool viewport override (e.g., screenshot 1920, session 1280) | v0.8.x — complexity not justified for v0.8.9 |

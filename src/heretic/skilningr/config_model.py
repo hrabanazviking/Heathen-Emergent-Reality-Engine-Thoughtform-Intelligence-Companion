@@ -593,6 +593,26 @@ class LeidConfig:
     ``enabled: false`` instead). Used only by ``leid.query_all``; has no
     effect on ``leid.query`` or any other tool."""
 
+    # ----- v0.8.9 — configurable viewport for all browser-mode tools -----
+
+    browser_viewport_width: int = 1280
+    """Viewport width in pixels for browser contexts created by
+    ``render_url``, ``screenshot``, and ``open_session``. Default 1280
+    matches Playwright's default — existing operators see no behavior
+    change. Operators with mobile-first scenarios may set this lower
+    (e.g., 375 for iPhone-12 width); operators with wide-dashboard
+    scenarios may set this higher (e.g., 1920 for full HD). Applied
+    uniformly across all three browser-context-creating sites (B-27).
+    Must be > 0. Mid-session viewport change is out of scope (D-130) —
+    the session's viewport is fixed at open_session and persists for
+    the session's life."""
+
+    browser_viewport_height: int = 720
+    """Viewport height in pixels for browser contexts created by
+    ``render_url``, ``screenshot``, and ``open_session``. Default 720
+    matches Playwright's default. Same propagation discipline as
+    ``browser_viewport_width`` (B-27). Must be > 0."""
+
     def __post_init__(self) -> None:
         """Validate config fields at construction time.
 
@@ -671,6 +691,17 @@ class LeidConfig:
             raise ValueError(
                 f"LeidConfig.browser_query_max_matches must be >= 1, "
                 f"got {self.browser_query_max_matches!r}."
+            )
+        # v0.8.9 — viewport dimensions validation
+        if self.browser_viewport_width <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_viewport_width must be > 0, "
+                f"got {self.browser_viewport_width!r}."
+            )
+        if self.browser_viewport_height <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_viewport_height must be > 0, "
+                f"got {self.browser_viewport_height!r}."
             )
         # Warn on unrestricted wildcard
         if self.enabled and "*" in self.url_allowlist_patterns:
