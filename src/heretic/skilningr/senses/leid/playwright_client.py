@@ -67,6 +67,7 @@ Ref: src/heretic/skilningr/senses/leid/INTERFACE.md §10
 
 from __future__ import annotations
 
+import base64
 import logging
 from typing import Any
 
@@ -352,4 +353,209 @@ class PlaywrightLeidClient:
             "text": text,
             "title": title,
             "source_size_bytes": rendered_size,
+        }
+
+    async def screenshot(self, url: str) -> dict[str, Any]:
+        """Navigate to *url* in headless Chromium and return a base64-PNG screenshot.
+
+        v0.8.1 *Mynd af Vegferð* — second tool on the Opið Vef sub-faculty.
+        Same launch-per-call browser lifecycle as ``render_url``; same B-1..B-10
+        invariants. One additional invariant — B-11 — governs the image-data
+        path: the size cap (``config.max_response_bytes``) applies to the **raw
+        PNG bytes BEFORE base64 encoding**, NOT to the base64-expanded length.
+
+        See module docstring for the full sandbox invariant list. Each call is
+        fully stateless — a fresh browser context is created and disposed.
+
+        Args:
+            url: URL to screenshot. Must match url_allowlist_patterns.
+
+        Returns:
+            dict with keys:
+                url (str):                 the validated URL passed in
+                final_url (str):           page.url after navigation
+                                           (may differ from url after redirect)
+                image_base64 (str):        ASCII base64 encoding of the raw PNG
+                image_format (str):        always "png" at v0.8.1
+                size_bytes (int):          length of the raw PNG bytes
+                                           (BEFORE base64 expansion — D-18)
+                full_page (bool):          echo of config.browser_screenshot_full_page
+
+        Raises:
+            UrlNotAllowedError:             URL not in allowlist or HTTP rejected.
+            LeidPlaywrightUnavailableError: playwright not installed OR chromium
+                                            binary missing.
+            LeidTimeoutError:               page.goto() exceeded
+                                            browser_navigation_timeout_seconds.
+            LeidHttpError:                  navigation returned 4xx or 5xx status.
+            LeidConnectionError:            network-level error reached by Playwright.
+            LeidResponseTooLargeError:      raw PNG bytes exceed max_response_bytes.
+        """
+        # B-1 — allowlist + HTTPS-only gate. Reuses the same _validate_url
+        # method as render_url. A rejected URL never causes a browser launch.
+        normalised_url = self._validate_url(url)
+
+        # B-2 — defer the Playwright import to here.
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                async_playwright,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                "Playwright is not installed. To enable leid.screenshot, run "
+                "`pip install heretic[browser]` and then "
+                "`playwright install chromium`. The httpx tools "
+                "(leid.fetch_url, leid.extract_text) continue to work without "
+                f"Playwright. Import error: {exc}"
+            ) from exc
+
+        full_page = self._config.browser_screenshot_full_page
+        self._log.debug(
+            "Leið screenshot: %s (timeout=%ds, max_bytes=%d, "
+            "load_state=%r, full_page=%s)",
+            normalised_url,
+            self._config.browser_navigation_timeout_seconds,
+            self._config.max_response_bytes,
+            self._config.browser_load_state,
+            full_page,
+        )
+
+        # B-7 — same nested cleanup pattern as render_url. Each resource is
+        # closed in a `finally` block; each close itself is wrapped so a
+        # failure in one cleanup does not block the others.
+        pw = None
+        browser = None
+        context = None
+        try:
+            pw = await async_playwright().start()
+
+            try:
+                # B-4 — always headless
+                browser = await pw.chromium.launch(headless=True)
+            except Exception as exc:
+                raise LeidPlaywrightUnavailableError(
+                    "Chromium browser binary could not be launched. The most "
+                    "common cause is that `playwright install chromium` has "
+                    "not been run. Without the browser binary, leid.screenshot "
+                    "cannot operate; the httpx tools are unaffected. "
+                    f"Underlying error: {exc}"
+                ) from exc
+
+            # B-3 — fresh context per call. B-8 — user agent passed through.
+            context = await browser.new_context(
+                user_agent=self._config.user_agent,
+            )
+            page = await context.new_page()
+
+            # B-5 — bounded navigation timeout. Identical mapping to render_url.
+            try:
+                response = await page.goto(
+                    normalised_url,
+                    wait_until=self._config.browser_load_state,
+                    timeout=self._config.browser_navigation_timeout_seconds * 1000,
+                )
+            except PlaywrightTimeoutError as exc:
+                raise LeidTimeoutError(
+                    f"Browser navigation to {normalised_url!r} timed out after "
+                    f"{self._config.browser_navigation_timeout_seconds}s "
+                    f"(load_state={self._config.browser_load_state!r}): {exc}"
+                ) from exc
+            except PlaywrightError as exc:
+                raise LeidConnectionError(
+                    f"Browser navigation to {normalised_url!r} failed at the "
+                    f"network layer: {exc}"
+                ) from exc
+
+            # Same status-code check as render_url — None response (e.g. data:)
+            # is allowed through to the screenshot step.
+            if response is not None and response.status >= 400:
+                raise LeidHttpError(
+                    f"HTTP {response.status} from {normalised_url!r} "
+                    f"(rendered via Playwright)."
+                )
+
+            # Stage 5 — capture the screenshot
+            png_bytes = await page.screenshot(
+                full_page=full_page,
+                type="png",
+            )
+
+            # B-11 — pre-cap on raw PNG byte size, BEFORE base64 encoding.
+            # The base64 expansion (~33%) is avoided when the cap fires.
+            png_size = len(png_bytes)
+            if png_size > self._config.max_response_bytes:
+                self._log.warning(
+                    "Leið screenshot: PNG from %s is %d bytes, exceeds "
+                    "max_response_bytes=%d — aborting before base64 encoding",
+                    normalised_url,
+                    png_size,
+                    self._config.max_response_bytes,
+                )
+                raise LeidResponseTooLargeError(
+                    f"PNG screenshot of {normalised_url!r} is {png_size} "
+                    f"bytes, which exceeds max_response_bytes="
+                    f"{self._config.max_response_bytes}. The page may be a "
+                    f"large SPA. Increase LeidConfig.max_response_bytes, or "
+                    f"set browser_screenshot_full_page: false to capture only "
+                    f"the viewport instead."
+                )
+
+            # Stage 7 — base64 encode (D-17). ASCII-decode is safe because
+            # base64 output is by definition ASCII-only.
+            image_base64 = base64.b64encode(png_bytes).decode("ascii")
+            final_url = page.url
+
+        finally:
+            # B-7 — close in reverse order, each wrapped defensively.
+            if context is not None:
+                try:
+                    await context.close()
+                except Exception as exc:
+                    self._log.warning(
+                        "Leið screenshot: context.close() raised "
+                        "(non-fatal): %s",
+                        exc,
+                    )
+            if browser is not None:
+                try:
+                    await browser.close()
+                except Exception as exc:
+                    self._log.warning(
+                        "Leið screenshot: browser.close() raised "
+                        "(non-fatal): %s",
+                        exc,
+                    )
+            if pw is not None:
+                try:
+                    await pw.stop()
+                except Exception as exc:
+                    self._log.warning(
+                        "Leið screenshot: playwright.stop() raised "
+                        "(non-fatal): %s",
+                        exc,
+                    )
+
+        self._log.debug(
+            "Leið screenshot: %s -> final_url=%s, png_size=%d, "
+            "base64_size=%d, full_page=%s",
+            normalised_url,
+            final_url,
+            png_size,
+            len(image_base64),
+            full_page,
+        )
+
+        return {
+            "url": normalised_url,
+            "final_url": final_url,
+            "image_base64": image_base64,
+            "image_format": "png",
+            "size_bytes": png_size,
+            "full_page": full_page,
         }

@@ -118,6 +118,13 @@ class TestLeidConfig:
         cfg = LeidConfig()
         assert cfg.browser_load_state == "domcontentloaded"
 
+    # --- v0.8.1 Mynd af Vegferð — screenshot field default ---
+
+    def test_leid_config_browser_screenshot_full_page_default_is_true(self):
+        """browser_screenshot_full_page defaults to True per D-20."""
+        cfg = LeidConfig()
+        assert cfg.browser_screenshot_full_page is True
+
 
 # ---------------------------------------------------------------------------
 # Sense lifecycle
@@ -158,11 +165,12 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 3 tools when enabled (v0.8.0 added leid.render_url)."""
+        """tool_definitions returns 4 tools when enabled
+        (v0.6.2: fetch_url + extract_text; v0.8.0: render_url; v0.8.1: screenshot)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 3
+        assert len(sense.tool_definitions) == 4
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -172,12 +180,13 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """The three Leið tool names are locked as specified
-        (v0.6.2: fetch_url, extract_text; v0.8.0 added: render_url)."""
+        """The four Leið tool names are locked as specified
+        (v0.6.2: fetch_url, extract_text; v0.8.0: render_url; v0.8.1: screenshot)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
         assert "leid.render_url" in names
+        assert "leid.screenshot" in names
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +379,76 @@ class TestLeidSenseDispatch:
         await sense.open()
         tool_call = self._make_tool_call(
             "leid.render_url", {"url": "https://example.com/spa"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["error"] is True
+        assert parsed["code"] == "EXTERNAL_APP_UNAVAILABLE"
+
+    # -------------------------------------------------------------------
+    # v0.8.1 Mynd af Vegferð — leid.screenshot dispatch
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_screenshot_routes_to_playwright_client(self):
+        """dispatch_tool_call routes leid.screenshot to PlaywrightLeidClient.screenshot;
+        the httpx LeidClient and PlaywrightLeidClient.render_url are NOT touched."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_client.fetch_url = AsyncMock(return_value={})  # MUST NOT be called
+        mock_client.extract_text = AsyncMock(return_value={})  # MUST NOT be called
+
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.render_url = AsyncMock(return_value={})  # MUST NOT be called
+        mock_pw_client.screenshot = AsyncMock(return_value={
+            "url": "https://example.com/dash",
+            "final_url": "https://example.com/dash",
+            "image_base64": "iVBORw0KGgoAAAANSUhEUg==",
+            "image_format": "png",
+            "size_bytes": 28,
+            "full_page": True,
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.screenshot", {"url": "https://example.com/dash"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+
+        assert parsed["image_format"] == "png"
+        assert parsed["size_bytes"] == 28
+        assert parsed["full_page"] is True
+        # Other surfaces MUST NOT have been touched
+        mock_client.fetch_url.assert_not_called()
+        mock_client.extract_text.assert_not_called()
+        mock_pw_client.render_url.assert_not_called()
+        mock_pw_client.screenshot.assert_awaited_once_with(
+            url="https://example.com/dash"
+        )
+
+    @pytest.mark.asyncio
+    async def test_screenshot_unavailable_returns_external_app_unavailable_code(self):
+        """When PlaywrightLeidClient.screenshot raises LeidPlaywrightUnavailableError,
+        the sense returns EXTERNAL_APP_UNAVAILABLE."""
+        config = LeidConfig(
+            enabled=True,
+            url_allowlist_patterns=["https://example.com/*"],
+        )
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.screenshot = AsyncMock(
+            side_effect=LeidPlaywrightUnavailableError(
+                "Playwright is not installed."
+            )
+        )
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.screenshot", {"url": "https://example.com/dash"}
         )
         result = await sense.dispatch_tool_call(tool_call)
         parsed = json.loads(result["content"])

@@ -201,6 +201,16 @@ class LeidSense:
             result = await self._playwright_client.render_url(url=args["url"])
             return json.dumps(result)
 
+        if tool_name == "leid.screenshot":
+            # v0.8.1 Mynd af Vegferð — sibling browser tool. Same lazy
+            # construction posture; same playwright import deferral.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.screenshot(url=args["url"])
+            return json.dumps(result)
+
         raise ToolDispatchError(
             f"Leið route fell through for {tool_name!r} — routing table out of sync."
         )

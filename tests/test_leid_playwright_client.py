@@ -80,6 +80,7 @@ def _install_fake_playwright(
     page_url: str = "https://example.com/page",
     response_status: int = 200,
     response_is_none: bool = False,
+    screenshot_bytes: bytes = b"\x89PNG\r\n\x1a\n_fake_png_payload_",
 ) -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]:
     """Install a fake `playwright.async_api` module in ``sys.modules``.
 
@@ -90,6 +91,10 @@ def _install_fake_playwright(
     page_mock = MagicMock()
     page_mock.url = page_url
     page_mock.content = AsyncMock(return_value=page_content)
+    page_mock.screenshot = AsyncMock(return_value=screenshot_bytes)
+    # B-10 regression-guard: page.evaluate is mocked but never called by
+    # production code. Tests assert assert_not_called() after each method.
+    page_mock.evaluate = AsyncMock(return_value=None)
     response_mock = MagicMock()
     response_mock.status = response_status
     if response_is_none:
@@ -582,6 +587,301 @@ class TestRenderUrlResourceCleanup:
 
 
 # ---------------------------------------------------------------------------
+# v0.8.1 Mynd af Vegferð — screenshot tests
+# ---------------------------------------------------------------------------
+
+class TestScreenshotValidationBeforeLaunch:
+    """B-1, B-9 for screenshot — validation runs before any browser operation."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_validates_before_launch(self, fake_playwright):
+        """B-1: URL not in allowlist → UrlNotAllowedError; no browser launched."""
+        async_playwright_mock, *_ = fake_playwright()
+        client = make_client(["https://docs.python.org/*"])
+        with pytest.raises(UrlNotAllowedError):
+            await client.screenshot("https://evil.com/page")
+        async_playwright_mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_screenshot_rejects_http_when_allow_http_false(self, fake_playwright):
+        """B-9: http:// URL with allow_http=false → UrlNotAllowedError; no browser."""
+        async_playwright_mock, *_ = fake_playwright()
+        client = make_client(["http://example.com/*"], allow_http=False)
+        with pytest.raises(UrlNotAllowedError, match="HTTP"):
+            await client.screenshot("http://example.com/page")
+        async_playwright_mock.assert_not_called()
+
+
+class TestScreenshotAvailability:
+    """B-2 for screenshot — availability errors."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_unavailable_when_playwright_missing(self, no_playwright):
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidPlaywrightUnavailableError, match="not installed"):
+            await client.screenshot("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_screenshot_unavailable_when_browser_launch_fails(
+        self, fake_playwright
+    ):
+        fake_playwright(launch_side_effect=RuntimeError("Executable doesn't exist"))
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidPlaywrightUnavailableError, match="Chromium"):
+            await client.screenshot("https://example.com/page")
+
+
+class TestScreenshotLifecycle:
+    """B-3, B-4, B-8 for screenshot — context isolation, headless, user agent."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_fresh_context_per_call(self, fake_playwright):
+        """B-3: two consecutive calls open two contexts; both closed."""
+        _, browser_mock1, context_mock1, *_ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.screenshot("https://example.com/page1")
+        assert browser_mock1.new_context.await_count == 1
+        assert context_mock1.close.await_count == 1
+        _uninstall_fake_playwright()
+
+        _, browser_mock2, context_mock2, *_ = _install_fake_playwright()
+        try:
+            await client.screenshot("https://example.com/page2")
+            assert browser_mock2.new_context.await_count == 1
+            assert context_mock2.close.await_count == 1
+        finally:
+            _uninstall_fake_playwright()
+
+    @pytest.mark.asyncio
+    async def test_screenshot_launches_headless(self, fake_playwright):
+        """B-4: chromium.launch called with headless=True."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.screenshot("https://example.com/page")
+        async_pw = sys.modules["playwright.async_api"].async_playwright  # type: ignore[attr-defined]
+        chromium = async_pw.return_value.start.return_value.chromium
+        chromium.launch.assert_awaited_once_with(headless=True)
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_configured_user_agent(self, fake_playwright):
+        """B-8: new_context called with user_agent=config.user_agent."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            user_agent="HERETIC/0.8.1 (test-agent)",
+        )
+        await client.screenshot("https://example.com/page")
+        browser_mock.new_context.assert_awaited_once_with(
+            user_agent="HERETIC/0.8.1 (test-agent)"
+        )
+
+
+class TestScreenshotNavigationErrors:
+    """B-5 timeout, HTTP error, network error mapping for screenshot."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_navigation_timeout_raises_leid_timeout(
+        self, fake_playwright
+    ):
+        fake_playwright(
+            goto_side_effect=_FakePlaywrightTimeoutError("Navigation timeout 30000ms")
+        )
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidTimeoutError, match="timed out"):
+            await client.screenshot("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_screenshot_http_error_raises_leid_http_error(self, fake_playwright):
+        fake_playwright(response_status=502)
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidHttpError, match="502"):
+            await client.screenshot("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_screenshot_network_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        fake_playwright(
+            goto_side_effect=_FakePlaywrightError("net::ERR_NAME_NOT_RESOLVED")
+        )
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidConnectionError, match="network layer"):
+            await client.screenshot("https://example.com/page")
+
+
+class TestScreenshotSizeCap:
+    """B-11 for screenshot — pre-cap on raw PNG bytes BEFORE base64."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_pre_cap_on_png_bytes(self, fake_playwright):
+        """B-11: PNG larger than max_response_bytes → LeidResponseTooLargeError
+        BEFORE base64 encoding step."""
+        large_png = b"\x89PNG\r\n\x1a\n" + (b"x" * 2_000_000)
+        fake_playwright(screenshot_bytes=large_png)
+        client = make_client(
+            ["https://example.com/*"],
+            max_response_bytes=1_048_576,
+        )
+        with pytest.raises(
+            LeidResponseTooLargeError, match="exceeds max_response_bytes"
+        ):
+            await client.screenshot("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_screenshot_pre_cap_under_threshold(self, fake_playwright):
+        """Under-cap PNG succeeds and returns expected fields."""
+        small_png = b"\x89PNG\r\n\x1a\n" + (b"x" * 1024)
+        fake_playwright(screenshot_bytes=small_png)
+        client = make_client(
+            ["https://example.com/*"],
+            max_response_bytes=1_048_576,
+        )
+        result = await client.screenshot("https://example.com/page")
+        assert result["size_bytes"] == len(small_png)
+
+
+class TestScreenshotReturnShape:
+    """Return shape conforms to v0.8.1 contract."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_returns_correct_shape(self, fake_playwright):
+        png = b"\x89PNG\r\n\x1a\n_test_payload_"
+        fake_playwright(screenshot_bytes=png, page_url="https://example.com/final")
+        client = make_client(["https://example.com/*"])
+        result = await client.screenshot("https://example.com/page")
+
+        assert set(result.keys()) == {
+            "url",
+            "final_url",
+            "image_base64",
+            "image_format",
+            "size_bytes",
+            "full_page",
+        }
+        assert result["url"] == "https://example.com/page"
+        assert result["final_url"] == "https://example.com/final"
+        assert result["image_format"] == "png"
+        assert result["size_bytes"] == len(png)
+        assert result["full_page"] is True  # config default
+
+    @pytest.mark.asyncio
+    async def test_screenshot_image_base64_decodes_to_original_png(
+        self, fake_playwright
+    ):
+        """D-17: result['image_base64'] decodes to the exact bytes returned by
+        page.screenshot."""
+        import base64 as _b64
+        png = b"\x89PNG\r\n\x1a\n_round_trip_payload_with_unique_marker_"
+        fake_playwright(screenshot_bytes=png)
+        client = make_client(["https://example.com/*"])
+        result = await client.screenshot("https://example.com/page")
+        decoded = _b64.b64decode(result["image_base64"])
+        assert decoded == png
+
+    @pytest.mark.asyncio
+    async def test_screenshot_full_page_true_passed_to_playwright(
+        self, fake_playwright
+    ):
+        """D-20: when config sets full_page=True, page.screenshot called with it."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_full_page=True,
+        )
+        await client.screenshot("https://example.com/page")
+        page_mock.screenshot.assert_awaited_once_with(full_page=True, type="png")
+
+    @pytest.mark.asyncio
+    async def test_screenshot_full_page_false_passed_to_playwright(
+        self, fake_playwright
+    ):
+        """D-20: when config sets full_page=False, page.screenshot called with it."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_full_page=False,
+        )
+        await client.screenshot("https://example.com/page")
+        page_mock.screenshot.assert_awaited_once_with(full_page=False, type="png")
+
+
+class TestScreenshotResourceCleanup:
+    """B-7 for screenshot — all three resources closed even on failure."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_closes_resources_on_navigation_failure(
+        self, fake_playwright
+    ):
+        _, browser_mock, context_mock, _, _ = fake_playwright(
+            goto_side_effect=_FakePlaywrightError("network layer")
+        )
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidConnectionError):
+            await client.screenshot("https://example.com/page")
+
+        assert context_mock.close.await_count == 1
+        assert browser_mock.close.await_count == 1
+        pw_runtime = sys.modules[
+            "playwright.async_api"
+        ].async_playwright.return_value.start.return_value  # type: ignore[attr-defined]
+        assert pw_runtime.stop.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_screenshot_closes_resources_on_size_cap_breach(self, fake_playwright):
+        large_png = b"\x89PNG" + (b"x" * 2_000_000)
+        _, browser_mock, context_mock, _, _ = fake_playwright(
+            screenshot_bytes=large_png,
+        )
+        client = make_client(
+            ["https://example.com/*"],
+            max_response_bytes=1_048_576,
+        )
+        with pytest.raises(LeidResponseTooLargeError):
+            await client.screenshot("https://example.com/page")
+
+        assert context_mock.close.await_count == 1
+        assert browser_mock.close.await_count == 1
+        pw_runtime = sys.modules[
+            "playwright.async_api"
+        ].async_playwright.return_value.start.return_value  # type: ignore[attr-defined]
+        assert pw_runtime.stop.await_count == 1
+
+
+# ---------------------------------------------------------------------------
+# B-10 regression guards (closes Audit N-2 from AUDIT_v0.8.0_OPID_VEF.md)
+# ---------------------------------------------------------------------------
+
+class TestB10NoJavaScriptInjection:
+    """B-10: HERETIC injects no JavaScript code into the page in v0.8.0+.
+
+    These regression-guard tests assert that ``page.evaluate`` is NEVER called
+    by either ``render_url`` or ``screenshot``. A future contributor who adds
+    ``page.evaluate(agent_input)`` to either method would silently violate
+    B-10; these tests turn that into a test failure.
+
+    Closes Auditor recommendation N-2 from AUDIT_v0.8.0_OPID_VEF.md, which
+    deferred this test to v0.8.x when richer page-mock infrastructure
+    (the screenshot mock chain) became available.
+    """
+
+    @pytest.mark.asyncio
+    async def test_render_url_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10: after a successful render_url, page.evaluate was never called."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.render_url("https://example.com/page")
+        page_mock.evaluate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_screenshot_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10: after a successful screenshot, page.evaluate was never called."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.screenshot("https://example.com/page")
+        page_mock.evaluate.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # Smoke test — real Chromium (default-skip)
 # ---------------------------------------------------------------------------
 
@@ -606,3 +906,26 @@ async def test_render_url_smoke_real_chromium():
     result = await client.render_url(data_url)
     assert result["title"] == "Smoke"
     assert "Hi" in result["text"]
+
+
+@pytest.mark.requires_playwright
+@pytest.mark.asyncio
+async def test_screenshot_smoke_real_chromium():
+    """Smoke test for v0.8.1 screenshot exercising real Playwright + Chromium.
+
+    Default-skip in CI. Renders a data: URL and asserts the result['image_base64']
+    decodes to non-empty PNG bytes starting with the canonical PNG signature.
+    """
+    import base64 as _b64
+    pytest.importorskip("playwright")
+    client = make_client(["data:*"], allow_http=True)
+    data_url = (
+        "data:text/html,"
+        "<html><head><title>SmokeShot</title></head><body><p>Hi</p></body></html>"
+    )
+    result = await client.screenshot(data_url)
+    assert result["image_format"] == "png"
+    assert result["size_bytes"] > 0
+    decoded = _b64.b64decode(result["image_base64"])
+    # PNG signature: 89 50 4E 47 0D 0A 1A 0A
+    assert decoded.startswith(b"\x89PNG\r\n\x1a\n")
