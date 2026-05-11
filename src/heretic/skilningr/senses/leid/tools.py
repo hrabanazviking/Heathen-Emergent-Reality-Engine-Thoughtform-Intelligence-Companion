@@ -51,6 +51,12 @@ v0.8.4 (1 added tool — LOCKED):
                             combos) at page-level focus; the body's keyboard
                             finger for form submission and modal dismissal
 
+v0.8.5 (2 added tools — LOCKED, paired):
+    leid.go_back          — step backward in the session's browser history;
+                            returns moved:false (NOT an error) when at start
+    leid.go_forward       — step forward in the session's browser history;
+                            returns moved:false (NOT an error) when at end
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -570,6 +576,80 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.go_back  (v0.8.5 Innan Hurðar extension — paired with go_forward)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.go_back",
+            "description": (
+                "Step backward in the open session's browser history — "
+                "equivalent to the user pressing the back button. Cookies "
+                "and localStorage persist (the session's identity is "
+                "unchanged; only the page URL moves through history). "
+                "Returns {session_id, moved, previous_url, current_url, "
+                "title}. If the session is at the FIRST page of its history "
+                "(no entries to go back to), returns moved: false — this is "
+                "NOT an error; history navigation is a probe-and-act "
+                "primitive. The agent can write 'if not result[\"moved\"]: ...' "
+                "to detect this case. previous_url is captured before the "
+                "history step; current_url after. Unknown session_id returns "
+                "SENSE_UNAVAILABLE; navigation timeout returns SENSE_TIMEOUT; "
+                "HTTP 4xx/5xx returns SENSE_INTERNAL_ERROR; network failure "
+                "returns EXTERNAL_APP_UNAVAILABLE."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.go_forward  (v0.8.5 Innan Hurðar extension — paired with go_back)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.go_forward",
+            "description": (
+                "Step forward in the open session's browser history — "
+                "equivalent to the user pressing the forward button. The "
+                "session's identity, cookies, and localStorage all persist; "
+                "only the page URL moves. Returns {session_id, moved, "
+                "previous_url, current_url, title}. If the session is at "
+                "the MOST RECENT page of its history (typical state after a "
+                "fresh navigation that did not branch from history), returns "
+                "moved: false — this is NOT an error. The agent can write "
+                "'if not result[\"moved\"]: ...' to detect this case. Same "
+                "failure-mode mapping as leid.go_back."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -603,7 +683,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 12 OpenAI tool schemas for the Leið sense.
+"""The 14 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -632,4 +712,8 @@ Tool name added at v0.8.3 (LOCKED):
 
 Tool name added at v0.8.4 (LOCKED):
     leid.press
+
+Tool names added at v0.8.5 (LOCKED, paired):
+    leid.go_back
+    leid.go_forward
 """

@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.4 press extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-10 (v0.8.5 history nav extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -87,6 +87,8 @@ for the v0.8.0 browser-mode contract.
 | `leid.navigate`        | Navigate an open session to a new URL (cookies + localStorage persist) | `session_id`, `url` (both strings)    | Playwright (Chromium) | v0.8.2.2 |
 | `leid.query`           | Read text or attribute of first element matching CSS selector (read-only; not-found is not an error) | `session_id`, `selector` (req); `attribute` (opt) | Playwright (Chromium) | v0.8.3 |
 | `leid.press`           | Send a keyboard key (Enter, Tab, Escape, modifier combos) at page-level focus | `session_id`, `key` (both strings) | Playwright (Chromium) | v0.8.4 |
+| `leid.go_back`         | Step backward in the session's browser history; `moved: false` if at start | `session_id` (string) | Playwright (Chromium) | v0.8.5 |
+| `leid.go_forward`      | Step forward in the session's browser history; `moved: false` if at end | `session_id` (string) | Playwright (Chromium) | v0.8.5 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -762,3 +764,85 @@ HERETIC does not validate the key string. Playwright dispatches as best it can; 
 | Text input via per-key sequences | v0.8.x — `leid.type` covers text via locator.fill |
 | Mouse events (hover, double-click, drag) | v0.8.x — distinct primitives |
 | Held keys / down-up sequences | v0.8.x — Playwright's `keyboard.down`/`up` primitives, distinct contract |
+
+### 12.11 History navigation extension (v0.8.5 — paired tools, unnamed within Innan Hurðar)
+
+> **Added 2026-05-10 v0.8.5.** Adds `leid.go_back` and `leid.go_forward`
+> as a paired bundle — they share identical structure and one private
+> helper. Browser history navigation through Playwright's `page.go_back`
+> / `page.go_forward`. **Deliberate divergence**: "no history in this
+> direction" returns `moved: false` rather than raising (D-89, same
+> posture as v0.8.3 query's not-found). No new error classes (D-93). No
+> new config fields (D-91 reuses navigation timeout).
+
+**New tools (paired):**
+- `leid.go_back(session_id)` → `{session_id, moved, previous_url, current_url, title}`
+- `leid.go_forward(session_id)` → `{session_id, moved, previous_url, current_url, title}`
+
+Both share identical contract; only the underlying Playwright primitive differs.
+
+**New B-Invariant (covers both tools):**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-23 | `go_back()` and `go_forward()` enforce the same session/timeout discipline as `navigate()`: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; `page.go_back()` / `page.go_forward()` is awaited with `wait_until=config.browser_load_state` and `timeout=config.browser_navigation_timeout_seconds * 1000`; on success (whether `moved: true` or `moved: false`), `session.last_activity_at` is updated. **DIVERGENCE from B-20**: when Playwright returns `None` (no history in that direction), the tool returns `{moved: false}` rather than raising — history nav is a probe-and-act primitive. Inheritance: HTTP 4xx/5xx during history navigation maps to `LeidHttpError`; navigation timeout maps to `LeidTimeoutError`; network error maps to `LeidConnectionError`. Cookies + localStorage persist across history nav (same as navigate). |
+
+**Implementation primitive:** `await session.page.go_back(wait_until=..., timeout=...)` and `await session.page.go_forward(wait_until=..., timeout=...)`. Both return `Response | None` — None means no history entry exists in that direction.
+
+**Success response shape (when moved):**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "moved": true,
+  "previous_url": "https://example.com/dashboard",
+  "current_url": "https://example.com/login",
+  "title": "Login"
+}
+```
+
+**Successful "no history" shape (NOT an error):**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "moved": false,
+  "previous_url": "https://example.com/login",
+  "current_url": "https://example.com/login",
+  "title": "Login"
+}
+```
+
+`previous_url == current_url` when `moved: false` because the page didn't actually move — the browser had nothing to go back/forward to. The agent can write `if not result["moved"]:` to detect this case.
+
+**Why "no history" is not an error (D-89 design rationale):**
+
+Same rationale as v0.8.3 query's D-72. History navigation is a probe-and-act primitive — the agent's natural intent is "go back if there's something to go back to." Failing loudly when the body is at the start of its session's history would be the wrong shape: the body is doing exactly what it was asked to do (go back as far as possible — which is zero steps). For comparison:
+
+| Tool      | Probe-vs-action | "Nothing to act on" → |
+|-----------|-----------------|------------------|
+| navigate  | directed action | (n/a — agent supplies URL) |
+| click     | directed action | `LeidClickElementNotFoundError → INVALID_ARGUMENTS` |
+| type      | directed action | `LeidTypeElementNotFoundError → INVALID_ARGUMENTS` |
+| **query** | **probe-and-act** | **`{found: false, count: 0, value: null}`** |
+| **go_back / go_forward** | **probe-and-act** | **`{moved: false, ...}`** |
+
+**URL allowlist gate (D-92 — accepted limitation):** History nav does NOT re-validate URLs against the allowlist. The URLs in the history stack were already allowlist-checked when the body originally navigated to them. Re-checking would require a post-hoc check (after the page has already moved), which introduces unwind problems. This is consistent with the pre-existing "final-URL allowlist re-check after redirect" gap that applies to all browser tools and is already deferred. v0.8.5 does NOT widen the gap; it inherits the existing posture.
+
+**Failure-mode reuse:** No new error classes. Same mapping as `navigate`:
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| Navigation timeout (B-5 inherited)               | `LeidTimeoutError`         | `SENSE_TIMEOUT`           |
+| Navigation HTTP 4xx/5xx                          | `LeidHttpError`            | `SENSE_INTERNAL_ERROR`    |
+| Navigation network error                          | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+
+**Out of scope at v0.8.5:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| `leid.reload`               | v0.8.x — distinct primitive (page.reload); separate slice if needed |
+| Multi-step go_back (e.g., go back 3 entries) | v0.8.x — agent-side iteration |
+| History-stack length introspection | v0.8.x — Playwright doesn't easily expose this without page.evaluate (which violates B-10) |
+| Final-URL allowlist re-check after history navigation | v0.8.x — pre-existing concern across all browser tools (D-92) |
