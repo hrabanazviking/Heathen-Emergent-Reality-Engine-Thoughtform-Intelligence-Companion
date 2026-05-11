@@ -129,6 +129,78 @@ class TestLeidConfig:
         cfg = LeidConfig()
         assert cfg.browser_screenshot_full_page is True
 
+    # --- v0.8.8 query_all — cardinality cap field validation ---
+
+    def test_leid_config_browser_query_max_matches_default_is_100(self):
+        """browser_query_max_matches defaults to 100 per D-115."""
+        cfg = LeidConfig()
+        assert cfg.browser_query_max_matches == 100
+
+    def test_leid_config_invalid_browser_query_max_matches_raises(self):
+        """browser_query_max_matches < 1 raises ValueError."""
+        with pytest.raises(ValueError, match="browser_query_max_matches"):
+            LeidConfig(browser_query_max_matches=0)
+        with pytest.raises(ValueError, match="browser_query_max_matches"):
+            LeidConfig(browser_query_max_matches=-5)
+
+    # --- v0.8.9 — viewport field validation ---
+
+    def test_leid_config_browser_viewport_width_default_is_1280(self):
+        """browser_viewport_width defaults to 1280 (Playwright's default)."""
+        cfg = LeidConfig()
+        assert cfg.browser_viewport_width == 1280
+
+    def test_leid_config_browser_viewport_height_default_is_720(self):
+        """browser_viewport_height defaults to 720 (Playwright's default)."""
+        cfg = LeidConfig()
+        assert cfg.browser_viewport_height == 720
+
+    def test_leid_config_invalid_browser_viewport_width_raises(self):
+        """browser_viewport_width <= 0 raises ValueError."""
+        with pytest.raises(ValueError, match="browser_viewport_width"):
+            LeidConfig(browser_viewport_width=0)
+        with pytest.raises(ValueError, match="browser_viewport_width"):
+            LeidConfig(browser_viewport_width=-100)
+
+    def test_leid_config_invalid_browser_viewport_height_raises(self):
+        """browser_viewport_height <= 0 raises ValueError."""
+        with pytest.raises(ValueError, match="browser_viewport_height"):
+            LeidConfig(browser_viewport_height=0)
+        with pytest.raises(ValueError, match="browser_viewport_height"):
+            LeidConfig(browser_viewport_height=-50)
+
+    # --- v0.8.11 — screenshot format + JPEG/WebP quality field validation ---
+
+    def test_leid_config_browser_screenshot_format_default_is_png(self):
+        """browser_screenshot_format defaults to 'png' (lossless)."""
+        cfg = LeidConfig()
+        assert cfg.browser_screenshot_format == "png"
+
+    def test_leid_config_browser_screenshot_jpeg_quality_default_is_80(self):
+        """browser_screenshot_jpeg_quality defaults to 80."""
+        cfg = LeidConfig()
+        assert cfg.browser_screenshot_jpeg_quality == 80
+
+    def test_leid_config_browser_screenshot_format_accepts_jpeg_and_webp(self):
+        """Valid formats are png, jpeg, webp."""
+        LeidConfig(browser_screenshot_format="png")
+        LeidConfig(browser_screenshot_format="jpeg")
+        LeidConfig(browser_screenshot_format="webp")
+
+    def test_leid_config_invalid_browser_screenshot_format_raises(self):
+        """Unknown format strings are rejected."""
+        with pytest.raises(ValueError, match="browser_screenshot_format"):
+            LeidConfig(browser_screenshot_format="gif")
+        with pytest.raises(ValueError, match="browser_screenshot_format"):
+            LeidConfig(browser_screenshot_format="")
+
+    def test_leid_config_invalid_browser_screenshot_jpeg_quality_raises(self):
+        """quality outside 0..100 is rejected."""
+        with pytest.raises(ValueError, match="browser_screenshot_jpeg_quality"):
+            LeidConfig(browser_screenshot_jpeg_quality=-1)
+        with pytest.raises(ValueError, match="browser_screenshot_jpeg_quality"):
+            LeidConfig(browser_screenshot_jpeg_quality=101)
+
     # --- v0.8.2 Innan Hurðar — session + click field validation ---
 
     def test_leid_config_invalid_browser_max_concurrent_sessions_raises(self):
@@ -197,13 +269,14 @@ class TestLeidSenseLifecycle:
 class TestLeidSenseToolDefinitions:
 
     def test_tool_definitions_when_enabled(self):
-        """tool_definitions returns 14 tools when enabled
+        """tool_definitions returns 19 tools when enabled
         (v0.6.2: 2 + v0.8.0: 1 + v0.8.1: 1 + v0.8.2: 4 + v0.8.2.1: 1 +
-         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1 + v0.8.5: 2)."""
+         v0.8.2.2: 1 + v0.8.3: 1 + v0.8.4: 1 + v0.8.5: 2 + v0.8.6: 2 +
+         v0.8.7: 1 + v0.8.8: 1 + v0.8.12: 1)."""
         config = LeidConfig(enabled=True, url_allowlist_patterns=["https://example.com/*"])
         client = LeidClient(config)
         sense = LeidSense(config, client)
-        assert len(sense.tool_definitions) == 14
+        assert len(sense.tool_definitions) == 19
 
     def test_tool_definitions_when_disabled(self):
         """tool_definitions returns empty list when disabled."""
@@ -213,11 +286,12 @@ class TestLeidSenseToolDefinitions:
         assert sense.tool_definitions == []
 
     def test_tool_names_locked(self):
-        """All fourteen Leið tool names are locked as specified
+        """All eighteen Leið tool names are locked as specified
         (v0.6.2: fetch_url, extract_text; v0.8.0: render_url;
          v0.8.1: screenshot; v0.8.2: open_session, session_status, click,
          close_session; v0.8.2.1: type; v0.8.2.2: navigate; v0.8.3: query;
-         v0.8.4: press; v0.8.5: go_back, go_forward)."""
+         v0.8.4: press; v0.8.5: go_back, go_forward; v0.8.6: session_render,
+         session_screenshot; v0.8.7: reload; v0.8.8: query_all)."""
         names = {t["function"]["name"] for t in LEID_TOOL_DEFINITIONS}
         assert "leid.fetch_url" in names
         assert "leid.extract_text" in names
@@ -230,8 +304,13 @@ class TestLeidSenseToolDefinitions:
         assert "leid.navigate" in names
         assert "leid.query" in names
         assert "leid.press" in names
+        assert "leid.press_on" in names
         assert "leid.go_back" in names
         assert "leid.go_forward" in names
+        assert "leid.session_render" in names
+        assert "leid.session_screenshot" in names
+        assert "leid.reload" in names
+        assert "leid.query_all" in names
         assert "leid.close_session" in names
 
 
@@ -823,6 +902,72 @@ class TestLeidSenseDispatch:
         )
 
     # -------------------------------------------------------------------
+    # v0.8.12 — leid.press_on dispatch (element-targeted press)
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_press_on_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.press_on = AsyncMock(return_value={
+            "selector": "input[name='q']",
+            "key": "Enter",
+            "pressed": True,
+            "current_url": "https://example.com/results",
+            "current_title": "Results",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.press_on",
+            {
+                "session_id": "leid-x",
+                "selector": "input[name='q']",
+                "key": "Enter",
+            },
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["pressed"] is True
+        assert parsed["selector"] == "input[name='q']"
+        assert parsed["key"] == "Enter"
+        mock_pw_client.press_on.assert_awaited_once_with(
+            session_id="leid-x",
+            selector="input[name='q']",
+            key="Enter",
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_press_on_element_not_found_returns_invalid_arguments(
+        self,
+    ):
+        """D-157: LeidPressOnElementNotFoundError maps to INVALID_ARGUMENTS."""
+        from heretic.skilningr.errors import LeidPressOnElementNotFoundError
+
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.press_on = AsyncMock(
+            side_effect=LeidPressOnElementNotFoundError(
+                "Selector '#nope' matched no actionable element"
+            )
+        )
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.press_on",
+            {
+                "session_id": "leid-x",
+                "selector": "#nope",
+                "key": "Enter",
+            },
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["code"] == "INVALID_ARGUMENTS"
+
+    # -------------------------------------------------------------------
     # v0.8.5 — leid.go_back + leid.go_forward dispatch (paired)
     # -------------------------------------------------------------------
 
@@ -871,3 +1016,136 @@ class TestLeidSenseDispatch:
         # Verifies the moved=false case is routed correctly (NOT an error)
         assert parsed["moved"] is False
         mock_pw_client.go_forward.assert_awaited_once_with(session_id="leid-x")
+
+    # -------------------------------------------------------------------
+    # v0.8.6 — leid.session_render + leid.session_screenshot dispatch
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_session_render_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.session_render = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "current_url": "https://example.com/dashboard",
+            "text": "Welcome back",
+            "title": "Dashboard",
+            "source_size_bytes": 1234,
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.session_render", {"session_id": "leid-x"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["text"] == "Welcome back"
+        assert parsed["current_url"] == "https://example.com/dashboard"
+        mock_pw_client.session_render.assert_awaited_once_with(
+            session_id="leid-x"
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_session_screenshot_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.session_screenshot = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "current_url": "https://example.com/results",
+            "image_base64": "iVBORw0KGgoAAA==",
+            "image_format": "png",
+            "size_bytes": 12,
+            "full_page": True,
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.session_screenshot", {"session_id": "leid-x"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["image_format"] == "png"
+        assert parsed["full_page"] is True
+        mock_pw_client.session_screenshot.assert_awaited_once_with(
+            session_id="leid-x"
+        )
+
+    # -------------------------------------------------------------------
+    # v0.8.7 — leid.reload dispatch
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_reload_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.reload = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "current_url": "https://example.com/dashboard",
+            "title": "Dashboard",
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.reload", {"session_id": "leid-x"}
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["current_url"] == "https://example.com/dashboard"
+        assert parsed["title"] == "Dashboard"
+        mock_pw_client.reload.assert_awaited_once_with(session_id="leid-x")
+
+    # -------------------------------------------------------------------
+    # v0.8.8 — leid.query_all dispatch
+    # -------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_dispatch_query_all_routes_to_playwright_client(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.query_all = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "selector": "article h2",
+            "attribute": "",
+            "count": 3,
+            "values": ["Title A", "Title B", "Title C"],
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.query_all", {"session_id": "leid-x", "selector": "article h2"},
+        )
+        result = await sense.dispatch_tool_call(tool_call)
+        parsed = json.loads(result["content"])
+        assert parsed["count"] == 3
+        assert parsed["values"] == ["Title A", "Title B", "Title C"]
+        # When attribute omitted, dispatcher passes empty string
+        mock_pw_client.query_all.assert_awaited_once_with(
+            session_id="leid-x", selector="article h2", attribute=""
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_query_all_passes_attribute_when_provided(self):
+        config = self._session_config()
+        mock_client = MagicMock(spec=LeidClient)
+        mock_pw_client = MagicMock(spec=PlaywrightLeidClient)
+        mock_pw_client.query_all = AsyncMock(return_value={
+            "session_id": "leid-x",
+            "selector": "a.nav",
+            "attribute": "href",
+            "count": 2,
+            "values": ["/about", "/contact"],
+        })
+        sense = LeidSense(config, mock_client, playwright_client=mock_pw_client)
+        await sense.open()
+        tool_call = self._make_tool_call(
+            "leid.query_all",
+            {"session_id": "leid-x", "selector": "a.nav", "attribute": "href"},
+        )
+        await sense.dispatch_tool_call(tool_call)
+        mock_pw_client.query_all.assert_awaited_once_with(
+            session_id="leid-x", selector="a.nav", attribute="href"
+        )

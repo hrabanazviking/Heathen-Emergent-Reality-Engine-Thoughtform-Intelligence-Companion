@@ -10,6 +10,7 @@ from heretic.skilningr.errors import (  # noqa: F401
     LeidError,
     LeidHttpError,
     LeidPlaywrightUnavailableError,
+    LeidPressOnElementNotFoundError,
     LeidResponseTooLargeError,
     LeidSessionExpiredError,
     LeidSessionLimitError,
@@ -30,4 +31,5 @@ __all__ = [
     "LeidSessionExpiredError",
     "LeidClickElementNotFoundError",
     "LeidTypeElementNotFoundError",
+    "LeidPressOnElementNotFoundError",
 ]

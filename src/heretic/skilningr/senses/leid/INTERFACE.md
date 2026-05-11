@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-10 (v0.8.5 history nav extension — Rúnhild Svartdóttir) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-11 (v0.8.12 element-targeted press — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.11 JPEG/WebP screenshot output) | 2026-05-11 (v0.8.10 final-URL allowlist re-check) | 2026-05-11 (v0.8.9 configurable viewport) | 2026-05-11 (v0.8.8 query_all extension) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -89,6 +89,10 @@ for the v0.8.0 browser-mode contract.
 | `leid.press`           | Send a keyboard key (Enter, Tab, Escape, modifier combos) at page-level focus | `session_id`, `key` (both strings) | Playwright (Chromium) | v0.8.4 |
 | `leid.go_back`         | Step backward in the session's browser history; `moved: false` if at start | `session_id` (string) | Playwright (Chromium) | v0.8.5 |
 | `leid.go_forward`      | Step forward in the session's browser history; `moved: false` if at end | `session_id` (string) | Playwright (Chromium) | v0.8.5 |
+| `leid.session_render`  | Re-extract rendered text + title from the current session page (mid-session counterpart of leid.render_url) | `session_id` (string) | Playwright (Chromium) | v0.8.6 |
+| `leid.session_screenshot` | Capture base64 PNG of the current session page (mid-session counterpart of leid.screenshot) | `session_id` (string) | Playwright (Chromium) | v0.8.6 |
+| `leid.reload`          | Refresh the current page of an open session (re-fetch + re-render in place) | `session_id` (string) | Playwright (Chromium) | v0.8.7 |
+| `leid.query_all`       | Read text or attribute of ALL elements matching CSS selector (read-only; bounded by browser_query_max_matches) | `session_id`, `selector` (req); `attribute` (opt) | Playwright (Chromium) | v0.8.8 |
 | `leid.close_session`   | Close session and release all resources (idempotent for unknown id) | `session_id` (string)                    | Playwright (Chromium) | v0.8.2 |
 
 **Availability:** the browser tools are registered in `LEID_TOOL_DEFINITIONS`
@@ -182,6 +186,17 @@ skilningr:
     browser_session_idle_timeout_seconds: 300     # 5 min — evict on idle
     browser_session_max_lifetime_seconds: 1800    # 30 min — hard ceiling
     browser_click_timeout_seconds: 10             # max wall-clock for a single click
+
+    # v0.8.8 query_all — cardinality cap on multi-element query
+    browser_query_max_matches: 100                # hard cap; query_all > cap raises
+
+    # v0.8.9 — configurable viewport (applied at all browser-context creations)
+    browser_viewport_width: 1280                  # viewport width in pixels (>0)
+    browser_viewport_height: 720                  # viewport height in pixels (>0)
+
+    # v0.8.11 — screenshot format + quality (applied to screenshot tools)
+    browser_screenshot_format: "png"              # one of: png, jpeg, webp
+    browser_screenshot_jpeg_quality: 80           # 0..100; ignored when format=png
 ```
 
 ---
@@ -846,3 +861,436 @@ Same rationale as v0.8.3 query's D-72. History navigation is a probe-and-act pri
 | Multi-step go_back (e.g., go back 3 entries) | v0.8.x — agent-side iteration |
 | History-stack length introspection | v0.8.x — Playwright doesn't easily expose this without page.evaluate (which violates B-10) |
 | Final-URL allowlist re-check after history navigation | v0.8.x — pre-existing concern across all browser tools (D-92) |
+
+### 12.12 Mid-session re-extract pair (v0.8.6 — paired tools, unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.6.** Adds `leid.session_render` and
+> `leid.session_screenshot` as a paired bundle — the in-session
+> counterparts of v0.8.0's `leid.render_url` and v0.8.1's
+> `leid.screenshot`. Same primitives (`page.content()` /
+> `page.screenshot()`); same size-cap discipline (B-6 inherited /
+> B-11 inherited); same M-1 closure pattern. Applied to a live
+> session page rather than a freshly-launched one. **No new error
+> classes** (D-103). **No new config fields** (D-102 — reuses
+> max_response_bytes, browser_screenshot_full_page).
+
+**New tools (paired):**
+- `leid.session_render(session_id)` → `{session_id, current_url, text, title, source_size_bytes}`
+- `leid.session_screenshot(session_id)` → `{session_id, current_url, image_base64, image_format, size_bytes, full_page}`
+
+**New B-Invariant (covers both tools):**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-24 | `session_render()` and `session_screenshot()` enforce the same session/timeout discipline as the rest of Innan Hurðar interactive tools: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; the underlying Playwright primitive (`page.content()` for session_render; `page.screenshot()` for session_screenshot) is wrapped with `try/except (PlaywrightError, PlaywrightTimeoutError) → LeidConnectionError` (D-100 — M-1 closure inheritance); the existing size caps from B-6 (rendered HTML byte size) and B-11 (raw PNG bytes before base64) apply unchanged; on success, `session.last_activity_at` is updated. |
+
+**Implementation primitives:**
+- `session_render`: `await session.page.content()` then `_extract_text_from_html(html)` (the same helper used by v0.8.0's `extract_text` and `render_url`).
+- `session_screenshot`: `await session.page.screenshot(full_page=config.browser_screenshot_full_page, type="png")`, then `base64.b64encode(png_bytes).decode("ascii")`.
+
+Both reuse the established Playwright primitives and helpers. No new helpers introduced.
+
+**Success response shapes:**
+
+`leid.session_render`:
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "current_url": "https://example.com/dashboard",
+  "text": "Welcome back. Your last login was at 14:32.",
+  "title": "Dashboard",
+  "source_size_bytes": 24576
+}
+```
+
+`leid.session_screenshot`:
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "current_url": "https://example.com/dashboard",
+  "image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "image_format": "png",
+  "size_bytes": 45678,
+  "full_page": true
+}
+```
+
+`current_url` is captured at entry — reflects whatever page the session is on after any prior click / type / press / navigate / history-step. There is no separate `url` and `final_url` because, unlike `render_url` and `screenshot`, no input URL is supplied — the agent is asking about the current state, not about a navigation.
+
+**Why these tools are needed (use cases):**
+- After `leid.click(session, "button.submit")` triggers a single-page-app state change, `leid.session_render(session)` returns the post-click text without close+re-open
+- After `leid.type` + `leid.press("Enter")` submits a search, `leid.session_screenshot(session)` captures the rendered results
+- Periodic mid-flow re-extraction for "verify state after each step" agent loops
+- SPAs where URL doesn't change but DOM does
+
+**Cost vs stateless siblings:**
+
+| Tool | Cost | Lifecycle |
+|---|---|---|
+| `leid.render_url` (v0.8.0) | ~500-3000 ms | launch+goto+content+teardown |
+| `leid.session_render` (v0.8.6) | ~20-100 ms | content only (reuses session) |
+| `leid.screenshot` (v0.8.1) | ~500-3000 ms | launch+goto+screenshot+teardown |
+| `leid.session_screenshot` (v0.8.6) | ~50-300 ms | screenshot only (reuses session) |
+
+Mid-session tools are 10-50x cheaper than their stateless siblings because they skip browser cold-start.
+
+**Failure-mode reuse:** No new error classes.
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| Browser failure (page closed, process disconnect) | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+| Rendered HTML > max_response_bytes (B-6 inherited) | `LeidResponseTooLargeError` | `INVALID_ARGUMENTS`     |
+| Raw PNG bytes > max_response_bytes (B-11 inherited) | `LeidResponseTooLargeError` | `INVALID_ARGUMENTS`    |
+
+**Out of scope at v0.8.6:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Element-scoped screenshot (`locator.screenshot`) | v0.8.x — distinct primitive |
+| Inner HTML re-extraction (raw HTML, not stripped to text) | v0.8.x |
+| Mid-session JPEG/WebP screenshot output | v0.8.x — PNG-only matches v0.8.1's posture |
+| Mid-session viewport reconfiguration | v0.8.x — inherits the session's launch-time viewport |
+
+### 12.13 Reload extension (v0.8.7 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.7.** Adds `leid.reload` — refresh the current
+> page of an open session through Playwright's `page.reload()`. Rounds
+> out the motion vocabulary inside the door: navigate (forward to URL),
+> go_back (history step back), go_forward (history step forward),
+> reload (in place). No new error classes (D-110). No new config fields
+> (D-108 reuses navigation timeout + load_state).
+
+**New tool:** `leid.reload(session_id)` → `{session_id, current_url, title}`.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-25 | `reload()` enforces the same session/timeout discipline as `navigate()` and history-nav: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; `page.reload()` is awaited with `wait_until=config.browser_load_state` and `timeout=config.browser_navigation_timeout_seconds * 1000`; HTTP 4xx/5xx during reload maps to `LeidHttpError`; on success, `session.last_activity_at` is updated. Cookies + localStorage persist across reload — that's intrinsic to refresh semantics, not a new invariant. |
+
+**Implementation primitive:** `await session.page.reload(wait_until=config.browser_load_state, timeout=config.browser_navigation_timeout_seconds * 1000)`. Returns `Response | None` — None in unusual cases (data: URLs that cannot be reloaded), treated as "no HTTP status to check" (same posture as navigate when response is None).
+
+**Success response shape:**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "current_url": "https://example.com/dashboard",
+  "title": "Dashboard"
+}
+```
+
+Minimal shape (D-111). No `previous_url` because reload is in-place — previous and current URL are conceptually the same. No `moved` boolean because reload is not a probe-and-act primitive — either it succeeded or it failed.
+
+**Failure-mode reuse:** No new error classes. Same mapping as `navigate`:
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| Reload timeout (B-5 inherited)                   | `LeidTimeoutError`         | `SENSE_TIMEOUT`           |
+| Reload HTTP 4xx/5xx                               | `LeidHttpError`            | `SENSE_INTERNAL_ERROR`    |
+| Reload network error                              | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+
+**Why no URL allowlist re-check on reload:** D-109 — same posture as go_back/go_forward (D-92). The URL the body is at was already allowlist-checked when first navigated to. Reload is in-place — the URL doesn't change. This inherits the existing pre-existing-concern about final-URL allowlist re-check after redirect.
+
+**Out of scope at v0.8.7:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Hard reload (skip cache) | v0.8.x — Playwright's reload accepts no `bypass_cache`; agent achieves this via `keyboard.press("Control+Shift+R")` instead |
+| Reload-and-extract combined | v0.8.x — agent does `reload()` then `session_render()` |
+| Final-URL allowlist re-check | v0.8.x — pre-existing concern across all browser tools |
+
+### 12.14 Multi-element query extension (v0.8.8 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.8.** Adds `leid.query_all` — multi-element
+> follow-up to v0.8.3 single-match `query`. Returns ALL matches as a
+> list (in DOM order) up to a new cardinality cap. Same probe-and-act
+> posture as query: empty result is NOT an error. **First new
+> LeidConfig field since v0.8.2** (`browser_query_max_matches`,
+> default 100). No new error classes (D-123).
+
+**New tool:** `leid.query_all(session_id, selector, attribute="")` → `{session_id, selector, attribute, count, values}`.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-26 | `query_all()` enforces the same session/timeout discipline as `query()`: `evict_expired_sessions` runs first; unknown session_id raises `LeidSessionExpiredError`; `locator.count()` then `locator.nth(i).text_content()` / `.get_attribute()` (per i in 0..count) calls bounded by `browser_click_timeout_seconds`; on success, `session.last_activity_at` is updated. **NEW**: cardinality cap — when `count > config.browser_query_max_matches`, `LeidResponseTooLargeError` is raised BEFORE iteration. **DIVERGENCE inherited from B-21**: empty result (count=0) is NOT an error — returns `{count: 0, values: []}`. |
+
+**Implementation primitive:** `await session.page.locator(selector).count()` always; then `await session.page.locator(selector).nth(i).text_content(timeout=...)` OR `.get_attribute(attribute, timeout=...)` for each `i in range(count)` (only when `0 < count <= browser_query_max_matches`). Reuses the click timeout (D-122).
+
+**New config field:**
+
+| Field                        | Type | Default | Meaning |
+|------------------------------|------|---------|---------|
+| `browser_query_max_matches`  | int  | 100     | Cardinality cap on `query_all`. Selectors matching more raise `LeidResponseTooLargeError`. Must be >= 1. |
+
+**Success response shape (matches found):**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "selector": "article h2",
+  "attribute": "",
+  "count": 5,
+  "values": [
+    "First article title",
+    "Second article title",
+    "Third article title",
+    "Fourth article title",
+    "Fifth article title"
+  ]
+}
+```
+
+**Empty-result shape (NOT an error):**
+
+```json
+{
+  "session_id": "leid-3f7c1b2e8a4d4f6e9b8c0d1e2f3a4b5c",
+  "selector": ".error-message",
+  "attribute": "",
+  "count": 0,
+  "values": []
+}
+```
+
+`values` is always a list of length equal to `count`. Each element is a string OR `null` (None when the underlying `text_content()` or `get_attribute()` returned None — element exists but has no text or the requested attribute is absent).
+
+**Cap-exceeded behaviour (D-116):**
+
+```json
+// LeidResponseTooLargeError → INVALID_ARGUMENTS
+// "selector matched 542 elements, exceeds browser_query_max_matches=100; refine selector"
+```
+
+The cap fires BEFORE iteration begins — no partial work, no silent truncation. Honest feedback to the agent.
+
+**Distinct from query:** `query` returns the FIRST match with `{found, value, count}`; `query_all` returns ALL matches (up to cap) with `{count, values}`. The agent picks based on intent:
+- "Is there an error message?" → `query(".error-msg")` (binary check)
+- "What's the first article title?" → `query("article h2")` (single read)
+- "List all the article titles" → `query_all("article h2")` (enumeration)
+
+**Failure-mode reuse:** No new error classes.
+
+| Condition                                        | Error class                | SENSE_CONTRACTS code      |
+|--------------------------------------------------|----------------------------|---------------------------|
+| Unknown / evicted session_id (B-16)              | `LeidSessionExpiredError`  | `SENSE_UNAVAILABLE`       |
+| count > browser_query_max_matches (B-26)         | `LeidResponseTooLargeError`| `INVALID_ARGUMENTS`       |
+| Browser failure on count or extraction           | `LeidConnectionError`      | `EXTERNAL_APP_UNAVAILABLE`|
+
+**Out of scope at v0.8.8:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Streaming/paginated query results | v0.8.x — cap-based bounding suffices |
+| XPath multi-match           | v0.8.x — CSS suffices |
+| Per-element bounding box    | v0.8.x — geometric inspection separate concern |
+| Nested attribute reads (href + text in one call) | v0.8.x — agent calls twice |
+
+### 12.15 Configurable viewport (v0.8.9 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.9.** Operator-controlled viewport for all
+> browser-mode tools. Adds two new `LeidConfig` fields
+> (`browser_viewport_width`, `browser_viewport_height`) with defaults
+> 1280×720 (matching Playwright's default — no behavior change for
+> existing operators). Applied uniformly at three browser-context-
+> creation sites (B-27): `render_url`, `screenshot`, `open_session`.
+> Agent-facing tool surface unchanged. No new tools, no new error
+> classes. **Not** a new tool — a behavior change to existing tools.
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-27 | Every `browser.new_context(...)` call within `PlaywrightLeidClient` (in `render_url`, `screenshot`, `open_session`) passes `viewport={"width": config.browser_viewport_width, "height": config.browser_viewport_height}`. Operator-controlled viewport propagates uniformly across all browser-context creations. Once a context is created, its viewport persists for the life of that browser context (mid-session viewport change is out of scope per D-130). |
+
+**New config fields:**
+
+| Field                          | Type | Default | Validation |
+|--------------------------------|------|---------|------------|
+| `browser_viewport_width`       | int  | 1280    | `> 0`      |
+| `browser_viewport_height`      | int  | 720     | `> 0`      |
+
+**Implementation:** each affected method's existing `browser.new_context(user_agent=config.user_agent)` call gains a `viewport={"width": config.browser_viewport_width, "height": config.browser_viewport_height}` kwarg. Same call shape; one new kwarg.
+
+**Why operator-controlled, not agent-controlled (D-130):**
+
+Agent-supplied viewport would let the agent ask for "show me this page at mobile width" — useful, but it would require the agent to reason about browser rendering details that are usually the operator's concern. Operator-controlled is the right scope: the operator picks the viewport their use case needs, and every agent using their HERETIC instance gets the same view.
+
+Per-tool viewport override (e.g., screenshot at 1920 but session at 1280) is a candidate for v0.8.x if real use cases demand it.
+
+**Why launch-time-only (D-130):**
+
+Mid-session viewport change (`page.set_viewport_size`) is a distinct primitive and would need its own tool. v0.8.9 is launch-time only — the session's viewport is fixed at `open_session` and persists for the session's life. This matches the "viewport is operator infrastructure" principle: operators set it once, it stays set.
+
+**Out of scope at v0.8.9:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Per-call viewport override (agent-supplied) | v0.8.x — would break agent-doesn't-manage-browser-internals abstraction |
+| Device emulation presets (iPhone, iPad, etc.) | v0.8.x — distinct concern; would also include user_agent + touch settings |
+| Mid-session viewport change | v0.8.x — `page.set_viewport_size`; distinct primitive |
+| Per-tool viewport override (e.g., screenshot 1920, session 1280) | v0.8.x — complexity not justified for v0.8.9 |
+
+### 12.16 Final-URL allowlist re-check (v0.8.10 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.10.** Closes the long-deferred sandbox gap
+> noted in every browser-tool audit since v0.6.2. Adds a
+> post-navigation URL re-check at all 7 navigation-completing call
+> sites (`render_url`, `screenshot`, `open_session`, `navigate`,
+> `go_back`, `go_forward`, `reload`). **Stateful violations close
+> the session** — the operator's allowlist is unconditional. NO new
+> tools (D-145), NO new error classes (D-143 — reuses
+> `UrlNotAllowedError`), NO new config fields (D-144).
+
+**New B-Invariant:**
+
+| #    | B-Invariant |
+|------|-----------|
+| B-28 | Every browser tool that completes a navigation re-checks `page.url` against `url_allowlist_patterns` and the HTTPS-only policy AFTER the navigation completes. If the final URL is NOT allowed, `UrlNotAllowedError` is raised. **For stateful tools that violate** (`navigate`, `go_back`, `go_forward`, `reload`): the session is closed (via `manager.close_session(session_id)`) BEFORE the raise. **For `open_session`**: the session is never registered (existing was_registered=False cleanup branch tears down the launched browser quartet). **For stateless tools** (`render_url`, `screenshot`): the existing `finally` cleanup handles teardown. |
+
+**Implementation:** new private helper `_check_final_url_allowed(url)` on `PlaywrightLeidClient`. Reuses `sandbox.url_matches_allowlist` + the HTTPS-only policy logic from `_validate_url`. Same rules pre-flight and post-navigation; single source of truth.
+
+**Failure handling — three patterns:**
+
+| Tool category | Sites | What happens on violation |
+|---|---|---|
+| Stateless | `render_url`, `screenshot` | Raise `UrlNotAllowedError` — existing `finally` cleans up the launched browser quartet |
+| Stateful (session not yet registered) | `open_session` | Raise `UrlNotAllowedError` — existing `was_registered=False` branch cleans up |
+| Stateful (session already registered) | `navigate`, `go_back`, `go_forward`, `reload` | Call `manager.close_session(session_id)` to terminate the session, THEN raise `UrlNotAllowedError` |
+
+**Why close the session on stateful violation (D-139):**
+
+The session has landed on a not-allowlisted URL. The agent's next call (status, click, query, etc.) would operate on that page. The only safe response is to terminate the session.
+
+Alternatives considered:
+- **Leave session open**, rely on agent to call `close_session`. Rejected — the session is in a non-allowed state for as long as it lives; security must be enforced structurally, not advisedly.
+- **Navigate the session BACK** to the previous URL. Rejected — the previous URL might also have led here through redirect; complex to reason about; brittle.
+
+Chosen: close. Explicit, predictable, secure.
+
+**Error message shape:**
+
+For stateless tools:
+> "Navigation to `<input_url>` resulted in `<final_url>`, which is not in url_allowlist_patterns."
+
+For stateful tools (D-140):
+> "Navigation to `<input_url>` on session `<session_id>` resulted in `<final_url>`, which is not in url_allowlist_patterns. The session has been closed."
+
+**Closed concern:**
+
+The deferred concern *"final-URL allowlist re-check after redirect — pre-existing concern across all browser tools"* — noted in the v0.8.5 audit (and in earlier audits implicitly via the deferred status of this gap) — is now CLOSED.
+
+**Out of scope at v0.8.10:**
+
+| Capability                  | Status            |
+|-----------------------------|-------------------|
+| Per-redirect URL re-check (intermediate URLs in chain) | v0.8.x — Playwright doesn't expose intermediate redirects without explicit request hooks; checking the FINAL URL catches the dangerous case |
+| Per-tool toggle for the re-check | v0.8.x — sandbox security is unconditional; no opt-out |
+| Detailed redirect chain in error message | v0.8.x — chain is invisible to us without request hooks |
+
+### 12.17 JPEG/WebP screenshot output (v0.8.11 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.11.** Operator-controlled screenshot format. Two new
+> `LeidConfig` fields (`browser_screenshot_format`, `browser_screenshot_jpeg_quality`).
+> Applied to both `screenshot` (stateless) and `session_screenshot` (stateful).
+> Defaults preserve PNG behavior. NO new tools, NO new error classes (D-151).
+
+**New B-Invariant:**
+
+| # | B-Invariant |
+|---|---|
+| B-29 | `screenshot()` and `session_screenshot()` pass `type=config.browser_screenshot_format` to `page.screenshot()`. When format is `"jpeg"` or `"webp"`, `quality=config.browser_screenshot_jpeg_quality` is also passed; when format is `"png"`, `quality` is omitted (PNG is lossless). The `image_format` field in the return reflects the actual format used. |
+
+**New config fields:**
+
+| Field | Type | Default | Validation |
+|---|---|---|---|
+| `browser_screenshot_format` | str | `"png"` | one of `{"png", "jpeg", "webp"}` |
+| `browser_screenshot_jpeg_quality` | int | `80` | 0..100 |
+
+**Implementation pattern:**
+```python
+screenshot_kwargs = {"full_page": ..., "type": config.browser_screenshot_format}
+if config.browser_screenshot_format != "png":
+    screenshot_kwargs["quality"] = config.browser_screenshot_jpeg_quality
+png_bytes = await page.screenshot(**screenshot_kwargs)
+```
+
+**Return shape:** `image_format` now reflects the actual format used (previously hardcoded `"png"`).
+
+**Out of scope:**
+- Per-call format override (agent-supplied) — operator-controlled is the right scope
+- Per-tool format (screenshot=jpeg but session_screenshot=png) — complexity not justified
+- Format auto-detection by content — out of scope
+
+### 12.18 Element-targeted press (v0.8.12 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.12.** Adds `press_on(session_id, selector, key)`,
+> the selector-targeted form of the keyboard finger introduced at v0.8.4.
+> Completes the symmetry with `click` (v0.8.2) and `type` (v0.8.2.1) —
+> all three accept a selector and act on the first match. Reuses
+> `browser_click_timeout_seconds` (D-54 / D-155 — interactive actions
+> share one operator bound).
+
+**New tool:**
+
+```
+leid.press_on(session_id: str, selector: str, key: str)
+  → {"selector": str, "key": str, "pressed": True,
+     "current_url": str, "current_title": str | None}
+```
+
+**New error class (D-156):**
+
+`LeidPressOnElementNotFoundError(LeidError)` — `page.locator(selector).first.press(key)` failed because no element matching the selector became actionable within `LeidConfig.browser_click_timeout_seconds`. Sibling to `LeidClickElementNotFoundError` and `LeidTypeElementNotFoundError`. Maps to `INVALID_ARGUMENTS` per D-157.
+
+**Distinction from `leid.press` (v0.8.4):**
+
+| Tool | Primitive | Focus model | Selector | Timeout | On selector miss |
+|---|---|---|---|---|---|
+| `leid.press` (v0.8.4) | `page.keyboard.press(key)` | Whatever has focus | none | none (Playwright internal) | n/a |
+| `leid.press_on` (v0.8.12) | `page.locator(selector).first.press(key)` | The matched element | required | `browser_click_timeout_seconds` | `LeidPressOnElementNotFoundError` |
+
+**New B-Invariant:**
+
+| # | B-Invariant |
+|---|---|
+| B-30 | `press_on(session_id, selector, key)` calls `page.locator(selector).first.press(key, timeout=browser_click_timeout_seconds * 1000)`. `PlaywrightTimeoutError` raises `LeidPressOnElementNotFoundError`; other `PlaywrightError` raises `LeidConnectionError`. On success, `session.mark_activity()` is invoked and the post-press URL + title are read and returned. |
+
+**Implementation pattern (mirrors `type` at v0.8.2.1):**
+
+```python
+press_timeout_ms = self._config.browser_click_timeout_seconds * 1000
+locator = session.page.locator(selector).first
+try:
+    await locator.press(key, timeout=press_timeout_ms)
+except PlaywrightTimeoutError as exc:
+    raise LeidPressOnElementNotFoundError(
+        f"Selector {selector!r} matched no actionable element "
+        f"in session {session_id!r} within "
+        f"{self._config.browser_click_timeout_seconds}s. Refine the "
+        f"selector and retry. Underlying: {exc}"
+    ) from exc
+except PlaywrightError as exc:
+    raise LeidConnectionError(
+        f"press_on({selector!r}, {key!r}) on session {session_id!r} "
+        f"failed at the browser level: {exc}"
+    ) from exc
+
+session.mark_activity()
+current_url = session.page.url
+try:
+    current_title = await session.page.title()
+except Exception:
+    current_title = None
+```
+
+**Out of scope:**
+- Multi-element press (press on every match) — first-match convention matches click/type
+- Press sequence (multiple keys per call) — agent can chain press_on calls
+- `force=True` to bypass actionability — Playwright's default is the right default
+- New config field for press_on timeout — reuses `browser_click_timeout_seconds`

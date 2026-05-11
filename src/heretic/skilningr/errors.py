@@ -451,6 +451,19 @@ class LeidTypeElementNotFoundError(LeidError):
     """
 
 
+class LeidPressOnElementNotFoundError(LeidError):
+    """``locator.press(key)`` failed because no element matching the
+    selector became actionable within ``LeidConfig.browser_click_timeout_seconds``.
+
+    Sibling to ``LeidClickElementNotFoundError`` and
+    ``LeidTypeElementNotFoundError`` — distinct class so the agent can
+    tell which gesture's selector failed (click, type, or press_on),
+    even though all three map to ``INVALID_ARGUMENTS``.
+
+    Forge should translate this to SENSE_CONTRACTS.md code INVALID_ARGUMENTS.
+    """
+
+
 # ---------------------------------------------------------------------------
 # MCP server errors  [v0.6.x]
 # ---------------------------------------------------------------------------

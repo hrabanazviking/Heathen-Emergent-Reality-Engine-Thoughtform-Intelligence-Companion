@@ -297,6 +297,20 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.press_on":
+            # v0.8.12 — fifteenth unnamed extension. Element-targeted form
+            # of the keyboard finger; completes symmetry with click + type.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.press_on(
+                session_id=args["session_id"],
+                selector=args["selector"],
+                key=args["key"],
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.go_back":
             # v0.8.5 — eighth unnamed extension (paired with go_forward).
             # Browser history step backward.
@@ -317,6 +331,57 @@ class LeidSense:
                 )
             result = await self._playwright_client.go_forward(
                 session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.session_render":
+            # v0.8.6 — ninth unnamed extension (paired with session_screenshot).
+            # In-session counterpart of v0.8.0 render_url.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.session_render(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.session_screenshot":
+            # v0.8.6 — paired with session_render. In-session counterpart
+            # of v0.8.1 screenshot.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.session_screenshot(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.reload":
+            # v0.8.7 — tenth unnamed extension. Refresh current page in
+            # place; rounds out the motion vocabulary.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.reload(
+                session_id=args["session_id"],
+            )
+            return json.dumps(result)
+
+        if tool_name == "leid.query_all":
+            # v0.8.8 — eleventh unnamed extension. Multi-element follow-up
+            # to v0.8.3 query. attribute is optional; defaults to "" =
+            # text content.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.query_all(
+                session_id=args["session_id"],
+                selector=args["selector"],
+                attribute=args.get("attribute", ""),
             )
             return json.dumps(result)
 
@@ -384,6 +449,7 @@ def _leid_error_code(exc: LeidError) -> str:
         LeidConnectionError,
         LeidHttpError,
         LeidPlaywrightUnavailableError,
+        LeidPressOnElementNotFoundError,
         LeidResponseTooLargeError,
         LeidSessionExpiredError,
         LeidSessionLimitError,
@@ -401,10 +467,11 @@ def _leid_error_code(exc: LeidError) -> str:
             LeidResponseTooLargeError,
             LeidClickElementNotFoundError,
             LeidTypeElementNotFoundError,
+            LeidPressOnElementNotFoundError,
         ),
     ):
-        # v0.8.2 / v0.8.2.1 — agent-actionable errors (cap exceeded,
-        # selector wrong on click or type).
+        # v0.8.2 / v0.8.2.1 / v0.8.12 — agent-actionable errors (cap exceeded,
+        # selector wrong on click, type, or press_on).
         return "INVALID_ARGUMENTS"
     if isinstance(exc, LeidHttpError):
         return "SENSE_INTERNAL_ERROR"

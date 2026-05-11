@@ -45,6 +45,7 @@ from heretic.skilningr.senses.leid.errors import (
     LeidConnectionError,
     LeidHttpError,
     LeidPlaywrightUnavailableError,
+    LeidPressOnElementNotFoundError,
     LeidResponseTooLargeError,
     LeidSessionExpiredError,
     LeidSessionLimitError,
@@ -89,6 +90,7 @@ def _install_fake_playwright(
     screenshot_bytes: bytes = b"\x89PNG\r\n\x1a\n_fake_png_payload_",
     click_side_effect: BaseException | None = None,
     fill_side_effect: BaseException | None = None,
+    press_side_effect: BaseException | None = None,
 ) -> tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]:
     """Install a fake `playwright.async_api` module in ``sys.modules``.
 
@@ -120,9 +122,16 @@ def _install_fake_playwright(
         if fill_side_effect is not None
         else AsyncMock(return_value=None)
     )
+    # v0.8.12 — press locator chain: page.locator(selector).first.press(key, timeout=...)
+    press_mock = (
+        AsyncMock(side_effect=press_side_effect)
+        if press_side_effect is not None
+        else AsyncMock(return_value=None)
+    )
     locator_first_mock = MagicMock()
     locator_first_mock.click = click_mock
     locator_first_mock.fill = fill_mock
+    locator_first_mock.press = press_mock
     # v0.8.3 — defaults: text_content returns "default text", get_attribute returns None.
     # Tests can override these on the page_mock after fixture invocation.
     locator_first_mock.text_content = AsyncMock(return_value="default text")
@@ -131,6 +140,18 @@ def _install_fake_playwright(
     locator_mock.first = locator_first_mock
     # count defaults to 1; tests override for not-found / multi-match cases.
     locator_mock.count = AsyncMock(return_value=1)
+
+    # v0.8.8 — locator.nth(i) chain for query_all. Each .nth(i) returns an
+    # element with text_content / get_attribute. Default: returns same element
+    # as .first (text "default text"), but tests can override via the
+    # locator_mock.nth_returns dict for per-index control.
+    def _nth_factory(i):
+        nth_el = MagicMock()
+        nth_el.text_content = AsyncMock(return_value=f"item-{i}")
+        nth_el.get_attribute = AsyncMock(return_value=None)
+        return nth_el
+    locator_mock.nth = MagicMock(side_effect=_nth_factory)
+
     page_mock.locator = MagicMock(return_value=locator_mock)
 
     # v0.8.4 — keyboard.press chain: page.keyboard.press(key)
@@ -152,6 +173,11 @@ def _install_fake_playwright(
     # "no history" cases or to side_effect for failure cases.
     page_mock.go_back = AsyncMock(return_value=response_mock)
     page_mock.go_forward = AsyncMock(return_value=response_mock)
+
+    # v0.8.7 — page.reload default: return response_mock (mimics successful
+    # reload). Tests override to None for data:-URL cases or to side_effect
+    # for failure cases.
+    page_mock.reload = AsyncMock(return_value=response_mock)
 
     # Build the context mock
     context_mock = MagicMock()
@@ -381,15 +407,17 @@ class TestRenderUrlLifecycle:
 
     @pytest.mark.asyncio
     async def test_render_url_uses_configured_user_agent(self, fake_playwright):
-        """B-8: new_context called with user_agent=config.user_agent."""
+        """B-8 + B-27: new_context called with user_agent and viewport from config."""
         _, browser_mock, *_ = fake_playwright()
         client = make_client(
             ["https://example.com/*"],
             user_agent="HERETIC/0.8.0 (test-agent)",
         )
         await client.render_url("https://example.com/page")
+        # v0.8.9 — viewport now also passed (defaults 1280x720)
         browser_mock.new_context.assert_awaited_once_with(
-            user_agent="HERETIC/0.8.0 (test-agent)"
+            user_agent="HERETIC/0.8.0 (test-agent)",
+            viewport={"width": 1280, "height": 720},
         )
 
 
@@ -713,15 +741,17 @@ class TestScreenshotLifecycle:
 
     @pytest.mark.asyncio
     async def test_screenshot_uses_configured_user_agent(self, fake_playwright):
-        """B-8: new_context called with user_agent=config.user_agent."""
+        """B-8 + B-27: new_context called with user_agent and viewport from config."""
         _, browser_mock, *_ = fake_playwright()
         client = make_client(
             ["https://example.com/*"],
             user_agent="HERETIC/0.8.1 (test-agent)",
         )
         await client.screenshot("https://example.com/page")
+        # v0.8.9 — viewport now also passed (defaults 1280x720)
         browser_mock.new_context.assert_awaited_once_with(
-            user_agent="HERETIC/0.8.1 (test-agent)"
+            user_agent="HERETIC/0.8.1 (test-agent)",
+            viewport={"width": 1280, "height": 720},
         )
 
 
@@ -838,6 +868,7 @@ class TestScreenshotReturnShape:
             browser_screenshot_full_page=True,
         )
         await client.screenshot("https://example.com/page")
+        # v0.8.11: type kwarg now reflects config (default "png")
         page_mock.screenshot.assert_awaited_once_with(full_page=True, type="png")
 
     @pytest.mark.asyncio
@@ -851,6 +882,7 @@ class TestScreenshotReturnShape:
             browser_screenshot_full_page=False,
         )
         await client.screenshot("https://example.com/page")
+        # v0.8.11: type kwarg now reflects config (default "png")
         page_mock.screenshot.assert_awaited_once_with(full_page=False, type="png")
 
 
@@ -1688,6 +1720,124 @@ class TestPress:
         page_mock.keyboard.press.assert_awaited_once_with("Control+A")
 
 
+class TestPressOn:
+    """B-30, D-153..D-163 for v0.8.12 leid.press_on — element-targeted press."""
+
+    @pytest.mark.asyncio
+    async def test_press_on_unknown_session_raises_expired(self, fake_playwright):
+        """B-16 applies to press_on."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.press_on("leid-never-existed", "input", "Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_on_calls_locator_first_press(self, fake_playwright):
+        """D-154 / B-30: page.locator(selector).first.press is the call path."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.press_on(
+            opened["session_id"], "input[name='q']", "Enter"
+        )
+        page_mock.locator.assert_called_with("input[name='q']")
+        page_mock.locator.return_value.first.press.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_press_on_passes_key_and_timeout(self, fake_playwright):
+        """key parameter reaches locator.press as first positional arg;
+        timeout from browser_click_timeout_seconds passed as kwarg (D-155)."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.press_on(opened["session_id"], "#search", "Enter")
+        call_args = page_mock.locator.return_value.first.press.await_args
+        assert call_args.args[0] == "Enter"
+        assert call_args.kwargs["timeout"] == 10000  # default 10s
+
+    @pytest.mark.asyncio
+    async def test_press_on_timeout_raises_press_on_element_not_found(
+        self, fake_playwright
+    ):
+        """B-30: PlaywrightTimeoutError → LeidPressOnElementNotFoundError."""
+        fake_playwright(
+            press_side_effect=_FakePlaywrightTimeoutError("Timeout exceeded")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(
+            LeidPressOnElementNotFoundError,
+            match="matched no actionable element",
+        ):
+            await client.press_on(opened["session_id"], "#nope", "Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_on_browser_error_raises_connection_error(
+        self, fake_playwright
+    ):
+        """B-30: non-timeout PlaywrightError → LeidConnectionError."""
+        fake_playwright(
+            press_side_effect=_FakePlaywrightError("Page closed")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="browser level"):
+            await client.press_on(opened["session_id"], "input", "Enter")
+
+    @pytest.mark.asyncio
+    async def test_press_on_returns_post_action_url_and_title(
+        self, fake_playwright
+    ):
+        """D-160: result has post-press url + title (press may navigate)."""
+        fake_playwright(
+            page_url="https://example.com/results",
+            page_title="Search Results",
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.press_on(
+            opened["session_id"], "input[name='q']", "Enter"
+        )
+        assert result["selector"] == "input[name='q']"
+        assert result["key"] == "Enter"
+        assert result["pressed"] is True
+        assert result["current_url"] == "https://example.com/results"
+        assert result["current_title"] == "Search Results"
+
+    @pytest.mark.asyncio
+    async def test_press_on_updates_last_activity(self, fake_playwright):
+        """D-159 / B-30: successful press_on updates last_activity_at."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.press_on(session_id, "input", "Enter")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_press_on_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inherited: press_on must never call page.evaluate."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.press_on(opened["session_id"], "input", "Enter")
+        page_mock.evaluate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_press_on_supports_modifier_keys(self, fake_playwright):
+        """D-153 inherited: modifier+key combos pass through to Playwright."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        await client.press_on(opened["session_id"], "input", "Control+A")
+        call_args = page_mock.locator.return_value.first.press.await_args
+        assert call_args.args[0] == "Control+A"
+
+
 class TestGoBack:
     """B-23 + D-88..D-93 for v0.8.5 leid.go_back. Paired with TestGoForward;
     tests are structurally identical to verify symmetry."""
@@ -1905,6 +2055,892 @@ class TestGoHistoryShared:
         )
         with pytest.raises(LeidConnectionError, match="network layer"):
             await client.go_back(opened["session_id"])
+
+
+class TestSessionRender:
+    """B-24 + D-97/D-99/D-100/D-101 for v0.8.6 leid.session_render."""
+
+    @pytest.mark.asyncio
+    async def test_session_render_unknown_session_raises_expired(self, fake_playwright):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.session_render("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_session_render_calls_page_content(self, fake_playwright):
+        """D-97: underlying primitive is page.content."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.content.reset_mock()
+        await client.session_render(opened["session_id"])
+        page_mock.content.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_session_render_returns_text_and_title(self, fake_playwright):
+        """Return shape — text + title from current page."""
+        fake_playwright(
+            page_content="<html><head><title>Live State</title></head>"
+                         "<body>Updated content</body></html>",
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.session_render(opened["session_id"])
+        assert result["title"] == "Live State"
+        assert "Updated content" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_session_render_returns_current_url(self, fake_playwright):
+        """D-101: current_url reflects session.page.url at entry."""
+        fake_playwright(page_url="https://example.com/dashboard")
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/dashboard")
+        result = await client.session_render(opened["session_id"])
+        assert result["current_url"] == "https://example.com/dashboard"
+
+    @pytest.mark.asyncio
+    async def test_session_render_pre_cap_on_rendered_html(self, fake_playwright):
+        """B-6 inheritance: rendered HTML > max_response_bytes → too large."""
+        large_html = "<html><body>" + ("x" * 2_000_000) + "</body></html>"
+        fake_playwright(page_content=large_html)
+        client = make_client(
+            ["https://example.com/*"],
+            max_response_bytes=1_048_576,
+        )
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidResponseTooLargeError, match="exceeds max_response_bytes"):
+            await client.session_render(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_session_render_page_content_error_maps_to_connection_error(
+        self, fake_playwright
+    ):
+        """D-100 / M-1: PlaywrightError from page.content → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.content = AsyncMock(
+            side_effect=_FakePlaywrightError("Target page closed")
+        )
+        client = make_client(["https://example.com/*"])
+        # Open session uses a different mock state; need to re-stub content
+        # AFTER open_session has run (which itself doesn't call content).
+        # Open the session first, then break content for the session_render call.
+        opened_client = make_client(["https://example.com/*"])
+        # Use clean fake_playwright then break content post-open
+        _uninstall_fake_playwright()
+        _, _, _, page_mock2, _ = _install_fake_playwright()
+        try:
+            opened = await opened_client.open_session("https://example.com/page")
+            page_mock2.content = AsyncMock(
+                side_effect=_FakePlaywrightError("Target page closed")
+            )
+            with pytest.raises(LeidConnectionError, match="page.content"):
+                await opened_client.session_render(opened["session_id"])
+        finally:
+            _uninstall_fake_playwright()
+
+    @pytest.mark.asyncio
+    async def test_session_render_updates_last_activity(self, fake_playwright):
+        """B-17 / B-24."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.session_render(session_id)
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_session_render_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inheritance."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.session_render(opened["session_id"])
+        page_mock.evaluate.assert_not_called()
+
+
+class TestSessionScreenshot:
+    """B-24 + D-98/D-99/D-100/D-101 for v0.8.6 leid.session_screenshot."""
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_unknown_session_raises_expired(
+        self, fake_playwright
+    ):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.session_screenshot("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_calls_page_screenshot_with_full_page_config(
+        self, fake_playwright
+    ):
+        """D-98: page.screenshot called with full_page from config."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_full_page=True,
+        )
+        opened = await client.open_session("https://example.com/page")
+        page_mock.screenshot.reset_mock()
+        await client.session_screenshot(opened["session_id"])
+        # v0.8.11: type kwarg now reflects config (default "png")
+        page_mock.screenshot.assert_awaited_once_with(full_page=True, type="png")
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_returns_base64_png(self, fake_playwright):
+        """Return shape: image_base64 round-trips to original PNG bytes."""
+        import base64 as _b64
+        png = b"\x89PNG\r\n\x1a\n_session_screenshot_test_payload_"
+        fake_playwright(screenshot_bytes=png)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.session_screenshot(opened["session_id"])
+        assert result["image_format"] == "png"
+        assert result["size_bytes"] == len(png)
+        decoded = _b64.b64decode(result["image_base64"])
+        assert decoded == png
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_returns_current_url(self, fake_playwright):
+        """D-101: current_url reflects session.page.url at entry."""
+        fake_playwright(page_url="https://example.com/results")
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/results")
+        result = await client.session_screenshot(opened["session_id"])
+        assert result["current_url"] == "https://example.com/results"
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_pre_cap_on_png_bytes(self, fake_playwright):
+        """B-11 inheritance: PNG > max_response_bytes → too large; BEFORE base64."""
+        large_png = b"\x89PNG\r\n\x1a\n" + (b"x" * 2_000_000)
+        fake_playwright(screenshot_bytes=large_png)
+        client = make_client(
+            ["https://example.com/*"],
+            max_response_bytes=1_048_576,
+        )
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(
+            LeidResponseTooLargeError, match="exceeds max_response_bytes"
+        ):
+            await client.session_screenshot(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_page_screenshot_error_maps_to_connection_error(
+        self, fake_playwright
+    ):
+        """D-100 / M-1: PlaywrightError from page.screenshot → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.screenshot = AsyncMock(
+            side_effect=_FakePlaywrightError("Browser disconnected")
+        )
+        with pytest.raises(LeidConnectionError, match="page.screenshot"):
+            await client.session_screenshot(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_updates_last_activity(self, fake_playwright):
+        """B-17 / B-24."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)
+        await client.session_screenshot(session_id)
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_does_not_call_page_evaluate(
+        self, fake_playwright
+    ):
+        """B-10 inheritance."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.session_screenshot(opened["session_id"])
+        page_mock.evaluate.assert_not_called()
+
+
+class TestReload:
+    """B-25 + D-107..D-113 for v0.8.7 leid.reload."""
+
+    @pytest.mark.asyncio
+    async def test_reload_unknown_session_raises_expired(self, fake_playwright):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.reload("leid-never-existed")
+
+    @pytest.mark.asyncio
+    async def test_reload_calls_page_reload_with_load_state_and_timeout(
+        self, fake_playwright
+    ):
+        """D-107: page.reload called with wait_until + timeout from config."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_load_state="networkidle",
+            browser_navigation_timeout_seconds=15,
+        )
+        opened = await client.open_session("https://example.com/page")
+        page_mock.reload.reset_mock()
+        await client.reload(opened["session_id"])
+        page_mock.reload.assert_awaited_once()
+        call_kwargs = page_mock.reload.await_args.kwargs
+        assert call_kwargs["wait_until"] == "networkidle"
+        assert call_kwargs["timeout"] == 15000
+
+    @pytest.mark.asyncio
+    async def test_reload_returns_current_url_and_title(self, fake_playwright):
+        """D-111: minimal shape with current_url + title."""
+        fake_playwright(
+            page_url="https://example.com/dashboard",
+            page_title="Dashboard",
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/dashboard")
+        result = await client.reload(opened["session_id"])
+        assert result["current_url"] == "https://example.com/dashboard"
+        assert result["title"] == "Dashboard"
+
+    @pytest.mark.asyncio
+    async def test_reload_returns_session_id_unchanged(self, fake_playwright):
+        """Session identity preserved across reload."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.reload(opened["session_id"])
+        assert result["session_id"] == opened["session_id"]
+
+    @pytest.mark.asyncio
+    async def test_reload_handles_none_response(self, fake_playwright):
+        """D-107: page.reload returns None (e.g., data: URL) → no HTTP check;
+        still succeeds and returns minimal shape."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.reload = AsyncMock(return_value=None)
+        result = await client.reload(opened["session_id"])
+        # MUST NOT raise on None response
+        assert result["session_id"] == opened["session_id"]
+
+    @pytest.mark.asyncio
+    async def test_reload_timeout_raises_leid_timeout(self, fake_playwright):
+        """B-5 inherited via B-25: TimeoutError → LeidTimeoutError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.reload = AsyncMock(
+            side_effect=_FakePlaywrightTimeoutError("Reload timeout 30000ms")
+        )
+        with pytest.raises(LeidTimeoutError, match="timed out"):
+            await client.reload(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_reload_http_error_raises_leid_http_error(self, fake_playwright):
+        """response.status >= 400 → LeidHttpError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        error_response = MagicMock()
+        error_response.status = 503
+        page_mock.reload = AsyncMock(return_value=error_response)
+        with pytest.raises(LeidHttpError, match="503"):
+            await client.reload(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_reload_network_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """PlaywrightError (non-timeout) → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.reload = AsyncMock(
+            side_effect=_FakePlaywrightError("net::ERR_NETWORK_CHANGED")
+        )
+        with pytest.raises(LeidConnectionError, match="network layer"):
+            await client.reload(opened["session_id"])
+
+    @pytest.mark.asyncio
+    async def test_reload_updates_last_activity(self, fake_playwright):
+        """B-17 / B-25."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.reload(session_id)
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_reload_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inheritance."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.reload(opened["session_id"])
+        page_mock.evaluate.assert_not_called()
+
+
+class TestQueryAll:
+    """B-26 + D-114..D-125 for v0.8.8 leid.query_all — multi-element read."""
+
+    @pytest.mark.asyncio
+    async def test_query_all_unknown_session_raises_expired(self, fake_playwright):
+        """B-16."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.query_all("leid-never-existed", "h2")
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_empty_list_when_no_match(self, fake_playwright):
+        """D-117: count==0 → {count:0, values:[]}; NOT an exception."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=0)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], ".no-match")
+        assert result["count"] == 0
+        assert result["values"] == []
+        # nth should NOT have been called on empty path
+        page_mock.locator.return_value.nth.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_single_match_as_one_element_list(
+        self, fake_playwright
+    ):
+        """count==1 → values is a list with one element."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=1)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], "h1")
+        assert result["count"] == 1
+        assert len(result["values"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_all_matches_in_dom_order(self, fake_playwright):
+        """D-114, D-119: all matches returned in DOM order."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=5)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], ".item")
+        assert result["count"] == 5
+        # The default _nth_factory returns "item-{i}" for index i
+        assert result["values"] == ["item-0", "item-1", "item-2", "item-3", "item-4"]
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_attribute_values(self, fake_playwright):
+        """D-120: attribute parameter → get_attribute path per element."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=3)
+
+        # Override nth to return elements with get_attribute returning hrefs
+        def _nth_with_href(i):
+            el = MagicMock()
+            el.text_content = AsyncMock(return_value=f"link-text-{i}")
+            el.get_attribute = AsyncMock(
+                return_value=f"https://example.com/link-{i}"
+            )
+            return el
+        page_mock.locator.return_value.nth = MagicMock(side_effect=_nth_with_href)
+
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], "a", attribute="href")
+        assert result["values"] == [
+            "https://example.com/link-0",
+            "https://example.com/link-1",
+            "https://example.com/link-2",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_query_all_returns_text_when_attribute_omitted(
+        self, fake_playwright
+    ):
+        """D-120 default: attribute omitted → text_content path."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], "h2")
+        assert result["attribute"] == ""
+        # Default _nth_factory returns "item-{i}" via text_content
+        assert all(v.startswith("item-") for v in result["values"])
+
+    @pytest.mark.asyncio
+    async def test_query_all_includes_null_for_missing_attributes(
+        self, fake_playwright
+    ):
+        """D-73-style: element exists but attribute absent → None in list."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=2)
+
+        def _nth_no_attr(i):
+            el = MagicMock()
+            el.text_content = AsyncMock(return_value=f"text-{i}")
+            el.get_attribute = AsyncMock(return_value=None)  # absent
+            return el
+        page_mock.locator.return_value.nth = MagicMock(side_effect=_nth_no_attr)
+
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(
+            opened["session_id"], "img", attribute="data-tracking-id"
+        )
+        assert result["count"] == 2
+        assert result["values"] == [None, None]
+
+    @pytest.mark.asyncio
+    async def test_query_all_cap_exceeded_raises_too_large(self, fake_playwright):
+        """D-116 / B-26: count > cap → LeidResponseTooLargeError BEFORE iteration."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=150)
+        client = make_client(
+            ["https://example.com/*"],
+            browser_query_max_matches=100,
+        )
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(
+            LeidResponseTooLargeError, match="exceeds browser_query_max_matches"
+        ):
+            await client.query_all(opened["session_id"], ".item")
+        # nth should NOT have been called when the cap fires
+        page_mock.locator.return_value.nth.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_query_all_cap_edge_succeeds_at_exact_cap(self, fake_playwright):
+        """count == cap → succeeds (cap is inclusive)."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=5)
+        client = make_client(
+            ["https://example.com/*"],
+            browser_query_max_matches=5,
+        )
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query_all(opened["session_id"], ".item")
+        assert result["count"] == 5
+        assert len(result["values"]) == 5
+
+    @pytest.mark.asyncio
+    async def test_query_all_count_failure_raises_connection_error(
+        self, fake_playwright
+    ):
+        """PlaywrightError from locator.count → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(
+            side_effect=_FakePlaywrightError("Detached frame")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="locator.count"):
+            await client.query_all(opened["session_id"], "h2")
+
+    @pytest.mark.asyncio
+    async def test_query_all_extraction_failure_raises_connection_error(
+        self, fake_playwright
+    ):
+        """PlaywrightError from per-element extraction → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=3)
+
+        def _nth_with_failure(i):
+            el = MagicMock()
+            if i == 1:
+                # Second element fails
+                el.text_content = AsyncMock(
+                    side_effect=_FakePlaywrightError("Element became detached")
+                )
+            else:
+                el.text_content = AsyncMock(return_value=f"item-{i}")
+            el.get_attribute = AsyncMock(return_value=None)
+            return el
+        page_mock.locator.return_value.nth = MagicMock(side_effect=_nth_with_failure)
+
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="extraction at index 1"):
+            await client.query_all(opened["session_id"], "h2")
+
+    @pytest.mark.asyncio
+    async def test_query_all_updates_last_activity_on_found(self, fake_playwright):
+        """B-17 / B-26 on the count > 0 path."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.query_all(session_id, "h2")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_query_all_updates_last_activity_on_empty(self, fake_playwright):
+        """B-17 / B-26: empty result still counts as activity."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=0)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)
+        result = await client.query_all(session_id, ".not-there")
+        assert result["count"] == 0
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_query_all_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inheritance."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.query_all(opened["session_id"], "h2")
+        page_mock.evaluate.assert_not_called()
+
+
+class TestViewportPropagation:
+    """B-27 for v0.8.9 — verifies viewport from config propagates to all
+    three browser-context creations (render_url, screenshot, open_session)."""
+
+    @pytest.mark.asyncio
+    async def test_render_url_passes_viewport_from_config(self, fake_playwright):
+        """B-27: render_url passes viewport={width, height} from config."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_viewport_width=375,
+            browser_viewport_height=812,  # iPhone-12 width × 812
+        )
+        await client.render_url("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 375, "height": 812}
+
+    @pytest.mark.asyncio
+    async def test_screenshot_passes_viewport_from_config(self, fake_playwright):
+        """B-27: screenshot passes viewport={width, height} from config."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_viewport_width=1920,
+            browser_viewport_height=1080,  # full-HD
+        )
+        await client.screenshot("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 1920, "height": 1080}
+
+    @pytest.mark.asyncio
+    async def test_open_session_passes_viewport_from_config(self, fake_playwright):
+        """B-27: open_session passes viewport={width, height} from config."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_viewport_width=2560,
+            browser_viewport_height=1440,  # ultrawide
+        )
+        await client.open_session("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 2560, "height": 1440}
+
+    @pytest.mark.asyncio
+    async def test_render_url_uses_default_viewport_when_unconfigured(
+        self, fake_playwright
+    ):
+        """Default config (no viewport override) passes 1280x720."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(["https://example.com/*"])  # no viewport override
+        await client.render_url("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 1280, "height": 720}
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_default_viewport_when_unconfigured(
+        self, fake_playwright
+    ):
+        """Default config (no viewport override) passes 1280x720."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.screenshot("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 1280, "height": 720}
+
+    @pytest.mark.asyncio
+    async def test_open_session_uses_default_viewport_when_unconfigured(
+        self, fake_playwright
+    ):
+        """Default config (no viewport override) passes 1280x720."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.open_session("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 1280, "height": 720}
+
+
+class TestFinalUrlAllowlistRecheck:
+    """B-28 for v0.8.10 — verifies post-navigation URL re-check at all 7 sites
+    + session-close-on-violation discipline for stateful tools."""
+
+    @pytest.mark.asyncio
+    async def test_render_url_raises_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28: input URL passes pre-flight; page.url after goto doesn't."""
+        # page_mock.url returns "https://evil.com/landed" (simulates redirect);
+        # allowlist permits example.com only.
+        fake_playwright(page_url="https://evil.com/landed")
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(UrlNotAllowedError, match="not in url_allowlist_patterns"):
+            await client.render_url("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_render_url_does_not_raise_when_final_url_matches_allowlist(
+        self, fake_playwright
+    ):
+        """Happy path: final URL is in allowlist → no exception."""
+        fake_playwright(page_url="https://example.com/dashboard")
+        client = make_client(["https://example.com/*"])
+        # Should NOT raise
+        result = await client.render_url("https://example.com/page")
+        assert result["final_url"] == "https://example.com/dashboard"
+
+    @pytest.mark.asyncio
+    async def test_screenshot_raises_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28: screenshot raises if page.url after goto is not allowlisted."""
+        fake_playwright(page_url="https://evil.com/landed")
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(UrlNotAllowedError, match="not in url_allowlist_patterns"):
+            await client.screenshot("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_open_session_raises_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28: open_session raises; session is NOT registered."""
+        fake_playwright(page_url="https://evil.com/landed")
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(UrlNotAllowedError, match="not in url_allowlist_patterns"):
+            await client.open_session("https://example.com/page")
+        # Session never registered: manager has zero sessions
+        if client._session_manager is not None:
+            assert client._session_manager.active_count == 0
+
+    @pytest.mark.asyncio
+    async def test_navigate_raises_and_closes_session_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28 + D-139: navigate raises AND closes the session."""
+        # Open at allowed URL
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/start"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/start")
+        session_id = opened["session_id"]
+
+        # Now make navigate land on evil.com — make goto mutate page.url
+        async def _bad_goto(*_args, **_kwargs):
+            page_mock.url = "https://evil.com/landed"
+            return response_mock
+
+        page_mock.goto = AsyncMock(side_effect=_bad_goto)
+
+        with pytest.raises(UrlNotAllowedError, match="session has been closed"):
+            await client.navigate(session_id, "https://example.com/another")
+
+        # Session should be closed
+        assert client._session_manager.active_count == 0
+
+    @pytest.mark.asyncio
+    async def test_navigate_session_remains_usable_when_final_url_matches_allowlist(
+        self, fake_playwright
+    ):
+        """Happy path: navigate to allowlisted URL keeps session alive."""
+        fake_playwright(page_url="https://example.com/page1")
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page1")
+        session_id = opened["session_id"]
+        # Navigate within the allowlist — session stays open
+        result = await client.navigate(session_id, "https://example.com/page2")
+        assert result["session_id"] == session_id
+        # Session still usable
+        assert client._session_manager.active_count == 1
+
+    @pytest.mark.asyncio
+    async def test_go_back_raises_and_closes_session_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28 + D-139: go_back raises AND closes the session if landed
+        on a non-allowlisted URL."""
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/page2"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page2")
+        session_id = opened["session_id"]
+
+        # go_back lands on evil.com (e.g., the previous URL was evil)
+        async def _bad_go_back(*_args, **_kwargs):
+            page_mock.url = "https://evil.com/page1-was-evil"
+            return response_mock
+
+        page_mock.go_back = AsyncMock(side_effect=_bad_go_back)
+
+        with pytest.raises(UrlNotAllowedError, match="session has been closed"):
+            await client.go_back(session_id)
+        assert client._session_manager.active_count == 0
+
+    @pytest.mark.asyncio
+    async def test_go_forward_raises_and_closes_session_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """Same as go_back, mirror direction."""
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/page1"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page1")
+        session_id = opened["session_id"]
+
+        async def _bad_go_forward(*_args, **_kwargs):
+            page_mock.url = "https://evil.com/forward-page-evil"
+            return response_mock
+
+        page_mock.go_forward = AsyncMock(side_effect=_bad_go_forward)
+
+        with pytest.raises(UrlNotAllowedError, match="session has been closed"):
+            await client.go_forward(session_id)
+        assert client._session_manager.active_count == 0
+
+    @pytest.mark.asyncio
+    async def test_reload_raises_and_closes_session_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28 + D-139: reload raises AND closes the session if it landed
+        on a non-allowlisted URL (e.g., server-side redirect on reload)."""
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/dashboard"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/dashboard")
+        session_id = opened["session_id"]
+
+        # Reload lands at evil.com (server-side redirect on reload)
+        async def _bad_reload(*_args, **_kwargs):
+            page_mock.url = "https://evil.com/redirected-on-reload"
+            return response_mock
+
+        page_mock.reload = AsyncMock(side_effect=_bad_reload)
+
+        with pytest.raises(UrlNotAllowedError, match="session has been closed"):
+            await client.reload(session_id)
+        assert client._session_manager.active_count == 0
+
+
+class TestScreenshotFormat:
+    """B-29 for v0.8.11 — operator-controlled screenshot format propagation."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_png_by_default(self, fake_playwright):
+        """Default config → type='png', no quality kwarg."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.screenshot("https://example.com/page")
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "png"
+        assert "quality" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_jpeg_when_configured(self, fake_playwright):
+        """browser_screenshot_format='jpeg' → type='jpeg' + quality passed."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_format="jpeg",
+            browser_screenshot_jpeg_quality=60,
+        )
+        await client.screenshot("https://example.com/page")
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "jpeg"
+        assert call_kwargs["quality"] == 60
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_webp_when_configured(self, fake_playwright):
+        """browser_screenshot_format='webp' → type='webp' + quality passed."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_format="webp",
+            browser_screenshot_jpeg_quality=90,
+        )
+        await client.screenshot("https://example.com/page")
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "webp"
+        assert call_kwargs["quality"] == 90
+
+    @pytest.mark.asyncio
+    async def test_screenshot_image_format_field_reflects_actual_format(
+        self, fake_playwright
+    ):
+        """B-29: image_format return field reflects the actual format used."""
+        fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_format="jpeg",
+        )
+        result = await client.screenshot("https://example.com/page")
+        assert result["image_format"] == "jpeg"
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_uses_png_by_default(self, fake_playwright):
+        """Default config → type='png' on session_screenshot."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.screenshot.reset_mock()
+        await client.session_screenshot(opened["session_id"])
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "png"
+        assert "quality" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_session_screenshot_uses_jpeg_when_configured(
+        self, fake_playwright
+    ):
+        """browser_screenshot_format='jpeg' on session_screenshot."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_screenshot_format="jpeg",
+            browser_screenshot_jpeg_quality=75,
+        )
+        opened = await client.open_session("https://example.com/page")
+        page_mock.screenshot.reset_mock()
+        result = await client.session_screenshot(opened["session_id"])
+        call_kwargs = page_mock.screenshot.await_args.kwargs
+        assert call_kwargs["type"] == "jpeg"
+        assert call_kwargs["quality"] == 75
+        # Return shape reflects actual format
+        assert result["image_format"] == "jpeg"
 
 
 class TestM1PageExceptionTyping:

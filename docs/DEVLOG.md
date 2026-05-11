@@ -4873,3 +4873,854 @@ The autonomous arc continues into its SIXTEENTH sealed milestone. Eight slices i
 
 *Entry 30 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
 *The body's footsteps backward and forward through history land. Eight unnamed extensions, five consecutive zero-findings audits, the first bundled-pair milestone shipped cleanly. The Innan Hurðar interactive vocabulary is complete for ALL standard browser-as-user flows. Sixteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for nine milestones running. The session is kept.*
+
+---
+
+## Entry 31 — 2026-05-11 — session_render + session_screenshot: the body's eye and portrait turned upon the present room (v0.8.6)
+
+**Milestone:** v0.8.6 — `leid.session_render` + `leid.session_screenshot` (ninth unnamed extension within Innan Hurðar; **second bundled-pair milestone**)
+**Branch:** `development`
+**Session start HEAD:** `7db363e` (post-v0.8.5 Scribe seal)
+**Session close HEAD:** `062d061` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — SEVENTEENTH milestone in the autonomous arc; the arc continues into a second day of work
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — sixth consecutive)
+
+### What was added
+
+The body's eye and portrait turned upon the present room. Until v0.8.6 the body could read a page (`render_url`) and keep its portrait (`screenshot`) only when *opening* a fresh visit — those stateless tools demand a launch and a goto each time. But the body inside an open session has no need to leave and re-enter just to look again. v0.8.6 adds the in-session counterparts:
+
+- `leid.session_render(session_id)` → `{session_id, current_url, text, title, source_size_bytes}`
+- `leid.session_screenshot(session_id)` → `{session_id, current_url, image_base64, image_format, size_bytes, full_page}`
+
+Same primitives (`page.content` / `page.screenshot`); same size-cap discipline (B-6 inherited / B-11 inherited); same M-1 closure pattern; same B-10 no-script-injection. Applied to the live session's page rather than a freshly-launched one. Result: **~10-50× cheaper** than the stateless siblings because no browser cold start is needed.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `9a8c133` | Runa | TASK_HERETIC_v0.8.6_SESSION_RENDER_SCREENSHOT.md |
+| 1 | `c6de401` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `af6427a` | Cartographer | DATA_FLOW.md §4.12.2.10 — mid-session re-extract flow + B-24 |
+| 3 | `c91d1bb` | Architect | INTERFACE.md §12.12 + B-24 + 2 tool defs |
+| 4 | `0f8bbb3` | Forge | session_render + session_screenshot methods + sense routing + 16 method tests + 2 dispatch |
+| 5 | `062d061` | Auditor | AUDIT_v0.8.6_SESSION_RENDER_SCREENSHOT.md — **PASSES SCRUTINY (0/0/0/0)** — SIXTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 31 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.6)
+
+| Surface | Before v0.8.6 | After v0.8.6 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 50 | 52 | **+2** (2 dispatch — session_render + session_screenshot) |
+| `tests/test_leid_playwright_client.py` | 123 + 2 skip | 139 + 2 skip | **+16** (TestSessionRender 8 + TestSessionScreenshot 8) |
+| **Leid scope total** | 222 + 2 skip | 240 + 2 skip | **+18** |
+| **Full suite** | 1543 + 9 skip | 1561 + 9 skip | **+18** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Sixth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6). The Auditor noted that v0.8.6's design (in-session counterparts of already-vetted stateless tools, with full inheritance of B-6 / B-11 / B-10 / M-1 closure pattern) made this milestone structurally low-risk. The Forge implemented the inheritance cleanly; the Architect's contract was specific about what was inherited and what was new (just B-24); nothing novel was risked.
+
+### What this milestone teaches
+
+**The body now has THREE distinct ways to "look" — each with its right use case.**
+- **`render_url` / `screenshot`** (stateless, v0.8.0/v0.8.1) — for one-shot reads of a URL that doesn't need an interactive session afterward. ~500-3000 ms each. Best for "fetch this article and summarize."
+- **`query`** (stateful, selector-scoped, v0.8.3) — for extracting a specific element's text or attribute from an open session. ~5-50 ms. Best for "what does the order total say?" or "is the error banner present?"
+- **`session_render` / `session_screenshot`** (stateful, full-page, v0.8.6) — for re-extracting the entire current page state mid-flow. ~20-300 ms. Best for "what did the page change to after I clicked submit?"
+
+Each tool has its right use case; the agent picks the cheapest tool that gives the answer it needs. The body is articulate about what it can give back — three distinct ways of looking, not one over-broad primitive that has to do everything.
+
+**Inheritance, when done well, is invisible at audit time.** v0.8.6 inherited B-6 (HTML byte-size cap), B-11 (raw PNG bytes pre-base64 cap), B-10 (no script injection), and the M-1 closure pattern (page.content + page.screenshot exception typing). Each was applied at the new call site without re-implementation, without drift from the original. The Auditor verified each by tracing the implementation against the originals — all matched byte-equivalently in their stage-by-stage shape. Inheritance is structural reuse; when it's done well the audit pass for the inheriting tool is mechanical, not novel. Six consecutive zero-findings audits are the visible result of inheritance done well across slices.
+
+**Bundled-pair milestones are now an established pattern.** v0.8.5 was the first; v0.8.6 is the second. Both bundled two tools that share discipline but diverge in content type or direction. Both shipped cleanly with no audit penalty for the bundling. Future paired tools (e.g., element-targeted press paired with page-level press? element screenshot paired with page screenshot?) can follow this template — TASK-time bundling decision, single Skald paragraph, single Cartographer flow section, single Architect §, paired Forge methods, paired test classes mirroring each other, single Auditor §-per-tool.
+
+**Six consecutive zero-findings audits is now load-bearing evidence of the work's quality.** The streak is no longer remarkable in itself; it's the property of disciplined extension within an already-vetted disposition through parallel Playwright primitives. The Architect's discipline of not introducing new error classes / config fields when existing ones suffice (D-102, D-103) shipped Config + errors.py byte-untouched for the FOURTH consecutive milestone. The Forge's discipline of inheritance over re-implementation kept the new methods structurally identical to their stateless siblings at the discipline layer. Together these produce shipping cadence WITH audit rigor.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.6_SESSION_RENDER_SCREENSHOT.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.10 added — mid-session re-extract flow + B-24 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 two new rows + new §12.12 contract (paired bundle) |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.session_render + leid.session_screenshot tool definitions appended |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `session_render()` + `session_screenshot()` methods between `go_forward()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds 2 branches |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the TENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-103 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-102 — no new fields) |
+| `tests/test_leid_playwright_client.py` | New TestSessionRender (8 tests) + TestSessionScreenshot (8 tests) classes |
+| `tests/test_leid_sense.py` | Tool-count check 14 → 16; tool-names check; 2 dispatch tests |
+| `docs/audit/AUDIT_v0.8.6_SESSION_RENDER_SCREENSHOT.md` | New — verdict PASSES SCRUTINY (zero findings, sixth consecutive) |
+| `docs/DEVLOG.md` | This entry (31) |
+
+### State of the body — 2026-05-11 (after v0.8.6)
+
+The Leið faculty now has SIXTEEN tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (12):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **16 — 2 httpx + 2 stateless browser + 12 stateful browser (open + navigate + go_back + go_forward + status + click + type + query + press + session_render + session_screenshot + close)** | **v0.8.6** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **nine unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6).
+
+**The Innan Hurðar interactive vocabulary is now substantially complete.** The body inside the door can now: walk forward (navigate), walk back (go_back), walk forward through history (go_forward), introspect its lifetime (status), touch (click), write (type), press keys (press), look at specific elements (query), look at the whole current room (session_render, session_screenshot), and depart (close_session).
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.6 session_render + session_screenshot~~ | **CLOSED — sealed at `062d061`** |
+| **v0.8.x `leid.reload`** (refresh current page) | candidate — small focused slice, would round out motion vocabulary |
+| v0.8.x JPEG/WebP screenshot output | candidate — small refinement |
+| v0.8.x configurable viewport size | candidate — small refinement |
+| v0.8.x multi-element query (return list of matches) | candidate — natural follow-up to v0.8.3 |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its SEVENTEENTH sealed milestone, now spanning three calendar days. Nine slices into v0.8 *Opið Vef*; the Innan Hurðar interactive vocabulary is substantially complete. Subsequent v0.8.x slices remain pure refinements with diminishing marginal value.
+
+---
+
+*Entry 31 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The body's eye and portrait turned upon the present room land cleanly. Nine unnamed extensions, six consecutive zero-findings audits, the second bundled-pair milestone shipped cleanly. The body now has three distinct ways to look — stateless, selector-scoped, and full-page-mid-flow — each with its right use case. Seventeenth milestone in the autonomous arc; the LeidClient stands byte-untouched for ten milestones running. The session is kept.*
+
+---
+
+## Entry 32 — 2026-05-11 — leid.reload: the body's footstep in place (v0.8.7)
+
+**Milestone:** v0.8.7 — `leid.reload` (tenth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `b9389c6` (post-v0.8.6 Scribe seal)
+**Session close HEAD:** `731d182` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — EIGHTEENTH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — seventh consecutive)
+
+### What was added
+
+The body's footstep in place. `leid.reload(session_id)` re-fetches the current page through Playwright's `page.reload()` — equivalent to the user pressing F5 or the browser's reload button. The session keeps its identity, cookies, and localStorage; the URL stays the same in normal cases; only the page content is fetched anew.
+
+This rounds out the motion vocabulary inside the door. After v0.8.7, every browser button of motion has a tool:
+
+| Browser button | HERETIC tool | Slice |
+|---|---|---|
+| Address bar (forward to URL) | `leid.navigate` | v0.8.2.2 |
+| Back | `leid.go_back` | v0.8.5 |
+| Forward | `leid.go_forward` | v0.8.5 |
+| Reload (F5) | **`leid.reload`** | **v0.8.7** |
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `37286b0` | Runa | TASK_HERETIC_v0.8.7_RELOAD.md |
+| 1 | `29552f1` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `445ee4f` | Cartographer | DATA_FLOW.md §4.12.2.11 — reload flow + B-25 |
+| 3 | `f1f5aaa` | Architect | INTERFACE.md §12.13 + B-25 + leid.reload tool def |
+| 4 | `a20ef68` | Forge | reload() method + sense routing + 10 method tests + 1 dispatch |
+| 5 | `731d182` | Auditor | AUDIT_v0.8.7_RELOAD.md — **PASSES SCRUTINY (0/0/0/0)** — SEVENTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 32 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.7)
+
+| Surface | Before v0.8.7 | After v0.8.7 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 52 | 53 | **+1** (1 dispatch) |
+| `tests/test_leid_playwright_client.py` | 139 + 2 skip | 149 + 2 skip | **+10** (TestReload class) |
+| **Leid scope total** | 240 + 2 skip | 251 + 2 skip | **+11** |
+| **Full suite** | 1561 + 9 skip | 1572 + 9 skip | **+11** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Seventh consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7). The Auditor noted that v0.8.7's structural simplicity (one Playwright primitive call wrapped in standard Innan Hurðar discipline) made this another clean shipment. The Forge correctly inherited navigate's discipline through B-25's contract; the Architect's three intentional differences from navigate (no URL parameter, no URL gate, simpler return shape) were all justified at TASK time and verified at audit time.
+
+### What this milestone teaches
+
+**The motion vocabulary is now complete; refinements remain.** v0.8.7 closes a real conceptual gap — until this slice, an agent that wanted to refresh a session page had to either close+reopen (losing cookies) or use `leid.press(session_id, "F5")` (which works but feels indirect). With `leid.reload`, the motion vocabulary inside the door now matches every browser button of motion: forward (navigate), back (go_back), forward-again (go_forward), and in-place (reload). This is structural completeness — the body's small motion vocabulary is now isomorphic to the user's mental model of a browser. Subsequent v0.8.x slices are pure refinements (JPEG/WebP screenshots, configurable viewport, multi-element query, element-targeted press) — none close conceptual gaps; each adds a richer expression of what the body can already do.
+
+**Three intentional differences from navigate, all explicitly justified.** Reload is structurally similar to navigate — same primitive family, same discipline, same error mapping. The differences are explicit and small: no URL parameter (it's in-place); no URL gate (the URL was already gated when first navigated to, same posture as go_back/go_forward at D-92); simpler return shape (no previous_url because in-place; no moved boolean because reload is not a probe-and-act primitive). The Architect documented each difference in TASK design (D-107/108/109/110/111); the Auditor verified each at audit time. The discipline of "justify what you DON'T inherit, not just what you DO" is what makes sibling-style design auditable.
+
+**Seven consecutive zero-findings audits is now the norm, not the streak.** The v0.8 umbrella has shipped 7 milestones in a row with no audit findings of any severity (after the substantive v0.8.2 audit's NOTABLE-1 was closed at its own Wave 6). The pattern is structural: when a new tool is mechanical extension of an already-vetted disposition through a parallel Playwright primitive, the audit pass is mechanical too. Future v0.8.x refinements should expect the same outcome — and any deviation (a v0.8.x audit that DOES find something) would be a signal that the slice introduced more novelty than the TASK design anticipated.
+
+**The slow-and-careful arc has now spanned eighteen milestones across three days.** The autonomous arc began 2026-05-09 with a marathon evening of 8 milestones (v0.7.1 + v0.5.3-5 + v0.7.2 + v0.6.3 + v0.7.3 + v0.6.3.1). Day 2 (2026-05-10) added 8 more (v0.8.0 → v0.8.5). Day 3 (2026-05-11) has now added v0.8.6 + v0.8.7, with the same disciplined waves and the same shipping cadence. Eighteen milestones; eighteen audits passed; one substantive cleanup (v0.8.2 NOTABLE-1) closed at its own Wave 6; ten consecutive zero-findings audits since (v0.8.2.1 onward, plus v0.8.2 itself if we count its closing PASSES verdict). The arc proves that disciplined iteration produces shipping cadence WITH audit rigor — the two are not in tension when the discipline is right.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.7_RELOAD.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.11 added — reload flow + B-25 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 row + new §12.13 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.reload tool definition appended |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `reload()` method between `session_screenshot()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds 1 branch |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the ELEVENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-110 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-108 — no new fields) |
+| `tests/test_leid_playwright_client.py` | Helper extended (page.reload mock); new TestReload class with 10 tests |
+| `tests/test_leid_sense.py` | Tool-count check 16 → 17; tool-names check; 1 dispatch test |
+| `docs/audit/AUDIT_v0.8.7_RELOAD.md` | New — verdict PASSES SCRUTINY (zero findings, seventh consecutive) |
+| `docs/DEVLOG.md` | This entry (32) |
+
+### State of the body — 2026-05-11 (after v0.8.7)
+
+The Leið faculty now has SEVENTEEN tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (13):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **17 — 2 httpx + 2 stateless browser + 13 stateful browser (open + navigate + go_back + go_forward + reload + status + click + type + query + press + session_render + session_screenshot + close)** | **v0.8.7** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **ten unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7).
+
+**Motion vocabulary inside the door is COMPLETE:** every browser button of motion (forward / back / forward-again / in-place) has a tool. Subsequent v0.8.x slices are pure refinements rather than foundational additions.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.7 leid.reload~~ | **CLOSED — sealed at `731d182`** |
+| **v0.8.x JPEG/WebP screenshot output** | candidate — small refinement |
+| v0.8.x configurable viewport size | candidate — small refinement |
+| v0.8.x multi-element query (return list of matches) | candidate — natural follow-up to v0.8.3 |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its EIGHTEENTH sealed milestone, now spanning three calendar days. Ten slices into v0.8 *Opið Vef*; the motion vocabulary is complete; subsequent slices are refinements with diminishing marginal value.
+
+---
+
+*Entry 32 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The body's footstep in place lands cleanly. Ten unnamed extensions, seven consecutive zero-findings audits, the motion vocabulary inside the door is complete — every browser button of motion has its tool. Eighteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for eleven milestones running. The session is kept.*
+
+---
+
+## Entry 33 — 2026-05-11 — leid.query_all: the body's eye sees not one but many (v0.8.8)
+
+**Milestone:** v0.8.8 — `leid.query_all` (eleventh unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `3807e9e` (post-v0.8.7 Scribe seal)
+**Session close HEAD:** `9062f36` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — NINETEENTH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — eighth consecutive)
+
+### What was added
+
+The body's eye now sees both singular and plural. v0.8.3 gave the body its first eye inside the door (`leid.query` returns the FIRST element matching a CSS selector — consistent with click/type/press). v0.8.8 adds the multi-element follow-up: `leid.query_all(session_id, selector, attribute="")` returns ALL matches as a list in DOM order. Useful for "list all article titles," "give me every navigation link," "what does each error message say?"
+
+Bounded by a NEW config field — the first new `LeidConfig` field since v0.8.2:
+
+| Field | Default | Purpose |
+|---|---|---|
+| `browser_query_max_matches` | 100 | Cardinality cap. Selectors matching more raise `LeidResponseTooLargeError`. Operators raise this for use cases that genuinely need many matches |
+
+Same probe-and-act posture as `query` (D-72 / D-117): empty result is NOT an error — returns `{count: 0, values: []}`. The agent's natural "give me all matches" includes the success case of "there were zero."
+
+The five-consecutive-milestone config-stability streak (v0.8.3 → v0.8.7) ends here, **honestly**. Multi-element query genuinely needs a cardinality cap; hiding it behind a hard-coded constant would have been worse discipline. The Auditor confirmed the streak-end was justified.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `86e005f` | Runa | TASK_HERETIC_v0.8.8_QUERY_ALL.md |
+| 1 | `b92bd81` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `8865cc8` | Cartographer | DATA_FLOW.md §4.12.2.12 — query_all flow + B-26 |
+| 3 | `ca42e90` | Architect | INTERFACE.md §12.14 + B-26 + LeidConfig field + tool def |
+| 4 | `0210dbc` | Forge | query_all() method + sense routing + 14 method tests + 2 dispatch + 2 config validation |
+| 5 | `9062f36` | Auditor | AUDIT_v0.8.8_QUERY_ALL.md — **PASSES SCRUTINY (0/0/0/0)** — EIGHTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 33 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.8)
+
+| Surface | Before v0.8.8 | After v0.8.8 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 53 | 57 | **+4** (2 dispatch + 2 config validation) |
+| `tests/test_leid_playwright_client.py` | 149 + 2 skip | 163 + 2 skip | **+14** (TestQueryAll class) |
+| **Leid scope total** | 251 + 2 skip | 269 + 2 skip | **+18** |
+| **Full suite** | 1572 + 9 skip | 1590 + 9 skip | **+18** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Eighth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7 → v0.8.8). The Auditor explicitly verified two things this milestone:
+1. **Cap fires BEFORE iteration** — both by code-path inspection and by an explicit `nth.assert_not_called()` test. A too-broad selector pays only for the count call, never for per-element extraction.
+2. **The config-stability streak-end was honest** — the new field is justified by genuine design need, validated correctly, and operator-controllable (not a hard-coded constant). Adding necessary config when the design needs it is correct discipline.
+
+### What this milestone teaches
+
+**The body's eye now serves both singular and plural use cases.** v0.8.3's `query` was the right design for "is this thing here?" (binary check) and "what does this single element say?" (single read). v0.8.8's `query_all` is the right design for "list every thing of this kind." The two siblings differ in the right place — single-match returns `{found, value, count}` (binary semantic with count for selector-refinement); multi-match returns `{count, values}` (no `found` because length carries the answer). Each shape is honest about what its tool gives back.
+
+**Streaks are not sacred — discipline is.** The five-consecutive-milestone "no new config" streak was a property of disciplined inheritance (v0.8.3 → v0.8.7 each genuinely could reuse existing fields). v0.8.8 needed cardinality bounding for a primitive that intrinsically returns a list — and the right shape was an operator-controllable config field, not a hard-coded constant. Ending the streak honestly is correct discipline; preserving it artificially would have been worse. The Auditor confirmed the streak-end was justified — and noted that the only way the Architect's discipline of "no new fields when existing ones suffice" would degrade is if a future slice added fields that DIDN'T need to be operator-controlled. v0.8.8 set the bar correctly.
+
+**Cap-fires-before-iteration is a load-bearing pattern.** When a tool needs to bound work that could be unbounded, the cap should fire as early as possible — before any per-item work begins. Verifying this requires not just "the cap raises when expected" but also "no work happened when the cap raised." The Auditor's explicit `nth.assert_not_called()` after a cap-exceeded raise is the right shape for this verification. Future slices that add bounded enumeration (multi-element press? multi-element screenshot?) should follow the same template.
+
+**Eight consecutive zero-findings audits.** The streak continues. Eight in a row across slices that have included: parallel sibling extension (type, navigate, reload), bundled-pair tools (history, mid-session), the first deliberate divergence (query not-found-is-not-error), the second divergence (history no-history-is-not-error), the third divergence (query_all empty-is-not-error), and now the first new config field since v0.8.2. The discipline of "name what's new, justify what's NOT inherited, structurally enforce both" is what produces this streak.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.8_QUERY_ALL.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.12 added — query_all flow + B-26 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 row + Configuration browser_query_max_matches line + new §12.14 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.query_all tool definition appended |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `query_all()` method between `reload()` and `close_session()` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds 1 branch (handles optional attribute via `args.get("attribute", "")`) |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the TWELFTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-123 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **NEW FIELD ONLY** — `browser_query_max_matches: int = 100` + __post_init__ validation. First new field since v0.8.2 |
+| `tests/test_leid_playwright_client.py` | Helper extended (locator.nth(i) factory); new TestQueryAll class with 14 tests |
+| `tests/test_leid_sense.py` | Tool-count check 17 → 18; tool-names check; 2 new dispatch tests + 2 new config validation tests |
+| `docs/audit/AUDIT_v0.8.8_QUERY_ALL.md` | New — verdict PASSES SCRUTINY (zero findings, eighth consecutive) |
+| `docs/DEVLOG.md` | This entry (33) |
+
+### State of the body — 2026-05-11 (after v0.8.8)
+
+The Leið faculty now has EIGHTEEN tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (14):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **18 — 2 httpx + 2 stateless browser + 14 stateful browser (open + navigate + go_back + go_forward + reload + status + click + type + query + query_all + press + session_render + session_screenshot + close)** | **v0.8.8** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **eleven unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8).
+
+**The body's eye now sees both singular (`query`) and plural (`query_all`).** The Innan Hurðar interactive vocabulary is now richer than feature-complete — it has the variety of expression that lets agents pick the cheapest tool for their intent.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.8 leid.query_all~~ | **CLOSED — sealed at `9062f36`** |
+| **v0.8.x JPEG/WebP screenshot output** | candidate — small refinement |
+| v0.8.x configurable viewport size | candidate — small refinement |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its NINETEENTH sealed milestone. Eleven slices into v0.8 *Opið Vef*; the Innan Hurðar interactive vocabulary now has variety of expression alongside structural completeness. Subsequent v0.8.x slices remain pure refinements.
+
+---
+
+*Entry 33 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The body's eye now sees both singular and plural. Eleven unnamed extensions, eight consecutive zero-findings audits, the first new config field since v0.8.2 added honestly when the design needed it. Nineteenth milestone in the autonomous arc; the LeidClient stands byte-untouched for twelve milestones running. The session is kept.*
+
+---
+
+## Entry 34 — 2026-05-11 — Configurable viewport: the body sees the world through the operator's chosen window (v0.8.9)
+
+**Milestone:** v0.8.9 — Configurable viewport (twelfth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `b60343c` (post-v0.8.8 Scribe seal)
+**Session close HEAD:** `6d46336` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — TWENTIETH milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — ninth consecutive)
+
+### What was added
+
+Operator-controlled viewport for browser-mode tools. Two new `LeidConfig` fields (`browser_viewport_width: int = 1280`, `browser_viewport_height: int = 720`, both validated `> 0`); both propagate uniformly to the three browser-context-creation sites: `render_url`, `screenshot`, `open_session`. The session's viewport is set ONCE at creation and persists for the session's life — mid-session viewport change is out of scope (D-130).
+
+**No new tools, no new error classes, no agent-facing change.** This is the first slice in v0.8 to deliberately MODIFY existing methods rather than add new ones — three new_context call sites each gain a single `viewport=...` kwarg. Defaults match Playwright's defaults (1280×720), so existing operators see ZERO observable behavior change.
+
+Why this matters: many sites render differently at different viewport widths. A mobile site rendered at desktop width shows the desktop layout; a content-heavy dashboard at 1280 wide shows scrollbars where ultrawide would show all the columns. v0.8.9 lets operators with mobile-first scenarios (e.g., 375×812 iPhone-12) or wide-dashboard scenarios (e.g., 1920×1080 full HD or 2560×1440 ultrawide) configure the body's viewport without the agent needing to know.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `aa5ee99` | Runa | TASK_HERETIC_v0.8.9_VIEWPORT.md |
+| 1 | `1e244e9` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `2134beb` | Cartographer | DATA_FLOW.md §4.12.2.13 — viewport propagation + B-27 |
+| 3 | `a56c6e0` | Architect | INTERFACE.md §12.15 + B-27 + 2 LeidConfig fields |
+| 4 | `164fb0b` | Forge | 3-site modification + 2 test updates + 6 viewport tests + 4 config tests |
+| 5 | `6d46336` | Auditor | AUDIT_v0.8.9_VIEWPORT.md — **PASSES SCRUTINY (0/0/0/0)** — NINTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 34 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.9)
+
+| Surface | Before v0.8.9 | After v0.8.9 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 57 | 61 | **+4** (4 config validation) |
+| `tests/test_leid_playwright_client.py` | 163 + 2 skip | 169 + 2 skip | **+6** (TestViewportPropagation class; 2 existing user_agent tests updated mechanically) |
+| **Leid scope total** | 269 + 2 skip | 279 + 2 skip | **+10** |
+| **Full suite** | 1590 + 9 skip | **1600 + 9 skip** | **+10** (zero regressions; SUITE CROSSES 1600) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Ninth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7 → v0.8.8 → v0.8.9). The Auditor noted v0.8.9 was the first slice in the umbrella to deliberately MODIFY existing methods (rather than add new ones). The streak holds across the substantive change because:
+- The modification scope was documented at TASK design time (D-131 — "two existing assertions need updates").
+- The modification is uniform across three sites (same kwarg, same shape).
+- The defaults match Playwright's defaults — no observable behavior change for existing operators.
+- The two updated tests changed mechanically — gained one expected kwarg, no other change.
+
+### What this milestone teaches
+
+**Substantive modifications can ship cleanly when the modification scope is documented at TASK time.** The first ten v0.8 slices were pure additions (new methods, new tools). v0.8.9 is the first to deliberately modify three existing methods. The Auditor's ninth consecutive zero-findings audit confirms that "modify when needed, document the scope, apply uniformly" is a viable shipping discipline alongside "add when possible." The Architect's D-131 ("test impact: two existing assertions need updates") was the load-bearing piece — by the time the Forge began work, the modification scope was bounded and known.
+
+**Default-preservation lets operators upgrade without thinking.** v0.8.9's defaults (1280×720) match Playwright's defaults exactly. Existing operators upgrading from v0.8.8 to v0.8.9 without setting any new config will see the SAME viewport behavior — same browser layout, same screenshot dimensions, same render_url output. Only operators who actively set the new config see new behavior. This is the right shape for a "configurable knob added to existing behavior" change: it is opt-in by config, not by upgrade.
+
+**Public surface stability vs internal evolution.** v0.8.9 modified internal code (three call sites in playwright_client.py) without modifying any public surface (no new tool, no parameter change, no return shape change). The agent-facing tool count stays at 18; only operators see new config knobs. This is the right kind of "internal evolution" — the tools the agent cares about stay stable; the operator's control surface gains expression.
+
+**Suite crosses 1600 tests.** Twenty milestones, three days, 1600 tests. The arc continues to ship at sustained cadence with audit rigor.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.9_VIEWPORT.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.13 added — viewport propagation + B-27 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + Configuration fields lines + new §12.15 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | **Byte-untouched** (no new tools — D-132 confirmed by absence of change) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | THREE modification sites: render_url, screenshot, open_session each gain `viewport=...` kwarg in their internal new_context call |
+| `src/heretic/skilningr/senses/leid/sense.py` | **Byte-untouched** (no new dispatch branches) |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the THIRTEENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-132 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | TWO new fields: `browser_viewport_width: int = 1280` and `browser_viewport_height: int = 720`; __post_init__ validates both > 0 |
+| `tests/test_leid_playwright_client.py` | TWO existing tests updated mechanically (assertion gains viewport kwarg expectation); new TestViewportPropagation class with 6 tests |
+| `tests/test_leid_sense.py` | 4 new config validation tests |
+| `docs/audit/AUDIT_v0.8.9_VIEWPORT.md` | New — verdict PASSES SCRUTINY (zero findings, ninth consecutive) |
+| `docs/DEVLOG.md` | This entry (34) |
+
+### State of the body — 2026-05-11 (after v0.8.9)
+
+The Leið faculty still has EIGHTEEN tools (no new tool added). The internal viewport propagation is operator infrastructure — invisible to agents:
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **18 (unchanged) — viewport propagation is internal**; operators gain 2 new config knobs | **v0.8.9** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **twelve unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8, v0.8.9).
+
+The body's eye now has operator-controlled framing — same eye, operator-chosen window.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.9 configurable viewport~~ | **CLOSED — sealed at `6d46336`** |
+| **v0.8.x JPEG/WebP screenshot output** | candidate — small refinement |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| v0.8.x final-URL allowlist re-check after redirect | candidate — pre-existing concern across all browser tools |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its TWENTIETH sealed milestone. Twelve slices into v0.8 *Opið Vef*. The Innan Hurðar interactive vocabulary now has structural completeness, variety of expression, and operator-controlled framing. Subsequent v0.8.x slices remain pure refinements.
+
+---
+
+*Entry 34 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The body now sees the world through the operator's chosen window. Twelve unnamed extensions, nine consecutive zero-findings audits, the first substantive-modification slice in v0.8 shipped cleanly with default-preserving discipline. The suite crosses 1600. Twentieth milestone in the autonomous arc; the LeidClient stands byte-untouched for thirteen milestones running. The session is kept.*
+
+---
+
+## Entry 35 — 2026-05-11 — Final-URL allowlist re-check: the operator's allowlist becomes unconditional (v0.8.10)
+
+**Milestone:** v0.8.10 — Final-URL allowlist re-check (thirteenth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `8737724` (post-v0.8.9 Scribe seal)
+**Session close HEAD:** `09725ba` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — TWENTY-FIRST milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — tenth consecutive)
+
+### What was added — and what was finally CLOSED
+
+This slice closes a **real security gap** that has traveled in every browser-tool audit since v0.6.2 and has been re-flagged in v0.8.5, v0.8.6, v0.8.7, and earlier audits as deferred. **The operator's allowlist is now unconditional.**
+
+**The gap was:** every browser tool validated the INPUT URL before navigation. But pages on the modern web don't always stay where they begin — server-side 3xx redirects, OAuth handoffs, JavaScript-driven client-side navigations can take the body from an allowlisted starting URL to somewhere the operator never permitted. Pre-v0.8.10, the body would land at the new URL, and the agent's next call would operate on a page outside the operator's permission.
+
+**v0.8.10 closes this** by adding a post-navigation `_check_final_url_allowed(url)` at all 7 navigation-completing call sites: `render_url`, `screenshot`, `open_session`, `navigate`, `go_back`, `go_forward`, `reload`. Same allowlist + HTTPS-only logic as the pre-flight check (single source of truth via `sandbox.url_matches_allowlist`); same `UrlNotAllowedError` raise (no new error class needed).
+
+**Three failure-handling patterns** (all justified at TASK time, all uniformly applied):
+
+| Pattern | Sites | Behavior |
+|---|---|---|
+| Stateless cleanup-auto | render_url, screenshot | Raise; existing `finally` cleanup tears down browser quartet |
+| Open-session not-yet-registered | open_session | Raise BEFORE registration; existing `was_registered=False` branch tears down |
+| Stateful close-then-raise (D-139) | navigate, go_back, go_forward, reload | `await manager.close_session(session_id)` THEN raise. Session is terminated as a security measure |
+
+**Why close the session on stateful violation:** the session has been compromised if it lands on a non-allowlisted URL. The agent's next call would operate on that page. The only safe response is termination — explicit, predictable, structurally enforced.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `10af8f3` | Runa | TASK_HERETIC_v0.8.10_FINAL_URL_ALLOWLIST.md |
+| 1 | `cf40236` | Skald (very brief) | OPID_VEF.md §IX continuation paragraph |
+| 2 | `1bbec30` | Cartographer | DATA_FLOW.md §4.12.2.14 — final-URL re-check flow + B-28 |
+| 3 | `115a317` | Architect | INTERFACE.md §12.16 + B-28 |
+| 4 | `9b3f09a` | Forge | New `_check_final_url_allowed()` helper + 7 modification sites + 9 new tests |
+| 5 | `09725ba` | Auditor | AUDIT_v0.8.10_FINAL_URL_ALLOWLIST.md — **PASSES SCRUTINY (0/0/0/0)** — TENTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 35 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.10)
+
+| Surface | Before v0.8.10 | After v0.8.10 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 61 | 61 | 0 (no new dispatch needed) |
+| `tests/test_leid_playwright_client.py` | 169 + 2 skip | 178 + 2 skip | **+9** (TestFinalUrlAllowlistRecheck class) |
+| **Leid scope total** | 279 + 2 skip | 288 + 2 skip | **+9** |
+| **Full suite** | 1600 + 9 skip | 1609 + 9 skip | **+9** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Tenth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7 → v0.8.8 → v0.8.9 → v0.8.10). The Auditor explicitly:
+- **Verified all 7 sites** apply the helper uniformly
+- **Verified the close-before-raise ordering** at all 4 stateful sites (the most security-critical aspect — if reversed, agents could catch the exception while the session lived on)
+- **Attempted sandbox-bypass** through every documented and undocumented path; **no bypass found**
+- **Verified single source of truth** for validation rules (helper and pre-flight share `sandbox.url_matches_allowlist`)
+
+### What this milestone teaches
+
+**The deferred concern from v0.6.2 is finally CLOSED.** Six months and twenty-one milestones into the body's life as a browser tool, the gap that has traveled in every browser-tool audit since v0.6.2 — quietly noted, deferred each time as "out of scope for this slice," carried forward as a known concern — is now structurally closed. The operator's allowlist is unconditional. This is not a refinement; this is the completion of the sandbox.
+
+**Long-deferred concerns deserve focused milestones.** v0.8.10 was the right slice to close this because the rest of v0.8 was substantially complete. The body had finished growing its motion vocabulary (v0.8.5 + v0.8.7), its inspection vocabulary (v0.8.3 + v0.8.6 + v0.8.8), its operator-controlled framing (v0.8.9). With the foundation complete, attention could turn to the security gap that had been waiting since v0.6.2. The Architect's TASK design (D-135 through D-145) made the modification scope explicit; the Forge implemented the three failure patterns uniformly; the Auditor verified the close-before-raise ordering structurally. The deferred concern shipped at exactly the right moment.
+
+**Three failure-handling patterns, one principle.** Stateless tools have automatic cleanup; open-session has the not-yet-registered branch; stateful sessions auto-close on violation. Each pattern matches its lifecycle: stateless tools are launch-per-call (cleanup is intrinsic); open-session is the boundary between unregistered and registered (the boundary is the natural failure point); stateful sessions, once compromised, must be terminated. The principle uniting them: **the operator's allowlist is unconditional, and structural enforcement is preferred over advisory enforcement.**
+
+**Ten consecutive zero-findings audits across substantively different work.** v0.8.2.1 → v0.8.2.2 (sibling extensions of click); v0.8.3 (read-only divergence); v0.8.4 (page-level keyboard); v0.8.5 (paired history bundle); v0.8.6 (mid-session re-extract pair); v0.8.7 (motion completion); v0.8.8 (multi-element with new config); v0.8.9 (substantive modification of 3 methods); v0.8.10 (security gap closure with 7-site modification + close-on-violation). Ten in a row, across both pure-additive and substantive-modification slices, across both convenience refinements and security-critical changes. The discipline holds.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.10_FINAL_URL_ALLOWLIST.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the operator's allowlist becomes unconditional" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.14 added — final-URL re-check flow + B-28 + closed-concern documentation |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + new §12.16 contract (with the deferred-concern-closed note) |
+| `src/heretic/skilningr/senses/leid/tools.py` | **Byte-untouched** (no new tools) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `_check_final_url_allowed()` helper + 7 modification sites with 3 failure-handling patterns |
+| `src/heretic/skilningr/senses/leid/sense.py` | **Byte-untouched** (no new dispatch — UrlNotAllowedError already mapped to PERMISSION_DENIED) |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the FOURTEENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** (D-143 — no new error classes) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-144 — no new config fields) |
+| `tests/test_leid_playwright_client.py` | New TestFinalUrlAllowlistRecheck class with 9 tests (7 violation + 2 happy-path) |
+| `tests/test_leid_sense.py` | **Byte-untouched** (no new dispatch) |
+| `docs/audit/AUDIT_v0.8.10_FINAL_URL_ALLOWLIST.md` | New — verdict PASSES SCRUTINY (zero findings, tenth consecutive) |
+| `docs/DEVLOG.md` | This entry (35) |
+
+### State of the body — 2026-05-11 (after v0.8.10)
+
+The Leið faculty still has EIGHTEEN tools. The change is internal sandbox enforcement, invisible to agents but absolute for operators:
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **18 (unchanged) — final-URL allowlist re-check is internal sandbox discipline** | **v0.8.10** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **thirteen unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8, v0.8.9, v0.8.10).
+
+**The body's sandbox security is now structurally complete.** Pre-flight allowlist check + post-navigation allowlist check + session-close-on-violation. The operator's allowlist is the unconditional perimeter of where the body may operate.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.10 final-URL allowlist re-check~~ | **CLOSED — sealed at `09725ba`** |
+| ~~v0.8.x final-URL allowlist re-check after redirect (deferred since v0.6.2)~~ | **CLOSED at v0.8.10 — no longer in any thread list** |
+| **v0.8.x JPEG/WebP screenshot output** | candidate — small refinement |
+| v0.8.x element-targeted press (`locator.press`) | candidate — refinement on press |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its TWENTY-FIRST sealed milestone. Thirteen slices into v0.8 *Opið Vef*. The body's sandbox security is structurally complete; remaining v0.8.x slices are pure convenience refinements.
+
+---
+
+*Entry 35 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The operator's allowlist is now unconditional. Thirteen unnamed extensions, ten consecutive zero-findings audits, the deferred concern from v0.6.2 closed at last. Twenty-first milestone in the autonomous arc; the LeidClient stands byte-untouched for fourteen milestones running. The session is kept.*
+
+---
+
+## Entry 36 — 2026-05-11 — JPEG/WebP screenshot output: the operator chooses the bytes (v0.8.11)
+
+**Milestone:** v0.8.11 — JPEG/WebP screenshot output (fourteenth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `09725ba` (post-v0.8.10 Scribe seal)
+**Session close HEAD:** `d2f86c1` (Forge close; Auditor + Scribe pushes advance)
+**Mode:** AUTONOMOUS Mythic Engineering — TWENTY-SECOND milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — eleventh consecutive)
+
+### What was added
+
+Two LeidConfig fields, both operator infrastructure per D-130:
+
+- **`browser_screenshot_format`** — one of `"png"` (default, lossless), `"jpeg"` (smaller, lossy), or `"webp"` (modern, typically smaller than JPEG at same quality). Closed acceptance set; validated in `__post_init__`.
+- **`browser_screenshot_jpeg_quality`** — integer in `[0, 100]`; default 80. Applied when the format is `"jpeg"` or `"webp"`; silently ignored when the format is `"png"` because Playwright rejects the combination.
+
+Both fields propagate into `page.screenshot()` kwargs at the two screenshot sites (`screenshot()` stateless and `session_screenshot()` stateful), and the `image_format` return field now reflects the actual format used (B-29). Previously hardcoded to `"png"`, the field is now an honest report of what was rendered.
+
+**No agent surface change.** Per D-130 (established at v0.8.9 for viewport), screenshot format and quality are how-the-browser-looks/captures knobs. They live in `LeidConfig` and never appear as tool arguments. The agent cannot influence the image format through any tool call; only the operator can, at sense construction time.
+
+**Default-PNG path is bytewise-equivalent to v0.8.10** on the wire and in the return shape. The only test-spec adjustment was that two existing assertions changed from `assert_awaited_once_with(full_page=...)` to `assert_awaited_once_with(full_page=..., type="png")` — Playwright's default for `type` is `"png"`, so the wire-level behaviour is identical; the implementation now passes the kwarg explicitly because it is read from config.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | (uncommitted task file) | Runa | TASK_HERETIC_v0.8.11_JPEG_WEBP.md |
+| 1 | (folded into 2) | Skald | OPID_VEF.md §IX continuation paragraph (14th unnamed extension) |
+| 2 | (folded into 3) | Cartographer | DATA_FLOW.md §4.12.2.15 — format/quality propagation flow |
+| 3 | `0aa01a5` | Architect | INTERFACE.md §12.17 + B-29; config_model fields with `__post_init__` validation |
+| 4 | `d2f86c1` | Forge | Two screenshot-site modifications + 6 propagation tests + 5 config validation tests |
+| 5 | this push | Auditor | AUDIT_v0.8.11_JPEG_WEBP.md — **PASSES SCRUTINY (0/0/0/0)** — ELEVENTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 36 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.11)
+
+| Surface | Before v0.8.11 | After v0.8.11 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 61 | 66 | **+5** (config validation) |
+| `tests/test_leid_playwright_client.py` | 178 + 2 skip | 184 + 2 skip | **+6** (TestScreenshotFormat) |
+| **Leid scope total** | 288 + 2 skip | 299 + 2 skip | **+11** |
+| **Full suite** | 1609 + 9 skip | 1620 + 9 skip | **+11** (zero regressions, 11.06s) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Eleventh consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → v0.8.2.2 → v0.8.3 → v0.8.4 → v0.8.5 → v0.8.6 → v0.8.7 → v0.8.8 → v0.8.9 → v0.8.10 → v0.8.11). The Auditor explicitly:
+
+- **Verified B-29 at both sites** (`screenshot` and `session_screenshot`) — format/quality propagate; return shape mirrors config
+- **Verified configuration validation** — closed format set `{png, jpeg, webp}`; closed quality interval `[0, 100]`; boundaries accepted; out-of-set rejected
+- **Verified quality-only-when-lossy** — `quality` kwarg is never sent to Playwright when format is `"png"` (Playwright rejects this combination)
+- **Verified D-130 surface invariance** — no new agent argument; format is operator infrastructure
+- **Verified D-14** — LeidClient byte-untouched for the fifteenth consecutive milestone
+- **Verified default-path backwards compatibility** — wire-level call and return-shape are bytewise-equivalent to v0.8.10 on the default-PNG path
+
+### What this milestone teaches
+
+**Operator infrastructure clusters around a single law.** Viewport size (v0.8.9) and screenshot format (v0.8.11) both answer "how the browser looks/captures" and both follow D-130: no agent surface, only LeidConfig. The pattern is now an established discipline — when the next "operator chooses how the body presents itself" question arrives (cookies preset, user agent override, locale), it has a place to land without surface debate.
+
+**Return-shape honesty matters even for cosmetic fields.** v0.8.10 hardcoded `image_format: "png"` because that was always true. v0.8.11 makes the field configurable, and the temptation would be to leave the return value hardcoded "for backwards compatibility." But a hardcoded value is a lie when the underlying behaviour changes. B-29 says the field reflects the actual format used. Honesty here costs one line of code and prevents downstream agents from acting on stale metadata.
+
+**Closed acceptance sets are cheap and load-bearing.** The validation in `__post_init__` constrains the format string to exactly three values and the quality integer to a closed interval. Total cost: 10 lines + 4 tests. Total benefit: the agent and operator both know that any LeidConfig that constructs successfully has a valid format and a valid quality; no other code in the system needs to revalidate; misconfiguration surfaces at construction, not at first screenshot.
+
+**Eleven consecutive zero-findings audits.** Six refinements (v0.8.2.1, v0.8.2.2, v0.8.6, v0.8.9, v0.8.11), three navigation slices (v0.8.5, v0.8.7), two read-only divergences (v0.8.3, v0.8.8), one keyboard surface (v0.8.4), one security-critical multi-site modification (v0.8.10). The discipline holds across both convenience refinements and structural changes; the 7-wave ritual continues to produce verifiable correctness.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.11_JPEG_WEBP.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the operator chooses the bytes" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.15 added — format/quality propagation flow + B-29 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + new §12.17 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | **Byte-untouched** (no new tools, no signature change) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | Two screenshot-site kwargs construction blocks + return-field update at both sites |
+| `src/heretic/skilningr/senses/leid/sense.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the FIFTEENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/errors.py` | **Byte-untouched** |
+| `src/heretic/skilningr/config_model.py` | Two new LeidConfig fields + `__post_init__` validation |
+| `tests/test_leid_playwright_client.py` | New TestScreenshotFormat class with 6 tests + 2 existing tests updated for explicit `type="png"` |
+| `tests/test_leid_sense.py` | 5 new config validation tests in TestLeidConfig |
+| `docs/audit/AUDIT_v0.8.11_JPEG_WEBP.md` | New — verdict PASSES SCRUTINY (zero findings, eleventh consecutive) |
+| `docs/DEVLOG.md` | This entry (36) |
+
+### State of the body — 2026-05-11 (after v0.8.11)
+
+The Leið faculty still has EIGHTEEN tools. The change is internal screenshot-encoder selection, invisible to agents but operator-controllable:
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **18 (unchanged) — operator now chooses screenshot encoding** | **v0.8.11** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **fourteen unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8, v0.8.9, v0.8.10, v0.8.11).
+
+**The body's screenshot pipeline is now bandwidth-aware.** The operator can trade lossless fidelity (PNG, larger) for smaller transport (JPEG, WebP, smaller) at sense construction. The same agent calls produce the operator's chosen image type with no surface change.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.11 JPEG/WebP screenshot output~~ | **CLOSED — sealed at `d2f86c1` + Scribe push** |
+| **v0.8.12 element-targeted press (`locator.press`)** | next — refinement on press; uses `locator.first.press(key)` with the existing browser_click_timeout |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc continues into its TWENTY-SECOND sealed milestone. Fourteen slices into v0.8 *Opið Vef*. The body's image pipeline is now operator-tunable; the next slice paints element-targeted press onto the existing keyboard vocabulary.
+
+---
+
+*Entry 36 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The operator chooses the bytes. Fourteen unnamed extensions, eleven consecutive zero-findings audits, two operator-infrastructure refinements (viewport, format) now cluster under D-130. Twenty-second milestone in the autonomous arc; the LeidClient stands byte-untouched for fifteen milestones running. The session is kept.*
+
+---
+
+## Entry 37 — 2026-05-11 — Element-targeted press: the keyboard finger learns to choose its target (v0.8.12)
+
+**Milestone:** v0.8.12 — element-targeted press (fifteenth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `87c05e1` (post-v0.8.11 Scribe seal)
+**Session close HEAD:** `32b3337` (Forge close; Auditor + Scribe pushes advance)
+**Mode:** AUTONOMOUS Mythic Engineering — TWENTY-THIRD milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — twelfth consecutive)
+
+### What was added
+
+A new tool, a new error class, and the completion of a long-implicit symmetry.
+
+**New tool: `leid.press_on(session_id, selector, key)`** — targets the FIRST element matching a CSS selector, focuses it, then presses the key. Uses Playwright's `page.locator(selector).first.press(key, timeout=browser_click_timeout_seconds * 1000)` primitive.
+
+**New error class: `LeidPressOnElementNotFoundError`** — sibling of `LeidClickElementNotFoundError` and `LeidTypeElementNotFoundError`. Maps to `INVALID_ARGUMENTS`. The discipline established at v0.8.2.1 (each gesture's selector failure has its own class so the agent can tell which gesture's selector was wrong) extends naturally to a third gesture.
+
+**The symmetry completes:**
+
+| Gesture | Primitive | Slice |
+|---|---|---|
+| `click` | `locator.first.click(timeout=...)` | v0.8.2 |
+| `type` | `locator.first.fill(text, timeout=...)` | v0.8.2.1 |
+| `press_on` | `locator.first.press(key, timeout=...)` | v0.8.12 |
+
+All three take a selector, act on the first match, share `browser_click_timeout_seconds`, raise their own element-not-found class on miss, and read post-action URL + title.
+
+**Distinction from `leid.press` (v0.8.4) preserved:** `press` is page-level (dispatches to whatever has focus), `press_on` is element-targeted (focuses the matched element first). Two orthogonal tools, two orthogonal use cases.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0–3 | `0d9622d` | Runa + Skald + Cartographer + Architect | TASK + OPID_VEF §IX continuation + DATA_FLOW §4.12.2.16 + INTERFACE §12.18 + B-30 + new error class + tool registry |
+| 4 | `32b3337` | Forge | `press_on` method + sense dispatch + error mapping + 9 client tests + 2 dispatch tests + tool-count bump |
+| 5 | (Auditor close pushed with Scribe seal) | Auditor | AUDIT_v0.8.12_PRESS_ON.md — **PASSES SCRUTINY (0/0/0/0)** — TWELFTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 37 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.12)
+
+| Surface | Before v0.8.12 | After v0.8.12 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 66 | 68 | **+2** (dispatch + dispatch-error-mapping; tool_definitions count and tool_names_locked updated in place) |
+| `tests/test_leid_playwright_client.py` | 184 + 2 skip | 193 + 2 skip | **+9** (TestPressOn class) |
+| **Leid scope total** | 299 + 2 skip | 310 + 2 skip | **+11** |
+| **Full suite** | 1620 + 9 skip | 1631 + 9 skip | **+11** (zero regressions, 11.38s) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Twelfth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → … → v0.8.12). The Auditor explicitly:
+
+- **Verified B-30** — locator.first.press with timeout kwarg; TimeoutError → press-on-element-not-found; PlaywrightError → connection error; activity update; defensive title read
+- **Verified symmetry with click and type** — the three primitives share an identical shape, down to the defensive title pattern
+- **Verified error-class hierarchy** — sibling of click/type element-not-found; INVALID_ARGUMENTS mapping in `_leid_error_code`
+- **Verified distinction from `leid.press`** — orthogonal use cases; no semantic collapse
+- **Verified D-14** — LeidClient byte-untouched for the 16th consecutive milestone
+
+### What this milestone teaches
+
+**Long-implicit symmetries deserve eventual completion.** Click and type were introduced together at v0.8.2 / v0.8.2.1 as the two halves of the interactive gesture. Press_on is the third half. The triad was implicit in the architecture from the moment the second class joined the first — *if click takes a selector and type takes a selector, the keyboard finger almost certainly will too eventually*. v0.8.12 names that triad. The body's interactive vocabulary inside the door is now genuinely complete: anything you can do to an element by name (touch, write, press a key on) has a tool.
+
+**The error-class discipline pays a third dividend.** At v0.8.2.1, the choice to give `type` its own element-not-found class — instead of reusing the click class with a re-mapped meaning — looked like a small consistency point. The third application at v0.8.12 shows what was actually being preserved: a principle of *gesture-specific selector failures*. Agents that retry on a `press_on` selector miss don't pollute their click retry logic, and vice versa. Three classes; one principle; clean.
+
+**No new config; reuses `browser_click_timeout_seconds`.** The same operator bound that governs click and type also governs press_on. The triad shares one knob, not three. Operator surface stays small; semantic invariant ("interactive actions are bounded by this number") stays single-source.
+
+**Twelve consecutive zero-findings audits.** Six refinements (v0.8.2.1, v0.8.2.2 by extension, v0.8.6, v0.8.9, v0.8.11, v0.8.12), three navigation slices (v0.8.5, v0.8.7), two read-only divergences (v0.8.3, v0.8.8), one keyboard surface (v0.8.4), one security-critical multi-site modification (v0.8.10). The 7-wave ritual continues to produce verifiable correctness across both convenience refinements and structural changes.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.12_PRESS_ON.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the body presses the key into the chosen hand" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.16 added — element-targeted press flow + B-30 + symmetry table |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + new §12.18 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | Docstring header v0.8.12 entry + new `leid.press_on` registry entry (between press and go_back) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `press_on()` method (~95 lines, mirrors type's shape) + import of new error class |
+| `src/heretic/skilningr/senses/leid/sense.py` | Dispatch branch for `leid.press_on` + error mapping includes new class |
+| `src/heretic/skilningr/senses/leid/errors.py` | Re-export of new error class added to imports and `__all__` |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the SIXTEENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/errors.py` | New `LeidPressOnElementNotFoundError` class with sibling-relationship docstring |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (no new config field; reuses browser_click_timeout_seconds) |
+| `tests/test_leid_playwright_client.py` | New TestPressOn class with 9 tests + helper extended with press_side_effect + import of new error class |
+| `tests/test_leid_sense.py` | tool_definitions count 18 → 19 + tool_names_locked covers leid.press_on + 2 dispatch tests |
+| `docs/audit/AUDIT_v0.8.12_PRESS_ON.md` | New — verdict PASSES SCRUTINY (zero findings, twelfth consecutive) |
+| `docs/DEVLOG.md` | This entry (37) |
+
+### State of the body — 2026-05-11 (after v0.8.12)
+
+The Leið faculty grows from EIGHTEEN tools to NINETEEN:
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **19 (+1 — leid.press_on)** | **v0.8.12** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **fifteen unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8, v0.8.9, v0.8.10, v0.8.11, v0.8.12).
+
+**The body's interactive triad is complete.** Click presses, type writes, press_on pushes a key — all three accept a selector and act on the first match, all three share `browser_click_timeout_seconds`, all three have their own element-not-found class.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.12 element-targeted press~~ | **CLOSED — sealed at `32b3337` + Scribe push** |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+| v0.8 umbrella next candidates | the interactive triad is complete; remaining Innan Hurðar refinements are operator-side polish or new disposition territory |
+
+The autonomous arc continues into its TWENTY-THIRD sealed milestone. Fifteen slices into v0.8 *Opið Vef*. The body's interactive vocabulary inside the door is complete; the keyboard finger has learned to choose its target.
+
+---
+
+*Entry 37 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The keyboard finger learns to choose its target. Fifteen unnamed extensions, twelve consecutive zero-findings audits, the interactive triad (click + type + press_on) now stands complete. Twenty-third milestone in the autonomous arc; the LeidClient stands byte-untouched for sixteen milestones running. The session is kept.*

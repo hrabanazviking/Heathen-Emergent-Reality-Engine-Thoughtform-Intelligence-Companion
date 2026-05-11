@@ -579,6 +579,60 @@ class LeidConfig:
     interactive action; long timeout = bad UX when the selector is wrong.
     Default 10. Must be > 0."""
 
+    # ----- v0.8.8 query_all — cardinality cap on multi-element query -----
+
+    browser_query_max_matches: int = 100
+    """Maximum number of elements ``leid.query_all`` will enumerate. When the
+    selector matches more than this, ``LeidResponseTooLargeError`` is raised
+    (D-116) and no iteration happens. Default 100 catches the over-broad-
+    selector mistake early; operators with use cases that genuinely need
+    more matches (e.g., scraping a long table) raise this. Cardinality
+    cap rather than byte cap because cardinality matches the agent's
+    mental model. Must be >= 1 (a cap of 0 would forbid query_all
+    entirely, which is incoherent — operators who want that should set
+    ``enabled: false`` instead). Used only by ``leid.query_all``; has no
+    effect on ``leid.query`` or any other tool."""
+
+    # ----- v0.8.9 — configurable viewport for all browser-mode tools -----
+
+    browser_viewport_width: int = 1280
+    """Viewport width in pixels for browser contexts created by
+    ``render_url``, ``screenshot``, and ``open_session``. Default 1280
+    matches Playwright's default — existing operators see no behavior
+    change. Operators with mobile-first scenarios may set this lower
+    (e.g., 375 for iPhone-12 width); operators with wide-dashboard
+    scenarios may set this higher (e.g., 1920 for full HD). Applied
+    uniformly across all three browser-context-creating sites (B-27).
+    Must be > 0. Mid-session viewport change is out of scope (D-130) —
+    the session's viewport is fixed at open_session and persists for
+    the session's life."""
+
+    browser_viewport_height: int = 720
+    """Viewport height in pixels for browser contexts created by
+    ``render_url``, ``screenshot``, and ``open_session``. Default 720
+    matches Playwright's default. Same propagation discipline as
+    ``browser_viewport_width`` (B-27). Must be > 0."""
+
+    # ----- v0.8.11 — JPEG/WebP screenshot format -----
+
+    browser_screenshot_format: str = "png"
+    """Image format for browser screenshots. One of ``"png"`` (default,
+    lossless), ``"jpeg"`` (smaller, lossy), or ``"webp"`` (modern,
+    typically smaller than JPEG at same quality). Applied uniformly to
+    ``leid.screenshot`` and ``leid.session_screenshot``. Default ``"png"``
+    matches existing behavior — operators upgrading see no change. Used
+    via Playwright's ``page.screenshot(type=...)`` parameter. Must be
+    one of the three documented values."""
+
+    browser_screenshot_jpeg_quality: int = 80
+    """Quality for JPEG and WebP screenshots, 0..100. Higher is better
+    quality + larger file. Default 80 matches Playwright's typical
+    recommendation for balanced quality. **Applied ONLY** when
+    ``browser_screenshot_format`` is ``"jpeg"`` or ``"webp"``; ignored
+    when format is ``"png"`` (PNG is lossless). The kwarg is omitted
+    from Playwright's call when format is png — passing it would raise
+    a Playwright error. Must be 0..100."""
+
     def __post_init__(self) -> None:
         """Validate config fields at construction time.
 
@@ -651,6 +705,36 @@ class LeidConfig:
             raise ValueError(
                 f"LeidConfig.browser_click_timeout_seconds must be > 0, "
                 f"got {self.browser_click_timeout_seconds!r}."
+            )
+        # v0.8.8 — query_all cardinality cap validation
+        if self.browser_query_max_matches < 1:
+            raise ValueError(
+                f"LeidConfig.browser_query_max_matches must be >= 1, "
+                f"got {self.browser_query_max_matches!r}."
+            )
+        # v0.8.9 — viewport dimensions validation
+        if self.browser_viewport_width <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_viewport_width must be > 0, "
+                f"got {self.browser_viewport_width!r}."
+            )
+        if self.browser_viewport_height <= 0:
+            raise ValueError(
+                f"LeidConfig.browser_viewport_height must be > 0, "
+                f"got {self.browser_viewport_height!r}."
+            )
+        # v0.8.11 — screenshot format + quality validation
+        _allowed_formats = {"png", "jpeg", "webp"}
+        if self.browser_screenshot_format not in _allowed_formats:
+            raise ValueError(
+                f"LeidConfig.browser_screenshot_format must be one of "
+                f"{sorted(_allowed_formats)}, got "
+                f"{self.browser_screenshot_format!r}."
+            )
+        if not (0 <= self.browser_screenshot_jpeg_quality <= 100):
+            raise ValueError(
+                f"LeidConfig.browser_screenshot_jpeg_quality must be in "
+                f"0..100, got {self.browser_screenshot_jpeg_quality!r}."
             )
         # Warn on unrestricted wildcard
         if self.enabled and "*" in self.url_allowlist_patterns:

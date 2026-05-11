@@ -80,6 +80,7 @@ from heretic.skilningr.senses.leid.errors import (
     LeidConnectionError,
     LeidHttpError,
     LeidPlaywrightUnavailableError,
+    LeidPressOnElementNotFoundError,
     LeidResponseTooLargeError,
     LeidSessionLimitError,
     LeidTimeoutError,
@@ -142,6 +143,61 @@ class PlaywrightLeidClient:
                 self._config, log=self._log
             )
         return self._session_manager
+
+    def _check_final_url_allowed(self, url: str, *, input_url: str = "") -> None:
+        """Re-check *url* against the allowlist + HTTPS-only policy AFTER navigation.
+
+        v0.8.10 — closes the deferred sandbox gap (B-28). Used by every
+        navigation-completing call site to verify that ``page.url``
+        AFTER navigation is still in the operator's allowlist. The body
+        may have been redirected (server-side 3xx, JavaScript-driven
+        client-side, etc.) to a non-allowlisted URL during the
+        navigation; the operator's allowlist is unconditional and
+        applies post-navigation as well as pre-navigation.
+
+        Same logic as ``_validate_url`` but tailored for the post-
+        navigation case: returns nothing (the URL has already been
+        normalised by Playwright); raises with a message that names
+        BOTH the input URL (what the agent asked for) and the final
+        URL (where the page actually landed).
+
+        Args:
+            url:        The final URL to check (typically session.page.url
+                        or the post-navigation page.url).
+            input_url:  Optional. The URL the agent originally asked for,
+                        used in the error message. If omitted, only the
+                        final URL is named.
+
+        Raises:
+            UrlNotAllowedError: final URL not in allowlist OR uses HTTP
+                                scheme when allow_http is False.
+        """
+        url_stripped = url.strip()
+        # HTTPS-only enforcement (mirrors _validate_url's gate)
+        if url_stripped.lower().startswith("http://") and not self._config.allow_http:
+            raise UrlNotAllowedError(
+                f"Navigation to {input_url!r} resulted in HTTP (non-TLS) URL "
+                f"{url_stripped!r}. Set skilningr.leid.allow_http: true to "
+                f"permit HTTP fetches. HTTPS is strongly recommended."
+            )
+
+        allowed, _result = url_matches_allowlist(
+            url_stripped, self._config.url_allowlist_patterns
+        )
+        if not allowed:
+            self._log.warning(
+                "Leið final-URL allowlist rejection: input=%s final=%s",
+                input_url, url_stripped,
+            )
+            if input_url:
+                raise UrlNotAllowedError(
+                    f"Navigation to {input_url!r} resulted in {url_stripped!r}, "
+                    f"which is not in url_allowlist_patterns."
+                )
+            else:
+                raise UrlNotAllowedError(
+                    f"Final URL {url_stripped!r} is not in url_allowlist_patterns."
+                )
 
     def _validate_url(self, url: str) -> str:
         """Validate that *url* matches the allowlist and return the normalised URL.
@@ -273,8 +329,13 @@ class PlaywrightLeidClient:
 
             # B-3 — fresh context per call. No cookies persist between calls.
             # B-8 — user agent passed through.
+            # B-27 (v0.8.9) — operator-controlled viewport propagated.
             context = await browser.new_context(
                 user_agent=self._config.user_agent,
+                viewport={
+                    "width": self._config.browser_viewport_width,
+                    "height": self._config.browser_viewport_height,
+                },
             )
             page = await context.new_page()
 
@@ -308,6 +369,11 @@ class PlaywrightLeidClient:
                     f"HTTP {response.status} from {normalised_url!r} "
                     f"(rendered via Playwright)."
                 )
+
+            # B-28 (v0.8.10) — final-URL allowlist re-check. The page may
+            # have redirected during navigation; the operator's allowlist
+            # applies post-navigation as well as pre-navigation.
+            self._check_final_url_allowed(page.url, input_url=normalised_url)
 
             # B-6 — pre-cap on rendered HTML BEFORE text extraction.
             # M-1 closure (v0.8.2): explicit Page.* exception typing —
@@ -483,8 +549,13 @@ class PlaywrightLeidClient:
                 ) from exc
 
             # B-3 — fresh context per call. B-8 — user agent passed through.
+            # B-27 (v0.8.9) — operator-controlled viewport propagated.
             context = await browser.new_context(
                 user_agent=self._config.user_agent,
+                viewport={
+                    "width": self._config.browser_viewport_width,
+                    "height": self._config.browser_viewport_height,
+                },
             )
             page = await context.new_page()
 
@@ -515,15 +586,24 @@ class PlaywrightLeidClient:
                     f"(rendered via Playwright)."
                 )
 
+            # B-28 (v0.8.10) — final-URL allowlist re-check.
+            self._check_final_url_allowed(page.url, input_url=normalised_url)
+
             # Stage 5 — capture the screenshot.
             # M-1 closure (v0.8.2): explicit Page.* exception typing —
             # network/page-level failures during page.screenshot() now
             # surface as LeidConnectionError, matching httpx's precision.
-            try:
-                png_bytes = await page.screenshot(
-                    full_page=full_page,
-                    type="png",
+            # B-29 (v0.8.11): operator-controlled format + quality.
+            screenshot_kwargs: dict[str, Any] = {
+                "full_page": full_page,
+                "type": self._config.browser_screenshot_format,
+            }
+            if self._config.browser_screenshot_format != "png":
+                screenshot_kwargs["quality"] = (
+                    self._config.browser_screenshot_jpeg_quality
                 )
+            try:
+                png_bytes = await page.screenshot(**screenshot_kwargs)
             except (PlaywrightTimeoutError, PlaywrightError) as exc:
                 raise LeidConnectionError(
                     f"page.screenshot() for {normalised_url!r} failed at the "
@@ -600,7 +680,8 @@ class PlaywrightLeidClient:
             "url": normalised_url,
             "final_url": final_url,
             "image_base64": image_base64,
-            "image_format": "png",
+            # B-29 (v0.8.11): reflect actual format used (was hardcoded "png")
+            "image_format": self._config.browser_screenshot_format,
             "size_bytes": png_size,
             "full_page": full_page,
         }
@@ -711,8 +792,13 @@ class PlaywrightLeidClient:
                 ) from exc
 
             # Each session gets its own context (B-14, also strengthened B-3).
+            # B-27 (v0.8.9) — operator-controlled viewport propagated.
             context = await browser.new_context(
                 user_agent=self._config.user_agent,
+                viewport={
+                    "width": self._config.browser_viewport_width,
+                    "height": self._config.browser_viewport_height,
+                },
             )
             page = await context.new_page()
 
@@ -739,6 +825,11 @@ class PlaywrightLeidClient:
                     f"HTTP {response.status} from {normalised_url!r} "
                     f"during open_session navigation."
                 )
+
+            # B-28 (v0.8.10) — final-URL allowlist re-check. Session is
+            # NOT yet registered (was_registered is still False), so the
+            # outer cleanup branch tears down the launched browser quartet.
+            self._check_final_url_allowed(page.url, input_url=normalised_url)
 
             # Read the title once; defensive against title-read failures.
             try:
@@ -1121,6 +1212,22 @@ class PlaywrightLeidClient:
                 f"during navigate on session {session_id!r}."
             )
 
+        # B-28 (v0.8.10) — final-URL allowlist re-check. The session
+        # has been compromised if the page landed on a non-allowlisted
+        # URL; the only safe response is to terminate it (D-139).
+        try:
+            self._check_final_url_allowed(
+                session.page.url, input_url=normalised_url
+            )
+        except UrlNotAllowedError:
+            bad_url = session.page.url
+            await manager.close_session(session_id)
+            raise UrlNotAllowedError(
+                f"Navigation to {normalised_url!r} on session "
+                f"{session_id!r} resulted in {bad_url!r}, which is not "
+                f"in url_allowlist_patterns. The session has been closed."
+            )
+
         # B-17 / B-20 — successful navigation counts as activity.
         session.mark_activity()
 
@@ -1254,6 +1361,106 @@ class PlaywrightLeidClient:
             "found": True,
             "value": value,  # str OR None (when text_content / get_attribute returned None)
             "count": count,
+        }
+
+    async def press_on(
+        self, session_id: str, selector: str, key: str
+    ) -> dict[str, Any]:
+        """Press *key* on the first element matching *selector*. (D-153..D-163, B-30)
+
+        v0.8.12 — fifteenth unnamed extension within Innan Hurðar. The
+        element-targeted form of the keyboard finger introduced at v0.8.4.
+        Where ``press`` (v0.8.4) dispatches a key to whatever element has
+        focus (typically from a prior click/type), ``press_on`` accepts a
+        selector and focuses the matched element first via Playwright's
+        ``locator.press`` primitive.
+
+        Completes the symmetry with ``click`` (v0.8.2) and ``type``
+        (v0.8.2.1) — all three take a selector and act on the first match
+        with the same ``browser_click_timeout_seconds`` bound (D-54 /
+        D-155).
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+            selector:   CSS selector. The FIRST matching element is
+                        focused and pressed.
+            key:        The key or modifier+key combination to press, in
+                        Playwright's syntax (e.g. "Enter", "Tab",
+                        "Escape", "Control+A").
+
+        Returns:
+            dict with keys: selector, key, pressed, current_url,
+            current_title. ``current_url`` may differ from the pre-press
+            URL if the press triggered navigation (e.g., Enter on a
+            submit input).
+
+        Raises:
+            LeidSessionExpiredError:           session_id unknown or evicted.
+            LeidPressOnElementNotFoundError:   selector matched nothing within
+                                               browser_click_timeout_seconds.
+            LeidConnectionError:               other Playwright error.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and press_on: {exc}"
+            ) from exc
+
+        # D-155 — reuse the click timeout (shared by click and type at D-54).
+        press_timeout_ms = self._config.browser_click_timeout_seconds * 1000
+
+        # D-154 — locator.first.press: waits for actionability, focuses,
+        # then dispatches the key.
+        # B-30 — TimeoutError → LeidPressOnElementNotFoundError (selector wrong);
+        #        other PlaywrightError → LeidConnectionError.
+        locator = session.page.locator(selector).first
+        try:
+            await locator.press(key, timeout=press_timeout_ms)
+        except PlaywrightTimeoutError as exc:
+            raise LeidPressOnElementNotFoundError(
+                f"Selector {selector!r} matched no actionable element "
+                f"in session {session_id!r} within "
+                f"{self._config.browser_click_timeout_seconds}s. Refine the "
+                f"selector and retry. Underlying: {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"press_on({selector!r}, {key!r}) on session {session_id!r} "
+                f"failed at the browser level: {exc}"
+            ) from exc
+
+        # D-159 / B-30 — successful press_on counts as activity.
+        session.mark_activity()
+
+        # D-160 — read post-press URL and title. press_on may have triggered
+        # navigation (Enter on a submit button, Space on role=button, etc.).
+        current_url = session.page.url
+        try:
+            current_title = await session.page.title()
+        except Exception:
+            current_title = None
+
+        self._log.debug(
+            "Leið press_on: session=%s selector=%s key=%r -> url=%s",
+            session_id, selector, key, current_url,
+        )
+
+        return {
+            "selector": selector,
+            "key": key,
+            "pressed": True,
+            "current_url": current_url,
+            "current_title": current_title,
         }
 
     async def press(self, session_id: str, key: str) -> dict[str, Any]:
@@ -1437,6 +1644,23 @@ class PlaywrightLeidClient:
                 f"{session_id!r}."
             )
 
+        # B-28 (v0.8.10) — final-URL allowlist re-check. The history nav
+        # may have landed at a non-allowlisted URL (e.g., the original
+        # destination redirected somewhere new since first navigated).
+        # Stateful violation closes the session (D-139).
+        try:
+            self._check_final_url_allowed(
+                session.page.url, input_url=f"<go_{direction} from {previous_url}>"
+            )
+        except UrlNotAllowedError:
+            bad_url = session.page.url
+            await manager.close_session(session_id)
+            raise UrlNotAllowedError(
+                f"go_{direction} on session {session_id!r} (from "
+                f"{previous_url!r}) resulted in {bad_url!r}, which is "
+                f"not in url_allowlist_patterns. The session has been closed."
+            )
+
         # B-17 / B-23 — successful history nav counts as activity.
         session.mark_activity()
 
@@ -1479,6 +1703,442 @@ class PlaywrightLeidClient:
         See ``_go_history`` for the full contract.
         """
         return await self._go_history(session_id, "forward")
+
+    async def session_render(self, session_id: str) -> dict[str, Any]:
+        """Re-extract rendered text + title from the current session page. (B-24, D-97)
+
+        v0.8.6 — ninth unnamed extension within Innan Hurðar; the in-session
+        counterpart of v0.8.0's ``render_url``. Same primitives
+        (``page.content()`` + ``_extract_text_from_html``); same B-6 size
+        cap on rendered HTML byte size; same M-1 closure pattern around
+        ``page.content``. Operates on the EXISTING session's page rather
+        than launching a fresh browser — ~10-50x cheaper than render_url
+        because no browser cold start is needed.
+
+        Use after a click/type/press/navigate/history-step has changed
+        what's on the page and you want to read the new state without
+        closing and re-opening the session.
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+
+        Returns:
+            dict with keys: session_id, current_url, text, title,
+            source_size_bytes.
+
+        Raises:
+            LeidSessionExpiredError:    session_id unknown or evicted.
+            LeidConnectionError:        browser-level failure.
+            LeidResponseTooLargeError:  rendered HTML exceeds max_response_bytes.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"session_render: {exc}"
+            ) from exc
+
+        # D-101 — capture current URL at entry
+        current_url = session.page.url
+
+        # M-1 closure pattern (D-100): page.content wrapped with explicit
+        # exception typing, mirroring v0.8.2's wrap of render_url's content.
+        try:
+            html = await session.page.content()
+        except (PlaywrightTimeoutError, PlaywrightError) as exc:
+            raise LeidConnectionError(
+                f"session_render on session {session_id!r}: page.content() "
+                f"failed at the browser level (page may have closed or "
+                f"process disconnected): {exc}"
+            ) from exc
+
+        # B-6 inheritance — pre-cap on rendered HTML byte size
+        rendered_size = len(html.encode("utf-8"))
+        if rendered_size > self._config.max_response_bytes:
+            self._log.warning(
+                "Leið session_render: rendered HTML on session %s is %d "
+                "bytes, exceeds max_response_bytes=%d — aborting before "
+                "text extraction",
+                session_id, rendered_size, self._config.max_response_bytes,
+            )
+            raise LeidResponseTooLargeError(
+                f"Rendered HTML on session {session_id!r} is {rendered_size} "
+                f"bytes, which exceeds max_response_bytes="
+                f"{self._config.max_response_bytes}. Increase "
+                f"LeidConfig.max_response_bytes or query smaller fragments "
+                f"via leid.query."
+            )
+
+        # D-97 — reuse the v0.8.0 helper; no re-implementation
+        text, title = _extract_text_from_html(html)
+
+        # B-17 / B-24 — successful re-extract counts as activity
+        session.mark_activity()
+
+        self._log.debug(
+            "Leið session_render: session=%s current_url=%s -> "
+            "source_size=%d text_len=%d",
+            session_id, current_url, rendered_size, len(text),
+        )
+
+        return {
+            "session_id": session_id,
+            "current_url": current_url,
+            "text": text,
+            "title": title,
+            "source_size_bytes": rendered_size,
+        }
+
+    async def session_screenshot(self, session_id: str) -> dict[str, Any]:
+        """Capture base64 PNG of the current session page. (B-24, D-98)
+
+        v0.8.6 — paired with session_render; the in-session counterpart of
+        v0.8.1's ``screenshot``. Same primitive (``page.screenshot``);
+        same B-11 size cap on raw PNG bytes BEFORE base64 encoding; same
+        M-1 closure pattern around ``page.screenshot``. Operates on the
+        EXISTING session's page rather than launching a fresh browser
+        — ~10x cheaper than screenshot because no browser cold start.
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+
+        Returns:
+            dict with keys: session_id, current_url, image_base64,
+            image_format, size_bytes, full_page.
+
+        Raises:
+            LeidSessionExpiredError:    session_id unknown or evicted.
+            LeidConnectionError:        browser-level failure.
+            LeidResponseTooLargeError:  raw PNG bytes exceed max_response_bytes.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"session_screenshot: {exc}"
+            ) from exc
+
+        # D-101 — capture current URL at entry
+        current_url = session.page.url
+        full_page = self._config.browser_screenshot_full_page  # D-98 reuse
+
+        # M-1 closure pattern (D-100): page.screenshot wrapped with explicit
+        # exception typing, mirroring v0.8.2's wrap of screenshot's primitive.
+        # B-29 (v0.8.11): operator-controlled format + quality.
+        screenshot_kwargs: dict[str, Any] = {
+            "full_page": full_page,
+            "type": self._config.browser_screenshot_format,
+        }
+        if self._config.browser_screenshot_format != "png":
+            screenshot_kwargs["quality"] = (
+                self._config.browser_screenshot_jpeg_quality
+            )
+        try:
+            png_bytes = await session.page.screenshot(**screenshot_kwargs)
+        except (PlaywrightTimeoutError, PlaywrightError) as exc:
+            raise LeidConnectionError(
+                f"session_screenshot on session {session_id!r}: "
+                f"page.screenshot() failed at the browser level (page may "
+                f"have closed or process disconnected): {exc}"
+            ) from exc
+
+        # B-11 inheritance — pre-cap on raw PNG bytes BEFORE base64
+        png_size = len(png_bytes)
+        if png_size > self._config.max_response_bytes:
+            self._log.warning(
+                "Leið session_screenshot: PNG on session %s is %d bytes, "
+                "exceeds max_response_bytes=%d — aborting before base64",
+                session_id, png_size, self._config.max_response_bytes,
+            )
+            raise LeidResponseTooLargeError(
+                f"PNG screenshot on session {session_id!r} is {png_size} "
+                f"bytes, which exceeds max_response_bytes="
+                f"{self._config.max_response_bytes}. Increase "
+                f"LeidConfig.max_response_bytes, or set "
+                f"browser_screenshot_full_page: false to capture only "
+                f"the viewport."
+            )
+
+        # Base64 encode (D-17 from v0.8.1) — ASCII-decode safe by definition
+        image_base64 = base64.b64encode(png_bytes).decode("ascii")
+
+        # B-17 / B-24 — successful re-shoot counts as activity
+        session.mark_activity()
+
+        self._log.debug(
+            "Leið session_screenshot: session=%s current_url=%s -> "
+            "png_size=%d full_page=%s",
+            session_id, current_url, png_size, full_page,
+        )
+
+        return {
+            "session_id": session_id,
+            "current_url": current_url,
+            "image_base64": image_base64,
+            # B-29 (v0.8.11): reflect actual format used (was hardcoded "png")
+            "image_format": self._config.browser_screenshot_format,
+            "size_bytes": png_size,
+            "full_page": full_page,
+        }
+
+    async def reload(self, session_id: str) -> dict[str, Any]:
+        """Refresh the current page of an open session. (B-25, D-107)
+
+        v0.8.7 — tenth unnamed extension within Innan Hurðar; the body's
+        footstep in place. Re-fetches the current page through Playwright's
+        ``page.reload()``. Cookies and localStorage persist (intrinsic
+        to refresh semantics). The URL stays the same in normal cases (a
+        server-side redirect on reload could change it).
+
+        Args:
+            session_id: A session_id from a prior open_session call.
+
+        Returns:
+            dict with keys: session_id, current_url, title.
+
+        Raises:
+            LeidSessionExpiredError, LeidTimeoutError, LeidHttpError,
+            LeidConnectionError.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"reload: {exc}"
+            ) from exc
+
+        navigation_timeout_ms = (
+            self._config.browser_navigation_timeout_seconds * 1000
+        )
+
+        # D-107 — page.reload returns Response | None
+        try:
+            response = await session.page.reload(
+                wait_until=self._config.browser_load_state,
+                timeout=navigation_timeout_ms,
+            )
+        except PlaywrightTimeoutError as exc:
+            raise LeidTimeoutError(
+                f"reload on session {session_id!r} timed out after "
+                f"{self._config.browser_navigation_timeout_seconds}s "
+                f"(load_state={self._config.browser_load_state!r}): {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"reload on session {session_id!r} failed at the "
+                f"network layer: {exc}"
+            ) from exc
+
+        # Status check — only when response is non-None (data: URLs return None)
+        if response is not None and response.status >= 400:
+            raise LeidHttpError(
+                f"HTTP {response.status} during reload on session "
+                f"{session_id!r}."
+            )
+
+        # B-28 (v0.8.10) — final-URL allowlist re-check. The reload may
+        # have been redirected somewhere new since the page was first
+        # navigated to. Stateful violation closes the session (D-139).
+        try:
+            self._check_final_url_allowed(
+                session.page.url, input_url=f"<reload of session {session_id}>"
+            )
+        except UrlNotAllowedError:
+            bad_url = session.page.url
+            await manager.close_session(session_id)
+            raise UrlNotAllowedError(
+                f"reload on session {session_id!r} resulted in {bad_url!r}, "
+                f"which is not in url_allowlist_patterns. The session has "
+                f"been closed."
+            )
+
+        # B-17 / B-25 — successful reload counts as activity
+        session.mark_activity()
+
+        # D-111 minimal shape — read post-reload state
+        current_url = session.page.url
+        try:
+            title = await session.page.title()
+        except Exception:
+            title = None
+
+        self._log.debug(
+            "Leið reload: session=%s -> current_url=%s",
+            session_id, current_url,
+        )
+
+        return {
+            "session_id": session_id,
+            "current_url": current_url,
+            "title": title,
+        }
+
+    async def query_all(
+        self, session_id: str, selector: str, attribute: str = ""
+    ) -> dict[str, Any]:
+        """Read text or attribute of ALL elements matching *selector*. (B-26, D-114..D-125)
+
+        v0.8.8 — eleventh unnamed extension within Innan Hurðar; the
+        multi-element follow-up to v0.8.3's single-match ``query``.
+        Returns ALL matches as a list (in DOM order) up to a cardinality
+        cap (``config.browser_query_max_matches``).
+
+        Same DELIBERATE divergence as ``query`` (D-72 / D-117): empty
+        result is NOT an error — returns ``{count: 0, values: []}``.
+        Multi-element query is a probe-and-act primitive; the agent's
+        natural "give me all matches" includes the success case of
+        "there were zero."
+
+        Args:
+            session_id: A session_id from a prior open_session call.
+            selector:   CSS selector. ALL matching elements (up to cap)
+                        are extracted in DOM order.
+            attribute:  Optional. If empty (default), returns each
+                        element's text content. If non-empty, returns
+                        the value of that HTML attribute (None if
+                        attribute absent).
+
+        Returns:
+            dict with keys: session_id, selector, attribute, count, values.
+            ``values`` is a list of strings or None (length == count).
+
+        Raises:
+            LeidSessionExpiredError:    session_id unknown or evicted.
+            LeidConnectionError:        browser-level failure on count or
+                                        per-element extraction.
+            LeidResponseTooLargeError:  count > config.browser_query_max_matches.
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and "
+                f"query_all: {exc}"
+            ) from exc
+
+        timeout_ms = self._config.browser_click_timeout_seconds * 1000  # D-122
+
+        # Stage 4 — locator + count
+        locator = session.page.locator(selector)
+        try:
+            count = await locator.count()
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"query_all({selector!r}) on session {session_id!r}: "
+                f"locator.count() failed at the browser level: {exc}"
+            ) from exc
+
+        # Stage 5 — cardinality cap (B-26 NEW; D-116)
+        max_matches = self._config.browser_query_max_matches
+        if count > max_matches:
+            self._log.warning(
+                "Leið query_all: selector %r matched %d elements on session "
+                "%s, exceeds browser_query_max_matches=%d — aborting before "
+                "iteration",
+                selector, count, session_id, max_matches,
+            )
+            raise LeidResponseTooLargeError(
+                f"Selector {selector!r} matched {count} elements in session "
+                f"{session_id!r}, which exceeds browser_query_max_matches="
+                f"{max_matches}. Refine the selector to match fewer "
+                f"elements, or raise LeidConfig.browser_query_max_matches "
+                f"if your use case genuinely needs many matches."
+            )
+
+        # Stage 6 — empty-result early return (D-117)
+        if count == 0:
+            session.mark_activity()  # B-17 / B-26 (still counts)
+            self._log.debug(
+                "Leið query_all: session=%s selector=%r -> no matches",
+                session_id, selector,
+            )
+            return {
+                "session_id": session_id,
+                "selector": selector,
+                "attribute": attribute,
+                "count": 0,
+                "values": [],
+            }
+
+        # Stage 7 — iterate matches and extract (D-118)
+        values: list[Any] = []
+        for i in range(count):
+            el = locator.nth(i)
+            try:
+                if attribute == "":  # D-120 default = text content
+                    v = await el.text_content(timeout=timeout_ms)
+                else:  # D-120 specific attribute
+                    v = await el.get_attribute(attribute, timeout=timeout_ms)
+            except PlaywrightTimeoutError as exc:
+                raise LeidConnectionError(
+                    f"query_all({selector!r}, attribute={attribute!r}) "
+                    f"on session {session_id!r}: extraction at index {i} "
+                    f"timed out after "
+                    f"{self._config.browser_click_timeout_seconds}s: {exc}"
+                ) from exc
+            except PlaywrightError as exc:
+                raise LeidConnectionError(
+                    f"query_all({selector!r}, attribute={attribute!r}) "
+                    f"on session {session_id!r}: extraction at index {i} "
+                    f"failed at the browser level: {exc}"
+                ) from exc
+            values.append(v)
+
+        # Stage 8 — activity update (B-17 / B-26)
+        session.mark_activity()
+
+        self._log.debug(
+            "Leið query_all: session=%s selector=%r attribute=%r "
+            "-> count=%d, values_len=%d",
+            session_id, selector, attribute, count, len(values),
+        )
+
+        return {
+            "session_id": session_id,
+            "selector": selector,
+            "attribute": attribute,
+            "count": count,
+            "values": values,
+        }
 
     async def close_session(self, session_id: str) -> dict[str, Any]:
         """Close the session and release all browser resources. Idempotent. (B-18)

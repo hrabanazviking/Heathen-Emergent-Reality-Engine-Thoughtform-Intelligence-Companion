@@ -57,6 +57,34 @@ v0.8.5 (2 added tools — LOCKED, paired):
     leid.go_forward       — step forward in the session's browser history;
                             returns moved:false (NOT an error) when at end
 
+v0.8.6 (2 added tools — LOCKED, paired):
+    leid.session_render     — re-extract rendered text + title from the current
+                              session page (in-session counterpart of render_url)
+    leid.session_screenshot — capture base64 PNG of the current session page
+                              (in-session counterpart of screenshot)
+
+v0.8.7 (1 added tool — LOCKED):
+    leid.reload             — refresh the current page of an open session
+                              (re-fetch + re-render in place); rounds out the
+                              motion vocabulary alongside navigate/go_back/
+                              go_forward
+
+v0.8.8 (1 added tool — LOCKED):
+    leid.query_all          — read text or attribute of ALL elements matching
+                              CSS selector inside an open session; returns list
+                              in DOM order; bounded by browser_query_max_matches
+                              (cardinality cap, default 100); empty result
+                              returns count:0, values:[] (NOT an error)
+
+v0.8.12 (1 added tool — LOCKED):
+    leid.press_on           — send a keyboard key to the FIRST element matching
+                              a CSS selector (focuses it first, then presses);
+                              element-targeted form of leid.press, completing
+                              the symmetry with click and type which also take
+                              a selector and act on the first match; returns
+                              INVALID_ARGUMENTS when selector matches nothing
+                              within browser_click_timeout_seconds
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -576,6 +604,69 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.press_on  (v0.8.12 Innan Hurðar extension — element-targeted press)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.press_on",
+            "description": (
+                "Send a keyboard key (or modifier combination) to the FIRST "
+                "element matching a CSS selector. Unlike leid.press (which "
+                "dispatches the key to whatever currently has focus), "
+                "leid.press_on focuses the matched element first and then "
+                "presses the key — useful when the agent needs the key to go "
+                "to a specific element without first establishing focus via a "
+                "separate click or type. Completes the symmetry with "
+                "leid.click and leid.type, which also take a selector and act "
+                "on the first match. The press may trigger navigation (e.g., "
+                "Enter on a submit input); current_url is read after the "
+                "press completes so the agent sees the page's actual state. "
+                "Single keys ('Enter', 'Tab', 'Escape', 'a', 'F5') and "
+                "modifier combinations ('Control+A', 'Shift+Tab', 'Meta+S') "
+                "are supported per Playwright's key syntax. If no element "
+                "matches the selector within browser_click_timeout_seconds "
+                "(default 10), returns INVALID_ARGUMENTS — the agent can "
+                "refine the selector and retry. Unknown session_id returns "
+                "SENSE_UNAVAILABLE; browser failures return "
+                "EXTERNAL_APP_UNAVAILABLE."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector for the element to receive the "
+                            "key press. The first matching element is "
+                            "focused and pressed. "
+                            "Examples: 'input[name=\"q\"]', '#submit-btn', "
+                            "'button.primary'."
+                        ),
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": (
+                            "The key or modifier+key combination to press, "
+                            "in Playwright's syntax. "
+                            "Examples: 'Enter', 'Tab', 'Escape', 'ArrowDown', "
+                            "'F5', 'Control+A', 'Shift+Tab', 'Meta+S'."
+                        ),
+                    },
+                },
+                "required": ["session_id", "selector", "key"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.go_back  (v0.8.5 Innan Hurðar extension — paired with go_forward)
     # ------------------------------------------------------------------
     {
@@ -650,6 +741,191 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
     },
 
     # ------------------------------------------------------------------
+    # leid.session_render  (v0.8.6 Innan Hurðar extension — paired)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.session_render",
+            "description": (
+                "Re-extract the rendered text and title from the current "
+                "page of an open session. The in-session counterpart of "
+                "leid.render_url — same content extraction primitives, but "
+                "operates on the live session page instead of launching a "
+                "fresh browser. Use this after a leid.click, leid.type + "
+                "leid.press, or leid.navigate has changed what's on the "
+                "page and you want to read the new state without closing "
+                "and re-opening the session. Returns {session_id, "
+                "current_url, text, title, source_size_bytes}. Cookies and "
+                "localStorage persist across the call (the session's "
+                "identity is unchanged). The rendered HTML byte size is "
+                "capped at max_response_bytes; exceeding the cap raises "
+                "INVALID_ARGUMENTS. Unknown session_id returns "
+                "SENSE_UNAVAILABLE; browser failure returns "
+                "EXTERNAL_APP_UNAVAILABLE. ~10-50x cheaper than "
+                "leid.render_url because no browser cold start is needed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.session_screenshot  (v0.8.6 Innan Hurðar extension — paired)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.session_screenshot",
+            "description": (
+                "Capture a base64-encoded PNG of the current page of an "
+                "open session. The in-session counterpart of "
+                "leid.screenshot — same Playwright primitive, but operates "
+                "on the live session page instead of launching a fresh "
+                "browser. Use this after a leid.click, leid.type, or "
+                "leid.navigate has changed the page and you want to see "
+                "what it looks like now. Returns {session_id, current_url, "
+                "image_base64, image_format, size_bytes, full_page}. "
+                "browser_screenshot_full_page config controls whether the "
+                "full scrollable page or only the viewport is captured. "
+                "Raw PNG byte size is capped at max_response_bytes (BEFORE "
+                "base64 encoding); exceeding the cap raises "
+                "INVALID_ARGUMENTS. Unknown session_id returns "
+                "SENSE_UNAVAILABLE; browser failure returns "
+                "EXTERNAL_APP_UNAVAILABLE. ~10x cheaper than "
+                "leid.screenshot because no browser cold start is needed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.reload  (v0.8.7 Innan Hurðar extension — refresh in place)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.reload",
+            "description": (
+                "Refresh the current page of an open session — equivalent "
+                "to the user pressing F5 or the browser's reload button. "
+                "The session keeps its identity, cookies, and localStorage; "
+                "only the page content is re-fetched from the server. The "
+                "URL stays the same in normal cases (a server-side redirect "
+                "on reload could change it). Use this when: (a) the page "
+                "may have changed on the server side since the body opened "
+                "it (long-running task completed; notification banner "
+                "appeared); (b) the page's client-side state has gotten "
+                "stuck and needs a fresh start; (c) you want to verify "
+                "whether content is server-stable across a refresh. Returns "
+                "{session_id, current_url, title}. Unknown session_id "
+                "returns SENSE_UNAVAILABLE; reload timeout returns "
+                "SENSE_TIMEOUT; HTTP 4xx/5xx returns SENSE_INTERNAL_ERROR; "
+                "network failure returns EXTERNAL_APP_UNAVAILABLE."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.query_all  (v0.8.8 Innan Hurðar extension — multi-element read)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.query_all",
+            "description": (
+                "Read the text content (or specified HTML attribute) of ALL "
+                "elements in the session's page that match the given CSS "
+                "selector. Returns a list in DOM order. The multi-element "
+                "follow-up to leid.query (which returns only the first match). "
+                "Use this for: 'list all article titles', 'get all "
+                "navigation links', 'what does each error message say?'. "
+                "Returns {selector, attribute, count, values}. UNLIKE click "
+                "and type, an empty result (no matches) is NOT an error — "
+                "returns {count: 0, values: []}. The result is bounded by "
+                "browser_query_max_matches (default 100); selectors that "
+                "match more raise INVALID_ARGUMENTS so the agent gets honest "
+                "feedback that the selector is too broad. Each value in the "
+                "list is a string OR null (null when the element has no "
+                "text or the requested attribute is absent on it). Set "
+                "the attribute parameter to read a specific HTML attribute "
+                "(e.g. 'href'); leave it empty/omitted to read text content. "
+                "Unknown session_id returns SENSE_UNAVAILABLE; browser-level "
+                "failures return EXTERNAL_APP_UNAVAILABLE. HERETIC injects "
+                "no JavaScript — read uses Playwright's locator primitives."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector for the elements to enumerate. ALL "
+                            "matching elements (up to browser_query_max_matches) "
+                            "have their value extracted. "
+                            "Examples: 'article h2', '.search-result', 'a[href]', "
+                            "'tr.data-row'."
+                        ),
+                    },
+                    "attribute": {
+                        "type": "string",
+                        "description": (
+                            "Optional. The HTML attribute name to read for each "
+                            "matching element. If omitted or set to empty string, "
+                            "returns each element's text content instead. "
+                            "Examples: 'href', 'src', 'value', 'data-id'."
+                        ),
+                    },
+                },
+                "required": ["session_id", "selector"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
     # leid.close_session  (v0.8.2 Innan Hurðar — idempotent close)
     # ------------------------------------------------------------------
     {
@@ -683,7 +959,7 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
         },
     },
 ]
-"""The 14 OpenAI tool schemas for the Leið sense.
+"""The 18 OpenAI tool schemas for the Leið sense.
 
 Tool names locked at v0.6.2:
     leid.fetch_url
@@ -716,4 +992,14 @@ Tool name added at v0.8.4 (LOCKED):
 Tool names added at v0.8.5 (LOCKED, paired):
     leid.go_back
     leid.go_forward
+
+Tool names added at v0.8.6 (LOCKED, paired):
+    leid.session_render
+    leid.session_screenshot
+
+Tool name added at v0.8.7 (LOCKED):
+    leid.reload
+
+Tool name added at v0.8.8 (LOCKED):
+    leid.query_all
 """
