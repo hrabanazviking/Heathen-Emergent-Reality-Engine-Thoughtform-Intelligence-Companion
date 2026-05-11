@@ -398,15 +398,17 @@ class TestRenderUrlLifecycle:
 
     @pytest.mark.asyncio
     async def test_render_url_uses_configured_user_agent(self, fake_playwright):
-        """B-8: new_context called with user_agent=config.user_agent."""
+        """B-8 + B-27: new_context called with user_agent and viewport from config."""
         _, browser_mock, *_ = fake_playwright()
         client = make_client(
             ["https://example.com/*"],
             user_agent="HERETIC/0.8.0 (test-agent)",
         )
         await client.render_url("https://example.com/page")
+        # v0.8.9 — viewport now also passed (defaults 1280x720)
         browser_mock.new_context.assert_awaited_once_with(
-            user_agent="HERETIC/0.8.0 (test-agent)"
+            user_agent="HERETIC/0.8.0 (test-agent)",
+            viewport={"width": 1280, "height": 720},
         )
 
 
@@ -730,15 +732,17 @@ class TestScreenshotLifecycle:
 
     @pytest.mark.asyncio
     async def test_screenshot_uses_configured_user_agent(self, fake_playwright):
-        """B-8: new_context called with user_agent=config.user_agent."""
+        """B-8 + B-27: new_context called with user_agent and viewport from config."""
         _, browser_mock, *_ = fake_playwright()
         client = make_client(
             ["https://example.com/*"],
             user_agent="HERETIC/0.8.1 (test-agent)",
         )
         await client.screenshot("https://example.com/page")
+        # v0.8.9 — viewport now also passed (defaults 1280x720)
         browser_mock.new_context.assert_awaited_once_with(
-            user_agent="HERETIC/0.8.1 (test-agent)"
+            user_agent="HERETIC/0.8.1 (test-agent)",
+            viewport={"width": 1280, "height": 720},
         )
 
 
@@ -2481,6 +2485,83 @@ class TestQueryAll:
         page_mock.evaluate.reset_mock()
         await client.query_all(opened["session_id"], "h2")
         page_mock.evaluate.assert_not_called()
+
+
+class TestViewportPropagation:
+    """B-27 for v0.8.9 — verifies viewport from config propagates to all
+    three browser-context creations (render_url, screenshot, open_session)."""
+
+    @pytest.mark.asyncio
+    async def test_render_url_passes_viewport_from_config(self, fake_playwright):
+        """B-27: render_url passes viewport={width, height} from config."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_viewport_width=375,
+            browser_viewport_height=812,  # iPhone-12 width × 812
+        )
+        await client.render_url("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 375, "height": 812}
+
+    @pytest.mark.asyncio
+    async def test_screenshot_passes_viewport_from_config(self, fake_playwright):
+        """B-27: screenshot passes viewport={width, height} from config."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_viewport_width=1920,
+            browser_viewport_height=1080,  # full-HD
+        )
+        await client.screenshot("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 1920, "height": 1080}
+
+    @pytest.mark.asyncio
+    async def test_open_session_passes_viewport_from_config(self, fake_playwright):
+        """B-27: open_session passes viewport={width, height} from config."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(
+            ["https://example.com/*"],
+            browser_viewport_width=2560,
+            browser_viewport_height=1440,  # ultrawide
+        )
+        await client.open_session("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 2560, "height": 1440}
+
+    @pytest.mark.asyncio
+    async def test_render_url_uses_default_viewport_when_unconfigured(
+        self, fake_playwright
+    ):
+        """Default config (no viewport override) passes 1280x720."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(["https://example.com/*"])  # no viewport override
+        await client.render_url("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 1280, "height": 720}
+
+    @pytest.mark.asyncio
+    async def test_screenshot_uses_default_viewport_when_unconfigured(
+        self, fake_playwright
+    ):
+        """Default config (no viewport override) passes 1280x720."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.screenshot("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 1280, "height": 720}
+
+    @pytest.mark.asyncio
+    async def test_open_session_uses_default_viewport_when_unconfigured(
+        self, fake_playwright
+    ):
+        """Default config (no viewport override) passes 1280x720."""
+        _, browser_mock, *_ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        await client.open_session("https://example.com/page")
+        call_kwargs = browser_mock.new_context.await_args.kwargs
+        assert call_kwargs["viewport"] == {"width": 1280, "height": 720}
 
 
 class TestM1PageExceptionTyping:

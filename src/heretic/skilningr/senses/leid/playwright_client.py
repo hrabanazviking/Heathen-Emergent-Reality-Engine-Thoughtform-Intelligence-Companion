@@ -273,8 +273,13 @@ class PlaywrightLeidClient:
 
             # B-3 — fresh context per call. No cookies persist between calls.
             # B-8 — user agent passed through.
+            # B-27 (v0.8.9) — operator-controlled viewport propagated.
             context = await browser.new_context(
                 user_agent=self._config.user_agent,
+                viewport={
+                    "width": self._config.browser_viewport_width,
+                    "height": self._config.browser_viewport_height,
+                },
             )
             page = await context.new_page()
 
@@ -483,8 +488,13 @@ class PlaywrightLeidClient:
                 ) from exc
 
             # B-3 — fresh context per call. B-8 — user agent passed through.
+            # B-27 (v0.8.9) — operator-controlled viewport propagated.
             context = await browser.new_context(
                 user_agent=self._config.user_agent,
+                viewport={
+                    "width": self._config.browser_viewport_width,
+                    "height": self._config.browser_viewport_height,
+                },
             )
             page = await context.new_page()
 
@@ -711,8 +721,13 @@ class PlaywrightLeidClient:
                 ) from exc
 
             # Each session gets its own context (B-14, also strengthened B-3).
+            # B-27 (v0.8.9) — operator-controlled viewport propagated.
             context = await browser.new_context(
                 user_agent=self._config.user_agent,
+                viewport={
+                    "width": self._config.browser_viewport_width,
+                    "height": self._config.browser_viewport_height,
+                },
             )
             page = await context.new_page()
 

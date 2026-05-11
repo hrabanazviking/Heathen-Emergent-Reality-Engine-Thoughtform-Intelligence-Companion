@@ -143,6 +143,32 @@ class TestLeidConfig:
         with pytest.raises(ValueError, match="browser_query_max_matches"):
             LeidConfig(browser_query_max_matches=-5)
 
+    # --- v0.8.9 — viewport field validation ---
+
+    def test_leid_config_browser_viewport_width_default_is_1280(self):
+        """browser_viewport_width defaults to 1280 (Playwright's default)."""
+        cfg = LeidConfig()
+        assert cfg.browser_viewport_width == 1280
+
+    def test_leid_config_browser_viewport_height_default_is_720(self):
+        """browser_viewport_height defaults to 720 (Playwright's default)."""
+        cfg = LeidConfig()
+        assert cfg.browser_viewport_height == 720
+
+    def test_leid_config_invalid_browser_viewport_width_raises(self):
+        """browser_viewport_width <= 0 raises ValueError."""
+        with pytest.raises(ValueError, match="browser_viewport_width"):
+            LeidConfig(browser_viewport_width=0)
+        with pytest.raises(ValueError, match="browser_viewport_width"):
+            LeidConfig(browser_viewport_width=-100)
+
+    def test_leid_config_invalid_browser_viewport_height_raises(self):
+        """browser_viewport_height <= 0 raises ValueError."""
+        with pytest.raises(ValueError, match="browser_viewport_height"):
+            LeidConfig(browser_viewport_height=0)
+        with pytest.raises(ValueError, match="browser_viewport_height"):
+            LeidConfig(browser_viewport_height=-50)
+
     # --- v0.8.2 Innan Hurðar — session + click field validation ---
 
     def test_leid_config_invalid_browser_max_concurrent_sessions_raises(self):
