@@ -11,6 +11,16 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — ninth slice within the umbrella.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Seventeenth milestone in the autonomous arc.
+>
+> **STATUS — 2026-05-11:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — sixth consecutive in v0.8 umbrella).
+>
+> **Final HEAD:** `062d061` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 240 + 2 skip (was 222 + 2 — `+18`). Full suite 1561 + 9 skip (was 1543 + 9). Zero regressions.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). Sixth consecutive zero-findings audit. **Second bundled-pair milestone in v0.8 umbrella** shipped cleanly. See `docs/audit/AUDIT_v0.8.6_SESSION_RENDER_SCREENSHOT.md`.
+>
+> **DEVLOG:** Entry 31 — `docs/DEVLOG.md`.
 
 ---
 
@@ -124,20 +134,20 @@ Total new tests: ~18.
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `session_render()` and `session_screenshot()` methods on `PlaywrightLeidClient`
-- [ ] `leid.session_render` and `leid.session_screenshot` registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches both
-- [ ] No new error classes (D-103)
-- [ ] No new config fields (D-102)
-- [ ] B-24 added to INTERFACE.md §12.12
-- [ ] M-1 closure pattern (try/except around page.content() / page.screenshot()) applied to both
-- [ ] All 222 existing leid tests pass unchanged
-- [ ] At least 14 new method tests passing
-- [ ] 2 new dispatch tests passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.10 exists (covers both tools)
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.6_SESSION_RENDER_SCREENSHOT.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 31 written
-- [ ] All commits pushed to `development`
+- [x] `session_render()` and `session_screenshot()` methods on `PlaywrightLeidClient` — `0f8bbb3`
+- [x] `leid.session_render` and `leid.session_screenshot` registered in `LEID_TOOL_DEFINITIONS` — `c91d1bb`
+- [x] `LeidSense._route` dispatches both — `0f8bbb3`
+- [x] No new error classes (D-103) — confirmed
+- [x] No new config fields (D-102) — confirmed
+- [x] B-24 added to INTERFACE.md §12.12 — `c91d1bb`
+- [x] M-1 closure pattern applied to both — `0f8bbb3`
+- [x] All 222 existing leid tests pass unchanged — verified at `0f8bbb3`
+- [x] 16 new method tests passing — `0f8bbb3`
+- [x] 2 new dispatch tests passing — `0f8bbb3`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.10 exists (covers both tools) — `af6427a`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `c6de401`
+- [x] `docs/audit/AUDIT_v0.8.6_SESSION_RENDER_SCREENSHOT.md` PASSES SCRUTINY (0/0/0/0) — `062d061`
+- [x] DEVLOG entry 31 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
