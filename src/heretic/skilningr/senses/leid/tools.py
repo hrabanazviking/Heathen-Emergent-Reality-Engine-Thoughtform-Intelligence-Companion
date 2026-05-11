@@ -76,6 +76,15 @@ v0.8.8 (1 added tool — LOCKED):
                               (cardinality cap, default 100); empty result
                               returns count:0, values:[] (NOT an error)
 
+v0.8.12 (1 added tool — LOCKED):
+    leid.press_on           — send a keyboard key to the FIRST element matching
+                              a CSS selector (focuses it first, then presses);
+                              element-targeted form of leid.press, completing
+                              the symmetry with click and type which also take
+                              a selector and act on the first match; returns
+                              INVALID_ARGUMENTS when selector matches nothing
+                              within browser_click_timeout_seconds
+
 INVARIANT: do NOT rename these tools without a sense version bump.
 
 Sandbox rule (enforced in client.py / playwright_client.py, validated in sandbox.py):
@@ -589,6 +598,69 @@ LEID_TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": ["session_id", "key"],
+                "additionalProperties": False,
+            },
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # leid.press_on  (v0.8.12 Innan Hurðar extension — element-targeted press)
+    # ------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "leid.press_on",
+            "description": (
+                "Send a keyboard key (or modifier combination) to the FIRST "
+                "element matching a CSS selector. Unlike leid.press (which "
+                "dispatches the key to whatever currently has focus), "
+                "leid.press_on focuses the matched element first and then "
+                "presses the key — useful when the agent needs the key to go "
+                "to a specific element without first establishing focus via a "
+                "separate click or type. Completes the symmetry with "
+                "leid.click and leid.type, which also take a selector and act "
+                "on the first match. The press may trigger navigation (e.g., "
+                "Enter on a submit input); current_url is read after the "
+                "press completes so the agent sees the page's actual state. "
+                "Single keys ('Enter', 'Tab', 'Escape', 'a', 'F5') and "
+                "modifier combinations ('Control+A', 'Shift+Tab', 'Meta+S') "
+                "are supported per Playwright's key syntax. If no element "
+                "matches the selector within browser_click_timeout_seconds "
+                "(default 10), returns INVALID_ARGUMENTS — the agent can "
+                "refine the selector and retry. Unknown session_id returns "
+                "SENSE_UNAVAILABLE; browser failures return "
+                "EXTERNAL_APP_UNAVAILABLE."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": (
+                            "The session_id returned by a prior leid.open_session call."
+                        ),
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector for the element to receive the "
+                            "key press. The first matching element is "
+                            "focused and pressed. "
+                            "Examples: 'input[name=\"q\"]', '#submit-btn', "
+                            "'button.primary'."
+                        ),
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": (
+                            "The key or modifier+key combination to press, "
+                            "in Playwright's syntax. "
+                            "Examples: 'Enter', 'Tab', 'Escape', 'ArrowDown', "
+                            "'F5', 'Control+A', 'Shift+Tab', 'Meta+S'."
+                        ),
+                    },
+                },
+                "required": ["session_id", "selector", "key"],
                 "additionalProperties": False,
             },
         },

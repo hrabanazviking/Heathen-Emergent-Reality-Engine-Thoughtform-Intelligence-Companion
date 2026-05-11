@@ -7845,6 +7845,68 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.16 Leið element-targeted press (Innan Hurðar extension — v0.8.12)
+
+> **Added 2026-05-11 v0.8.12 (Védis Eikleið).** The fifteenth slice within
+> *Innan Hurðar*. Symmetry refinement: the body's keyboard finger gains
+> selector-targeted form, completing the triad with `click` and `type`.
+
+```text
+NEW TOOL: leid.press_on(session_id, selector, key)
+  → {selector, key, pressed, current_url, current_title}
+
+  PRIMITIVE: page.locator(selector).first.press(
+      key, timeout=browser_click_timeout_seconds * 1000
+  )
+
+  CONTRAST WITH leid.press (v0.8.4):
+    leid.press(session_id, key)
+      → page-level: page.keyboard.press(key) dispatches to whatever
+        element currently has focus (typically from prior click/type)
+      → no selector, no timeout argument, no element-not-found error
+      → useful for "press Enter after I just typed" flow
+    leid.press_on(session_id, selector, key)
+      → element-targeted: locator.first.press waits for actionability,
+        focuses the matched element, then presses the key
+      → selector matches nothing within timeout → element-not-found
+      → useful for "press Space on this specific button" flow
+
+  SYMMETRY:
+    click       : selector → mutating action on first match
+    type        : selector + text → mutating action on first match
+    press_on    : selector + key → keyboard action on first match
+    All three share browser_click_timeout_seconds (D-54 / D-155).
+    All three have a distinct selector-not-found error class so the
+    agent can tell which gesture's selector failed.
+
+  ERROR HANDLING (B-30):
+    PlaywrightTimeoutError → LeidPressOnElementNotFoundError
+                            → INVALID_ARGUMENTS (agent refines selector)
+    PlaywrightError        → LeidConnectionError
+                            → EXTERNAL_APP_UNAVAILABLE
+    Unknown session_id     → LeidSessionExpiredError
+                            → SENSE_UNAVAILABLE
+
+  POST-ACTION READ (D-160):
+    press_on may trigger navigation (Enter on a submit button, Space
+    on a link with role=button, etc.). current_url and current_title
+    are read AFTER the press completes — agent sees the page's
+    actual state, not its pre-press state.
+
+  ACTIVITY UPDATE (D-159):
+    Successful press_on counts as activity. The idle eviction timer
+    in BrowserSessionManager resets.
+
+  AGENT-FACING SURFACE:
+    NEW tool: leid.press_on. No existing tool changes shape.
+    Eighteen tools become NINETEEN.
+
+  License posture:
+    No new dependencies; no new error mapping beyond the new class.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three

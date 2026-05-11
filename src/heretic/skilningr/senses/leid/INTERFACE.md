@@ -1,6 +1,6 @@
 # Leið Sense — Interface Contract
 
-**Last updated:** 2026-05-11 (v0.8.11 JPEG/WebP screenshot output — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.10 final-URL allowlist re-check) | 2026-05-11 (v0.8.9 configurable viewport) | 2026-05-11 (v0.8.8 query_all extension) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
+**Last updated:** 2026-05-11 (v0.8.12 element-targeted press — Rúnhild Svartdóttir) | 2026-05-11 (v0.8.11 JPEG/WebP screenshot output) | 2026-05-11 (v0.8.10 final-URL allowlist re-check) | 2026-05-11 (v0.8.9 configurable viewport) | 2026-05-11 (v0.8.8 query_all extension) | 2026-05-11 (v0.8.7 reload extension) | 2026-05-11 (v0.8.6 mid-session re-extract pair) | 2026-05-10 (v0.8.5 history nav extension) | 2026-05-10 (v0.8.4 press extension) | 2026-05-10 (v0.8.3 query extension) | 2026-05-10 (v0.8.2.2 navigate extension) | 2026-05-10 (v0.8.2.1 type extension) | 2026-05-10 (v0.8.2 *Innan Hurðar* stateful sessions + click) | 2026-05-10 (v0.8.1 *Mynd af Vegferð* screenshot) | 2026-05-10 (v0.8.0 *Opið Vef* browser-render) | 2026-05-09 (v0.7.1 *Straumr á Leið* streaming) | 2026-05-08 (v0.6.2 scaffold)
 **Scope:** L5.3 Leið — sandboxed HTTP fetch sense (httpx) + browser-render sub-faculty (Playwright, opt-in)
 **Authority:** Architect (Rúnhild Svartdóttir)
 
@@ -1226,3 +1226,71 @@ png_bytes = await page.screenshot(**screenshot_kwargs)
 - Per-call format override (agent-supplied) — operator-controlled is the right scope
 - Per-tool format (screenshot=jpeg but session_screenshot=png) — complexity not justified
 - Format auto-detection by content — out of scope
+
+### 12.18 Element-targeted press (v0.8.12 — unnamed within Innan Hurðar)
+
+> **Added 2026-05-11 v0.8.12.** Adds `press_on(session_id, selector, key)`,
+> the selector-targeted form of the keyboard finger introduced at v0.8.4.
+> Completes the symmetry with `click` (v0.8.2) and `type` (v0.8.2.1) —
+> all three accept a selector and act on the first match. Reuses
+> `browser_click_timeout_seconds` (D-54 / D-155 — interactive actions
+> share one operator bound).
+
+**New tool:**
+
+```
+leid.press_on(session_id: str, selector: str, key: str)
+  → {"selector": str, "key": str, "pressed": True,
+     "current_url": str, "current_title": str | None}
+```
+
+**New error class (D-156):**
+
+`LeidPressOnElementNotFoundError(LeidError)` — `page.locator(selector).first.press(key)` failed because no element matching the selector became actionable within `LeidConfig.browser_click_timeout_seconds`. Sibling to `LeidClickElementNotFoundError` and `LeidTypeElementNotFoundError`. Maps to `INVALID_ARGUMENTS` per D-157.
+
+**Distinction from `leid.press` (v0.8.4):**
+
+| Tool | Primitive | Focus model | Selector | Timeout | On selector miss |
+|---|---|---|---|---|---|
+| `leid.press` (v0.8.4) | `page.keyboard.press(key)` | Whatever has focus | none | none (Playwright internal) | n/a |
+| `leid.press_on` (v0.8.12) | `page.locator(selector).first.press(key)` | The matched element | required | `browser_click_timeout_seconds` | `LeidPressOnElementNotFoundError` |
+
+**New B-Invariant:**
+
+| # | B-Invariant |
+|---|---|
+| B-30 | `press_on(session_id, selector, key)` calls `page.locator(selector).first.press(key, timeout=browser_click_timeout_seconds * 1000)`. `PlaywrightTimeoutError` raises `LeidPressOnElementNotFoundError`; other `PlaywrightError` raises `LeidConnectionError`. On success, `session.mark_activity()` is invoked and the post-press URL + title are read and returned. |
+
+**Implementation pattern (mirrors `type` at v0.8.2.1):**
+
+```python
+press_timeout_ms = self._config.browser_click_timeout_seconds * 1000
+locator = session.page.locator(selector).first
+try:
+    await locator.press(key, timeout=press_timeout_ms)
+except PlaywrightTimeoutError as exc:
+    raise LeidPressOnElementNotFoundError(
+        f"Selector {selector!r} matched no actionable element "
+        f"in session {session_id!r} within "
+        f"{self._config.browser_click_timeout_seconds}s. Refine the "
+        f"selector and retry. Underlying: {exc}"
+    ) from exc
+except PlaywrightError as exc:
+    raise LeidConnectionError(
+        f"press_on({selector!r}, {key!r}) on session {session_id!r} "
+        f"failed at the browser level: {exc}"
+    ) from exc
+
+session.mark_activity()
+current_url = session.page.url
+try:
+    current_title = await session.page.title()
+except Exception:
+    current_title = None
+```
+
+**Out of scope:**
+- Multi-element press (press on every match) — first-match convention matches click/type
+- Press sequence (multiple keys per call) — agent can chain press_on calls
+- `force=True` to bypass actionability — Playwright's default is the right default
+- New config field for press_on timeout — reuses `browser_click_timeout_seconds`
