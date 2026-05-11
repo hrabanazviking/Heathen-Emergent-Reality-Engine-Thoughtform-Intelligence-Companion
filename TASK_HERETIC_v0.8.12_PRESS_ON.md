@@ -90,15 +90,37 @@ New tests in `tests/test_leid_sense.py` (~3 tests):
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria — ALL MET 2026-05-11
 
-- [ ] New `press_on` method on PlaywrightLeidClient
-- [ ] New `LeidPressOnElementNotFoundError` error class + INVALID_ARGUMENTS mapping
-- [ ] New `leid.press_on` tool registry entry
-- [ ] Sense dispatch wired
-- [ ] B-30 added to INTERFACE
-- [ ] At least 6 new client tests
-- [ ] At least 3 new sense tests
-- [ ] Cartographer + Auditor docs
-- [ ] DEVLOG entry 37
-- [ ] All pushed
+- [x] New `press_on` method on PlaywrightLeidClient
+- [x] New `LeidPressOnElementNotFoundError` error class + INVALID_ARGUMENTS mapping
+- [x] New `leid.press_on` tool registry entry
+- [x] Sense dispatch wired
+- [x] B-30 added to INTERFACE
+- [x] 9 new client tests (TestPressOn class)
+- [x] 2 new sense dispatch tests (+ tool_definitions count + tool_names_locked covers press_on)
+- [x] Cartographer + Auditor docs
+- [x] DEVLOG entry 37
+- [x] All pushed
+
+---
+
+## 8. SEAL — 2026-05-11
+
+**Status:** SEALED. v0.8.12 PASSES SCRUTINY (0/0/0/0) — twelfth consecutive zero-findings audit.
+
+**Final commits:**
+- Wave 0–3 (Runa + Skald + Cartographer + Architect — folded): `0d9622d`
+- Wave 4 (Forge): `32b3337`
+- Wave 5 (Auditor, AUDIT_v0.8.12_PRESS_ON.md): pushed with Scribe seal
+- Wave 7 (Scribe, DEVLOG entry 37 + this seal + memory refresh): final push
+
+**Test surface delta:** 1620 → 1631 passing (+11), zero regressions, 11.38s.
+
+**Invariants honoured:**
+- D-14 (LeidClient byte-untouched) — 16th consecutive milestone
+- D-130 (operator infrastructure unchanged; no new agent surface that could be confused with one)
+- B-30 (locator.first.press primitive + error mapping) — newly established
+- Sibling discipline (each gesture's selector failure has its own class) — third application
+
+**Fifteenth unnamed extension within Innan Hurðar.** Five named dispositions; fifteen unnamed extensions. The body's interactive triad is complete: click, type, press_on.

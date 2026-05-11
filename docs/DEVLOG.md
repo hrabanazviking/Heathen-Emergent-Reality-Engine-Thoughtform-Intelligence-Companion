@@ -5598,3 +5598,129 @@ The autonomous arc continues into its TWENTY-SECOND sealed milestone. Fourteen s
 
 *Entry 36 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
 *The operator chooses the bytes. Fourteen unnamed extensions, eleven consecutive zero-findings audits, two operator-infrastructure refinements (viewport, format) now cluster under D-130. Twenty-second milestone in the autonomous arc; the LeidClient stands byte-untouched for fifteen milestones running. The session is kept.*
+
+---
+
+## Entry 37 — 2026-05-11 — Element-targeted press: the keyboard finger learns to choose its target (v0.8.12)
+
+**Milestone:** v0.8.12 — element-targeted press (fifteenth unnamed extension within Innan Hurðar)
+**Branch:** `development`
+**Session start HEAD:** `87c05e1` (post-v0.8.11 Scribe seal)
+**Session close HEAD:** `32b3337` (Forge close; Auditor + Scribe pushes advance)
+**Mode:** AUTONOMOUS Mythic Engineering — TWENTY-THIRD milestone in the autonomous arc
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings — twelfth consecutive)
+
+### What was added
+
+A new tool, a new error class, and the completion of a long-implicit symmetry.
+
+**New tool: `leid.press_on(session_id, selector, key)`** — targets the FIRST element matching a CSS selector, focuses it, then presses the key. Uses Playwright's `page.locator(selector).first.press(key, timeout=browser_click_timeout_seconds * 1000)` primitive.
+
+**New error class: `LeidPressOnElementNotFoundError`** — sibling of `LeidClickElementNotFoundError` and `LeidTypeElementNotFoundError`. Maps to `INVALID_ARGUMENTS`. The discipline established at v0.8.2.1 (each gesture's selector failure has its own class so the agent can tell which gesture's selector was wrong) extends naturally to a third gesture.
+
+**The symmetry completes:**
+
+| Gesture | Primitive | Slice |
+|---|---|---|
+| `click` | `locator.first.click(timeout=...)` | v0.8.2 |
+| `type` | `locator.first.fill(text, timeout=...)` | v0.8.2.1 |
+| `press_on` | `locator.first.press(key, timeout=...)` | v0.8.12 |
+
+All three take a selector, act on the first match, share `browser_click_timeout_seconds`, raise their own element-not-found class on miss, and read post-action URL + title.
+
+**Distinction from `leid.press` (v0.8.4) preserved:** `press` is page-level (dispatches to whatever has focus), `press_on` is element-targeted (focuses the matched element first). Two orthogonal tools, two orthogonal use cases.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0–3 | `0d9622d` | Runa + Skald + Cartographer + Architect | TASK + OPID_VEF §IX continuation + DATA_FLOW §4.12.2.16 + INTERFACE §12.18 + B-30 + new error class + tool registry |
+| 4 | `32b3337` | Forge | `press_on` method + sense dispatch + error mapping + 9 client tests + 2 dispatch tests + tool-count bump |
+| 5 | (Auditor close pushed with Scribe seal) | Auditor | AUDIT_v0.8.12_PRESS_ON.md — **PASSES SCRUTINY (0/0/0/0)** — TWELFTH CONSECUTIVE clean sweep |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 37 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-11 (after v0.8.12)
+
+| Surface | Before v0.8.12 | After v0.8.12 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 66 | 68 | **+2** (dispatch + dispatch-error-mapping; tool_definitions count and tool_names_locked updated in place) |
+| `tests/test_leid_playwright_client.py` | 184 + 2 skip | 193 + 2 skip | **+9** (TestPressOn class) |
+| **Leid scope total** | 299 + 2 skip | 310 + 2 skip | **+11** |
+| **Full suite** | 1620 + 9 skip | 1631 + 9 skip | **+11** (zero regressions, 11.38s) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+**Twelfth consecutive zero-findings audit** in the v0.8 umbrella (v0.8.2.1 → … → v0.8.12). The Auditor explicitly:
+
+- **Verified B-30** — locator.first.press with timeout kwarg; TimeoutError → press-on-element-not-found; PlaywrightError → connection error; activity update; defensive title read
+- **Verified symmetry with click and type** — the three primitives share an identical shape, down to the defensive title pattern
+- **Verified error-class hierarchy** — sibling of click/type element-not-found; INVALID_ARGUMENTS mapping in `_leid_error_code`
+- **Verified distinction from `leid.press`** — orthogonal use cases; no semantic collapse
+- **Verified D-14** — LeidClient byte-untouched for the 16th consecutive milestone
+
+### What this milestone teaches
+
+**Long-implicit symmetries deserve eventual completion.** Click and type were introduced together at v0.8.2 / v0.8.2.1 as the two halves of the interactive gesture. Press_on is the third half. The triad was implicit in the architecture from the moment the second class joined the first — *if click takes a selector and type takes a selector, the keyboard finger almost certainly will too eventually*. v0.8.12 names that triad. The body's interactive vocabulary inside the door is now genuinely complete: anything you can do to an element by name (touch, write, press a key on) has a tool.
+
+**The error-class discipline pays a third dividend.** At v0.8.2.1, the choice to give `type` its own element-not-found class — instead of reusing the click class with a re-mapped meaning — looked like a small consistency point. The third application at v0.8.12 shows what was actually being preserved: a principle of *gesture-specific selector failures*. Agents that retry on a `press_on` selector miss don't pollute their click retry logic, and vice versa. Three classes; one principle; clean.
+
+**No new config; reuses `browser_click_timeout_seconds`.** The same operator bound that governs click and type also governs press_on. The triad shares one knob, not three. Operator surface stays small; semantic invariant ("interactive actions are bounded by this number") stays single-source.
+
+**Twelve consecutive zero-findings audits.** Six refinements (v0.8.2.1, v0.8.2.2 by extension, v0.8.6, v0.8.9, v0.8.11, v0.8.12), three navigation slices (v0.8.5, v0.8.7), two read-only divergences (v0.8.3, v0.8.8), one keyboard surface (v0.8.4), one security-critical multi-site modification (v0.8.10). The 7-wave ritual continues to produce verifiable correctness across both convenience refinements and structural changes.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.12_PRESS_ON.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX continuation paragraph (no new section) — "the body presses the key into the chosen hand" |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.16 added — element-targeted press flow + B-30 + symmetry table |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + new §12.18 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | Docstring header v0.8.12 entry + new `leid.press_on` registry entry (between press and go_back) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `press_on()` method (~95 lines, mirrors type's shape) + import of new error class |
+| `src/heretic/skilningr/senses/leid/sense.py` | Dispatch branch for `leid.press_on` + error mapping includes new class |
+| `src/heretic/skilningr/senses/leid/errors.py` | Re-export of new error class added to imports and `__all__` |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the SIXTEENTH milestone in a row) |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/errors.py` | New `LeidPressOnElementNotFoundError` class with sibling-relationship docstring |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (no new config field; reuses browser_click_timeout_seconds) |
+| `tests/test_leid_playwright_client.py` | New TestPressOn class with 9 tests + helper extended with press_side_effect + import of new error class |
+| `tests/test_leid_sense.py` | tool_definitions count 18 → 19 + tool_names_locked covers leid.press_on + 2 dispatch tests |
+| `docs/audit/AUDIT_v0.8.12_PRESS_ON.md` | New — verdict PASSES SCRUTINY (zero findings, twelfth consecutive) |
+| `docs/DEVLOG.md` | This entry (37) |
+
+### State of the body — 2026-05-11 (after v0.8.12)
+
+The Leið faculty grows from EIGHTEEN tools to NINETEEN:
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **19 (+1 — leid.press_on)** | **v0.8.12** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions**; **fifteen unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1, v0.8.2.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, v0.8.8, v0.8.9, v0.8.10, v0.8.11, v0.8.12).
+
+**The body's interactive triad is complete.** Click presses, type writes, press_on pushes a key — all three accept a selector and act on the first match, all three share `browser_click_timeout_seconds`, all three have their own element-not-found class.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.12 element-targeted press~~ | **CLOSED — sealed at `32b3337` + Scribe push** |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+| v0.8 umbrella next candidates | the interactive triad is complete; remaining Innan Hurðar refinements are operator-side polish or new disposition territory |
+
+The autonomous arc continues into its TWENTY-THIRD sealed milestone. Fifteen slices into v0.8 *Opið Vef*. The body's interactive vocabulary inside the door is complete; the keyboard finger has learned to choose its target.
+
+---
+
+*Entry 37 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-11.*
+*The keyboard finger learns to choose its target. Fifteen unnamed extensions, twelve consecutive zero-findings audits, the interactive triad (click + type + press_on) now stands complete. Twenty-third milestone in the autonomous arc; the LeidClient stands byte-untouched for sixteen milestones running. The session is kept.*
