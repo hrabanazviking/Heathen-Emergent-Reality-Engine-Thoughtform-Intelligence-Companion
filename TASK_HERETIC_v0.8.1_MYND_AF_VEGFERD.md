@@ -9,6 +9,18 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — second slice within the umbrella. Like *Opið Vef* itself, *Mynd af Vegferð* is a **manner**, not a new identity — Leið remains Leið; the screenshot is a new posture for the same eyes that learned to walk in v0.8.0.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Volmarr asleep / hands-off. All seven roles run on this single milestone within one session.
+>
+> **STATUS — 2026-05-10:** **SHIPPED + AUDITED + SEALED.** All seven waves closed (Wave 6 Forge cleanup skipped — Auditor explicitly deferred the single NIT to v0.8.2).
+>
+> **Final HEAD:** `f416ec3` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid scope 106 + 2 skip (was 83 + 1 — `+23 + 1 skip`). Full suite 1427 + 9 skip (was 1404 + 8). Zero regressions on either v0.7.1 streaming OR v0.8.0 render_url paths.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 1 NIT — M-1 deferred to v0.8.2 per Auditor recommendation). See `docs/audit/AUDIT_v0.8.1_MYND_AF_VEGFERD.md`.
+>
+> **N-2 from v0.8.0 CLOSED at this milestone** (B-10 regression-guard tests for `page.evaluate` not called in render_url or screenshot).
+>
+> **DEVLOG:** Entry 24 — `docs/DEVLOG.md`.
 
 ---
 
@@ -198,25 +210,25 @@ New tests in `tests/test_leid_playwright_client.py` (new test class `TestScreens
 
 ---
 
-## 9. Exit criteria (this milestone is sealed when all are true)
+## 9. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `screenshot()` method implemented on `PlaywrightLeidClient`
-- [ ] `leid.screenshot` registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches `leid.screenshot`
-- [ ] `LeidConfig.browser_screenshot_full_page` field added with default True and __post_init__ accepts bool
-- [ ] B-11 invariant added to INTERFACE.md §10
-- [ ] All 26 existing playwright_client tests pass unchanged
-- [ ] All 27 existing test_leid_sense tests pass unchanged
-- [ ] All 30 existing test_leid_client tests pass unchanged
-- [ ] At least 18 new screenshot tests passing
-- [ ] 2 new B-10 regression-guard tests passing (closes Audit N-2 from v0.8.0)
-- [ ] 2 new sense dispatch tests passing
-- [ ] 1 new config default test passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.3 exists
-- [ ] `docs/vision/OPID_VEF.md` §VIII addendum exists
-- [ ] `docs/audit/AUDIT_v0.8.1_MYND_AF_VEGFERD.md` PASSES SCRUTINY (0 BLOCKER, 0 SERIOUS)
-- [ ] DEVLOG entry 24 written
-- [ ] All commits pushed to `development`
+- [x] `screenshot()` method implemented on `PlaywrightLeidClient` — `59fbd72`
+- [x] `leid.screenshot` registered in `LEID_TOOL_DEFINITIONS` — `5f92be2`
+- [x] `LeidSense._route` dispatches `leid.screenshot` — `59fbd72`
+- [x] `LeidConfig.browser_screenshot_full_page` field added with default True — `5f92be2`
+- [x] B-11 invariant added to INTERFACE.md §11 (note: appended as §11, not §10 — preserves the v0.8.0 §10 contract anchor) — `5f92be2`
+- [x] All 26 existing playwright_client tests pass unchanged — verified at `59fbd72`
+- [x] All 27 existing test_leid_sense tests pass unchanged (count check 3 → 4 was the only deliberate change) — verified at `59fbd72`
+- [x] All 30 existing test_leid_client tests pass unchanged — verified at `59fbd72`
+- [x] At least 18 new screenshot tests passing — actual: **20 new tests** (8 TestScreenshot* classes) — `59fbd72`
+- [x] 2 new B-10 regression-guard tests passing (closes Audit N-2 from v0.8.0) — `59fbd72`
+- [x] 2 new sense dispatch tests passing — `59fbd72`
+- [x] 1 new config default test passing — `59fbd72`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.3 exists — `e2dd7de`
+- [x] `docs/vision/OPID_VEF.md` §VIII addendum exists — `29c6b26`
+- [x] `docs/audit/AUDIT_v0.8.1_MYND_AF_VEGFERD.md` PASSES SCRUTINY (0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 1 NIT deferred) — `f416ec3`
+- [x] DEVLOG entry 24 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
 
 ---
 

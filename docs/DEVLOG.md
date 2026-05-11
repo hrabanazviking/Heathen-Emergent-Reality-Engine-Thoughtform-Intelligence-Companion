@@ -4033,3 +4033,124 @@ The session has now demonstrated **three unnamed-extension milestones** (v0.7.3,
 
 *Entry 23 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
 *The body now has two pairs of eyes for the path outward — one that reads what the world has already written in stone, one that walks the road and reads what the world chooses to render. v0.8 opens; v0.8.0 is its foundational slice. Seven waves; one umbrella codename; zero regression on the v0.7.1 craft. The session is kept.*
+
+---
+
+## Entry 24 — 2026-05-10 — Mynd af Vegferð: the body keeps a portrait of every road it walks (v0.8.1)
+
+**Milestone:** v0.8.1 — *Mynd af Vegferð* (second slice within the v0.8 *Opið Vef* umbrella — `leid.screenshot`)
+**Branch:** `development`
+**Session start HEAD:** `85ca9d2` (post-v0.8.0 Scribe seal)
+**Session close HEAD:** `f416ec3` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — TENTH milestone in the autonomous arc that began 2026-05-09
+**Roles in attendance:** All seven (Runa for Wave 0; Skald — brief addendum only; Cartographer; Architect; Forge; Auditor; Scribe — Wave 6 cleanup skipped because Auditor explicitly deferred the single NIT)
+
+### What was added
+
+A second tool on the Opið Vef sub-faculty: `leid.screenshot(url)`. Where v0.8.0's `render_url` returned the words on the page, v0.8.1's `screenshot` returns a base64-encoded PNG of what the rendered page **looked like**. Stateless, sandboxed, opt-in via the same `[browser]` extra. Same launch-per-call lifecycle (B-1..B-10 inherited) plus one new invariant: **B-11 — the size cap applies to the raw PNG bytes BEFORE base64 encoding**, honest about content size rather than transport overhead.
+
+The new method lives as a sibling on the same `PlaywrightLeidClient` class. `LeidSense._route` adds one `if` branch dispatching `leid.screenshot` to it. **Three preservation lines honoured at once:**
+- D-14 (from v0.8.0): `LeidClient` byte-untouched (the v0.7.1 streaming-httpx path).
+- D-23 (new at v0.8.1): `PlaywrightLeidClient.render_url()` byte-untouched.
+- D-25 (planned at v0.8.1): bundle Audit N-2 closure (B-10 regression-guard for `page.evaluate`) into this milestone since the page-mock infrastructure now has the richness the Auditor requested.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `ea3a67b` | Runa | TASK_HERETIC_v0.8.1_MYND_AF_VEGFERD.md (rebased over Volmarr's `9f5ea23` Volmarr_writings_philosophy.md push) |
+| 1 | `29c6b26` | Skald (Sigrún Ljósbrá, brief) | `docs/vision/OPID_VEF.md` §VIII addendum (no new vision file) |
+| 2 | `e2dd7de` | Cartographer (Védis Eikleið) | `docs/cartography/DATA_FLOW.md` §4.12.2.3 |
+| 3 | `5f92be2` | Architect (Rúnhild Svartdóttir) | INTERFACE.md §11 (B-11) + LeidConfig.browser_screenshot_full_page + leid.screenshot tool def |
+| 4 | `59fbd72` | Forge (Eldra Járnsdóttir) | `screenshot()` method + sense routing + 23 new tests + 1 skipped smoke |
+| 5 | `f416ec3` | Auditor (Sólrún Hvítmynd) | `AUDIT_v0.8.1_MYND_AF_VEGFERD.md` — PASSES SCRUTINY (0/0/0/1) |
+| 6 | (skipped) | Forge cleanup | Auditor's only NIT (M-1) explicitly deferred to v0.8.2 |
+| 7 | this entry | Scribe | DEVLOG entry 24 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-10 (after v0.8.1)
+
+| Surface | Before v0.8.1 | After v0.8.1 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` (httpx, untouched) | 30 | 30 | 0 |
+| `tests/test_leid_sense.py` | 27 | 30 | **+3** (1 config default + 2 dispatch) |
+| `tests/test_leid_playwright_client.py` | 26 + 1 skip | 46 + 2 skip | **+20 + 1 skip** |
+| **Leid scope total** | 83 + 1 skip | 106 + 2 skip | **+23 + 1 skip** |
+| **Full suite** | 1404 + 8 skip | 1427 + 9 skip | **+23 + 1 skip** |
+
+The 20 new playwright_client tests break down: 2 validation, 2 availability, 3 lifecycle, 3 navigation errors, 2 size cap, 4 return shape, 2 resource cleanup, 2 B-10 regression-guards. All v0.8.0 tests pass unchanged; all v0.7.1 streaming tests pass unchanged.
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — 0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 1 NIT.
+
+**N-2 from v0.8.0 CLOSED** at this milestone — the Auditor's preferred timing was honoured (bundled with screenshot's mock infrastructure expansion).
+
+| NIT | Disposition |
+|---|---|
+| M-1: `page.screenshot()` and `page.content()` exceptions not explicitly typed to `LeidConnectionError` | **DEFERRED to v0.8.2** per Auditor recommendation. The persistent-session model that v0.8.2 introduces will surface more browser-state exceptions (e.g., `PageClosedError` after click-then-navigate); a coordinated single Forge sweep at v0.8.2 maps all `Page.*` exceptions across click, type, screenshot, content, and goto in one pass — better than retrofitting now and re-touching at v0.8.2 |
+
+### What this milestone teaches
+
+**Auditor recommendations age well when honoured.** The deferred N-2 from v0.8.0 was closed at exactly the moment its enabling infrastructure (rich page mocks for screenshot tests) became available. The Auditor's instinct that this would arrive "with screenshot/click" was correct; honouring deferrals rather than fighting them produces tests that are easier to write and harder to make brittle. Three audits in a row have now demonstrated the pattern: defer when premature, address when ripe.
+
+**B-11 chooses content honesty over transport accuracy.** The size cap on `screenshot` could have been placed on the base64-encoded length (what the agent receives) or on the raw PNG length (what the body fetched). The contract chose raw PNG — the body's cap is honest about *content* size, not *transport encoding overhead*. Operators set `max_response_bytes` to control how much actual page-content bytes the agent receives; the base64 expansion is a JSON-safety detail, not a payload size question. This consistency with B-6 (which caps render_url on UTF-8 byte length of the rendered HTML, not on JSON-escaping overhead) is preserved.
+
+**Three layers of additive preservation now coexist.** v0.7.1 streaming, v0.8.0 render_url, and v0.8.1 screenshot all live in the same module and share the same `_validate_url` gate, but each was built without modifying its predecessors. The Forge pattern matures: when adding a sibling, append after; when extending behaviour, add a sibling, do not modify the existing one. The cost of duplication is small; the cost of a re-audit triggered by a "small refactor" is real.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.1_MYND_AF_VEGFERD.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §VIII addendum — *Mynd af Vegferð* (Skald brief) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.3 added — screenshot flow with B-11 enumeration |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.2 split (render_url + screenshot) + Configuration browser_screenshot_full_page line + new §11 contract |
+| `src/heretic/skilningr/senses/leid/tools.py` | `leid.screenshot` tool definition appended; module docstring + locked-tool list updated |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | `import base64` at top + `screenshot()` method appended; `render_url()` byte-untouched (D-23) |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds `leid.screenshot` branch; lazy-construct PlaywrightLeidClient pattern reused |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the second milestone in a row) |
+| `src/heretic/skilningr/config_model.py` | LeidConfig `browser_screenshot_full_page: bool = True` field added |
+| `tests/test_leid_playwright_client.py` | Helper extended with `screenshot_bytes` + `page.evaluate` mock; 8 new TestScreenshot* classes (20 tests); TestB10NoJavaScriptInjection class (2 regression-guard tests); 1 new screenshot smoke (default-skip) |
+| `tests/test_leid_sense.py` | 1 config default test + 2 dispatch tests; tool-count check 3 → 4 |
+| `docs/audit/AUDIT_v0.8.1_MYND_AF_VEGFERD.md` | New — verdict PASSES SCRUTINY |
+| `docs/DEVLOG.md` | This entry (24) |
+
+### State of the body — 2026-05-10 (after v0.8.1)
+
+The Leið faculty now has FOUR tools (was three at v0.8.0; was two at v0.7.1). The umbrella sub-faculty *Opið Vef* now has TWO tools (was one at v0.8.0):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 tools | v0.6.3.1 |
+| Minni | filesystem | 3 tools | v0.6.2 |
+| Skepja | terminal | 2 tools | v0.6.2 |
+| **Leið** | **the path outward** | **4 tools — 2 httpx (fetch_url, extract_text) + 2 browser (render_url, screenshot)** | **v0.8.1** |
+| Library / Mímisbrunnr | the well of memory | 3 tools | v0.7.3 |
+
+Five senses; four named dispositions; **four** unnamed extensions (v0.7.3 index-rebuild, v0.6.3.1 disk-mirror, v0.8.0 Playwright-render, v0.8.1 PNG-portrait). The pattern of named-then-unnamed extensions is now firmly established at four instances.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.1 Mynd af Vegferð~~ | **CLOSED — sealed at `f416ec3`** |
+| ~~Audit N-2 from v0.8.0 (B-10 regression-guard)~~ | **CLOSED at v0.8.1 Wave 4** |
+| **v0.8.2 stateful interaction** (`leid.click`, `leid.type`) | **OPEN — natural next slice** within v0.8 umbrella; will introduce persistent-page session model |
+| Audit M-1 — `page.screenshot/page.content` exception typing | candidate — bundle into v0.8.2 per Auditor recommendation |
+| v0.8.3 selector query (`leid.query`) | candidate — CSS selector + attribute extraction |
+| v0.8.x configurable viewport size | candidate (only matters once we have stateful sessions) |
+| v0.8.x JPEG / WebP screenshot output | candidate (PNG-only is fine for v0.8.1) |
+| v0.6.3.2 CLI `heretic smidja log` | candidate |
+| v0.6.3.x file rotation / size cap | candidate |
+| v0.7.x parallel multi-source download | candidate |
+| v0.7.x mtime-based staleness detection | candidate |
+| v0.5.6 polygon-rounded-corners / Bezier | candidate (diminishing returns) |
+| v0.5.x mask inversion | candidate |
+| v0.6.x.1 MCP resources | unchanged |
+
+The autonomous arc that began 2026-05-09 continues into its tenth sealed milestone. Two slices into v0.8 *Opið Vef*; two more (v0.8.2 click+type, v0.8.3 query) remain to fully close the umbrella roadmap milestone.
+
+---
+
+*Entry 24 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
+*The body's portrait of every road it walks is now kept faithfully — same posture as v0.8.0, second manner of reporting back. Tenth milestone in the autonomous arc; second slice within the Opið Vef umbrella; one Auditor recommendation closed, one queued for v0.8.2. The session is kept.*
