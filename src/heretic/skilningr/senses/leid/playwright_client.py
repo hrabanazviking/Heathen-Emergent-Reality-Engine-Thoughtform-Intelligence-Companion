@@ -143,6 +143,61 @@ class PlaywrightLeidClient:
             )
         return self._session_manager
 
+    def _check_final_url_allowed(self, url: str, *, input_url: str = "") -> None:
+        """Re-check *url* against the allowlist + HTTPS-only policy AFTER navigation.
+
+        v0.8.10 — closes the deferred sandbox gap (B-28). Used by every
+        navigation-completing call site to verify that ``page.url``
+        AFTER navigation is still in the operator's allowlist. The body
+        may have been redirected (server-side 3xx, JavaScript-driven
+        client-side, etc.) to a non-allowlisted URL during the
+        navigation; the operator's allowlist is unconditional and
+        applies post-navigation as well as pre-navigation.
+
+        Same logic as ``_validate_url`` but tailored for the post-
+        navigation case: returns nothing (the URL has already been
+        normalised by Playwright); raises with a message that names
+        BOTH the input URL (what the agent asked for) and the final
+        URL (where the page actually landed).
+
+        Args:
+            url:        The final URL to check (typically session.page.url
+                        or the post-navigation page.url).
+            input_url:  Optional. The URL the agent originally asked for,
+                        used in the error message. If omitted, only the
+                        final URL is named.
+
+        Raises:
+            UrlNotAllowedError: final URL not in allowlist OR uses HTTP
+                                scheme when allow_http is False.
+        """
+        url_stripped = url.strip()
+        # HTTPS-only enforcement (mirrors _validate_url's gate)
+        if url_stripped.lower().startswith("http://") and not self._config.allow_http:
+            raise UrlNotAllowedError(
+                f"Navigation to {input_url!r} resulted in HTTP (non-TLS) URL "
+                f"{url_stripped!r}. Set skilningr.leid.allow_http: true to "
+                f"permit HTTP fetches. HTTPS is strongly recommended."
+            )
+
+        allowed, _result = url_matches_allowlist(
+            url_stripped, self._config.url_allowlist_patterns
+        )
+        if not allowed:
+            self._log.warning(
+                "Leið final-URL allowlist rejection: input=%s final=%s",
+                input_url, url_stripped,
+            )
+            if input_url:
+                raise UrlNotAllowedError(
+                    f"Navigation to {input_url!r} resulted in {url_stripped!r}, "
+                    f"which is not in url_allowlist_patterns."
+                )
+            else:
+                raise UrlNotAllowedError(
+                    f"Final URL {url_stripped!r} is not in url_allowlist_patterns."
+                )
+
     def _validate_url(self, url: str) -> str:
         """Validate that *url* matches the allowlist and return the normalised URL.
 
@@ -313,6 +368,11 @@ class PlaywrightLeidClient:
                     f"HTTP {response.status} from {normalised_url!r} "
                     f"(rendered via Playwright)."
                 )
+
+            # B-28 (v0.8.10) — final-URL allowlist re-check. The page may
+            # have redirected during navigation; the operator's allowlist
+            # applies post-navigation as well as pre-navigation.
+            self._check_final_url_allowed(page.url, input_url=normalised_url)
 
             # B-6 — pre-cap on rendered HTML BEFORE text extraction.
             # M-1 closure (v0.8.2): explicit Page.* exception typing —
@@ -524,6 +584,9 @@ class PlaywrightLeidClient:
                     f"HTTP {response.status} from {normalised_url!r} "
                     f"(rendered via Playwright)."
                 )
+
+            # B-28 (v0.8.10) — final-URL allowlist re-check.
+            self._check_final_url_allowed(page.url, input_url=normalised_url)
 
             # Stage 5 — capture the screenshot.
             # M-1 closure (v0.8.2): explicit Page.* exception typing —
@@ -754,6 +817,11 @@ class PlaywrightLeidClient:
                     f"HTTP {response.status} from {normalised_url!r} "
                     f"during open_session navigation."
                 )
+
+            # B-28 (v0.8.10) — final-URL allowlist re-check. Session is
+            # NOT yet registered (was_registered is still False), so the
+            # outer cleanup branch tears down the launched browser quartet.
+            self._check_final_url_allowed(page.url, input_url=normalised_url)
 
             # Read the title once; defensive against title-read failures.
             try:
@@ -1136,6 +1204,22 @@ class PlaywrightLeidClient:
                 f"during navigate on session {session_id!r}."
             )
 
+        # B-28 (v0.8.10) — final-URL allowlist re-check. The session
+        # has been compromised if the page landed on a non-allowlisted
+        # URL; the only safe response is to terminate it (D-139).
+        try:
+            self._check_final_url_allowed(
+                session.page.url, input_url=normalised_url
+            )
+        except UrlNotAllowedError:
+            bad_url = session.page.url
+            await manager.close_session(session_id)
+            raise UrlNotAllowedError(
+                f"Navigation to {normalised_url!r} on session "
+                f"{session_id!r} resulted in {bad_url!r}, which is not "
+                f"in url_allowlist_patterns. The session has been closed."
+            )
+
         # B-17 / B-20 — successful navigation counts as activity.
         session.mark_activity()
 
@@ -1452,6 +1536,23 @@ class PlaywrightLeidClient:
                 f"{session_id!r}."
             )
 
+        # B-28 (v0.8.10) — final-URL allowlist re-check. The history nav
+        # may have landed at a non-allowlisted URL (e.g., the original
+        # destination redirected somewhere new since first navigated).
+        # Stateful violation closes the session (D-139).
+        try:
+            self._check_final_url_allowed(
+                session.page.url, input_url=f"<go_{direction} from {previous_url}>"
+            )
+        except UrlNotAllowedError:
+            bad_url = session.page.url
+            await manager.close_session(session_id)
+            raise UrlNotAllowedError(
+                f"go_{direction} on session {session_id!r} (from "
+                f"{previous_url!r}) resulted in {bad_url!r}, which is "
+                f"not in url_allowlist_patterns. The session has been closed."
+            )
+
         # B-17 / B-23 — successful history nav counts as activity.
         session.mark_activity()
 
@@ -1748,6 +1849,22 @@ class PlaywrightLeidClient:
             raise LeidHttpError(
                 f"HTTP {response.status} during reload on session "
                 f"{session_id!r}."
+            )
+
+        # B-28 (v0.8.10) — final-URL allowlist re-check. The reload may
+        # have been redirected somewhere new since the page was first
+        # navigated to. Stateful violation closes the session (D-139).
+        try:
+            self._check_final_url_allowed(
+                session.page.url, input_url=f"<reload of session {session_id}>"
+            )
+        except UrlNotAllowedError:
+            bad_url = session.page.url
+            await manager.close_session(session_id)
+            raise UrlNotAllowedError(
+                f"reload on session {session_id!r} resulted in {bad_url!r}, "
+                f"which is not in url_allowlist_patterns. The session has "
+                f"been closed."
             )
 
         # B-17 / B-25 — successful reload counts as activity

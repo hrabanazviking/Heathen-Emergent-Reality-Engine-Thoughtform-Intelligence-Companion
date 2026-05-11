@@ -2564,6 +2564,168 @@ class TestViewportPropagation:
         assert call_kwargs["viewport"] == {"width": 1280, "height": 720}
 
 
+class TestFinalUrlAllowlistRecheck:
+    """B-28 for v0.8.10 — verifies post-navigation URL re-check at all 7 sites
+    + session-close-on-violation discipline for stateful tools."""
+
+    @pytest.mark.asyncio
+    async def test_render_url_raises_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28: input URL passes pre-flight; page.url after goto doesn't."""
+        # page_mock.url returns "https://evil.com/landed" (simulates redirect);
+        # allowlist permits example.com only.
+        fake_playwright(page_url="https://evil.com/landed")
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(UrlNotAllowedError, match="not in url_allowlist_patterns"):
+            await client.render_url("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_render_url_does_not_raise_when_final_url_matches_allowlist(
+        self, fake_playwright
+    ):
+        """Happy path: final URL is in allowlist → no exception."""
+        fake_playwright(page_url="https://example.com/dashboard")
+        client = make_client(["https://example.com/*"])
+        # Should NOT raise
+        result = await client.render_url("https://example.com/page")
+        assert result["final_url"] == "https://example.com/dashboard"
+
+    @pytest.mark.asyncio
+    async def test_screenshot_raises_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28: screenshot raises if page.url after goto is not allowlisted."""
+        fake_playwright(page_url="https://evil.com/landed")
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(UrlNotAllowedError, match="not in url_allowlist_patterns"):
+            await client.screenshot("https://example.com/page")
+
+    @pytest.mark.asyncio
+    async def test_open_session_raises_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28: open_session raises; session is NOT registered."""
+        fake_playwright(page_url="https://evil.com/landed")
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(UrlNotAllowedError, match="not in url_allowlist_patterns"):
+            await client.open_session("https://example.com/page")
+        # Session never registered: manager has zero sessions
+        if client._session_manager is not None:
+            assert client._session_manager.active_count == 0
+
+    @pytest.mark.asyncio
+    async def test_navigate_raises_and_closes_session_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28 + D-139: navigate raises AND closes the session."""
+        # Open at allowed URL
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/start"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/start")
+        session_id = opened["session_id"]
+
+        # Now make navigate land on evil.com — make goto mutate page.url
+        async def _bad_goto(*_args, **_kwargs):
+            page_mock.url = "https://evil.com/landed"
+            return response_mock
+
+        page_mock.goto = AsyncMock(side_effect=_bad_goto)
+
+        with pytest.raises(UrlNotAllowedError, match="session has been closed"):
+            await client.navigate(session_id, "https://example.com/another")
+
+        # Session should be closed
+        assert client._session_manager.active_count == 0
+
+    @pytest.mark.asyncio
+    async def test_navigate_session_remains_usable_when_final_url_matches_allowlist(
+        self, fake_playwright
+    ):
+        """Happy path: navigate to allowlisted URL keeps session alive."""
+        fake_playwright(page_url="https://example.com/page1")
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page1")
+        session_id = opened["session_id"]
+        # Navigate within the allowlist — session stays open
+        result = await client.navigate(session_id, "https://example.com/page2")
+        assert result["session_id"] == session_id
+        # Session still usable
+        assert client._session_manager.active_count == 1
+
+    @pytest.mark.asyncio
+    async def test_go_back_raises_and_closes_session_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28 + D-139: go_back raises AND closes the session if landed
+        on a non-allowlisted URL."""
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/page2"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page2")
+        session_id = opened["session_id"]
+
+        # go_back lands on evil.com (e.g., the previous URL was evil)
+        async def _bad_go_back(*_args, **_kwargs):
+            page_mock.url = "https://evil.com/page1-was-evil"
+            return response_mock
+
+        page_mock.go_back = AsyncMock(side_effect=_bad_go_back)
+
+        with pytest.raises(UrlNotAllowedError, match="session has been closed"):
+            await client.go_back(session_id)
+        assert client._session_manager.active_count == 0
+
+    @pytest.mark.asyncio
+    async def test_go_forward_raises_and_closes_session_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """Same as go_back, mirror direction."""
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/page1"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page1")
+        session_id = opened["session_id"]
+
+        async def _bad_go_forward(*_args, **_kwargs):
+            page_mock.url = "https://evil.com/forward-page-evil"
+            return response_mock
+
+        page_mock.go_forward = AsyncMock(side_effect=_bad_go_forward)
+
+        with pytest.raises(UrlNotAllowedError, match="session has been closed"):
+            await client.go_forward(session_id)
+        assert client._session_manager.active_count == 0
+
+    @pytest.mark.asyncio
+    async def test_reload_raises_and_closes_session_when_final_url_not_allowed(
+        self, fake_playwright
+    ):
+        """B-28 + D-139: reload raises AND closes the session if it landed
+        on a non-allowlisted URL (e.g., server-side redirect on reload)."""
+        _, _, _, page_mock, response_mock = fake_playwright(
+            page_url="https://example.com/dashboard"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/dashboard")
+        session_id = opened["session_id"]
+
+        # Reload lands at evil.com (server-side redirect on reload)
+        async def _bad_reload(*_args, **_kwargs):
+            page_mock.url = "https://evil.com/redirected-on-reload"
+            return response_mock
+
+        page_mock.reload = AsyncMock(side_effect=_bad_reload)
+
+        with pytest.raises(UrlNotAllowedError, match="session has been closed"):
+            await client.reload(session_id)
+        assert client._session_manager.active_count == 0
+
+
 class TestM1PageExceptionTyping:
     """M-1 closure: page.content and page.screenshot exceptions now map
     explicitly to LeidConnectionError (matching httpx's network-error precision)."""
