@@ -7164,6 +7164,160 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.10 Leið mid-session re-extract (Innan Hurðar extension — v0.8.6)
+
+> **Added 2026-05-11 v0.8.6 (Védis Eikleið).** Ninth unnamed Innan Hurðar
+> extension; second bundled-pair milestone. Adds `leid.session_render` and
+> `leid.session_screenshot` — the in-session counterparts of the stateless
+> `leid.render_url` (v0.8.0) and `leid.screenshot` (v0.8.1). Same primitives
+> (`page.content()` / `page.screenshot()`); same size-cap discipline (B-6
+> for HTML byte size; B-11 for raw PNG bytes); same M-1 closure pattern
+> (try/except mapping PlaywrightError → LeidConnectionError); applied now
+> to a live session's page rather than a freshly-launched one. One new
+> B-invariant (B-24); no new error classes; no new config fields.
+
+```
+  LEIÐ MID-SESSION RE-EXTRACT FLOW (v0.8.6)
+
+  Two paired tools sharing session-resolution discipline:
+    leid.session_render      → PlaywrightLeidClient.session_render
+    leid.session_screenshot  → PlaywrightLeidClient.session_screenshot
+
+  COMMON PHASES (both tools):
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.session_render" or "leid.session_screenshot"
+                     → PlaywrightLeidClient.session_render/session_screenshot
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Capture current_url (D-101)
+    current_url = session.page.url
+        ↓
+    Read once at entry; reflects whatever page the session is on
+    after any prior click / type / press / navigate.
+
+  PER-TOOL PHASES:
+
+  ─── leid.session_render ───────────────────────────────────────────
+  Stage 5a — Read rendered HTML (M-1 closure pattern, D-100)
+    try:
+        html = await session.page.content()
+    except (PlaywrightTimeoutError, PlaywrightError) as exc:
+        raise LeidConnectionError(...)               ── M-1 inheritance
+
+  Stage 6a — Pre-cap on rendered HTML byte size (B-6 inheritance)
+    rendered_size = len(html.encode("utf-8"))
+    if rendered_size > config.max_response_bytes:
+        raise LeidResponseTooLargeError(...)          ── B-6 inherited
+
+  Stage 7a — Extract text (uses _extract_text_from_html, D-97)
+    text, title = _extract_text_from_html(html)
+        ↓
+    Same helper as v0.8.0 render_url. No re-implementation.
+
+  Stage 8a — Activity update (B-17 / B-24)
+    session.mark_activity()
+
+  Stage 9a — Return
+    return {
+        session_id,
+        current_url,
+        text,
+        title,
+        source_size_bytes: rendered_size,
+    }
+
+  ─── leid.session_screenshot ──────────────────────────────────────
+  Stage 5b — Read PNG bytes (M-1 closure pattern, D-100)
+    full_page = config.browser_screenshot_full_page    ── D-98 reuse
+    try:
+        png_bytes = await session.page.screenshot(
+            full_page=full_page,
+            type="png",
+        )
+    except (PlaywrightTimeoutError, PlaywrightError) as exc:
+        raise LeidConnectionError(...)               ── M-1 inheritance
+
+  Stage 6b — Pre-cap on raw PNG bytes (B-11 inheritance)
+    png_size = len(png_bytes)
+    if png_size > config.max_response_bytes:
+        raise LeidResponseTooLargeError(...)          ── B-11 inherited;
+                                                          cap is on raw
+                                                          bytes BEFORE
+                                                          base64 encoding
+
+  Stage 7b — Base64 encode (D-17 from v0.8.1)
+    image_base64 = base64.b64encode(png_bytes).decode("ascii")
+
+  Stage 8b — Activity update (B-17 / B-24)
+    session.mark_activity()
+
+  Stage 9b — Return
+    return {
+        session_id,
+        current_url,
+        image_base64,
+        image_format: "png",
+        size_bytes: png_size,
+        full_page,
+    }
+
+  Difference from stateless siblings (render_url, screenshot):
+    The stateless v0.8.0/v0.8.1 tools are launch-per-call: they spawn
+    a Playwright runtime + browser + context + page, navigate to the
+    URL, extract content, then tear all four down. Each call is its
+    own browser session.
+
+    The mid-session tools at v0.8.6 reuse the EXISTING session's
+    quartet — no spawn, no navigate, no teardown. They're functionally
+    Stages 5+ of the stateless tools applied to the live page.
+
+    This means session_render / session_screenshot are MUCH cheaper
+    than their stateless siblings:
+      render_url:           ~500-3000 ms (cold start + goto)
+      session_render:       ~20-100 ms   (just page.content + extract)
+      screenshot:           ~500-3000 ms (cold start + goto)
+      session_screenshot:   ~50-300 ms   (just page.screenshot + base64)
+
+  Why these tools are needed:
+    Without v0.8.6, the agent that has just clicked a button and
+    wants to see the new page must EITHER:
+      (a) close_session + open_session(new_url) + extract  — slow,
+          loses cookies/state
+      (b) call session_status to see the new URL, but get only URL
+          and title — not the full text or visual
+    v0.8.6 lets the agent stay in-session and re-extract at any
+    moment. Essential for "verify state after each step" agent
+    loops and for SPAs where URL doesn't change but DOM does.
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-6   — pre-cap on rendered HTML byte size (session_render)
+    B-11  — pre-cap on raw PNG bytes (session_screenshot)
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises LeidSessionExpiredError
+    B-17  — activity update after success
+    B-24  — NEW: in-session re-extract honours all of the above
+
+  Error code mapping (no new classes):
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+    LeidResponseTooLargeError     → INVALID_ARGUMENTS
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
