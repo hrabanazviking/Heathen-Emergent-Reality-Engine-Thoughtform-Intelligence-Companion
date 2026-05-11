@@ -9,6 +9,18 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — third slice within the umbrella, but this slice introduces a NEW DISPOSITION (statefulness), so it earns its own Skald codename in addition to staying under the umbrella name.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Volmarr offered hugs and "continue" — eleventh milestone in the autonomous arc that began 2026-05-09.
+>
+> **STATUS — 2026-05-10:** **SHIPPED + AUDITED + CLEANED + SEALED.** All seven waves closed; Wave 6 closed Auditor NOTABLE-1.
+>
+> **Final HEAD:** `9341631` (Wave 6 cleanup) — final Scribe push will advance.
+>
+> **Test status:** Leid scope **157 + 2 skip** (was 106 + 2 — `+51`). Full suite **1478 + 9 skip** (was 1427 + 9). Zero regressions on the v0.7.1 streaming, v0.8.0 render_url, or v0.8.1 screenshot surfaces.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0 BLOCKER, 0 SERIOUS, 1 NOTABLE closed at Wave 6, 2 NIT deferred). See `docs/audit/AUDIT_v0.8.2_INNAN_HURDAR.md`.
+>
+> **M-1 from v0.8.1 CLOSED at this milestone** (page.content + page.screenshot + locator.click all explicitly typed).
+>
+> **DEVLOG:** Entry 25 — `docs/DEVLOG.md`.
 
 ---
 
@@ -329,29 +341,30 @@ Extension to `tests/test_leid_sense.py`: 4 new dispatch tests + 4 new config val
 
 ---
 
-## 10. Exit criteria (this milestone is sealed when all are true)
+## 10. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `BrowserSessionManager` class implemented with eviction logic
-- [ ] 4 new methods on `PlaywrightLeidClient`: `open_session`, `session_status`, `click`, `close_session`
-- [ ] 4 new tools registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches all 4 new tools
-- [ ] 3 new error classes defined and re-exported
-- [ ] 4 new `LeidConfig` fields (max_concurrent, idle_timeout, max_lifetime, click_timeout) with validation
-- [ ] B-12..B-18 added to INTERFACE.md §12
-- [ ] M-1 closure: `page.content` and `page.screenshot` exceptions explicitly typed
-- [ ] All 26 existing playwright_client tests pass unchanged
-- [ ] All 30 existing test_leid_sense tests pass unchanged
-- [ ] All 30 existing test_leid_client tests pass unchanged
-- [ ] At least 12 BrowserSessionManager unit tests passing
-- [ ] At least 16 session/click integration tests passing
-- [ ] 2 M-1 closure tests passing
-- [ ] 4 dispatch tests passing
-- [ ] 4 config validation tests passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.4 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX addendum exists
-- [ ] `docs/audit/AUDIT_v0.8.2_INNAN_HURDAR.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 25 written
-- [ ] All commits pushed to `development`
+- [x] `BrowserSessionManager` class implemented with eviction logic — `b950726`
+- [x] 4 new methods on `PlaywrightLeidClient` — `b950726`
+- [x] 4 new tools registered in `LEID_TOOL_DEFINITIONS` — `61278f9`
+- [x] `LeidSense._route` dispatches all 4 new tools — `b950726`
+- [x] 3 new error classes defined and re-exported — `61278f9`
+- [x] 4 new `LeidConfig` fields with validation (5 checks total including coherence) — `61278f9`
+- [x] B-12..B-18 added to INTERFACE.md §12 — `61278f9`
+- [x] M-1 closure: `page.content` AND `page.screenshot` AND `locator.click` exceptions explicitly typed — `b950726`
+- [x] All 26 existing playwright_client tests pass unchanged — verified at `b950726`
+- [x] All 30 existing test_leid_sense tests pass unchanged — verified at `b950726`
+- [x] All 30 existing test_leid_client tests pass unchanged — verified at `b950726`
+- [x] BrowserSessionManager unit tests passing — actual: **19 tests** (target was 12) — `b950726`
+- [x] Session/click integration tests passing — actual: **18 tests** (target was 16) — `b950726`
+- [x] 2 M-1 closure tests passing — `b950726`
+- [x] 4 dispatch tests + 3 error code mapping tests passing — `b950726`
+- [x] 5 config validation tests passing (including coherence test) — `b950726`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.4 exists — `6186613`
+- [x] `docs/vision/OPID_VEF.md` §IX addendum exists — `a137a8a`
+- [x] `docs/audit/AUDIT_v0.8.2_INNAN_HURDAR.md` PASSES SCRUTINY — `ecacce4`
+- [x] Audit NOTABLE-1 closed (Wave 6 — was_registered flag refactor) — `9341631`
+- [x] DEVLOG entry 25 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes
 
 ---
 

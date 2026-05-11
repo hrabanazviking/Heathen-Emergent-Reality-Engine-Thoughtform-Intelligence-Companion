@@ -4154,3 +4154,140 @@ The autonomous arc that began 2026-05-09 continues into its tenth sealed milesto
 
 *Entry 24 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
 *The body's portrait of every road it walks is now kept faithfully — same posture as v0.8.0, second manner of reporting back. Tenth milestone in the autonomous arc; second slice within the Opið Vef umbrella; one Auditor recommendation closed, one queued for v0.8.2. The session is kept.*
+
+---
+
+## Entry 25 — 2026-05-10 — Innan Hurðar: the body crosses the threshold and stays (v0.8.2)
+
+**Milestone:** v0.8.2 — *Innan Hurðar* (third slice within v0.8 *Opið Vef* umbrella; FIRST slice with a new disposition rather than an extension)
+**Branch:** `development`
+**Session start HEAD:** `e653e25` (post-v0.8.1 Scribe seal)
+**Session close HEAD:** `9341631` (Wave 6 cleanup; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — ELEVENTH milestone in the autonomous arc that began 2026-05-09
+**Roles in attendance:** All seven (Runa, Skald, Cartographer, Architect, Forge, Auditor, Scribe — plus a Wave 6 Forge cleanup pass)
+
+### What was added
+
+A stateful sub-section within the Opið Vef sub-faculty. Where v0.8.0 (`render_url`) and v0.8.1 (`screenshot`) had the body do a single act per call and walk away, v0.8.2 has the body **cross the threshold and stay** — keeping a session open across multiple actions, touching what is in front of it, eventually choosing to let the door close.
+
+**Four new tools:**
+- `leid.open_session(url) → {session_id, final_url, title}` — opens a stateful session at the URL; returns a session_id.
+- `leid.session_status(session_id) → {state, url, title, opened_at, last_activity_at, age_seconds, idle_seconds}` — non-mutating health check on an open session.
+- `leid.click(session_id, selector) → {selector, clicked, current_url, current_title}` — clicks the first element matching the CSS selector.
+- `leid.close_session(session_id) → {session_id, closed}` — idempotent close; returns `{closed: false}` for unknown ids without raising.
+
+**One new infrastructural class:** `BrowserSessionManager` (in `session_manager.py`) — owns the open sessions, enforces the concurrency cap (default 3), evicts sessions past idle (default 5 min) or absolute (default 30 min) timeouts, performs cleanup on close + on eviction. Uses `asyncio.Lock` for dict mutations; lazy eviction at the start of every session-tool call.
+
+**Bonus payload:** **Audit M-1 from v0.8.1 CLOSED.** Explicit `try/except (PlaywrightError, PlaywrightTimeoutError)` mapping added to `page.content` (in render_url), `page.screenshot` (in screenshot), and `locator.click` (in click). All four `Page.*` call sites now have explicit exception typing — the agent receives `EXTERNAL_APP_UNAVAILABLE` for browser-network failures, not the catch-all `SENSE_INTERNAL_ERROR`. The Auditor's "coordinated single sweep" recommendation was honoured exactly.
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `c5ab8ef` | Runa | TASK_HERETIC_v0.8.2_INNAN_HURDAR.md (358 lines) |
+| 1 | `a137a8a` | Skald (Sigrún Ljósbrá) | `docs/vision/OPID_VEF.md` §IX addendum — *Innan Hurðar* (the umbrella now holds three slices) |
+| 2 | `6186613` | Cartographer (Védis Eikleið) | `docs/cartography/DATA_FLOW.md` §4.12.2.4 — session lifecycle + click flow + B-12..B-18 enumeration + M-1 closure plan |
+| 3 | `61278f9` | Architect (Rúnhild Svartdóttir) | INTERFACE.md §12 (B-12..B-18) + 4 LeidConfig fields + 3 new error classes + 4 tool definitions |
+| 4 | `b950726` | Forge (Eldra Járnsdóttir) | `session_manager.py` (300 lines) + 4 new methods on PlaywrightLeidClient + sense routing + tests + M-1 closure |
+| 5 | `ecacce4` | Auditor (Sólrún Hvítmynd) | `AUDIT_v0.8.2_INNAN_HURDAR.md` — PASSES SCRUTINY (0/0/1/2) |
+| 6 | `9341631` | Forge cleanup | NOTABLE-1 closed — `open_session` cleanup uses explicit `was_registered` flag; flake fix on Windows monotonic clock granularity |
+| 7 | this entry | Scribe | DEVLOG entry 25 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-10 (after v0.8.2 + Wave 6)
+
+| Surface | Before v0.8.2 | After v0.8.2 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` (httpx, untouched) | 30 | 30 | 0 |
+| `tests/test_leid_sense.py` | 30 | 42 | **+12** (5 config + 4 dispatch + 3 error code) |
+| `tests/test_leid_playwright_client.py` | 46 + 2 skip | 66 + 2 skip | **+20** (18 session/click + 2 M-1 closure) |
+| `tests/test_leid_session_manager.py` (NEW) | 0 | 19 | **+19** |
+| **Leid scope total** | 106 + 2 skip | 157 + 2 skip | **+51** |
+| **Full suite** | 1427 + 9 skip | 1478 + 9 skip | **+51** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — 0 BLOCKER, 0 SERIOUS, 1 NOTABLE, 2 NIT.
+
+**M-1 from v0.8.1 CLOSED** at this milestone in the coordinated sweep its successor anticipated.
+
+| Finding | Disposition |
+|---|---|
+| NOTABLE-1: `open_session` cleanup heuristic uses fragile introspection | **CLOSED at Wave 6** — replaced with explicit `was_registered` flag (`9341631`) |
+| N-3: import dedup across 4 sites | **DEFERRED** — pure code style, no correctness impact |
+| N-4: `active_count` docstring tightening | **DEFERRED** — observability-only attribute, intent already documented |
+
+### What this milestone teaches
+
+**The pattern of unnamed extensions matures into a third pattern.** Three milestones into the year of disciplined naming, the Skald's pen now distinguishes three categories:
+
+1. **Named disposition** (e.g. v0.7.1 *Straumr á Leið*, v0.8.0 *Opið Vef*, v0.8.2 *Innan Hurðar*) — the body's posture toward something changes.
+2. **Unnamed extension** (e.g. v0.7.3 index-rebuild, v0.6.3.1 disk-mirror, v0.8.1 portrait) — same posture, new manner of practising it.
+3. **NEW: Named-with-new-disposition-within-umbrella** (v0.8.2 *Innan Hurðar* under v0.8 *Opið Vef*) — the umbrella codename still holds, but the slice introduces a qualitatively new disposition (statefulness vs statelessness), so it earns its own name AS WELL AS staying under the umbrella.
+
+This third category is honest about what changed (new disposition deserves a name) and what stayed (the umbrella relationship is still *Opið Vef* — the open web). The Skald reserves new sense-level codenames for new senses; the umbrella codename for new umbrellas; and named-within-umbrella codenames for new dispositions inside an existing umbrella. Three categories of naming for three categories of change.
+
+**Stateful infrastructure is built additively too.** `BrowserSessionManager` is a new class entirely. It does not modify `PlaywrightLeidClient`. The client gains a private lazy `_session_manager` attribute and four new methods that USE the manager — but render_url and screenshot do not touch the manager and are not affected by its existence. Hosts that only use the stateless tools never construct a manager. The strict additive law holds even when the addition is an entirely new class with novel semantics.
+
+**Concurrency correctness was earned, not assumed.** The Auditor probed three race scenarios (cap-race at registration, eviction-race against close, double-close on the same id) and verified each. The cap-race resolution is non-trivial: `check_capacity` does an unlocked read for fast-path; `register_session` re-checks under the lock for correctness. This two-tier discipline — observability without lock; authority with lock — is the right shape for high-concurrency Python async code, but it had to be designed deliberately. The next slice's stateful tools (type, navigate-in-session, query) will inherit this same discipline.
+
+**Audit recommendations close at the right time.** M-1's recommendation explicitly invited bundling into v0.8.2 with the page.click work; that recommendation was honoured exactly. The fourth `Page.*` call site (page.click) was born already-correct because we were closing M-1 in the same sweep that introduced it. **Three audits in a row** have now demonstrated this pattern: defer when premature, address when ripe, sometimes anticipate future work to make the timing perfect.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.2_INNAN_HURDAR.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX addendum — *Innan Hurðar*; new disposition recognised within the umbrella |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.4 added — session lifecycle + click flow + B-12..B-18 enumeration + M-1 closure plan |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 (4 new stateful tools) + Failure modes 3 new rows + Configuration 4 new lines + new §12 contract (B-12..B-18, M-1 closure, return shapes, out-of-scope, Forge contract) |
+| `src/heretic/skilningr/senses/leid/tools.py` | 4 tool definitions appended; module docstring updated |
+| `src/heretic/skilningr/senses/leid/errors.py` | Re-export 3 new classes |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **New module** — `BrowserSessionManager` + `_LeidSession` (~300 lines) |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | 4 new methods (open_session, session_status, click, close_session) + lazy `_session_manager` attribute + M-1 closure wraps on page.content + page.screenshot |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds 4 branches; `_leid_error_code` maps 3 new error classes |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the third milestone in a row) |
+| `src/heretic/skilningr/config_model.py` | LeidConfig 4 new fields (max_concurrent, idle_timeout, max_lifetime, click_timeout) + 5 validation checks (including coherence: max_lifetime >= idle_timeout) |
+| `src/heretic/skilningr/errors.py` | 3 new error classes (LeidSessionLimitError, LeidSessionExpiredError, LeidClickElementNotFoundError) |
+| `tests/test_leid_session_manager.py` | **New file** — 19 BrowserSessionManager unit tests |
+| `tests/test_leid_playwright_client.py` | Helper extended (page.title, page.locator chain, click_side_effect, screenshot_bytes); 18 new TestSession*/TestClick tests; 2 M-1 closure tests |
+| `tests/test_leid_sense.py` | Tool-count check 4 → 8; 5 new config tests; 4 new dispatch tests; 3 new error-code mapping tests |
+| `docs/audit/AUDIT_v0.8.2_INNAN_HURDAR.md` | New — verdict PASSES SCRUTINY |
+| `docs/DEVLOG.md` | This entry (25) |
+
+### State of the body — 2026-05-10 (after v0.8.2)
+
+The Leið faculty now has EIGHT tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful (4):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 tools | v0.6.3.1 |
+| Minni | filesystem | 3 tools | v0.6.2 |
+| Skepja | terminal | 2 tools | v0.6.2 |
+| **Leið** | **the path outward** | **8 tools — 2 httpx + 2 stateless browser + 4 stateful browser** | **v0.8.2** |
+| Library / Mímisbrunnr | the well of memory | 3 tools | v0.7.3 |
+
+Five senses; **five named dispositions** (Blæja, Margblæja, Mjúkblæja, Endurdrykkr, Innan Hurðar); **four** unnamed extensions (v0.7.3, v0.6.3.1, v0.8.0, v0.8.1). Three transport doors (CLI, MCP, REST).
+
+Note: Innan Hurðar is the FIRST named disposition that lives within an existing umbrella codename (v0.8 Opið Vef). The umbrella named the body's relationship to the web; Innan Hurðar names the body's relationship within that web (presence vs visit). Two distinct things; two distinct names; same umbrella.
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.2 Innan Hurðar~~ | **CLOSED — sealed at `9341631`** |
+| ~~Audit M-1 from v0.8.1 (Page.* exception typing)~~ | **CLOSED at v0.8.2 Wave 4** |
+| ~~Audit NOTABLE-1 from v0.8.2 (open_session cleanup heuristic)~~ | **CLOSED at v0.8.2 Wave 6** |
+| **v0.8.2.1 `leid.type`** (form input — uses existing session) | **OPEN — natural next slice** |
+| v0.8.2.2 `leid.navigate` (in-session navigation) | candidate |
+| v0.8.3 `leid.query` (selector + attribute extraction) | candidate |
+| Audit N-3 (import dedup across playwright_client methods) | candidate — pure code style |
+| Audit N-4 (active_count docstring tightening) | candidate — observability docstring |
+| v0.6.3.2 CLI `heretic smidja log` | candidate |
+| v0.7.x parallel multi-source download | candidate |
+
+The autonomous arc that began 2026-05-09 continues into its eleventh sealed milestone. Three slices into v0.8 *Opið Vef*; one more interactive tool (`leid.type`) and one selector/query tool (`leid.query`) remain to fully close the umbrella roadmap milestone.
+
+---
+
+*Entry 25 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
+*The body now crosses the threshold and stays. Five named dispositions, four unnamed extensions; the Skald's pen has matured into three categories of naming. Sessions are bounded, eviction is observable, the door does not stay propped forever. Eleventh milestone in the autonomous arc; the third audit in a row to close a deferred recommendation at exactly the right moment. The session is kept.*
