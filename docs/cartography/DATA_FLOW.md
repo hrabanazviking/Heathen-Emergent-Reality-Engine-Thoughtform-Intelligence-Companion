@@ -6427,6 +6427,164 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.4 Leið stateful sessions + click (Innan Hurðar — v0.8.2)
+
+> **Added 2026-05-10 v0.8.2 (Védis Eikleið).** *Innan Hurðar* — inside the door.
+> Adds stateful browser sessions: open_session keeps a page alive across multiple
+> tool calls. The agent can then click elements on the live page; eventually it
+> closes the session, releasing all resources. New `BrowserSessionManager` owns
+> the open sessions, enforces concurrency limits, and lazily evicts expired
+> sessions on every call. Adds 7 new B-invariants (B-12..B-18) plus the M-1
+> closure (page.content + page.screenshot exception typing) deferred from v0.8.1.
+
+```
+  INNAN HURÐAR — STATEFUL SESSION + CLICK FLOW (v0.8.2)
+
+  Lifecycle has FOUR distinct phases keyed by the session_id.
+
+  Phase A — open_session(url) → {session_id, final_url, title}
+    LeidSense._route → PlaywrightLeidClient.open_session(url)
+        ↓
+    _validate_url           ── B-12: gate runs BEFORE any browser launch.
+                                Same gate as render_url / screenshot.
+        ↓
+    BrowserSessionManager._evict_expired_sessions()    ── B-15
+        ↓ (lazy eviction)
+    if len(_sessions) >= browser_max_concurrent_sessions:
+        raise LeidSessionLimitError                    ── B-13: explicit refusal,
+                                                          no silent eviction.
+        ↓
+    pw      = await async_playwright().start()
+    browser = await pw.chromium.launch(headless=True)  ── B-4 inherited
+    context = await browser.new_context(user_agent=...)── B-8 inherited
+    page    = await context.new_page()
+    response = await page.goto(url,
+                               wait_until=browser_load_state,
+                               timeout=browser_navigation_timeout_seconds*1000)
+        ↓ (failures here cleanup pw/browser/context, do NOT register session)
+    if response.status >= 400: raise LeidHttpError
+        ↓
+    session = _LeidSession(
+        session_id = "leid-" + uuid4().hex,            ── D-26
+        pw, browser, context, page,
+        created_at = monotonic, last_activity_at = monotonic,
+    )
+    _sessions[session_id] = session                    ── B-14: independent quartet
+        ↓
+    return {session_id, final_url=page.url, title=await page.title()}
+
+  Phase B — session_status(session_id) → metadata (non-mutating in spirit)
+    _evict_expired_sessions()                          ── B-15
+    session = _sessions.get(session_id)
+    if session is None: raise LeidSessionExpiredError  ── B-16
+    session.last_activity_at = monotonic               ── B-17 (status counts as
+                                                          activity)
+    return {
+        state: "alive",
+        url: page.url,
+        title: await page.title(),
+        opened_at: created_at, last_activity_at,
+        age_seconds, idle_seconds,
+    }
+
+  Phase C — click(session_id, selector) → result
+    _evict_expired_sessions()
+    session = _sessions.get(session_id) or raise LeidSessionExpiredError
+        ↓
+    locator = session.page.locator(selector).first     ── D-41: first match
+    try:
+        await locator.click(
+            timeout = browser_click_timeout_seconds * 1000,  ── D-42
+        )
+    except PlaywrightTimeoutError:
+        raise LeidClickElementNotFoundError(           ── D-43: agent-specific
+            f"Selector {selector!r} matched no element after timeout"
+        )
+    except PlaywrightError as exc:
+        raise LeidConnectionError(                     ── D-43: network branch
+            f"Click failed at network layer: {exc}"
+        )
+        ↓
+    session.last_activity_at = monotonic               ── B-17
+    try: title = await session.page.title()            ── D-49: defensive
+    except: title = None
+    return {selector, clicked: true, current_url: page.url, current_title: title}
+
+  Phase D — close_session(session_id) → idempotent
+    session = _sessions.pop(session_id, None)          ── B-18: pop-then-clean
+                                                          (so concurrent
+                                                          eviction cannot
+                                                          double-clean)
+    if session is None:
+        return {session_id, closed: false}             ── B-18 idempotent
+        ↓
+    try: await session.context.close()                 ── B-7-style cleanup
+    except: log warning
+    try: await session.browser.close()
+    except: log warning
+    try: await session.pw.stop()
+    except: log warning
+        ↓
+    return {session_id, closed: true}
+
+  EVICTION (lazy, on every call):
+    For each session in _sessions:
+        idle = now - session.last_activity_at
+        age  = now - session.created_at
+        if idle > browser_session_idle_timeout_seconds:
+            evict (same cleanup as close_session, log WARNING)
+        elif age > browser_session_max_lifetime_seconds:
+            evict
+    A session evicted between the agent's last call and the next one becomes
+    a LeidSessionExpiredError → SENSE_UNAVAILABLE on the next reference.
+
+  M-1 CLOSURE (deferred from AUDIT_v0.8.1 NIT M-1):
+    Three additional Page.* call sites gain explicit exception typing this
+    milestone:
+      render_url:  await page.content()    → wrap with try/except mapping
+                                              PlaywrightError →
+                                              LeidConnectionError
+      screenshot:  await page.screenshot() → same wrap, same mapping
+      click:       await locator.click()   → wrap with try/except mapping
+                                              PlaywrightTimeoutError →
+                                              LeidClickElementNotFoundError;
+                                              other PlaywrightError →
+                                              LeidConnectionError
+    The fourth site (page.goto) was already correctly typed in v0.8.0.
+    All four Page.* network-level failure modes now surface to the agent
+    with the same precision httpx failures already had.
+
+  Cookie state across the lifecycle:
+    Within a single session: cookies persist (that is what a session IS).
+    Across sessions:         cookies do NOT persist. Each new_context is
+                             fresh. close_session discards all session-
+                             local cookies. B-3 holds at the session
+                             boundary, not at the call boundary.
+
+  Resource ownership:
+    Each session owns its OWN (pw, browser, context, page) quartet (B-14).
+    Sessions are independent — closing one does not affect any other.
+    Manager owns the dict; sessions own their resources.
+
+  Concurrency posture:
+    BrowserSessionManager uses asyncio.Lock around the dict mutations
+    (D-35). Concurrent open_session calls are serialised at the cap-check
+    boundary so the cap is honoured exactly. Concurrent calls on different
+    session_ids do NOT serialise (sessions are independent).
+
+  Cost vs the stateless tools:
+    open_session:    same as render_url cold start (~500-3000 ms)
+    session_status:  trivial (~microseconds + page.title() call)
+    click:           varies by element + browser_click_timeout_seconds cap
+    close_session:   ~hundreds of ms (browser teardown is not free)
+
+  License posture:
+    No new dependencies. uuid + asyncio are stdlib. Playwright + Chromium
+    licensing already established at v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
