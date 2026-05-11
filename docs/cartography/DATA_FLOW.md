@@ -7578,6 +7578,92 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.13 Leið configurable viewport (Innan Hurðar extension — v0.8.9)
+
+> **Added 2026-05-11 v0.8.9 (Védis Eikleið).** Twelfth unnamed Innan Hurðar
+> extension — adds operator-controlled viewport for browser-mode tools.
+> Two new config fields (`browser_viewport_width` + `browser_viewport_height`,
+> defaults 1280 × 720). Applied at all three browser-context-creation sites
+> (`render_url`, `screenshot`, `open_session`). One new B-invariant (B-27)
+> covering uniform propagation. NO agent-facing change — viewport is
+> operator infrastructure.
+
+```
+  LEIÐ CONFIGURABLE VIEWPORT PROPAGATION (v0.8.9)
+
+  This is not a new tool — it is a behavior change to existing tools.
+  Each browser-context-creation site gains one new kwarg in its
+  new_context call.
+
+  THREE sites (B-27):
+
+  Site 1 — render_url (stateless, v0.8.0)
+    context = await browser.new_context(
+        user_agent=config.user_agent,
+        viewport={                                  ── NEW
+            "width": config.browser_viewport_width,
+            "height": config.browser_viewport_height,
+        },
+    )
+    Each render_url call creates a fresh context with the configured
+    viewport. The viewport persists for the duration of that context
+    (which is the duration of the call — render_url is launch-per-call).
+
+  Site 2 — screenshot (stateless, v0.8.1)
+    Same shape. Each screenshot call creates a fresh context with the
+    configured viewport. The viewport affects what the screenshot
+    captures (especially relevant for full-page screenshots, where a
+    wider viewport reveals different layout than a narrower one).
+
+  Site 3 — open_session (stateful, v0.8.2)
+    Same shape. The session's viewport is set ONCE at open_session and
+    persists for the life of the session. All subsequent session tools
+    (click, type, navigate, query, query_all, session_render,
+    session_screenshot, etc.) operate within the session's
+    operator-chosen viewport. Mid-session viewport change is OUT OF
+    SCOPE (D-130) — session viewport is fixed at creation.
+
+  CONFIG FIELDS:
+    browser_viewport_width: int = 1280  (validated > 0)
+    browser_viewport_height: int = 720  (validated > 0)
+
+    Defaults match Playwright's default; existing operators see no
+    behavior change.
+
+  PROPAGATION DISCIPLINE (B-27):
+    The same operator config flows to all three sites — the body's
+    viewport is uniform across whether the work is launch-per-call or
+    launch-per-session. No site uses a different viewport; no site
+    silently falls back to Playwright's default.
+
+  AGENT-FACING SURFACE:
+    Unchanged. No tool gains a new parameter. No tool's return shape
+    changes. The viewport is operator infrastructure — agents that ask
+    "what does this page show?" get the answer their operator's
+    viewport produces, with no need to know that a viewport exists.
+
+  WHY OPERATOR-CONTROLLED, NOT AGENT-CONTROLLED:
+    Agent-supplied viewport would let the agent ask for "show me this
+    page at mobile width" — useful, but it would require the agent to
+    reason about browser rendering details that are usually the
+    operator's concern. Operator-controlled is the right scope: the
+    operator picks the viewport their use case needs, and every agent
+    using their HERETIC instance gets the same view.
+
+    Per-tool viewport override (e.g., screenshot at 1920 but session
+    at 1280) is a candidate for v0.8.x if real use cases demand it.
+
+  COST: ZERO.
+    Adding a viewport kwarg to new_context is free at runtime. The
+    overhead of operating at a different viewport is whatever the
+    page itself costs to render at that size.
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
