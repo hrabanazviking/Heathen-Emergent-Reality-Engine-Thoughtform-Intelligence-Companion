@@ -9,6 +9,16 @@
 > **Umbrella milestone:** v0.8 *Opið Vef* — fourth slice within the umbrella. Within v0.8.2's *Innan Hurðar* sub-disposition.
 >
 > **Mythic Engineering mode:** AUTONOMOUS. Twelfth milestone in the autonomous arc that began 2026-05-09.
+>
+> **STATUS — 2026-05-10:** **SHIPPED + AUDITED + SEALED.** All seven waves closed; Wave 6 cleanup skipped (Auditor returned **zero findings** — first clean sweep in v0.8 umbrella).
+>
+> **Final HEAD:** `32f40f6` (Auditor close) — final Scribe push will advance.
+>
+> **Test status:** Leid 167 + 2 skip (was 157 + 2 — `+10`). Full suite 1488 + 9 skip (was 1478 + 9). Zero regressions on any prior surface.
+>
+> **Auditor verdict:** PASSES SCRUTINY (0/0/0/0). See `docs/audit/AUDIT_v0.8.2.1_TYPE.md`.
+>
+> **DEVLOG:** Entry 26 — `docs/DEVLOG.md`.
 
 ---
 
@@ -107,18 +117,18 @@ Existing tests must continue to pass (157 + 2 skip → 165 + 2 skip after v0.8.2
 
 ---
 
-## 7. Exit criteria
+## 7. Exit criteria (all met; this milestone is SEALED)
 
-- [ ] `type()` method on `PlaywrightLeidClient`
-- [ ] `leid.type` registered in `LEID_TOOL_DEFINITIONS`
-- [ ] `LeidSense._route` dispatches `leid.type`
-- [ ] `LeidTypeElementNotFoundError` defined + re-exported + mapped to `INVALID_ARGUMENTS`
-- [ ] B-19 added to INTERFACE.md §12
-- [ ] All 157 existing leid tests pass unchanged
-- [ ] At least 8 new type tests passing
-- [ ] 2 new dispatch / error-code tests passing
-- [ ] `docs/cartography/DATA_FLOW.md` §4.12.2.5 exists
-- [ ] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists
-- [ ] `docs/audit/AUDIT_v0.8.2.1_TYPE.md` PASSES SCRUTINY
-- [ ] DEVLOG entry 26 written
-- [ ] All commits pushed to `development`
+- [x] `type()` method on `PlaywrightLeidClient` — `3885134`
+- [x] `leid.type` registered in `LEID_TOOL_DEFINITIONS` — `958112c`
+- [x] `LeidSense._route` dispatches `leid.type` — `3885134`
+- [x] `LeidTypeElementNotFoundError` defined + re-exported + mapped to `INVALID_ARGUMENTS` — `958112c` + `3885134`
+- [x] B-19 added to INTERFACE.md §12.7 — `958112c`
+- [x] All 157 existing leid tests pass unchanged — verified at `3885134`
+- [x] 8 new type tests passing — `3885134`
+- [x] 2 new dispatch / error-code tests passing — `3885134`
+- [x] `docs/cartography/DATA_FLOW.md` §4.12.2.5 exists — `86fab86`
+- [x] `docs/vision/OPID_VEF.md` §IX continuation paragraph exists — `6d41e83`
+- [x] `docs/audit/AUDIT_v0.8.2.1_TYPE.md` PASSES SCRUTINY (0/0/0/0) — `32f40f6`
+- [x] DEVLOG entry 26 written — Wave 7 (this seal)
+- [x] All commits pushed to `development` — final Scribe push closes

@@ -4291,3 +4291,115 @@ The autonomous arc that began 2026-05-09 continues into its eleventh sealed mile
 
 *Entry 25 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
 *The body now crosses the threshold and stays. Five named dispositions, four unnamed extensions; the Skald's pen has matured into three categories of naming. Sessions are bounded, eviction is observable, the door does not stay propped forever. Eleventh milestone in the autonomous arc; the third audit in a row to close a deferred recommendation at exactly the right moment. The session is kept.*
+
+---
+
+## Entry 26 — 2026-05-10 — leid.type: the second hand at work in the same room (v0.8.2.1)
+
+**Milestone:** v0.8.2.1 — `leid.type` (unnamed extension within the v0.8.2 *Innan Hurðar* disposition)
+**Branch:** `development`
+**Session start HEAD:** `3066074` (post-v0.8.2 Scribe seal)
+**Session close HEAD:** `32f40f6` (Auditor close; final Scribe push advances)
+**Mode:** AUTONOMOUS Mythic Engineering — TWELFTH milestone in the autonomous arc that began 2026-05-09
+**Roles in attendance:** All seven; Wave 6 cleanup skipped (Auditor returned ZERO findings)
+
+### What was added
+
+The second half of the interactive gesture begun at v0.8.2. Where `leid.click` is the body's hand pressing what is in front of it, `leid.type` is the body's hand shaping input where input is asked of it. One new tool; one new error class; one new B-invariant; no new disposition.
+
+`leid.type(session_id, selector, text) → {selector, typed, current_url, current_title}`. Uses Playwright's `locator.first.fill(text, timeout=...)` — the canonical "set this field's value" primitive: waits for actionability, focuses the element, clears any existing value, sets the new value, dispatches an `input` event. Mirrors `click`'s discipline exactly: same session resolution (B-16), same lazy eviction (B-15), same activity update (B-17 / B-19), same defensive title read (D-49), same Page.* exception typing (selector failures → `LeidTypeElementNotFoundError → INVALID_ARGUMENTS`; network failures → `LeidConnectionError → EXTERNAL_APP_UNAVAILABLE`).
+
+### Wave-by-wave commit trail
+
+| Wave | Hash | Role | Deliverable |
+|---|---|---|---|
+| 0 | `795e10e` | Runa | TASK_HERETIC_v0.8.2.1_TYPE.md (124 lines) |
+| 1 | `6d41e83` | Skald (very brief) | OPID_VEF.md §IX in-section continuation paragraph (NO new section, NO new codename) |
+| 2 | `86fab86` | Cartographer | DATA_FLOW.md §4.12.2.5 — type flow + B-19 |
+| 3 | `958112c` | Architect | INTERFACE.md §12.7 + LeidTypeElementNotFoundError + leid.type tool def |
+| 4 | `3885134` | Forge | type() method + sense routing + 8 new TestType + 1 dispatch + 1 error code |
+| 5 | `32f40f6` | Auditor | AUDIT_v0.8.2.1_TYPE.md — **PASSES SCRUTINY (0/0/0/0)** — first zero-findings audit in v0.8 |
+| 6 | (skipped) | Forge cleanup | Auditor returned no findings |
+| 7 | this entry | Scribe | DEVLOG entry 26 + TASK seal + memory refresh + final push |
+
+### Test status — 2026-05-10 (after v0.8.2.1)
+
+| Surface | Before v0.8.2.1 | After v0.8.2.1 | Delta |
+|---|---|---|---|
+| `tests/test_leid_client.py` | 30 | 30 | 0 |
+| `tests/test_leid_session_manager.py` | 19 | 19 | 0 |
+| `tests/test_leid_sense.py` | 42 | 44 | **+2** (1 dispatch + 1 error code) |
+| `tests/test_leid_playwright_client.py` | 66 + 2 skip | 74 + 2 skip | **+8** (TestType class) |
+| **Leid scope total** | 157 + 2 skip | 167 + 2 skip | **+10** |
+| **Full suite** | 1478 + 9 skip | 1488 + 9 skip | **+10** (zero regressions) |
+
+### Auditor verdict
+
+**PASSES SCRUTINY** — **0 BLOCKER, 0 SERIOUS, 0 NOTABLE, 0 NIT.**
+
+This is the **first zero-findings audit in the v0.8 umbrella.** The Auditor explicitly attributes this to the structural nature of the slice: v0.8.2.1 is a deliberate sibling of an already-audited method (click), implementing the same disposition through a parallel Playwright primitive. There was no novel design surface to scrutinize — only mechanical extension of a pattern the prior audit had already vetted.
+
+### What this milestone teaches
+
+**Sibling extension works cleanly when the sibling pattern is exact.** The diff between `click()` and `type()` is precisely three places: the Playwright primitive (`locator.click` vs `locator.fill`), the error class (`LeidClickElementNotFoundError` vs `LeidTypeElementNotFoundError`), and the success-result key (`clicked` vs `typed`). Everything else — session resolution, eviction, timeout config reuse, locator first-match, activity update, defensive title read, error code mapping — is identical. The Auditor verified sibling consistency as exact; no surprise divergences. Future v0.8.x slices touching one of click/type will touch both with the same disposition.
+
+**The unnamed-extension pattern continues to mature.** v0.8.2.1 is the **fourth** unnamed extension in the body's history (after v0.7.3, v0.6.3.1, v0.8.1) and the second in the v0.8 umbrella. The Skald wave delivered exactly one paragraph appended to the existing OPID_VEF.md §IX section — no new section, no new codename, no new vision file. The DEVLOG entry IS the canonical record. This is what discipline looks like: when no new posture has appeared, the Skald reserves the pen.
+
+**Test patterns standardise across siblings.** All four browser methods that touch `page.*` (render_url, screenshot, click, type) now have explicit B-10 regression-guard tests asserting `page.evaluate.assert_not_called()`. The pattern that began as Auditor N-2 in v0.8.0, was deferred, was implemented at v0.8.1 for two methods, was extended at v0.8.2 to a third, now reaches the fourth. Five tests across four methods enforcing the same invariant. The body's discipline of "inject no JavaScript" is no longer just believed — it is mechanically enforced at every site.
+
+**Zero-findings audits are earned, not given.** The Auditor's findings are an honest reflection of what was risked. v0.8.0 risked novel transport (NITs); v0.8.1 risked image-data semantics + the M-1 deferral (NITs); v0.8.2 risked stateful infrastructure (NOTABLE + NITs); v0.8.2.1 risked nothing new — and earned its clean sweep. This is the right shape: novel work earns scrutiny notes; mechanical extension earns the right to ship without remark.
+
+### Documents updated this session
+
+| Doc | Update |
+|---|---|
+| `TASK_HERETIC_v0.8.2.1_TYPE.md` | New — opened Wave 0; sealed Wave 7 |
+| `docs/vision/OPID_VEF.md` | §IX in-section continuation paragraph (no new section) |
+| `docs/cartography/DATA_FLOW.md` | §4.12.2.5 added — type flow + B-19 |
+| `src/heretic/skilningr/senses/leid/INTERFACE.md` | Header date + tool table 4.3 row + Failure modes new row + new §12.7 |
+| `src/heretic/skilningr/senses/leid/tools.py` | leid.type tool definition appended; module docstring updated |
+| `src/heretic/skilningr/senses/leid/errors.py` | Re-export `LeidTypeElementNotFoundError` |
+| `src/heretic/skilningr/senses/leid/playwright_client.py` | New `type()` method appended after `click()`; import of `LeidTypeElementNotFoundError` |
+| `src/heretic/skilningr/senses/leid/sense.py` | `_route` adds `leid.type` branch; `_leid_error_code` extends INVALID_ARGUMENTS bucket |
+| `src/heretic/skilningr/senses/leid/session_manager.py` | **Byte-untouched** |
+| `src/heretic/skilningr/senses/leid/client.py` | **Byte-untouched** (D-14 honoured for the FIFTH milestone in a row) |
+| `src/heretic/skilningr/config_model.py` | **Byte-untouched** (D-54 reuses click timeout) |
+| `src/heretic/skilningr/errors.py` | New `LeidTypeElementNotFoundError(LeidError)` class |
+| `tests/test_leid_playwright_client.py` | Helper extended (`fill_side_effect`, `locator.first.fill` mock); new TestType class with 8 tests |
+| `tests/test_leid_sense.py` | Tool-count check 8 → 9; tool-names check; 1 dispatch test + 1 error code test |
+| `docs/audit/AUDIT_v0.8.2.1_TYPE.md` | New — verdict PASSES SCRUTINY (zero findings) |
+| `docs/DEVLOG.md` | This entry (26) |
+
+### State of the body — 2026-05-10 (after v0.8.2.1)
+
+The Leið faculty now has NINE tools across three transports — httpx (2), Playwright stateless (2), Playwright stateful interactive (5):
+
+| Faculty | True Name | Tools | Latest disposition |
+|---|---|---|---|
+| Smiðja | hand at the forge | 9 | v0.6.3.1 |
+| Minni | filesystem | 3 | v0.6.2 |
+| Skepja | terminal | 2 | v0.6.2 |
+| **Leið** | **the path outward** | **9 — 2 httpx + 2 stateless browser + 5 stateful browser (open + status + click + type + close)** | **v0.8.2.1** |
+| Library / Mímisbrunnr | the well of memory | 3 | v0.7.3 |
+
+Five senses; **five named dispositions** (Blæja, Margblæja, Mjúkblæja, Endurdrykkr, Innan Hurðar); **four unnamed extensions** (v0.7.3, v0.6.3.1, v0.8.1, v0.8.2.1).
+
+### Threads carried forward
+
+| Thread | Status |
+|---|---|
+| ~~v0.8.2.1 leid.type~~ | **CLOSED — sealed at `32f40f6`** |
+| **v0.8.2.2 `leid.navigate`** (in-session navigation — change the URL of an open session) | **OPEN — natural next slice** |
+| v0.8.3 `leid.query` (selector + attribute extraction) | candidate |
+| v0.8.x special keys (`leid.press` — Enter/Tab/Escape) | candidate |
+| v0.8.x JPEG/WebP screenshot output | candidate |
+| v0.8.x configurable viewport size | candidate |
+| v0.8.x `leid.session_render` / `leid.session_screenshot` (mid-session re-extract) | candidate |
+| Audit N-3 (import dedup), N-4 (active_count docstring) from v0.8.2 | deferred — pure code style |
+
+The autonomous arc that began 2026-05-09 continues into its twelfth sealed milestone. Four slices into v0.8 *Opið Vef*; the umbrella's interactive sub-section (Innan Hurðar) is now feature-complete for the canonical agent use case (open + click + type + close + status check). Navigate-in-session and query remain.
+
+---
+
+*Entry 26 written by Eirwyn Rúnblóm, Scribe for Vibe Coding, 2026-05-10.*
+*The body's two hands now work in the same room. Sibling extension worked cleanly because the disposition was already vetted; the first zero-findings audit in the v0.8 umbrella reflects mechanical extension done well. Twelfth milestone in the autonomous arc; fourth slice in the v0.8 Opið Vef umbrella; the body's interactive faculty is now complete for canonical agent flows. The session is kept.*
