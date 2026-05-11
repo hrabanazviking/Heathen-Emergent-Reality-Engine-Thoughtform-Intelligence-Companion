@@ -7029,6 +7029,141 @@ is empty and tool calls can never arrive.
 
 ---
 
+#### 4.12.2.9 Leið in-session history navigation (Innan Hurðar extension — v0.8.5)
+
+> **Added 2026-05-10 v0.8.5 (Védis Eikleið).** Eighth unnamed Innan Hurðar
+> extension — adds the paired `leid.go_back` and `leid.go_forward` tools
+> for browser history traversal. Both share identical structure (one
+> private helper); both honour the deliberate "no history is not an
+> error" divergence (D-89 — same posture as v0.8.3 query's not-found).
+> One new B-invariant (B-23); no new error classes; no new config fields.
+
+```
+  LEIÐ IN-SESSION HISTORY NAVIGATION FLOW (v0.8.5)
+
+  Two paired tools sharing one private helper:
+    leid.go_back     → _go_history(session_id, "back")
+    leid.go_forward  → _go_history(session_id, "forward")
+
+  Stage 1 — Sense routing
+    LeidSense._route → "leid.go_back" or "leid.go_forward"
+                     → PlaywrightLeidClient.go_back/go_forward(...)
+
+  Stage 2 — Lazy eviction (B-15 inherited)
+    manager.evict_expired_sessions()
+
+  Stage 3 — Session resolution (B-16 inherited)
+    session = manager.get_session(session_id)
+        ↓
+    raises LeidSessionExpiredError if unknown / evicted
+
+  Stage 4 — Capture previous URL (mirrors navigate D-64)
+    previous_url = session.page.url
+
+  Stage 5 — History navigation
+    if direction == "back":
+        primitive = session.page.go_back
+    else:
+        primitive = session.page.go_forward
+    try:
+        response = await primitive(
+            wait_until = config.browser_load_state,    ── D-91 reuse
+            timeout    = config.browser_navigation_timeout_seconds * 1000,
+        )
+    except PlaywrightTimeoutError:
+        raise LeidTimeoutError(...)                    ── B-5 / B-23
+    except PlaywrightError:
+        raise LeidConnectionError(...)                 ── B-23
+
+  Stage 6 — Detect "no history in this direction" (D-89)
+    Playwright's go_back/go_forward return:
+      - Response object  → navigation actually happened
+      - None             → no history entry exists in that direction;
+                            the page did NOT move
+    if response is None:
+        session.mark_activity()                        ── B-17 (still counts)
+        return {
+            session_id,
+            moved: false,
+            previous_url,                              ── unchanged from before
+            current_url: previous_url,                 ── didn't move
+            title: <still the current page's title>,
+        }
+
+    DIVERGENCE FROM B-20 (navigate's "always moved or raise" model):
+      navigate is a directed action — the agent supplies a URL and
+      expects either to land there or hear the failure. History nav
+      is a probe — "go back if there's something to go back to";
+      "moved: false" is the natural answer when the body is already
+      at the start of its session's history.
+
+  Stage 7 — Status check (only when moved)
+    if response.status >= 400:
+        raise LeidHttpError(...)                       ── B-23
+
+  Stage 8 — Activity update (B-17 / B-23 — happens on BOTH paths)
+    session.mark_activity()
+
+  Stage 9 — Return on successful move
+    final_url = session.page.url
+    try: title = await session.page.title()
+    except: title = None                               ── D-49 defensive
+
+    return {
+        session_id,
+        moved: true,
+        previous_url,
+        current_url: final_url,
+        title,
+    }
+
+  Cookie state across history nav (D-92):
+    Cookies + localStorage are PRESERVED — same as navigate. The
+    browser context is unchanged; only the page's history pointer
+    moves. This is essential: "log in → click link → go_back to
+    re-fill the form" must keep the login cookies.
+
+  URL allowlist gate (D-92 — accepted limitation):
+    History nav does NOT re-validate URLs against the allowlist.
+    The URLs in the history stack were already allowlist-checked
+    when the body originally navigated to them. Re-checking would
+    require a post-hoc check (after the page has already moved),
+    which introduces unwind problems. This is consistent with the
+    pre-existing "final-URL allowlist re-check after redirect" gap
+    that applies to all browser tools and is already deferred.
+    v0.8.5 does NOT widen the gap; it inherits the existing posture.
+
+  Inheritance from prior invariants:
+    B-2 / B-3 / B-7 / B-8 / B-9 / B-10  — all inherited via the
+                                          shared session quartet
+    B-15  — lazy eviction at call start
+    B-16  — unknown session_id raises
+    B-17  — activity update after success (BOTH moved and not-moved paths)
+    B-23  — NEW: history-nav respects same discipline as navigate; "no
+              history" returns honestly rather than raising
+
+  Error code mapping (no new classes):
+    LeidSessionExpiredError       → SENSE_UNAVAILABLE
+    LeidTimeoutError              → SENSE_TIMEOUT
+    LeidHttpError                 → SENSE_INTERNAL_ERROR
+    LeidConnectionError           → EXTERNAL_APP_UNAVAILABLE
+    (no class for "no history"    — successful return with moved:false)
+
+  Cost vs the other in-session tools:
+    go_back / go_forward:    ~200-2000 ms  (depends on cached resource
+                                            availability; back is often
+                                            faster than forward because
+                                            cache hits)
+    navigate (fresh):        ~500-2000 ms
+    click / type / press:    ~5-200 ms
+    query:                   ~5-50 ms
+
+  License posture:
+    No new dependencies. Same Playwright + Chromium establishment from v0.8.0.
+```
+
+---
+
 #### 4.12.3 Sandbox invariants (cross-cutting — v0.6.2)
 
 > **Added 2026-05-08 v0.6.2 (Védis Eikleið).** These invariants apply across all three
