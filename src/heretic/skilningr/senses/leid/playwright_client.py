@@ -1143,6 +1143,119 @@ class PlaywrightLeidClient:
             "title": title,
         }
 
+    async def query(
+        self, session_id: str, selector: str, attribute: str = ""
+    ) -> dict[str, Any]:
+        """Read text or attribute of first element matching *selector*. (B-21, D-69..D-79)
+
+        v0.8.3 — sixth unnamed extension within Innan Hurðar; the body's
+        first eye inside the door (read-only).
+
+        DELIBERATE divergence from click/type (D-72): a selector matching
+        no elements is NOT a failure. Returns ``{found: False, count: 0,
+        value: None}``. Read tools must support "looking to see if X
+        exists" without forcing the agent to wrap the success case in
+        try/except.
+
+        Args:
+            session_id: A session_id returned by a prior open_session call.
+            selector:   CSS selector. Only the first match's value is
+                        returned, but ``count`` reports total matches.
+            attribute:  Optional. If empty (default), returns the element's
+                        text content. If non-empty, returns the value of
+                        that HTML attribute (None if attribute absent).
+
+        Returns:
+            dict with keys: session_id, selector, attribute, found, value, count.
+
+        Raises:
+            LeidSessionExpiredError:  session_id unknown or evicted.
+            LeidConnectionError:      browser-level failure (page closed,
+                                      process disconnect, etc.).
+            (NO LeidQueryElementNotFoundError class — D-79.)
+        """
+        manager = self._get_or_create_session_manager()
+        await manager.evict_expired_sessions()  # B-15
+        session = await manager.get_session(session_id)  # B-16
+
+        try:
+            from playwright.async_api import (
+                Error as PlaywrightError,  # type: ignore[import-not-found]
+            )
+            from playwright.async_api import (
+                TimeoutError as PlaywrightTimeoutError,  # type: ignore[import-not-found]
+            )
+        except ImportError as exc:
+            raise LeidPlaywrightUnavailableError(
+                f"Playwright disappeared between open_session and query: {exc}"
+            ) from exc
+
+        timeout_ms = self._config.browser_click_timeout_seconds * 1000  # D-75
+
+        # Stage 4 — locator + count (always — gives us the cheap path for "no match")
+        locator = session.page.locator(selector)
+        try:
+            count = await locator.count()
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"query({selector!r}) on session {session_id!r}: locator.count() "
+                f"failed at the browser level: {exc}"
+            ) from exc
+
+        # Stage 5 — not-found early return (D-72)
+        if count == 0:
+            session.mark_activity()  # B-17 (still counts as activity)
+            self._log.debug(
+                "Leið query: session=%s selector=%r -> not found",
+                session_id, selector,
+            )
+            return {
+                "session_id": session_id,
+                "selector": selector,
+                "attribute": attribute,
+                "found": False,
+                "value": None,
+                "count": 0,
+            }
+
+        # Stage 6 — extract from first match (D-69)
+        first = locator.first
+        try:
+            if attribute == "":  # D-70 — default to text content
+                value = await first.text_content(timeout=timeout_ms)
+            else:  # D-71 — specific attribute
+                value = await first.get_attribute(attribute, timeout=timeout_ms)
+        except PlaywrightTimeoutError as exc:
+            raise LeidConnectionError(
+                f"query({selector!r}, attribute={attribute!r}) on session "
+                f"{session_id!r} timed out during extraction after "
+                f"{self._config.browser_click_timeout_seconds}s: {exc}"
+            ) from exc
+        except PlaywrightError as exc:
+            raise LeidConnectionError(
+                f"query({selector!r}, attribute={attribute!r}) on session "
+                f"{session_id!r} failed at the browser level: {exc}"
+            ) from exc
+
+        # B-17 / B-21 — successful query counts as activity.
+        session.mark_activity()
+
+        self._log.debug(
+            "Leið query: session=%s selector=%r attribute=%r -> count=%d, "
+            "value_len=%s",
+            session_id, selector, attribute, count,
+            len(value) if isinstance(value, str) else "null",
+        )
+
+        return {
+            "session_id": session_id,
+            "selector": selector,
+            "attribute": attribute,
+            "found": True,
+            "value": value,  # str OR None (when text_content / get_attribute returned None)
+            "count": count,
+        }
+
     async def close_session(self, session_id: str) -> dict[str, Any]:
         """Close the session and release all browser resources. Idempotent. (B-18)
 

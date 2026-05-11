@@ -107,6 +107,9 @@ def _install_fake_playwright(
 
     # v0.8.2 — click locator chain: page.locator(selector).first.click(timeout=...)
     # v0.8.2.1 — fill locator chain: page.locator(selector).first.fill(text, timeout=...)
+    # v0.8.3 — query locator chain: page.locator(selector).count() and
+    #          page.locator(selector).first.text_content(timeout=...) /
+    #          page.locator(selector).first.get_attribute(name, timeout=...)
     click_mock = (
         AsyncMock(side_effect=click_side_effect)
         if click_side_effect is not None
@@ -120,8 +123,14 @@ def _install_fake_playwright(
     locator_first_mock = MagicMock()
     locator_first_mock.click = click_mock
     locator_first_mock.fill = fill_mock
+    # v0.8.3 — defaults: text_content returns "default text", get_attribute returns None.
+    # Tests can override these on the page_mock after fixture invocation.
+    locator_first_mock.text_content = AsyncMock(return_value="default text")
+    locator_first_mock.get_attribute = AsyncMock(return_value=None)
     locator_mock = MagicMock()
     locator_mock.first = locator_first_mock
+    # count defaults to 1; tests override for not-found / multi-match cases.
+    locator_mock.count = AsyncMock(return_value=1)
     page_mock.locator = MagicMock(return_value=locator_mock)
 
     response_mock = MagicMock()
@@ -1390,6 +1399,185 @@ class TestNavigate:
         # Simplest: just call navigate with bogus session — URL gate fires first.
         with pytest.raises(UrlNotAllowedError, match="HTTP"):
             await client.navigate("leid-any", "http://example.com/page")
+
+
+class TestQuery:
+    """B-21, D-69..D-79 for v0.8.3 leid.query — read-only sibling of click/type."""
+
+    @pytest.mark.asyncio
+    async def test_query_unknown_session_raises_expired(self, fake_playwright):
+        """B-16 applies to query."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        with pytest.raises(LeidSessionExpiredError):
+            await client.query("leid-never-existed", "h1")
+
+    @pytest.mark.asyncio
+    async def test_query_returns_text_content_for_first_match(self, fake_playwright):
+        """D-69 / D-70: default attribute → text_content of first match."""
+        _, _, _, page_mock, _ = fake_playwright()
+        # Override locator chain for this test
+        page_mock.locator.return_value.count = AsyncMock(return_value=1)
+        page_mock.locator.return_value.first.text_content = AsyncMock(
+            return_value="Welcome to the Dashboard"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query(opened["session_id"], "h1.title")
+        assert result["found"] is True
+        assert result["value"] == "Welcome to the Dashboard"
+        assert result["selector"] == "h1.title"
+        assert result["attribute"] == ""
+        assert result["count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_query_returns_attribute_when_specified(self, fake_playwright):
+        """D-71: attribute parameter → get_attribute path."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=1)
+        page_mock.locator.return_value.first.get_attribute = AsyncMock(
+            return_value="https://example.com/about"
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query(
+            opened["session_id"], "a.about-link", attribute="href"
+        )
+        assert result["found"] is True
+        assert result["value"] == "https://example.com/about"
+        assert result["attribute"] == "href"
+        # Confirm get_attribute was called with the attribute name
+        page_mock.locator.return_value.first.get_attribute.assert_awaited_once()
+        call_args = page_mock.locator.return_value.first.get_attribute.await_args
+        assert call_args.args[0] == "href"
+
+    @pytest.mark.asyncio
+    async def test_query_returns_count_of_total_matches(self, fake_playwright):
+        """D-74: count reflects locator.count() return."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=7)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query(opened["session_id"], ".item")
+        assert result["count"] == 7
+        assert result["found"] is True
+
+    @pytest.mark.asyncio
+    async def test_query_returns_not_found_when_no_match(self, fake_playwright):
+        """D-72: count == 0 → {found: false, count: 0, value: null}; NO exception."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=0)
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        # MUST NOT raise — this is a successful "not found" return
+        result = await client.query(opened["session_id"], ".error-banner")
+        assert result["found"] is False
+        assert result["count"] == 0
+        assert result["value"] is None
+        # text_content should NOT have been called on the not-found path
+        page_mock.locator.return_value.first.text_content.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_query_returns_found_true_with_null_value_when_attribute_missing(
+        self, fake_playwright
+    ):
+        """D-73: element exists but attribute absent → {found: true, value: null}."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=1)
+        page_mock.locator.return_value.first.get_attribute = AsyncMock(
+            return_value=None  # attribute absent on the element
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        result = await client.query(
+            opened["session_id"], "img.logo", attribute="data-tracking-id"
+        )
+        assert result["found"] is True  # element WAS found
+        assert result["value"] is None  # but the attribute was absent
+        assert result["count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_query_browser_error_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """D-79: PlaywrightError from text_content → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=1)
+        page_mock.locator.return_value.first.text_content = AsyncMock(
+            side_effect=_FakePlaywrightError("Page closed")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="browser level"):
+            await client.query(opened["session_id"], "h1")
+
+    @pytest.mark.asyncio
+    async def test_query_count_failure_raises_leid_connection_error(
+        self, fake_playwright
+    ):
+        """D-79: PlaywrightError from count() → LeidConnectionError."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(
+            side_effect=_FakePlaywrightError("Detached frame")
+        )
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        with pytest.raises(LeidConnectionError, match="locator.count"):
+            await client.query(opened["session_id"], "h1")
+
+    @pytest.mark.asyncio
+    async def test_query_updates_last_activity_on_found(self, fake_playwright):
+        """B-17 / B-21: successful query updates last_activity_at."""
+        fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)  # Windows monotonic clock granularity
+        await client.query(session_id, "h1")
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_query_updates_last_activity_on_not_found(self, fake_playwright):
+        """B-17 / B-21: not-found query ALSO updates activity (still a real call)."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        session_id = opened["session_id"]
+        # Set count=0 for the query path
+        page_mock.locator.return_value.count = AsyncMock(return_value=0)
+        status1 = await client.session_status(session_id)
+        time.sleep(0.05)
+        result = await client.query(session_id, ".not-there")
+        assert result["found"] is False
+        status2 = await client.session_status(session_id)
+        assert status2["last_activity_at"] > status1["last_activity_at"]
+
+    @pytest.mark.asyncio
+    async def test_query_does_not_call_page_evaluate(self, fake_playwright):
+        """B-10 inherited: query must never call page.evaluate."""
+        _, _, _, page_mock, _ = fake_playwright()
+        client = make_client(["https://example.com/*"])
+        opened = await client.open_session("https://example.com/page")
+        page_mock.evaluate.reset_mock()
+        await client.query(opened["session_id"], "h1")
+        page_mock.evaluate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_query_passes_timeout_to_extraction(self, fake_playwright):
+        """D-75: text_content / get_attribute receive timeout=browser_click_timeout * 1000."""
+        _, _, _, page_mock, _ = fake_playwright()
+        page_mock.locator.return_value.count = AsyncMock(return_value=1)
+        client = make_client(
+            ["https://example.com/*"],
+            browser_click_timeout_seconds=7,
+        )
+        opened = await client.open_session("https://example.com/page")
+        await client.query(opened["session_id"], "h1")
+        # text_content should have been called with timeout=7000
+        call_kwargs = page_mock.locator.return_value.first.text_content.await_args.kwargs
+        assert call_kwargs["timeout"] == 7000
 
 
 class TestM1PageExceptionTyping:

@@ -269,6 +269,21 @@ class LeidSense:
             )
             return json.dumps(result)
 
+        if tool_name == "leid.query":
+            # v0.8.3 — sixth unnamed extension within Innan Hurðar (the
+            # body's first eye inside the door — read-only).
+            # attribute is optional; defaults to "" which means text content.
+            if self._playwright_client is None:
+                self._playwright_client = PlaywrightLeidClient(
+                    self._config, log=self._log
+                )
+            result = await self._playwright_client.query(
+                session_id=args["session_id"],
+                selector=args["selector"],
+                attribute=args.get("attribute", ""),
+            )
+            return json.dumps(result)
+
         if tool_name == "leid.close_session":
             if self._playwright_client is None:
                 self._playwright_client = PlaywrightLeidClient(
