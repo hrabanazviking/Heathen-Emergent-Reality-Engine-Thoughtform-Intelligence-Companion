@@ -1,4 +1,3 @@
----
 
 ![https://github.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/blob/main/image-27-heretic.jpg](https://github.com/hrabanazviking/Heathen-Emergent-Reality-Engine-Thoughtform-Intelligence-Companion/blob/main/image-27-heretic.jpg)
 
